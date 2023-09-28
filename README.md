@@ -1,4 +1,17 @@
-# The Mempool Open Source Project® [![mempool](https://img.shields.io/endpoint?url=https://dashboard.cypress.io/badge/simple/ry4br7/master&style=flat-square)](https://dashboard.cypress.io/projects/ry4br7/runs)
+# Mempool Fork: Ordinals!
+
+This is a fork of the awesome The Mempool Open Source Project:
+https://github.com/mempool/mempool#the-mempool-open-source-project
+
+It shows you ordinal inscriptions in the mempool transactions.
+So you know in advance what will be inscribed soon. 
+There are rate limits to the mempool.space API, 
+so you may experience interruptions in functionality.
+
+-----
+
+
+# The Mempool Open Source Project®
 
 https://user-images.githubusercontent.com/93150691/226236121-375ea64f-b4a1-4cc0-8fad-a6fb33226840.mp4
 

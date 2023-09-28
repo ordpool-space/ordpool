@@ -1,0 +1,31 @@
+name: Build Frontend
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-frontend.yml'
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - run: npm install
+    - run: npm run build
+    - name: Deploy Frontend to `haushoppe/ordinals-mempool-build` repo
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      run: |
+        npx angular-cli-ghpages --message="Auto-generated commit" --repo=https://github.com/haushoppe/ordinals-mempool-build.git --branch=main --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-silent
