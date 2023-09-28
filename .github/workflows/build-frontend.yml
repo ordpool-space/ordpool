@@ -27,5 +27,4 @@ jobs:
     - name: Deploy Frontend to `haushoppe/ordinals-mempool-build` repo
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: |
-        npx angular-cli-ghpages --message="Auto-generated commit" --repo=https://github.com/haushoppe/ordinals-mempool-build.git --branch=main --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-silent
+      run: npx angular-cli-ghpages --message="Auto-generated commit" --repo=https://github.com/haushoppe/ordinals-mempool-build.git --branch=main --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-silent
