@@ -1,5 +1,27 @@
 <div class="container-xl about-page">
 
+  <div class="about-text text-left" style="margin-top: 10vh; margin-bottom: 10vh;min-height: 40vh;">
+    <h3>🟧 Ordinals Mempool</h3>
+    <p>
+
+      This website shows you <strong>ordinal inscriptions</strong> in the mempool transactions.
+      So you know in advance what will be inscribed soon.
+      <!-- There are rate limits to the mempool.space API,
+      so you may experience interruptions in functionality. -->
+    </p>
+
+    <hr>
+
+    <p>
+      This is a fork of the awesome <a href="https://github.com/mempool/mempool#the-mempool-open-source-project" target="_blank">The Mempool Open Source Project</a>.
+      Please visit <a href="https://mempool.space/about" target="_blank">this website to see all the amazing people</a> and sponsors that made this project happen.
+      The full source of this fork is available <a href="https://github.com/haushoppe/ordinals-mempool" target="_blank">here</a> (GNU General Public License).<br>
+    </p>
+  </div>
+
+  <!--
+  <hr class="m-4">
+
   <div class="intro">
     <span style="margin-left: auto; margin-right: -20px; margin-bottom: -20px">&reg;</span>
     <img class="logo" src="/resources/mempool-logo-bigger.png" />
@@ -218,7 +240,7 @@
     <div class="wrapper">
       <ng-container *ngIf="ogs$ | async as ogs; else loadingSponsors">
         <a *ngFor="let ogSponsor of ogs" [href]="'https://twitter.com/' + ogSponsor.handle" target="_blank" rel="sponsored" [title]="ogSponsor.handle">
-          <img class="image" [src]="'/api/v1/donations/images/' + ogSponsor.handle" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
+          <img class="image" [src]="'https://mempool.space/api/v1/donations/images/' + ogSponsor.handle" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
         </a>
       </ng-container>
     </div>
@@ -359,7 +381,7 @@
       <div class="wrapper">
         <ng-template ngFor let-translator [ngForOf]="translators">
           <a [href]="'https://twitter.com/' + translator.value" target="_blank" [title]="translator.key">
-            <img class="image" [src]="'/api/v1/translators/images/' + translator.value" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
+            <img class="image" [src]="'https://mempool.space/api/v1/translators/images/' + translator.value" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
           </a>
         </ng-template>
       </div>
@@ -373,7 +395,7 @@
       <div class="wrapper">
         <ng-template ngFor let-contributor [ngForOf]="contributors.regular">
           <a [href]="'https://github.com/' + contributor.name" target="_blank" [title]="contributor.name">
-            <img class="image" [src]="'/api/v1/contributors/images/' + contributor.id" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
+            <img class="image" [src]="'https://mempool.space/api/v1/contributors/images/' + contributor.id" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
             <span>{{ contributor.name }}</span>
           </a>
         </ng-template>
@@ -385,7 +407,7 @@
       <div class="wrapper">
         <ng-template ngFor let-contributor [ngForOf]="contributors.core">
           <a [href]="'https://github.com/' + contributor.name" target="_blank" [title]="contributor.name">
-            <img class="image" [src]="'/api/v1/contributors/images/' + contributor.id" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
+            <img class="image" [src]="'https://mempool.space/api/v1/contributors/images/' + contributor.id" onError="this.src = '/resources/profile/unknown.svg'; this.className = 'image unknown'"/>
             <span>{{ contributor.name }}</span>
           </a>
         </ng-template>
@@ -443,7 +465,7 @@
 
   <br>
 </div>
-
+-->
 
 <ng-template #loadingSponsors>
   <br>

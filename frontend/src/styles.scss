@@ -1,42 +1,74 @@
+$bitcoin: #FF9900;
+
 /* Bootstrap */
 
-$body-bg: #1d1f31;
-$body-color: #fff;
-$gray-800: #1d1f31;
-$gray-700: #fff;
+// Define your custom colors here
+$black: #000;
+$white: #fff;
+// $dark: #343a40;
+$dark: #282828;
+$light: #f8f9fa;
+$primary: $bitcoin;
+$secondary: #6c757d;
+$success: #28a745;
+$info: #17a2b8;
+$warning: #ffc107;
+$danger: #dc3545;
+$light-gray: #e9ecef;
+$dark-gray: #6c757d;
 
-$nav-tabs-link-active-bg: #11131f;
+// Customize Bootstrap colors for dark mode
+$body-bg: #1f1f1f;
+$body-color: $light;
 
-$primary: #105fb0;
-$secondary: #2d3348;
-$success: #1a9436;
-$info: #1bd8f4;
+$theme-colors: (
+  "primary": $primary,
+  "secondary": $dark-gray,
+  "success": $success,
+  "info": $info,
+  "warning": $warning,
+  "danger": $danger,
+  "light": $light,
+  "dark": $black
+);
 
-$h5-font-size: 1.15rem !default;
+// $body-bg: $black;
+// $body-color: #fff;
+// $gray-800: $black;
+// $gray-700: #fff;
 
-$pagination-bg: $body-bg;
-$pagination-border-color: $gray-800;
-$pagination-disabled-bg:           #FFF;
-$pagination-disabled-border-color: #1d1f31;
-$pagination-active-color:          #fff;
-$pagination-active-bg:             #653b9c;
-$pagination-hover-bg:              #12131e;
-$pagination-hover-border-color:     #1d1f31;
-$pagination-disabled-bg:          #1d1f31;
+// $nav-tabs-link-active-bg: #11131f;
 
-$custom-select-indicator-color: #FFF;
+// $primary: $bitcoin;
+// $secondary: #6c757d;
+// $success: #1a9436;
+// $info: $bitcoin;
+
+// $h5-font-size: 1.15rem !default;
+
+// $pagination-bg: $body-bg;
+// $pagination-border-color: $gray-800;
+// $pagination-disabled-bg:           #FFF;
+// $pagination-disabled-border-color: $black;
+// $pagination-active-color:          #fff;
+// $pagination-active-bg:             $bitcoin;
+// $pagination-hover-bg:              #12131e;
+// $pagination-hover-border-color:     $black;
+// $pagination-disabled-bg:          $black;
+
+// $custom-select-indicator-color: #FFF;
 
 .input-group-text {
   background-color: #1c2031 !important;
   border: 1px solid #20263e !important;
 }
 
-$link-color:                #1bd8f4;
+$link-color:                $bitcoin;
 $link-decoration:           none !default;
 $link-hover-color:          darken($link-color, 15%) !default;
 $link-hover-decoration:     underline !default;
 
-$dropdown-bg: #1d1f31;
+$dropdown-bg: $black;
 $dropdown-link-color: #fff;
 
 $dropdown-link-hover-color: #fff;
@@ -127,27 +159,27 @@ main {
 }
 
 .btn-purple {
-  background-color: #653b9c;
-  border-color: #653b9c;
+  background-color: $bitcoin;
+  border-color: none;
 }
 
 .btn-purple:not(:disabled):not(.disabled):active, .btn-purple:not(:disabled):not(.disabled).active, .show > .btn-purple.dropdown-toggle {
   color: #fff;
-  background-color: #4d2d77;
-  border-color: #472a6e;
+  background-color: $bitcoin;
+  border-color: none;
 }
 
 .btn-purple:focus, .btn-purple.focus {
   color: #fff;
-  background-color: #533180;
-  border-color: #4d2d77;
-  box-shadow: 0 0 0 0.2rem rgb(124 88 171 / 50%);
+  background-color: lighten($bitcoin, 15%);
+  border-color: none;
+  // box-shadow: 0 0 0 0.2rem rgb(124 88 171 / 50%);
 }
 
 .btn-purple:hover {
   color: #fff;
-  background-color: #533180;
-  border-color: #4d2d77;
+  background-color: lighten($bitcoin, 15%);
+  border-color: none;
 }
 
 .form-control.form-control-secondary {
@@ -518,7 +550,7 @@ html:lang(ru) .card-title {
 
 .fees-wrapper-tooltip-chart-advanced,
 .tx-wrapper-tooltip-chart-advanced {
-  background: rgba(#1d1f31, 0.98);
+  background: rgba($black, 0.98);
   width: 275px;
 
   thead {
@@ -716,7 +748,7 @@ h1, h2, h3 {
 
 .alert-mempool {
   color: #ffffff;
-  background-color: #653b9c;
+  background-color: $bitcoin;
   border-color: #3a1c61;
   width: 100%;
   display: inline-flex;
@@ -1095,7 +1127,7 @@ th {
   display: inline-block;
   width: 100%;
   justify-content: space-between;
-  background: #1d1f31;
+  background: $black;
   margin: 0;
   @media (min-width: 550px) {
     width: auto;

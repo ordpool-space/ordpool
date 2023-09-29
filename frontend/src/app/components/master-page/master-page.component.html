@@ -22,8 +22,9 @@
     </div>
   </ng-template>
     <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
-      <app-svg-images *ngIf="!officialMempoolSpace" name="mempoolSpace" viewBox="0 0 500 126" class="mempool-logo" [ngStyle]="{'opacity': connectionState.val === 2 ? 1 : 0.5 }"></app-svg-images>
-      <app-svg-images *ngIf="officialMempoolSpace" name="officialMempoolSpace" viewBox="0 0 500 126"></app-svg-images>
+      🟧 Ordinals Mempool
+      <!-- <app-svg-images *ngIf="!officialMempoolSpace" name="mempoolSpace" viewBox="0 0 500 126" class="mempool-logo" [ngStyle]="{'opacity': connectionState.val === 2 ? 1 : 0.5 }"></app-svg-images>
+      <app-svg-images *ngIf="officialMempoolSpace" name="officialMempoolSpace" viewBox="0 0 500 126"></app-svg-images> -->
       <div class="connection-badge">
         <div class="badge badge-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>
         <div class="badge badge-warning" *ngIf="connectionState.val === 1" i18n="master-page.reconnecting">Reconnecting...</div>
@@ -51,6 +52,7 @@
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-home">
         <a class="nav-link" [routerLink]="['/' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'tachometer-alt']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon></a>
       </li>
+      <!--
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
         <a class="nav-link" [routerLink]="['/mining' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'hammer']" [fixedWidth]="true" i18n-title="mining.mining-dashboard" title="Mining Dashboard"></fa-icon></a>
       </li>
@@ -67,6 +69,7 @@
       <li class="nav-item" routerLinkActive="active" id="btn-docs">
         <a class="nav-link" [routerLink]="['/docs' | relativeUrl ]" (click)="collapse()"><fa-icon [icon]="['fas', 'book']" [fixedWidth]="true" i18n-title="documentation.title" title="Documentation"></fa-icon></a>
       </li>
+      -->
       <li class="nav-item" routerLinkActive="active" id="btn-about">
         <a class="nav-link" [routerLink]="['/about']" (click)="collapse()"><fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" i18n-title="master-page.about" title="About"></fa-icon></a>
       </li>

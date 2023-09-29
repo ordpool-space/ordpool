@@ -9,6 +9,7 @@ import { Outspend, Transaction } from '../interfaces/electrs.interface';
 import { Conversion } from './price.service';
 import { MenuGroup } from '../interfaces/services.interface';
 import { StorageService } from './storage.service';
+import { environment } from 'src/environments/environment';
 
 // Todo - move to config.json
 const SERVICES_API_PREFIX = `/api/v1/services`;
@@ -25,7 +26,10 @@ export class ApiService {
     private stateService: StateService,
     private storageService: StorageService
   ) {
-    this.apiBaseUrl = ''; // use relative URL by default
+    // HACK
+    // this.apiBaseUrl = ''; // use relative URL by default
+    this.apiBaseUrl = environment.apiBaseUrl;
+
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }
@@ -165,7 +169,7 @@ export class ApiService {
       this.apiBaseUrl + this.apiBasePath + `/api/v1/mining/pools` +
       (interval !== undefined ? `/${interval}` : ''), { observe: 'response' }
     );
-  }  
+  }
 
   getPoolStats$(slug: string): Observable<PoolStat> {
     return this.httpClient.get<PoolStat>(this.apiBaseUrl + this.apiBasePath + `/api/v1/mining/pool/${slug}`);

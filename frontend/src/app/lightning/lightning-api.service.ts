@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { StateService } from '../services/state.service';
 import { IChannel, INodesRanking, IOldestNodes, ITopNodesPerCapacity, ITopNodesPerChannels } from '../interfaces/node-api.interface';
+import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -14,7 +15,10 @@ export class LightningApiService {
     private httpClient: HttpClient,
     private stateService: StateService,
   ) {
-    this.apiBasePath = ''; // assume mainnet by default
+    // HACK
+    // this.apiBasePath = ''; // assume mainnet by default
+    this.apiBasePath = environment.apiBaseUrl;
+
     this.stateService.networkChanged$.subscribe((network) => {
       if (network === 'bisq' && !this.stateService.env.BISQ_SEPARATE_BACKEND) {
         network = '';
