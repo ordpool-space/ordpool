@@ -10,7 +10,7 @@ import { StateService } from './state.service';
 export class SeoService {
   network = '';
   baseTitle = 'mempool';
-  baseDescription = 'Explore the full Bitcoin ecosystem with The Mempool Open Project™.';
+  baseDescription = 'See what\'s inscribed soon! with 🟧 Ordinals Mempool.';
 
   canonicalLink: HTMLElement = document.getElementById('canonical');
 

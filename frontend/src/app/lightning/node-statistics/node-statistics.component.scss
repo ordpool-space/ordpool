@@ -1,7 +1,7 @@
 .card-title {
-  color: #4a68b9;
+  color: #e68a00;
   font-size: 10px;
-  margin-bottom: 4px;  
+  margin-bottom: 4px;
   font-size: 1rem;
 }
 
@@ -27,7 +27,7 @@
   justify-content: space-between;
   @media (min-width: 376px) {
     flex-direction: row;
-  }  
+  }
   .item {
     max-width: 150px;
     margin: 0;
@@ -43,13 +43,13 @@
       display: none;
       @media (min-width: 485px) {
         display: block;
-      }    
+      }
       @media (min-width: 768px) {
         display: none;
-      }    
+      }
       @media (min-width: 992px) {
         display: block;
-      }  
+      }
     }
     .card-text span {
       color: #ffffff66;
