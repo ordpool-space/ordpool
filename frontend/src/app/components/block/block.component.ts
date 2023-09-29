@@ -84,7 +84,7 @@ export class BlockComponent implements OnInit, OnDestroy {
   timeLtr: boolean;
   childChangeSubscription: Subscription;
   auditPrefSubscription: Subscription;
-  
+
   priceSubscription: Subscription;
   blockConversion: Price;
 

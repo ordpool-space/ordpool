@@ -58,6 +58,36 @@
           <td *ngSwitchCase="'accelerated'"><span class="badge badge-success" i18n="transaction.audit.accelerated">Accelerated</span></td>
         </ng-container>
       </tr>
+
+      <!-- HACK -->
+      <tr >
+        <td class="td-width">Ordinal Inscription</td>
+        <td *ngIf="{ parsedInscription: parsedInscription$ | async } as i">
+
+          <!-- <app-loading-indicator
+            *ngIf="i.parsedInscription && i.parsedInscription.contentType === '?'"
+            [name]="'Loading transaction data...'">
+          </app-loading-indicator> -->
+          <ng-container *ngIf="i.parsedInscription && i.parsedInscription.contentType === '?'">
+            Loading...
+          </ng-container>
+
+          <ng-container *ngIf="!i.parsedInscription">
+            None
+          </ng-container>
+
+          <ng-container
+          *ngIf="i.parsedInscription && i.parsedInscription.contentType !== '?'">
+
+            {{
+              i.parsedInscription | json
+            }}
+          </ng-container>
+
+
+        </td>
+      </tr>
+
     </tbody>
   </table>
 </div>
