@@ -11,7 +11,8 @@ $light: #f8f9fa;
 $primary: $bitcoin;
 $secondary: #6c757d;
 $success: #28a745;
-$info: #17a2b8;
+// $info: #17a2b8;
+$info: $bitcoin;
 $warning: #ffc107;
 $danger: #dc3545;
 $light-gray: #e9ecef;
@@ -37,26 +38,27 @@ $theme-colors: (
 // $gray-800: $black;
 // $gray-700: #fff;
 
-// $nav-tabs-link-active-bg: #11131f;
+$nav-tabs-link-active-bg: #11131f;
 
 // $primary: $bitcoin;
 // $secondary: #6c757d;
 // $success: #1a9436;
 // $info: $bitcoin;
 
-// $h5-font-size: 1.15rem !default;
+$h5-font-size: 1.15rem !default;
 
-// $pagination-bg: $body-bg;
-// $pagination-border-color: $gray-800;
-// $pagination-disabled-bg:           #FFF;
-// $pagination-disabled-border-color: $black;
-// $pagination-active-color:          #fff;
-// $pagination-active-bg:             $bitcoin;
-// $pagination-hover-bg:              #12131e;
-// $pagination-hover-border-color:     $black;
-// $pagination-disabled-bg:          $black;
+$gray-800: #1d1f31;
+$pagination-bg: $body-bg;
+$pagination-border-color: $gray-800;
+$pagination-disabled-bg:           #FFF;
+$pagination-disabled-border-color: $black;
+$pagination-active-color:          #fff;
+$pagination-active-bg:             $bitcoin;
+$pagination-hover-bg:              #12131e;
+$pagination-hover-border-color:     $black;
+$pagination-disabled-bg:          $black;
 
-// $custom-select-indicator-color: #FFF;
+$custom-select-indicator-color: #FFF;
 
 .input-group-text {
   background-color: #1c2031 !important;
@@ -242,7 +244,8 @@ main {
 }
 
 .symbol {
-	color: #ffffff66;
+	// color: #ffffff66;
+  color: rgba(255, 255, 255, 0.6);
 	font-size: 12px;
 }
 
@@ -1127,7 +1130,7 @@ th {
   display: inline-block;
   width: 100%;
   justify-content: space-between;
-  background: $black;
+  // background: #1f1f1f;
   margin: 0;
   @media (min-width: 550px) {
     width: auto;
