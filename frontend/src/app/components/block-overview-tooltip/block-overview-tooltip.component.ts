@@ -2,6 +2,9 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
+import { InscriptionParserService, ParsedInscription } from '../../services/inscription-parser.service';
+import { ElectrsApiService } from '../../services/electrs-api.service';
+import { Observable, map, of, retry, startWith } from 'rxjs';
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -15,6 +18,8 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   @Input() auditEnabled: boolean = false;
   @Input() blockConversion: Price;
 
+  parsedInscription$: Observable<ParsedInscription> = of(null);
+
   txid = '';
   fee = 0;
   value = 0;
@@ -27,7 +32,9 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
 
-  constructor() {}
+  constructor(
+    private electrsApiService: ElectrsApiService,
+    public inscriptionParser: InscriptionParserService) {}
 
   ngOnChanges(changes): void {
     if (changes.cursorPosition && changes.cursorPosition.currentValue) {
@@ -55,6 +62,27 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       this.feeRate = this.fee / this.vsize;
       this.effectiveRate = tx.rate;
       this.acceleration = tx.acc;
+
+      // HACK
+      if (this.txid) {
+        this.parsedInscription$ = this.electrsApiService.getTransaction$(this.txid).pipe(
+          retry({ count: 2, delay: 1000 }),
+          map(transaction => {
+
+            const wittness = transaction.vin[0]?.witness;
+            if (wittness) {
+              return this.inscriptionParser.parseInscription(wittness);
+            }
+            return null;
+        }),
+        startWith({ contentType: '?', contentString: '' })
+      );
+
+      } else {
+        this.parsedInscription$ = of(null);
+      }
     }
   }
+
+
 }
