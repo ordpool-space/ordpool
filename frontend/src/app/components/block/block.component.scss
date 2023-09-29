@@ -64,7 +64,7 @@
 
     .difference {
       margin-left: 0.5em;
-  
+
       &.positive {
         color: rgb(66, 183, 71);
       }
@@ -172,9 +172,9 @@ h1 {
   }
 
   a {
-    color: #1ad8f4;
+    color: #FF9900;
     &:hover, &:focus {
-      color: #09a3ba;
+      color: darken(#FF9900, 10%);
       display: inline-block;
     }
   }

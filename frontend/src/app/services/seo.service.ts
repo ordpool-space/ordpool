@@ -9,8 +9,8 @@ import { StateService } from './state.service';
 })
 export class SeoService {
   network = '';
-  baseTitle = 'mempool';
-  baseDescription = 'See what\'s inscribed soon! with 🟧 Ordinals Mempool.';
+  baseTitle = '🟧 Ordinals Mempool';
+  baseDescription = 'See what\'s inscribed next with 🟧 Ordinals Mempool.';
 
   canonicalLink: HTMLElement = document.getElementById('canonical');
 
@@ -68,36 +68,37 @@ export class SeoService {
   }
 
   updateCanonical(path) {
-    let domain = 'mempool.space';
-    if (this.stateService.env.BASE_MODULE === 'liquid') {
-      domain = 'liquid.network';
-    } else if (this.stateService.env.BASE_MODULE === 'bisq') {
-      domain = 'bisq.markets';
-    }
+    let domain = 'ordinals-mempool.haushoppe.art';
+    // if (this.stateService.env.BASE_MODULE === 'liquid') {
+    //   domain = 'liquid.network';
+    // } else if (this.stateService.env.BASE_MODULE === 'bisq') {
+    //   domain = 'bisq.markets';
+    // }
     this.canonicalLink.setAttribute('href', 'https://' + domain + path);
   }
 
   getTitle(): string {
-    if (this.network === 'testnet')
-      return this.baseTitle + ' - Bitcoin Testnet';
-    if (this.network === 'signet')
-      return this.baseTitle + ' - Bitcoin Signet';
-    if (this.network === 'liquid')
-      return this.baseTitle + ' - Liquid Network';
-    if (this.network === 'liquidtestnet')
-      return this.baseTitle + ' - Liquid Testnet';
-    if (this.network === 'bisq')
-      return this.baseTitle + ' - Bisq Markets';
-    return this.baseTitle + ' - ' + (this.network ? this.ucfirst(this.network) : 'Bitcoin') + ' Explorer';
+    // if (this.network === 'testnet')
+    //   return this.baseTitle + ' - Bitcoin Testnet';
+    // if (this.network === 'signet')
+    //   return this.baseTitle + ' - Bitcoin Signet';
+    // if (this.network === 'liquid')
+    //   return this.baseTitle + ' - Liquid Network';
+    // if (this.network === 'liquidtestnet')
+    //   return this.baseTitle + ' - Liquid Testnet';
+    // if (this.network === 'bisq')
+    //   return this.baseTitle + ' - Bisq Markets';
+    // return this.baseTitle + ' - ' + (this.network ? this.ucfirst(this.network) : 'Bitcoin') + ' Explorer';
+    return this.baseTitle + ' - Inscpriptions Explorer';
   }
 
   getDescription(): string {
-    if ( (this.network === 'testnet') || (this.network === 'signet') || (this.network === '') || (this.network == 'mainnet') )
-      return this.baseDescription + ' See the real-time status of your transactions, browse network stats, and more.';
-    if ( (this.network === 'liquid') || (this.network === 'liquidtestnet') )
-      return this.baseDescription + ' See Liquid transactions & assets, get network info, and more.';
-    if (this.network === 'bisq')
-      return this.baseDescription + ' See Bisq market prices, trading activity, and more.';
+    // if ( (this.network === 'testnet') || (this.network === 'signet') || (this.network === '') || (this.network == 'mainnet') )
+      return this.baseDescription + ' This service shows you pending ordinal inscriptions in the mempool.';
+    // if ( (this.network === 'liquid') || (this.network === 'liquidtestnet') )
+    //   return this.baseDescription + ' See Liquid transactions & assets, get network info, and more.';
+    // if (this.network === 'bisq')
+    //   return this.baseDescription + ' See Bisq market prices, trading activity, and more.';
   }
 
   ucfirst(str: string) {
