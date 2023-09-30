@@ -105,6 +105,9 @@ import { CalculatorComponent } from '../components/calculator/calculator.compone
 import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
+import { InscriptionViewerComponent } from '../components/inscription-viewer/inscription-viewer.component';
+import { SafeHtmlPipe } from '../components/inscription-viewer/safe-html.pipe';
+
 
 @NgModule({
   declarations: [
@@ -203,6 +206,8 @@ import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-dir
     OnlyVsizeDirective,
     OnlyWeightDirective,
     MempoolErrorComponent,
+    InscriptionViewerComponent,
+    SafeHtmlPipe
   ],
   imports: [
     CommonModule,

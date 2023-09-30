@@ -1,0 +1,12 @@
+<ng-container *ngIf="parsedInscription">
+
+  {{ parsedInscription.contentType }}<br>
+
+  <iframe
+    [srcdoc]="getPreview() | safeHtml"
+    class=""
+    sandbox="allow-scripts"
+    scrolling="no"
+  ></iframe>
+
+</ng-container>

@@ -18,7 +18,7 @@ export interface ParsedInscription {
   contentType: string;
   contentString: string;
   // fields: { [key: string]: Uint8Array };
-  // dataUri: string;
+  dataUri: string;
 }
 
 /**
@@ -168,9 +168,20 @@ export class InscriptionParserService {
   }
 
   /**
-   * Main function that fetches the inscription from a transaction using its ID.
+   * Extra function that returns true if an inscriptionMark is found.
    * @param witness - witness data from vin[0].
-   * @returns A promise that resolves to the inscription as a data-uri.
+   * @returns True if an inscriptionMark is found.
+   */
+  hasInscription(witness: string[]): boolean {
+    const inscriptionMarkHex = '0063036f7264';
+    const witnessJoined = witness.join('');
+    return witnessJoined.includes(inscriptionMarkHex);
+  }
+
+  /**
+   * Main function that parses a inscription or returns null.
+   * @param witness - witness data from vin[0].
+   * @returns The inscription as a data-uri or null.
    */
   parseInscription(witness: string[]): ParsedInscription | null {
 
@@ -179,8 +190,7 @@ export class InscriptionParserService {
     this.pointer = this.getInitialPosition();
 
     if (this.pointer === -1) {
-      console.log('No Inscription found! ' + txWitness);
-
+      // console.log('No Inscription found! ' + txWitness);
       return null;
     }
 
@@ -220,15 +230,14 @@ export class InscriptionParserService {
 
       const contentType = InscriptionParserService.uint8ArrayToString(fields['\u0001']);
       const contentString = InscriptionParserService.uint8ArrayToString(combinedData);
-      // const base64Data = window.btoa(String.fromCharCode(...combinedData));
-      // const dataUri = `data:${contentType};base64,${base64Data}`;
+      const base64Data = window.btoa(String.fromCharCode(...combinedData));
+      const dataUri = `data:${contentType};base64,${base64Data}`;
 
-      console.log('Inscription found!');
       return {
         contentType,
         contentString,
         // fields,
-        // dataUri
+        dataUri
       };
 
     } catch (ex) {
