@@ -77,11 +77,12 @@
           </ng-container>
 
           <ng-container
-          *ngIf="i.parsedInscription && i.parsedInscription.contentType !== '?'">
+            *ngIf="i.parsedInscription && i.parsedInscription.contentType !== '?'">
 
-            {{
-              i.parsedInscription | json
-            }}
+            <app-inscription-viewer
+              style="width: 200px"
+              [parsedInscription]="i.parsedInscription"
+            ></app-inscription-viewer>
           </ng-container>
 
 

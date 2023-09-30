@@ -75,7 +75,11 @@ export class BlockOverviewTooltipComponent implements OnChanges {
             }
             return null;
         }),
-        startWith({ contentType: '?', contentString: '' })
+        startWith({
+          contentType: '?',
+          contentString: '',
+          dataUri: ''
+        })
       );
 
       } else {
