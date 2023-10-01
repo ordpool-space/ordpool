@@ -44,7 +44,13 @@ export class MasterPageComponent implements OnInit {
     private storageService: StorageService,
     private apiService: ApiService,
     private router: Router,
-  ) { }
+  ) {
+
+    // HACK
+    if (router.routerState.snapshot.url === '/') {
+      router.navigate(['/mempool-block', '0']);
+    }
+  }
 
   ngOnInit(): void {
     this.env = this.stateService.env;
@@ -64,7 +70,7 @@ export class MasterPageComponent implements OnInit {
         this.footerVisible = this.footerVisibleOverride;
       }
     });
-    
+
     this.servicesEnabled = this.officialMempoolSpace && this.stateService.env.ACCELERATOR === true && this.stateService.network === '';
     this.refreshAuth();
 
