@@ -22,7 +22,8 @@ import { FiatCurrencyPipe } from './shared/pipes/fiat-currency.pipe';
 import { ShortenStringPipe } from './shared/pipes/shorten-string-pipe/shorten-string.pipe';
 import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe';
 import { AppPreloadingStrategy } from './app.preloading-strategy';
-import { InscriptionParserService } from './services/inscription-parser.service';
+import { InscriptionParserService } from './services/inscriptions/inscription-parser.service';
+import { SequentialParsedInscriptionFetcherService } from './services/inscriptions/sequential-parsed-inscription-fetcher.service';
 
 
 const providers = [
@@ -43,6 +44,7 @@ const providers = [
   CapAddressPipe,
   AppPreloadingStrategy,
   InscriptionParserService,
+  SequentialParsedInscriptionFetcherService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true }
 ];
 

@@ -4,6 +4,8 @@ import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from './sprite-types';
 import { feeLevels, mempoolFeeColors } from '../../app.constants';
 import BlockScene from './block-scene';
+import { SequentialParsedInscriptionFetcherService } from '../../services/inscriptions/sequential-parsed-inscription-fetcher.service';
+import { ParsedInscription } from '../../services/inscriptions/inscription-parser.service';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
@@ -57,7 +59,11 @@ export default class TxView implements TransactionStripped {
 
   dirty: boolean;
 
-  constructor(tx: TransactionStripped, scene: BlockScene) {
+  // HACK
+  parsedInscription: ParsedInscription | undefined | null;
+  sequentialFetcher: SequentialParsedInscriptionFetcherService;
+
+  constructor(tx: TransactionStripped, scene: BlockScene, ) {
     this.scene = scene;
     this.context = tx.context;
     this.txid = tx.txid;
@@ -76,6 +82,10 @@ export default class TxView implements TransactionStripped {
     this.screenPosition = { x: 0, y: 0, s: 0 };
 
     this.dirty = true;
+
+    // HACK
+    this.sequentialFetcher = this.scene.sequentialFetcher;
+    this.fetchInscription();
   }
 
   destroy(): void {
@@ -84,6 +94,43 @@ export default class TxView implements TransactionStripped {
       this.sprite = null;
       this.initialised = false;
     }
+
+    // HACK
+    this.sequentialFetcher.cancelFetchInscription(this.txid);
+  }
+
+  private fetchInscription(): void {
+    this.sequentialFetcher.fetchInscription(this.txid).subscribe({
+      next: (parsedInscription) => this.updateInscription(parsedInscription),
+      error: error => {
+        // console.error('Failed to fetch inscription:', error);
+      }
+    });
+  }
+
+  private updateInscription(parsedInscription: ParsedInscription | null): void {
+
+    this.parsedInscription = parsedInscription;
+
+    // Mark the view as dirty to trigger re-rendering
+    this.dirty = true;
+
+    // i have no clue what I'm doing here, but when I call both functions, then it works...
+    this.sprite.update({
+      ...this.getColor(),
+      duration: 0,
+      adjust: true,
+      temp: false
+    });
+
+    this.scene.applyTxUpdate(this, {
+      display: {
+        position: this.screenPosition,
+        color: this.getColor()
+      },
+      duration: 0
+    });
+
   }
 
   applyGridPosition(position: Square): void {
@@ -197,6 +244,19 @@ export default class TxView implements TransactionStripped {
   }
 
   getColor(): Color {
+
+    // HACK
+    if (this.parsedInscription === undefined) {
+      // return light gray if parsedInscription is undefined (initial state)
+      return { r: 0.8, g: 0.8, b: 0.8, a: 1 };
+    }
+
+    if (this.parsedInscription === null) {
+      // return light gray if parsedInscription is null
+      return { r: 1, g: 0, b: 0, a: 1 };
+    }
+
+
     const rate = this.fee / this.vsize; // color by simple single-tx fee rate
     const feeLevelIndex = feeLevels.findIndex((feeLvl) => Math.max(1, rate) < feeLvl) - 1;
     const feeLevelColor = feeColors[feeLevelIndex] || feeColors[mempoolFeeColors.length - 1];

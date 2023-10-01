@@ -2,6 +2,7 @@ import { FastVertexArray } from './fast-vertex-array';
 import TxView from './tx-view';
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position, Square, ViewUpdateParams } from './sprite-types';
+import { SequentialParsedInscriptionFetcherService } from '../../services/inscriptions/sequential-parsed-inscription-fetcher.service';
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};
@@ -25,7 +26,8 @@ export default class BlockScene {
 
   constructor({ width, height, resolution, blockLimit, orientation, flip, vertexArray, highlighting }:
       { width: number, height: number, resolution: number, blockLimit: number,
-        orientation: string, flip: boolean, vertexArray: FastVertexArray, highlighting: boolean }
+        orientation: string, flip: boolean, vertexArray: FastVertexArray, highlighting: boolean },
+    public sequentialFetcher: SequentialParsedInscriptionFetcherService
   ) {
     this.init({ width, height, resolution, blockLimit, orientation, flip, vertexArray, highlighting });
   }
@@ -244,7 +246,8 @@ export default class BlockScene {
     this.dirty = true;
   }
 
-  private applyTxUpdate(tx: TxView, update: ViewUpdateParams): void {
+  // HACK: changed from private to public
+  public applyTxUpdate(tx: TxView, update: ViewUpdateParams): void {
     this.animateUntil = Math.max(this.animateUntil, tx.update(update));
   }
 

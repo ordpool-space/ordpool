@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
 
-import { ParsedInscription } from '../../services/inscription-parser.service';
+import { ParsedInscription } from '../../services/inscriptions/inscription-parser.service';
 
 @Component({
   selector: 'app-inscription-viewer',
