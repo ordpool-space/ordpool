@@ -26,6 +26,7 @@ import { LiquidUnblinding } from './liquid-ublinding';
 import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
 import { Price, PriceService } from '../../services/price.service';
 import { isFeatureActive } from '../../bitcoin.utils';
+import { InscriptionParserService, ParsedInscription } from '../../services/inscriptions/inscription-parser.service';
 
 @Component({
   selector: 'app-transaction',
@@ -110,8 +111,19 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     private apiService: ApiService,
     private seoService: SeoService,
     private priceService: PriceService,
-    private storageService: StorageService
+    private storageService: StorageService,
+    public inscriptionParser: InscriptionParserService
   ) {}
+
+  getParsedInscripion(): ParsedInscription | null {
+
+    const wittness = this.tx.vin[0]?.witness;
+    if (wittness) {
+      return this.inscriptionParser.parseInscription(wittness);
+    }
+    return null;
+
+  }
 
   ngOnInit() {
     this.acceleratorAvailable = this.stateService.env.OFFICIAL_MEMPOOL_SPACE && this.stateService.env.ACCELERATOR && this.stateService.network === '';

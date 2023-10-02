@@ -59,7 +59,7 @@ export class InscriptionViewerComponent {
   // see media-types here: https://github.com/ordinals/ord/blob/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/src/media.rs
   getPreview() {
 
-    if (this.parsedInscription) {
+    if (!this.parsedInscription) {
       return '';
     }
 
@@ -81,7 +81,7 @@ export class InscriptionViewerComponent {
   </head>
   <body>
     <audio controls>
-      <source src='${{ dataUri }}'>
+      <source src='${ dataUri }'>
     </audio>
   </body>
 </html>`;
@@ -101,7 +101,7 @@ export class InscriptionViewerComponent {
       }
 
       body {
-        background-image: url('${{ dataUri }}');
+        background-image: url('${ dataUri }');
         background-position: center;
         background-repeat: no-repeat;
         background-size: contain;
@@ -118,7 +118,7 @@ export class InscriptionViewerComponent {
     </style>
   </head>
   <body>
-    <img src='${{ dataUri }}'></img>
+    <img src='${ dataUri }'></img>
   </body>
 </html>`;
   }
@@ -130,7 +130,7 @@ export class InscriptionViewerComponent {
   <head>
     <meta charset='utf-8'>
     <link rel='stylesheet' href='/resources/inscription-assets/preview-markdown.css'></link>
-    <script>window.markdownBase64 = '${{ dataUri }}'</script>
+    <script>window.markdownBase64 = '${ dataUri }'</script>
     <script src='/resources/inscription-assets/preview-markdown-marked.js'></script>
     <script src='/resources/inscription-assets/preview-markdown.js'></script>
   </head>
@@ -155,7 +155,7 @@ export class InscriptionViewerComponent {
     </style>
   </head>
   <body>
-    <model-viewer src='${{ dataUri }}' auto-rotate='true' camera-controls='true' shadow-intensity='1'></model-viewer>
+    <model-viewer src='${ dataUri }' auto-rotate='true' camera-controls='true' shadow-intensity='1'></model-viewer>
   </body>
 </html>`;
   }
@@ -167,7 +167,7 @@ export class InscriptionViewerComponent {
   <head>
     <meta charset='utf-8'>
     <link rel='stylesheet' href='/resources/inscription-assets/preview-pdf.css'>
-    <script>window.pdfBase64 = '${{ dataUri }}'</script>
+    <script>window.pdfBase64 = '${ dataUri }'</script>
     <script src='/resources/inscription-assets/preview-pdf.js' defer type='module'></script>
   </head>
   <body>
@@ -185,7 +185,7 @@ export class InscriptionViewerComponent {
     <meta name='format-detection' content='telephone=no'>
     <link href='/resources/inscription-assets/preview-text.css' rel='stylesheet'>
 
-    <script>window.textBase64 = '${{ dataUri }}'</script>
+    <script>window.textBase64 = '${ dataUri }'</script>
     <script src='/resources/inscription-assets/preview-text.js' defer></script>
   </head>
   <body>
@@ -202,6 +202,7 @@ export class InscriptionViewerComponent {
     <meta charset='utf-8'>
   </head>
   <body>
+    <h1 style="color:white;font-family: sans-serif;text-align:center;">Unknown!?</h1>
   </body>
 </html>
 `;
@@ -217,7 +218,7 @@ getPreviewVideo(dataUri: string): string {
   </head>
   <body>
     <video controls loop muted autoplay>
-      <source src="${{ dataUri }}">
+      <source src="${ dataUri }">
     </video>
   </body>
 </html>`;
