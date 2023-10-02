@@ -5,7 +5,7 @@ import { Injectable } from '@angular/core';
  * see https://en.bitcoin.it/wiki/Script
  */
 const OP_FALSE = 0x00;
-const OP_IF = 0x63
+const OP_IF = 0x63;
 const OP_0 = 0x00;
 
 const OP_PUSHBYTES_3 = 0x03; // not an actual opcode, but used in documentation --> pushes the next 3 bytes onto the stack.

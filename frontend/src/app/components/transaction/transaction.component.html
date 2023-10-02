@@ -220,6 +220,31 @@
       <br>
     </ng-container>
 
+    <ng-container>
+      <div class="title float-left">
+        <h2 id="rbf">Inscription</h2>
+      </div>
+      <div class="clearfix"></div>
+
+      <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
+
+        <ng-container *ngIf="!i.parsedInscription">
+          None
+        </ng-container>
+
+        <ng-container *ngIf="i.parsedInscription">
+
+          <app-inscription-viewer
+            [parsedInscription]="i.parsedInscription"
+          ></app-inscription-viewer>
+
+        </ng-container>
+      </ng-container>
+
+      <br><br><br>
+    </ng-container>
+
+
     <ng-container *ngIf="flowEnabled; else flowPlaceholder">
       <div class="title float-left">
         <h2 id="flow" i18n="transaction.flow|Transaction flow">Flow</h2>
@@ -255,6 +280,7 @@
 
       <br>
     </ng-container>
+
     <ng-template #flowPlaceholder>
       <div class="box hidden">
         <div class="graph-container" #graphContainer>
