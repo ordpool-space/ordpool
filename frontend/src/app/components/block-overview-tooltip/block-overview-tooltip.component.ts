@@ -66,7 +66,6 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       // HACK
       if (this.txid) {
         this.parsedInscription$ = this.electrsApiService.getTransaction$(this.txid).pipe(
-          retry({ count: 2, delay: 1000 }),
           map(transaction => this.inscriptionParser.parseInscription(transaction)),
         startWith({
           contentType: '?',

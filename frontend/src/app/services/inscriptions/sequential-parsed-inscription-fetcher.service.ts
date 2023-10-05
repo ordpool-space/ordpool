@@ -92,7 +92,6 @@ export class SequentialParsedInscriptionFetcherService {
     const currentRequest = this.requestQueue.shift() as FetchRequest;
 
     this.electrsApiService.getTransaction$(currentRequest.txid).pipe(
-      retry({ count: 2, delay: 1000 }),
       map(transaction => {
         const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
 
