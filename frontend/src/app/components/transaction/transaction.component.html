@@ -230,15 +230,15 @@
 
         <ng-container *ngIf="!i.parsedInscription">
           None
-        </ng-container>
+        </ng-container>ƒ2
 
-        <ng-container *ngIf="i.parsedInscription">
+        <div *ngIf="i.parsedInscription" style="max-width: 600px;">
 
           <app-inscription-viewer
             [parsedInscription]="i.parsedInscription"
           ></app-inscription-viewer>
 
-        </ng-container>
+        </div>
       </ng-container>
 
       <br><br><br>

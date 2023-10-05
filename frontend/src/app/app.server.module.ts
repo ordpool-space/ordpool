@@ -5,6 +5,7 @@ import { ServerModule, ServerTransferStateModule } from '@angular/platform-serve
 import { AppModule } from './app.module';
 import { AppComponent } from './components/app/app.component';
 import { HttpCacheInterceptor } from './services/http-cache.interceptor';
+import { HttpRetryInterceptor } from './services/http-retry.interceptor';
 
 @NgModule({
   imports: [
@@ -13,7 +14,9 @@ import { HttpCacheInterceptor } from './services/http-cache.interceptor';
     ServerTransferStateModule,
   ],
   providers: [
-    { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true }
+    // twice ??
+    { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
+    { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
   ],
   bootstrap: [AppComponent],
 })

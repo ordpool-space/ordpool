@@ -16,6 +16,7 @@ import { OpenGraphService } from './services/opengraph.service';
 import { SharedModule } from './shared/shared.module';
 import { StorageService } from './services/storage.service';
 import { HttpCacheInterceptor } from './services/http-cache.interceptor';
+import { HttpRetryInterceptor } from './services/http-retry.interceptor';
 import { LanguageService } from './services/language.service';
 import { FiatShortenerPipe } from './shared/pipes/fiat-shortener.pipe';
 import { FiatCurrencyPipe } from './shared/pipes/fiat-currency.pipe';
@@ -45,7 +46,8 @@ const providers = [
   AppPreloadingStrategy,
   InscriptionParserService,
   SequentialParsedInscriptionFetcherService,
-  { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true }
+  { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
+  { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }
 ];
 
 @NgModule({
