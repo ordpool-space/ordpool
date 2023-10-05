@@ -61,8 +61,10 @@
 
       <!-- HACK -->
       <tr >
-        <td class="td-width">Ordinal Inscription</td>
-        <td *ngIf="{ parsedInscription: parsedInscription$ | async } as i">
+        <td class="td-width" colspan="2">Ordinal Inscription:</td>
+      </tr>
+      <tr>
+        <td *ngIf="{ parsedInscription: parsedInscription$ | async } as i"  colspan="2">
 
           <!-- <app-loading-indicator
             *ngIf="i.parsedInscription && i.parsedInscription.contentType === '?'"

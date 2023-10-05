@@ -24,7 +24,7 @@ import { ShortenStringPipe } from './shared/pipes/shorten-string-pipe/shorten-st
 import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe';
 import { AppPreloadingStrategy } from './app.preloading-strategy';
 import { InscriptionParserService } from './services/inscriptions/inscription-parser.service';
-import { SequentialParsedInscriptionFetcherService } from './services/inscriptions/sequential-parsed-inscription-fetcher.service';
+import { InscriptionFetcherService } from './services/inscriptions/inscription-fetcher.service';
 
 
 const providers = [
@@ -45,7 +45,7 @@ const providers = [
   CapAddressPipe,
   AppPreloadingStrategy,
   InscriptionParserService,
-  SequentialParsedInscriptionFetcherService,
+  InscriptionFetcherService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }
 ];
