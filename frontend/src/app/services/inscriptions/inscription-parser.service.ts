@@ -233,6 +233,11 @@ export class InscriptionParserService {
       const base64Data = window.btoa(String.fromCharCode(...combinedData));
       const dataUri = `data:${contentType};base64,${base64Data}`;
 
+      // Let's ignore inscriptions without a contentType, because there is (right now) no good way to display them
+      if (!contentType) {
+        return null;
+      }
+
       return {
         contentType,
         contentString,

@@ -115,22 +115,24 @@ export default class TxView implements TransactionStripped {
     // Mark the view as dirty to trigger re-rendering
     this.dirty = true;
 
-    // i have no clue what I'm doing here, but when I call both functions, then it works...
-    this.sprite.update({
-      ...this.getColor(),
-      duration: 0,
-      adjust: true,
-      temp: false
-    });
+    // i have absolutely no clue what I'm doing here, but when I call both functions, then it works...
+    setTimeout(() => {
 
-    this.scene.applyTxUpdate(this, {
-      display: {
-        position: this.screenPosition,
-        color: this.getColor()
-      },
-      duration: 0
-    });
+      this.sprite.update({
+        ...this.getColor(),
+        duration: 0,
+        adjust: true,
+        temp: false
+      });
 
+      this.scene.applyTxUpdate(this, {
+        display: {
+          position: this.screenPosition,
+          color: this.getColor()
+        },
+        duration: 0
+      });
+    }, 0);
   }
 
   applyGridPosition(position: Square): void {

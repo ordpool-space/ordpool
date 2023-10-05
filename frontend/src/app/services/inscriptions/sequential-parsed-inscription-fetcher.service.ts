@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
-import { Observable, Subject, map, retry } from 'rxjs';
+import { Inject, Injectable, forwardRef } from '@angular/core';
+import { EMPTY, Observable, Subject, map, of, retry } from 'rxjs';
 import { ElectrsApiService } from '../electrs-api.service';
 import { InscriptionParserService, ParsedInscription } from './inscription-parser.service';
+import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 
 interface FetchRequest {
@@ -29,10 +30,20 @@ export class SequentialParsedInscriptionFetcherService {
   private isProcessing: boolean = false;
 
   /**
+   * Cache for the fetched inscriptions.
+   * JavaScript Map objects retain insertion order, which makes it convenient to implement a rudimentary LRU cache
+   * LRU (Least Recently Used)
+  */
+  private fetchedInscriptions: Map<string, ParsedInscription | null> = new Map();
+
+
+  /**
    * Initializes a new instance of the SequentialParsedInscriptionFetcherService.
    * @param electrsApiService - A service to interact with the Electrs API.
    */
-  constructor(private electrsApiService: ElectrsApiService, private inscriptionParserService: InscriptionParserService) { }
+  constructor(
+    private electrsApiService: ElectrsApiService,
+    private inscriptionParserService: InscriptionParserService) { }
 
   /**
    * Fetches the parsed inscription for the specified transaction.
@@ -41,6 +52,15 @@ export class SequentialParsedInscriptionFetcherService {
    * @returns An Observable that emits the parsed inscription.
    */
   fetchInscription(txid: string): Observable<ParsedInscription | null> {
+
+    const cachedResult = this.fetchedInscriptions.get(txid);
+
+    // Return cached result if available
+    if (cachedResult !== undefined) {
+      // console.log('Returning  ' + txid + ' directly from cache.');
+      return of(cachedResult);
+    }
+
     const requestSubject = new Subject<ParsedInscription | null>();
     const request: FetchRequest = { txid, subject: requestSubject };
     this.requestQueue.push(request);
@@ -65,6 +85,7 @@ export class SequentialParsedInscriptionFetcherService {
 
   /** Processes the requests in the queue sequentially. */
   private processQueue(): void {
+
     if (this.requestQueue.length === 0) {
       this.isProcessing = false;
       return;
@@ -77,10 +98,15 @@ export class SequentialParsedInscriptionFetcherService {
       retry({ count: 2, delay: 1000 }),
       map(transaction => {
         const witness = transaction.vin[0]?.witness;
+        let parsedInscription = null;
         if (witness) {
-          return this.inscriptionParserService.parseInscription(witness);
+          parsedInscription = this.inscriptionParserService.parseInscription(witness);
         }
-        return null;
+
+        // Cache the result
+        this.addToCache(currentRequest.txid, parsedInscription);
+
+        return parsedInscription;
       })
     ).subscribe({
       next: parsedInscription => {
@@ -90,7 +116,7 @@ export class SequentialParsedInscriptionFetcherService {
 
         // Process the next request in the queue
         // without a delay we will get a HTTP 429 Too Many Requests response
-        window.setTimeout(() => this.processQueue(), 75);
+        window.setTimeout(() => this.processQueue(), 150);
       },
       error: error => {
         // console.error('Failed to fetch inscription:', error);
@@ -100,4 +126,49 @@ export class SequentialParsedInscriptionFetcherService {
       }
     });
   }
+
+  /**
+   * Adds a transaction to the cache.
+   *
+   * @param txid - The transaction ID.
+   * @param inscription - The parsed inscription or null.
+   */
+    addToCache(txid: string, inscription: ParsedInscription | null): void {
+
+      // If the cache size has reached its limit, delete the oldest entry
+      if (this.fetchedInscriptions.size >= 100000) {
+        const firstKey = this.fetchedInscriptions.keys().next().value;
+        this.fetchedInscriptions.delete(firstKey);
+      }
+
+      // Add the new entry to the cache
+      this.fetchedInscriptions.set(txid, inscription);
+    }
+
+  /**
+   * Adds a transaction from the outside to be parsed and added to the cache.
+   *
+   * @param transaction - The full transaction object.
+   */
+  addTransaction(transaction: Transaction): void {
+    const witness = transaction.vin[0]?.witness;
+    let parsedResult = null;
+
+    if (witness) {
+      parsedResult = this.inscriptionParserService.parseInscription(witness);
+    }
+
+    // Cache the result
+    this.addToCache(transaction.txid, parsedResult);
+  }
+
+  /**
+   * Adds an array of transactions from the outside to be parsed and added to the cache.
+   *
+   * @param transactions - An array of transaction objects.
+   */
+    addTransactions(transactions: Transaction[]): void {
+      console.log('Adding ' + transactions.length + 'entries to the cache.');
+      transactions.forEach(transaction => this.addTransaction(transaction));
+    }
 }

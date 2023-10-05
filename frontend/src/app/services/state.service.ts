@@ -61,7 +61,7 @@ const defaultEnv: Env = {
   'BASE_MODULE': 'mempool',
   'BISQ_ENABLED': false,
   'BISQ_SEPARATE_BACKEND': false,
-  'ITEMS_PER_PAGE': 10,
+  'ITEMS_PER_PAGE': 25, // keep 25, otherwise API will output: Error loading data. 400: start index must be a multipication of 25
   'KEEP_BLOCKS_AMOUNT': 8,
   'OFFICIAL_MEMPOOL_SPACE': false,
   'NGINX_PROTOCOL': 'http',
