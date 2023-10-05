@@ -67,14 +67,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       if (this.txid) {
         this.parsedInscription$ = this.electrsApiService.getTransaction$(this.txid).pipe(
           retry({ count: 2, delay: 1000 }),
-          map(transaction => {
-
-            const wittness = transaction.vin[0]?.witness;
-            if (wittness) {
-              return this.inscriptionParser.parseInscription(wittness);
-            }
-            return null;
-        }),
+          map(transaction => this.inscriptionParser.parseInscription(transaction)),
         startWith({
           contentType: '?',
           contentString: '',

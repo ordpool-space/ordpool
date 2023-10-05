@@ -54,10 +54,7 @@ export class SequentialParsedInscriptionFetcherService {
   fetchInscription(txid: string): Observable<ParsedInscription | null> {
 
     const cachedResult = this.fetchedInscriptions.get(txid);
-
-    // Return cached result if available
     if (cachedResult !== undefined) {
-      // console.log('Returning  ' + txid + ' directly from cache.');
       return of(cachedResult);
     }
 
@@ -97,11 +94,7 @@ export class SequentialParsedInscriptionFetcherService {
     this.electrsApiService.getTransaction$(currentRequest.txid).pipe(
       retry({ count: 2, delay: 1000 }),
       map(transaction => {
-        const witness = transaction.vin[0]?.witness;
-        let parsedInscription = null;
-        if (witness) {
-          parsedInscription = this.inscriptionParserService.parseInscription(witness);
-        }
+        const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
 
         // Cache the result
         this.addToCache(currentRequest.txid, parsedInscription);
@@ -116,7 +109,7 @@ export class SequentialParsedInscriptionFetcherService {
 
         // Process the next request in the queue
         // without a delay we will get a HTTP 429 Too Many Requests response
-        window.setTimeout(() => this.processQueue(), 150);
+        window.setTimeout(() => this.processQueue(), 200);
       },
       error: error => {
         // console.error('Failed to fetch inscription:', error);
@@ -151,15 +144,11 @@ export class SequentialParsedInscriptionFetcherService {
    * @param transaction - The full transaction object.
    */
   addTransaction(transaction: Transaction): void {
-    const witness = transaction.vin[0]?.witness;
-    let parsedResult = null;
+    const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
+    this.addToCache(transaction.txid, parsedInscription);
 
-    if (witness) {
-      parsedResult = this.inscriptionParserService.parseInscription(witness);
-    }
-
-    // Cache the result
-    this.addToCache(transaction.txid, parsedResult);
+    // Check and resolve any matching pending request
+    this.resolveMatchingRequest(transaction.txid, parsedInscription);
   }
 
   /**
@@ -171,4 +160,20 @@ export class SequentialParsedInscriptionFetcherService {
       console.log('Adding ' + transactions.length + 'entries to the cache.');
       transactions.forEach(transaction => this.addTransaction(transaction));
     }
+
+  /**
+   * Resolves a request from the queue that matches the given txid.
+   *
+   * @param txid - The transaction ID.
+   * @param parsedInscription - The parsed inscription.
+   */
+  private resolveMatchingRequest(txid: string, parsedInscription: ParsedInscription | null): void {
+    const index = this.requestQueue.findIndex(request => request.txid === txid);
+
+    if (index !== -1) {
+      const request = this.requestQueue.splice(index, 1)[0];
+      request.subject.next(parsedInscription);
+      request.subject.complete();
+    }
+  }
 }
