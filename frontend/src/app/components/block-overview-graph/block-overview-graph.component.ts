@@ -8,7 +8,7 @@ import { Position } from './sprite-types';
 import { Price } from '../../services/price.service';
 import { StateService } from '../../services/state.service';
 import { Subscription } from 'rxjs';
-import { SequentialParsedInscriptionFetcherService } from '../../services/inscriptions/sequential-parsed-inscription-fetcher.service';
+import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
 
 @Component({
   selector: 'app-block-overview-graph',
@@ -59,7 +59,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     readonly ngZone: NgZone,
     readonly elRef: ElementRef,
     private stateService: StateService,
-    private sequentialFetcher: SequentialParsedInscriptionFetcherService
+    private inscriptionFetcher: InscriptionFetcherService
   ) {
     this.vertexArray = new FastVertexArray(512, TxSprite.dataSize);
     this.searchSubscription = this.stateService.searchText$.subscribe((text) => {
@@ -229,7 +229,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
       this.scene = new BlockScene({ width: this.displayWidth, height: this.displayHeight, resolution: this.resolution,
         blockLimit: this.blockLimit, orientation: this.orientation, flip: this.flip, vertexArray: this.vertexArray,
         highlighting: this.auditHighlighting },
-        this.sequentialFetcher);
+        this.inscriptionFetcher);
       this.start();
     }
   }

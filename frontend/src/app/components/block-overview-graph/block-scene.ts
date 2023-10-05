@@ -2,7 +2,7 @@ import { FastVertexArray } from './fast-vertex-array';
 import TxView from './tx-view';
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position, Square, ViewUpdateParams } from './sprite-types';
-import { SequentialParsedInscriptionFetcherService } from '../../services/inscriptions/sequential-parsed-inscription-fetcher.service';
+import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};
@@ -27,7 +27,7 @@ export default class BlockScene {
   constructor({ width, height, resolution, blockLimit, orientation, flip, vertexArray, highlighting }:
       { width: number, height: number, resolution: number, blockLimit: number,
         orientation: string, flip: boolean, vertexArray: FastVertexArray, highlighting: boolean },
-    public sequentialFetcher: SequentialParsedInscriptionFetcherService
+    public inscriptionFetcher: InscriptionFetcherService
   ) {
     this.init({ width, height, resolution, blockLimit, orientation, flip, vertexArray, highlighting });
   }

@@ -5,6 +5,7 @@ import { Price } from '../../services/price.service';
 import { InscriptionParserService, ParsedInscription } from '../../services/inscriptions/inscription-parser.service';
 import { ElectrsApiService } from '../../services/electrs-api.service';
 import { Observable, map, of, retry, startWith } from 'rxjs';
+import { InscriptionFetcherService } from 'src/app/services/inscriptions/inscription-fetcher.service';
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -32,9 +33,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
 
-  constructor(
-    private electrsApiService: ElectrsApiService,
-    public inscriptionParser: InscriptionParserService) {}
+  constructor(private inscriptionFetcher: InscriptionFetcherService) { }
 
   ngOnChanges(changes): void {
     if (changes.cursorPosition && changes.cursorPosition.currentValue) {
@@ -65,14 +64,13 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
       // HACK
       if (this.txid) {
-        this.parsedInscription$ = this.electrsApiService.getTransaction$(this.txid).pipe(
-          map(transaction => this.inscriptionParser.parseInscription(transaction)),
-        startWith({
-          contentType: '?',
-          contentString: '',
-          dataUri: ''
-        })
-      );
+        this.parsedInscription$ = this.inscriptionFetcher.fetchInscription(this.txid, true).pipe(
+          startWith({
+            contentType: '?',
+            contentString: '',
+            dataUri: ''
+          })
+        );
 
       } else {
         this.parsedInscription$ = of(null);

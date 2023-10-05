@@ -8,20 +8,16 @@ import { Transaction } from 'src/app/interfaces/electrs.interface';
 interface FetchRequest {
   txid: string;
   subject: Subject<ParsedInscription | null>;
+  priority: boolean;
 }
 
 /**
  * A service to fetch parsed inscriptions sequentially for given transactions.
- *
- * @example
- * const fetcherService = new SequentialParsedInscriptionFetcherService(electrsApiService);
- * const parsedInscription$ = fetcherService.fetchInscription('transaction-id');
- * parsedInscription$.subscribe(parsedInscription => console.log(parsedInscription));
  */
 @Injectable({
   providedIn: 'root',
 })
-export class SequentialParsedInscriptionFetcherService {
+export class InscriptionFetcherService {
 
   /** A queue to hold the fetch requests. */
   private requestQueue: FetchRequest[] = [];
@@ -38,7 +34,7 @@ export class SequentialParsedInscriptionFetcherService {
 
 
   /**
-   * Initializes a new instance of the SequentialParsedInscriptionFetcherService.
+   * Initializes a new instance of the InscriptionFetcherService.
    * @param electrsApiService - A service to interact with the Electrs API.
    */
   constructor(
@@ -49,9 +45,10 @@ export class SequentialParsedInscriptionFetcherService {
    * Fetches the parsed inscription for the specified transaction.
    *
    * @param txid - The transaction ID.
+   * @param priority - Whether the request has a higher priority.
    * @returns An Observable that emits the parsed inscription.
    */
-  fetchInscription(txid: string): Observable<ParsedInscription | null> {
+  fetchInscription(txid: string, priority: boolean = false): Observable<ParsedInscription | null> {
 
     const cachedResult = this.fetchedInscriptions.get(txid);
     if (cachedResult !== undefined) {
@@ -59,8 +56,15 @@ export class SequentialParsedInscriptionFetcherService {
     }
 
     const requestSubject = new Subject<ParsedInscription | null>();
-    const request: FetchRequest = { txid, subject: requestSubject };
-    this.requestQueue.push(request);
+    const request: FetchRequest = { txid, subject: requestSubject, priority };
+
+    if (priority) {
+      // Add to the beginning of the queue if priority is true
+      this.requestQueue.unshift(request);
+    } else {
+      // Otherwise, add to the end of the queue
+      this.requestQueue.push(request);
+    }
 
     // If not currently processing requests, start processing the queue
     if (!this.isProcessing) {
@@ -125,17 +129,17 @@ export class SequentialParsedInscriptionFetcherService {
    * @param txid - The transaction ID.
    * @param inscription - The parsed inscription or null.
    */
-    addToCache(txid: string, inscription: ParsedInscription | null): void {
+  addToCache(txid: string, inscription: ParsedInscription | null): void {
 
-      // If the cache size has reached its limit, delete the oldest entry
-      if (this.fetchedInscriptions.size >= 100000) {
-        const firstKey = this.fetchedInscriptions.keys().next().value;
-        this.fetchedInscriptions.delete(firstKey);
-      }
-
-      // Add the new entry to the cache
-      this.fetchedInscriptions.set(txid, inscription);
+    // If the cache size has reached its limit, delete the oldest entry
+    if (this.fetchedInscriptions.size >= 100000) {
+      const firstKey = this.fetchedInscriptions.keys().next().value;
+      this.fetchedInscriptions.delete(firstKey);
     }
+
+    // Add the new entry to the cache
+    this.fetchedInscriptions.set(txid, inscription);
+  }
 
   /**
    * Adds a transaction from the outside to be parsed and added to the cache.
@@ -155,10 +159,10 @@ export class SequentialParsedInscriptionFetcherService {
    *
    * @param transactions - An array of transaction objects.
    */
-    addTransactions(transactions: Transaction[]): void {
-      console.log('Adding ' + transactions.length + 'entries to the cache.');
-      transactions.forEach(transaction => this.addTransaction(transaction));
-    }
+  addTransactions(transactions: Transaction[]): void {
+    console.log('Adding ' + transactions.length + 'entries to the cache.');
+    transactions.forEach(transaction => this.addTransaction(transaction));
+  }
 
   /**
    * Resolves a request from the queue that matches the given txid.

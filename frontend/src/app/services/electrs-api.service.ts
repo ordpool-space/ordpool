@@ -6,7 +6,7 @@ import { StateService } from './state.service';
 import { BlockExtended } from '../interfaces/node-api.interface';
 import { calcScriptHash$ } from '../bitcoin.utils';
 import { environment } from 'src/environments/environment';
-import { SequentialParsedInscriptionFetcherService } from './inscriptions/sequential-parsed-inscription-fetcher.service';
+import { InscriptionFetcherService } from './inscriptions/inscription-fetcher.service';
 
 @Injectable({
   providedIn: 'root'
@@ -64,11 +64,18 @@ export class ElectrsApiService {
    * Transactions returned here do not have the status field, since all the transactions share the same block and confirmation status.
    */
   getBlockTransactions$(hash: string, index: number = 0): Observable<Transaction[]> {
-    const sequentialFetcher = this.injector.get(SequentialParsedInscriptionFetcherService);
+    const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
     return this.httpClient.get<Transaction[]>(this.apiBaseUrl + this.apiBasePath + '/api/block/' + hash + '/txs/' + index).pipe(
       // HACK
-      tap(transactions => sequentialFetcher.addTransactions(transactions))
+      tap(transactions => inscriptionFetcher.addTransactions(transactions))
     );
+  }
+
+  /**
+   * Let's cheat a bit and load a bunch
+   */
+  gobbleUnconfirmedTransactions$() {
+
   }
 
   getBlockHashFromHeight$(height: number): Observable<string> {

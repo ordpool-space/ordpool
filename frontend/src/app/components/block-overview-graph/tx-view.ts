@@ -4,7 +4,7 @@ import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from './sprite-types';
 import { feeLevels, mempoolFeeColors } from '../../app.constants';
 import BlockScene from './block-scene';
-import { SequentialParsedInscriptionFetcherService } from '../../services/inscriptions/sequential-parsed-inscription-fetcher.service';
+import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
 import { ParsedInscription } from '../../services/inscriptions/inscription-parser.service';
 
 const hoverTransitionTime = 300;
@@ -61,7 +61,7 @@ export default class TxView implements TransactionStripped {
 
   // HACK
   parsedInscription: ParsedInscription | undefined | null;
-  sequentialFetcher: SequentialParsedInscriptionFetcherService;
+  inscriptionFetcher: InscriptionFetcherService;
 
   constructor(tx: TransactionStripped, scene: BlockScene, ) {
     this.scene = scene;
@@ -84,7 +84,7 @@ export default class TxView implements TransactionStripped {
     this.dirty = true;
 
     // HACK
-    this.sequentialFetcher = this.scene.sequentialFetcher;
+    this.inscriptionFetcher = this.scene.inscriptionFetcher;
     this.fetchInscription();
   }
 
@@ -96,11 +96,11 @@ export default class TxView implements TransactionStripped {
     }
 
     // HACK
-    this.sequentialFetcher.cancelFetchInscription(this.txid);
+    this.inscriptionFetcher.cancelFetchInscription(this.txid);
   }
 
   private fetchInscription(): void {
-    this.sequentialFetcher.fetchInscription(this.txid).subscribe({
+    this.inscriptionFetcher.fetchInscription(this.txid).subscribe({
       next: (parsedInscription) => this.updateInscription(parsedInscription),
       error: error => {
         // console.error('Failed to fetch inscription:', error);
@@ -259,8 +259,8 @@ export default class TxView implements TransactionStripped {
     }
 
     if (this.parsedInscription === null) {
-      // return light gray if parsedInscription is null
-      return { r: 1, g: 0, b: 0, a: 0.3 };
+      // return darker gray if parsedInscription is null (no inscription found)
+      return { r: 0.8, g: 0.8, b: 0.8, a: 0.5 };
     }
 
 
