@@ -260,7 +260,7 @@ export default class TxView implements TransactionStripped {
 
     if (this.parsedInscription === null) {
       // return light gray if parsedInscription is null
-      return { r: 1, g: 0, b: 0, a: 1 };
+      return { r: 1, g: 0, b: 0, a: 0.3 };
     }
 
 
