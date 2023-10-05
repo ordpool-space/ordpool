@@ -116,13 +116,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   ) {}
 
   getParsedInscripion(): ParsedInscription | null {
-
-    const wittness = this.tx.vin[0]?.witness;
-    if (wittness) {
-      return this.inscriptionParser.parseInscription(wittness);
-    }
-    return null;
-
+    return this.inscriptionParser.parseInscription(this.tx);
   }
 
   ngOnInit() {

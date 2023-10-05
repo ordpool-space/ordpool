@@ -118,6 +118,11 @@ export default class TxView implements TransactionStripped {
     // i have absolutely no clue what I'm doing here, but when I call both functions, then it works...
     setTimeout(() => {
 
+      // this can happen when we change pages but still proccess this code
+      if (!this.sprite) {
+        return;
+      }
+
       this.sprite.update({
         ...this.getColor(),
         duration: 0,

@@ -180,10 +180,15 @@ export class InscriptionParserService {
 
   /**
    * Main function that parses a inscription or returns null.
-   * @param witness - witness data from vin[0].
+   * @param transaction with witness in vin[0] (only first vin recognized, same as stable ord).
    * @returns The inscription as a data-uri or null.
    */
-  parseInscription(witness: string[]): ParsedInscription | null {
+  parseInscription(transaction: { vin: { witness?: string[] }[] }): ParsedInscription | null {
+
+    const witness = transaction.vin[0]?.witness;
+    if (!witness) {
+      return null;
+    }
 
     const txWitness = witness.join('');
     this.raw = InscriptionParserService.hexStringToUint8Array(txWitness);
