@@ -55,18 +55,29 @@ export class InscriptionFetcherService {
       return of(cachedResult);
     }
 
+    // Check if a request with the same txid already exists in the queue
+    const existingRequest = this.requestQueue.find(request => request.txid === txid);
+
+    if (existingRequest) {
+      if (priority && !existingRequest.priority) {
+        // If the new request has a higher priority, remove the existing request
+        // and add it to the beginning of the queue
+        this.requestQueue = this.requestQueue.filter(request => request !== existingRequest);
+        existingRequest.priority = true;
+        this.requestQueue.unshift(existingRequest);
+      }
+      return existingRequest.subject.asObservable();
+    }
+
     const requestSubject = new Subject<ParsedInscription | null>();
     const request: FetchRequest = { txid, subject: requestSubject, priority };
 
     if (priority) {
-      // Add to the beginning of the queue if priority is true
       this.requestQueue.unshift(request);
     } else {
-      // Otherwise, add to the end of the queue
       this.requestQueue.push(request);
     }
 
-    // If not currently processing requests, start processing the queue
     if (!this.isProcessing) {
       this.processQueue();
     }

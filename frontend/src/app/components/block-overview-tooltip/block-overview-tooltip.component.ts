@@ -65,11 +65,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       // HACK
       if (this.txid) {
         this.parsedInscription$ = this.inscriptionFetcher.fetchInscription(this.txid, true).pipe(
-          startWith({
-            contentType: '?',
-            contentString: '',
-            dataUri: ''
-          })
+          startWith(undefined)
         );
 
       } else {
