@@ -250,12 +250,12 @@ export default class TxView implements TransactionStripped {
     // HACK
     if (this.parsedInscription === undefined) {
       // return light gray if parsedInscription is undefined (initial state)
-      return { r: 0.8, g: 0.8, b: 0.8, a: 1 };
+      return { r: 0.8, g: 0.8, b: 0.8, a: 0.7 };
     }
 
     if (this.parsedInscription === null) {
       // return darker gray if parsedInscription is null (no inscription found)
-      return { r: 0.8, g: 0.8, b: 0.8, a: 0.5 };
+      return { r: 0.8, g: 0.8, b: 0.8, a: 0.3 };
     }
 
 
