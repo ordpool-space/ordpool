@@ -124,18 +124,13 @@ export default class TxView implements TransactionStripped {
       }
 
       this.sprite.update({
-        ...this.getColor(),
-        duration: 0,
-        adjust: true,
-        temp: false
+        ...this.getColor()
       });
 
       this.scene.applyTxUpdate(this, {
         display: {
-          position: this.screenPosition,
           color: this.getColor()
-        },
-        duration: 0
+        }
       });
     }, 0);
   }

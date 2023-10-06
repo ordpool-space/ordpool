@@ -431,13 +431,7 @@ export class BlockchainApiService {
    */
   private fetchPage(offset: number, limit: number): Observable<UnconfirmedTransactionsResponse> {
     return this.httpClient.get<UnconfirmedTransactionsResponse>(
-      `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`,
-      {
-        headers: {
-          // ... your headers here (if any)
-        }
-      }
-    );
+      `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`);
   }
 }
 

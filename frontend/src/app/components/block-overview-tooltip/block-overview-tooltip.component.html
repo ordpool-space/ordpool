@@ -64,28 +64,22 @@
         <td class="td-width" colspan="2">Ordinal Inscription:</td>
       </tr>
       <tr>
-        <td *ngIf="{ parsedInscription: parsedInscription$ | async } as i"  colspan="2">
+        <td class="text-center" *ngIf="{ parsedInscription: parsedInscription$ | async } as i"  colspan="2" style="height: 220px;">
 
-          <!-- <app-loading-indicator
-            *ngIf="i.parsedInscription && i.parsedInscription.contentType === '?'"
-            [name]="'Loading transaction data...'">
-          </app-loading-indicator> -->
-          <ng-container *ngIf="i.parsedInscription && i.parsedInscription.contentType === '?'">
+          <ng-container *ngIf="i.parsedInscription === undefined">
             Loading...
           </ng-container>
 
-          <ng-container *ngIf="!i.parsedInscription">
+          <ng-container *ngIf="i.parsedInscription === null">
             None
           </ng-container>
 
-          <ng-container
+          <div class="text-left" style="width: 200px"
             *ngIf="i.parsedInscription && i.parsedInscription.contentType !== '?'">
-
             <app-inscription-viewer
-              style="width: 200px"
               [parsedInscription]="i.parsedInscription"
             ></app-inscription-viewer>
-          </ng-container>
+        </div>
 
 
         </td>
