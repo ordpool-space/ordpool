@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { EMPTY, Observable, concatAll, expand, filter, map, of, toArray } from 'rxjs';
 import { Transaction } from '../../interfaces/electrs.interface';
+import { InscriptionFetcherService } from './inscription-fetcher.service';
 
 /**
  * Represents the spending outpoint of a transaction.
@@ -371,11 +372,14 @@ function unconfirmedToTransaction(unconfirmed: UnconfirmedTransaction): Transact
 })
 export class BlockchainApiService {
 
-  private readonly BASE_URL = 'https://blockchain.info';
-  private readonly LIMIT = 50; // set based on API's maximum allowed value
+  private readonly baseUrl = 'https://blockchain.info';
+  private readonly itemsPerPage = 250; // set based on API's maximum allowed value
+  private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
 
 
-  constructor(private httpClient: HttpClient) { }
+  constructor(
+    private httpClient: HttpClient,
+    private inscriptionFetcherService: InscriptionFetcherService) { }
 
   /**
    * Fetches unconfirmed transactions from blockchain.info API.
@@ -384,38 +388,37 @@ export class BlockchainApiService {
    * @returns An observable of the list of unconfirmed transactions.
    */
   fetchFirstUnconfirmedTransactions(): Observable<Transaction[]> {
-    return this.httpClient.get<UnconfirmedTransactionsResponse>(`${this.BASE_URL}/unconfirmed-transactions?format=json`).pipe(
+    return this.httpClient.get<UnconfirmedTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json`).pipe(
       map(response => response.txs.map(u => unconfirmedToTransaction(u)))
     );
   }
 
   /**
-   * Fetches all unconfirmed transactions by paginating through the API until no more new entries are found.
-   *
-   * @returns {Observable<Transaction[]>} An observable that emits an array of all unconfirmed transactions.
+   * Iterates over all pages of unconfirmed transactions (up to MAX_PAGES pages) and caches them using the InscriptionFetcherService.
    */
-  fetchAllUnconfirmedTransactions(): Observable<Transaction[]> {
-    const LIMIT = 50; // set based on API's maximum allowed value
+  fetchAndCacheManyUnconfirmedTransactions(): void {
     let currentOffset = 0;
+    let pagesFetched = 0;
 
-    return this.fetchPage(currentOffset, LIMIT).pipe(
+    this.fetchPage(currentOffset, this.itemsPerPage).pipe(
       expand(response => {
-        // If the length of transactions in the response is less than the limit,
-        // it means we've retrieved the last set of transactions and don't need to paginate further
-        if (response.txs.length < LIMIT) {
+        pagesFetched++;
+
+        // Stop if we've fetched the desired number of pages or the length of transactions in the response is less than the limit
+        if (pagesFetched >= this.maxPagesToFetch || response.txs.length < this.itemsPerPage) {
           return of(null); // End the observable stream by emitting null
         }
 
         // Update the offset for the next page
-        currentOffset += LIMIT;
-        return this.fetchPage(currentOffset, LIMIT);
+        currentOffset += this.itemsPerPage;
+        return this.fetchPage(currentOffset, this.itemsPerPage);
       }),
       // filter out the final null value, if any
       filter(response => response !== null),
-      map(response => response.txs.map(u => unconfirmedToTransaction(u))),
-      concatAll(),  // Flatten the array structure
-      toArray()  // Accumulate all the transactions into one array
-    );
+      map(response => response.txs.map(u => unconfirmedToTransaction(u)))
+    ).subscribe(transactions => {
+      this.inscriptionFetcherService.addTransactions(transactions);
+    });
   }
 
   /**
@@ -428,7 +431,13 @@ export class BlockchainApiService {
    */
   private fetchPage(offset: number, limit: number): Observable<UnconfirmedTransactionsResponse> {
     return this.httpClient.get<UnconfirmedTransactionsResponse>(
-      `${this.BASE_URL}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`);
+      `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`,
+      {
+        headers: {
+          // ... your headers here (if any)
+        }
+      }
+    );
   }
 }
 
