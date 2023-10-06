@@ -41,7 +41,7 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
 
     // boost our inscriptions chache with data from blockchain.info
     // to speed things up! 🚀
-    this.blockchainApiService.fetchUnconfirmedTransactions()
+    this.blockchainApiService.fetchAllUnconfirmedTransactions()
       .subscribe(transactions => this.inscriptionFetcherService.addTransactions(transactions));
 
     this.websocketService.want(['blocks', 'mempool-blocks']);

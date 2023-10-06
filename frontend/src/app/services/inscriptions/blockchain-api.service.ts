@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable  } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { EMPTY, Observable, concatAll, expand, filter, map, of, toArray } from 'rxjs';
 import { Transaction } from '../../interfaces/electrs.interface';
 
 /**
@@ -20,14 +20,14 @@ interface Input {
   script: string;
   index: number;
   prev_out: {
-      addr: string;
-      n: number;
-      script: string;
-      spending_outpoints: SpendingOutpoint[];
-      spent: boolean;
-      tx_index: number;
-      type: number;
-      value: number;
+    addr: string;
+    n: number;
+    script: string;
+    spending_outpoints: SpendingOutpoint[];
+    spent: boolean;
+    tx_index: number;
+    type: number;
+    value: number;
   };
 }
 
@@ -99,21 +99,21 @@ function decodeWitness(witnessStr: string): string[] | undefined {
   const witnessItems: string[] = [];
 
   for (let i = 0; i < numItems; i++) {
-      // For each item, read its length (the first byte)
-      const length = parseInt(witnessStr.substring(offset, offset + 2), 16) * 2;  // Times 2 because we're counting in characters, not bytes
-      offset += 2;  // Move past the length byte
+    // For each item, read its length (the first byte)
+    const length = parseInt(witnessStr.substring(offset, offset + 2), 16) * 2;  // Times 2 because we're counting in characters, not bytes
+    offset += 2;  // Move past the length byte
 
-      // Capture the witness item based on its length
-      const item = witnessStr.substring(offset, offset + length);
-      witnessItems.push(item);
+    // Capture the witness item based on its length
+    const item = witnessStr.substring(offset, offset + length);
+    witnessItems.push(item);
 
-      offset += length;  // Move to the next item or the end of the string
+    offset += length;  // Move to the next item or the end of the string
   }
 
   // Ensure we've consumed the entire input string
   if (offset !== witnessStr.length) {
-      // throw new Error('Malformed witness data');
-      return undefined;
+    // throw new Error('Malformed witness data');
+    return undefined;
   }
 
   if (!witnessItems.length) {
@@ -328,41 +328,41 @@ Witness:
   In the "UnconfirmedTransaction" format, the witness is a single concatenated string.
 
  */
-  function unconfirmedToTransaction(unconfirmed: UnconfirmedTransaction): Transaction {
-    return {
-        txid: unconfirmed.hash,
-        version: unconfirmed.ver,
-        locktime: unconfirmed.lock_time,
-        size: unconfirmed.size,
-        weight: unconfirmed.weight,
-        fee: unconfirmed.fee,
-        status: {
-            confirmed: !!(unconfirmed.block_index || unconfirmed.block_height)
-        },
-        vin: unconfirmed.inputs.map(input => ({
-            txid: input.prev_out.tx_index.toString(),
-            vout: input.prev_out.n,
-            prevout: {
-                scriptpubkey: input.prev_out.script,
-                scriptpubkey_asm: '', // This can be derived if necessary
-                scriptpubkey_type: '', // This can be derived if necessary
-                scriptpubkey_address: input.prev_out.addr,
-                value: input.prev_out.value
-            },
-            scriptsig: input.script,
-            scriptsig_asm: '', // This can be derived if necessary
-            witness: decodeWitness(input.witness || ''),
-            is_coinbase: false, // Can't be a coinbase txn
-            sequence: input.sequence
-        })),
-        vout: unconfirmed.out.map(output => ({
-            scriptpubkey: output.script,
-            scriptpubkey_asm: '', // This can be derived if necessary
-            scriptpubkey_type: '', // This can be derived if necessary
-            scriptpubkey_address: output.addr,
-            value: output.value
-        }))
-    };
+function unconfirmedToTransaction(unconfirmed: UnconfirmedTransaction): Transaction {
+  return {
+    txid: unconfirmed.hash,
+    version: unconfirmed.ver,
+    locktime: unconfirmed.lock_time,
+    size: unconfirmed.size,
+    weight: unconfirmed.weight,
+    fee: unconfirmed.fee,
+    status: {
+      confirmed: !!(unconfirmed.block_index || unconfirmed.block_height)
+    },
+    vin: unconfirmed.inputs.map(input => ({
+      txid: input.prev_out.tx_index.toString(),
+      vout: input.prev_out.n,
+      prevout: {
+        scriptpubkey: input.prev_out.script,
+        scriptpubkey_asm: '', // This can be derived if necessary
+        scriptpubkey_type: '', // This can be derived if necessary
+        scriptpubkey_address: input.prev_out.addr,
+        value: input.prev_out.value
+      },
+      scriptsig: input.script,
+      scriptsig_asm: '', // This can be derived if necessary
+      witness: decodeWitness(input.witness || ''),
+      is_coinbase: false, // Can't be a coinbase txn
+      sequence: input.sequence
+    })),
+    vout: unconfirmed.out.map(output => ({
+      scriptpubkey: output.script,
+      scriptpubkey_asm: '', // This can be derived if necessary
+      scriptpubkey_type: '', // This can be derived if necessary
+      scriptpubkey_address: output.addr,
+      value: output.value
+    }))
+  };
 }
 
 
@@ -372,18 +372,63 @@ Witness:
 export class BlockchainApiService {
 
   private readonly BASE_URL = 'https://blockchain.info';
+  private readonly LIMIT = 50; // set based on API's maximum allowed value
+
 
   constructor(private httpClient: HttpClient) { }
 
   /**
    * Fetches unconfirmed transactions from blockchain.info API.
+   * Hint: there is also a https://blockchain.info/q/unconfirmedcount
    *
    * @returns An observable of the list of unconfirmed transactions.
    */
-  fetchUnconfirmedTransactions(): Observable<Transaction[]> {
+  fetchFirstUnconfirmedTransactions(): Observable<Transaction[]> {
     return this.httpClient.get<UnconfirmedTransactionsResponse>(`${this.BASE_URL}/unconfirmed-transactions?format=json`).pipe(
       map(response => response.txs.map(u => unconfirmedToTransaction(u)))
     );
+  }
+
+  /**
+   * Fetches all unconfirmed transactions by paginating through the API until no more new entries are found.
+   *
+   * @returns {Observable<Transaction[]>} An observable that emits an array of all unconfirmed transactions.
+   */
+  fetchAllUnconfirmedTransactions(): Observable<Transaction[]> {
+    const LIMIT = 50; // set based on API's maximum allowed value
+    let currentOffset = 0;
+
+    return this.fetchPage(currentOffset, LIMIT).pipe(
+      expand(response => {
+        // If the length of transactions in the response is less than the limit,
+        // it means we've retrieved the last set of transactions and don't need to paginate further
+        if (response.txs.length < LIMIT) {
+          return of(null); // End the observable stream by emitting null
+        }
+
+        // Update the offset for the next page
+        currentOffset += LIMIT;
+        return this.fetchPage(currentOffset, LIMIT);
+      }),
+      // filter out the final null value, if any
+      filter(response => response !== null),
+      map(response => response.txs.map(u => unconfirmedToTransaction(u))),
+      concatAll(),  // Flatten the array structure
+      toArray()  // Accumulate all the transactions into one array
+    );
+  }
+
+  /**
+   * Fetches a single page of unconfirmed transactions from the API.
+   *
+   * @param {number} offset - The offset value indicating the starting point from which records are fetched.
+   * @param {number} limit - The number of records to fetch in a single API call.
+   *
+   * @returns {Observable<UnconfirmedTransactionsResponse>} An observable that emits the response from the API for the specified page.
+   */
+  private fetchPage(offset: number, limit: number): Observable<UnconfirmedTransactionsResponse> {
+    return this.httpClient.get<UnconfirmedTransactionsResponse>(
+      `${this.BASE_URL}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`);
   }
 }
 
