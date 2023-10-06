@@ -373,7 +373,7 @@ function unconfirmedToTransaction(unconfirmed: UnconfirmedTransaction): Transact
 export class BlockchainApiService {
 
   private readonly baseUrl = 'https://blockchain.info';
-  private readonly itemsPerPage = 250; // set based on API's maximum allowed value
+  private readonly itemsPerPage = 500; // set based on API's maximum allowed value
   private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
 
 

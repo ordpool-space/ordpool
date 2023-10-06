@@ -1,8 +1,9 @@
-import { Inject, Injectable, forwardRef } from '@angular/core';
-import { EMPTY, Observable, Subject, map, of, retry } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { map, Observable, of, Subject } from 'rxjs';
+import { Transaction } from 'src/app/interfaces/electrs.interface';
+
 import { ElectrsApiService } from '../electrs-api.service';
 import { InscriptionParserService, ParsedInscription } from './inscription-parser.service';
-import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 
 interface FetchRequest {
@@ -172,15 +173,14 @@ export class InscriptionFetcherService {
    */
   addTransactions(transactions: Transaction[]): void {
 
-    let countBefore = 0;
-    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countBefore++; }});
+    // let countBefore = 0;
+    // this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countBefore++; }});
 
     transactions.forEach(transaction => this.addTransaction(transaction));
 
-    let countAfter = 0;
-    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
-
-    console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
+    // let countAfter = 0;
+    // this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
+    // console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
 
   }
 
