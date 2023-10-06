@@ -71,13 +71,6 @@ export class ElectrsApiService {
     );
   }
 
-  /**
-   * Let's cheat a bit and load a bunch
-   */
-  gobbleUnconfirmedTransactions$() {
-
-  }
-
   getBlockHashFromHeight$(height: number): Observable<string> {
     return this.httpClient.get(this.apiBaseUrl + this.apiBasePath + '/api/block-height/' + height, {responseType: 'text'});
   }

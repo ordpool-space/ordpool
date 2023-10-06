@@ -25,6 +25,7 @@ import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe
 import { AppPreloadingStrategy } from './app.preloading-strategy';
 import { InscriptionParserService } from './services/inscriptions/inscription-parser.service';
 import { InscriptionFetcherService } from './services/inscriptions/inscription-fetcher.service';
+import { BlockchainApiService } from './services/inscriptions/blockchain-api.service';
 
 
 const providers = [
@@ -46,6 +47,7 @@ const providers = [
   AppPreloadingStrategy,
   InscriptionParserService,
   InscriptionFetcherService,
+  BlockchainApiService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }
 ];

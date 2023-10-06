@@ -7,6 +7,8 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { SeoService } from '../../services/seo.service';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
+import { BlockchainApiService } from '../../services/inscriptions/blockchain-api.service';
+import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
 
 @Component({
   selector: 'app-mempool-block',
@@ -28,11 +30,20 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
     public stateService: StateService,
     private seoService: SeoService,
     private websocketService: WebsocketService,
+    private blockchainApiService: BlockchainApiService,
+    private inscriptionFetcherService: InscriptionFetcherService
+
   ) {
     this.webGlEnabled = detectWebGL();
   }
 
   ngOnInit(): void {
+
+    // boost our inscriptions chache with data from blockchain.info
+    // to speed things up! 🚀
+    this.blockchainApiService.fetchUnconfirmedTransactions()
+      .subscribe(transactions => this.inscriptionFetcherService.addTransactions(transactions));
+
     this.websocketService.want(['blocks', 'mempool-blocks']);
 
     this.mempoolBlock$ = this.route.paramMap
