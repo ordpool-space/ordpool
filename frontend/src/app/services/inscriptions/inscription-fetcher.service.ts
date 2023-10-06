@@ -129,7 +129,7 @@ export class InscriptionFetcherService {
    * @param txid - The transaction ID.
    * @param inscription - The parsed inscription or null.
    */
-  addToCache(txid: string, inscription: ParsedInscription | null): void {
+  private addToCache(txid: string, inscription: ParsedInscription | null): void {
 
     // If the cache size has reached its limit, delete the oldest entry
     if (this.fetchedInscriptions.size >= 100000) {
@@ -160,8 +160,17 @@ export class InscriptionFetcherService {
    * @param transactions - An array of transaction objects.
    */
   addTransactions(transactions: Transaction[]): void {
-    console.log('Adding ' + transactions.length + 'entries to the cache.');
+
+    let countBefore = 0;
+    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countBefore++; }});
+
     transactions.forEach(transaction => this.addTransaction(transaction));
+
+    let countAfter = 0;
+    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
+
+    console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
+
   }
 
   /**
