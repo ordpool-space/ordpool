@@ -1,6 +1,6 @@
 {
-    "name": "mempool",
-    "short_name": "mempool",
+    "name": "ordinals-mempool",
+    "short_name": "ordinals-mempool",
     "icons": [
         {
             "src": "/resources/favicons/android-chrome-192x192.png",
