@@ -37,6 +37,7 @@ export class SearchFormComponent implements OnInit {
   regexAddress = /^([a-km-zA-HJ-NP-Z1-9]{26,35}|[a-km-zA-HJ-NP-Z1-9]{80}|[A-z]{2,5}1[a-zA-HJ-NP-Z0-9]{39,59}|04[a-fA-F0-9]{128}|(02|03)[a-fA-F0-9]{64})$/;
   regexBlockhash = /^[0]{8}[a-fA-F0-9]{56}$/;
   regexTransaction = /^([a-fA-F0-9]{64})(:\d+)?$/;
+  regexInscription = /^([a-fA-F0-9]{64}i\d+)?$/;
   regexBlockheight = /^[0-9]{1,9}$/;
   focus$ = new Subject<string>();
   click$ = new Subject<string>();
@@ -63,7 +64,7 @@ export class SearchFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.stateService.networkChanged$.subscribe((network) => this.network = network);
-    
+
     this.router.events.subscribe((e: NavigationStart) => { // Reset search focus when changing page
       if (this.searchInput && e.type === EventType.NavigationStart) {
         this.searchInput.nativeElement.blur();
@@ -169,6 +170,10 @@ export class SearchFormComponent implements OnInit {
           const result = latestData[1];
           const addressPrefixSearchResults = result[0];
           const lightningResults = result[1];
+
+          if (this.regexInscription.test(searchText)) {
+            searchText = searchText.split('i')[0];
+          }
 
           const matchesBlockHeight = this.regexBlockheight.test(searchText);
           const matchesTxId = this.regexTransaction.test(searchText) && !this.regexBlockhash.test(searchText);
