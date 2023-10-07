@@ -166,7 +166,8 @@
               "src/resources",
               "src/robots.txt",
               "src/config.js",
-              "src/config.template.js"
+              "src/config.template.js",
+              "src/_redirects"
             ],
             "styles": [
               "src/styles.scss",
