@@ -144,9 +144,10 @@ export class InscriptionFetcherService {
   private addToCache(txid: string, inscription: ParsedInscription | null): void {
 
     // If the cache size has reached its limit, delete the oldest entry
-    if (this.fetchedInscriptions.size >= 100000) {
+    if (this.fetchedInscriptions.size >= 100 * 1000) {
       const firstKey = this.fetchedInscriptions.keys().next().value;
       this.fetchedInscriptions.delete(firstKey);
+      // console.log('Cache limit reached!')
     }
 
     // Add the new entry to the cache

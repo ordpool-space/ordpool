@@ -4,7 +4,7 @@ const FRONTEND_CONFIG_FILE_NAME = 'mempool-frontend-config.json';
 
 let configContent;
 
-// Read frontend config 
+// Read frontend config
 try {
     const rawConfig = fs.readFileSync(FRONTEND_CONFIG_FILE_NAME);
     configContent = JSON.parse(rawConfig);
@@ -18,7 +18,16 @@ try {
   }
 }
 
-let PROXY_CONFIG = [];
+let PROXY_CONFIG = [
+  // HACK
+  {
+    context: ['/content/**'],
+    target: `https://ordinals.com`,
+    secure: false,
+    changeOrigin: true,
+    proxyTimeout: 30000
+  }
+];
 
 if (configContent && configContent.BASE_MODULE === 'liquid') {
   PROXY_CONFIG.push(...[
