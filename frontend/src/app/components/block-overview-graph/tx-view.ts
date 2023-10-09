@@ -103,7 +103,7 @@ export default class TxView implements TransactionStripped {
     this.inscriptionFetcher.fetchInscription(this.txid).subscribe({
       next: (parsedInscription) => this.updateInscription(parsedInscription),
       error: error => {
-        // console.error('Failed to fetch inscription:', error);
+        // console.error('TxView: Failed to fetch inscription:', error);
       }
     });
   }

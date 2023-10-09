@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable } from '@angular/core';
-import { EMPTY, Observable, concatAll, expand, filter, map, of, toArray } from 'rxjs';
+import { Injectable, Injector } from '@angular/core';
+import { expand, filter, map, Observable, of } from 'rxjs';
+
 import { Transaction } from '../../interfaces/electrs.interface';
 import { InscriptionFetcherService } from './inscription-fetcher.service';
 
@@ -47,9 +48,9 @@ interface Output {
 }
 
 /**
-* Represents an unconfirmed transaction.
+* Represents a transaction from blockchain.info.
 */
-interface UnconfirmedTransaction {
+interface RawTransaction {
   hash: string;
   ver: number;
   vin_sz: number;
@@ -71,8 +72,8 @@ interface UnconfirmedTransaction {
 /**
  * Represents the response structure for unconfirmed transactions.
  */
-interface UnconfirmedTransactionsResponse {
-  txs: UnconfirmedTransaction[];
+interface RawTransactionsResponse {
+  txs: RawTransaction[];
 }
 
 /**
@@ -130,7 +131,7 @@ function decodeWitness(witnessStr: string): string[] | undefined {
 This mapping is untested and might be faulty at some places that are not related to the witness data.
 
 
-Transaction format:
+Mempool.space Transaction format:
 
 {
     "txid": "743feec584be2a93cca84c9d4652da6d160076b85d91d160c6204ddc28f4b580",
@@ -200,7 +201,7 @@ Transaction format:
     }
 }
 
-UnconfirmedTransaction format:
+Blockchain.info Transaction format:
 
 {
   "hash":"743feec584be2a93cca84c9d4652da6d160076b85d91d160c6204ddc28f4b580",
@@ -329,18 +330,18 @@ Witness:
   In the "UnconfirmedTransaction" format, the witness is a single concatenated string.
 
  */
-function unconfirmedToTransaction(unconfirmed: UnconfirmedTransaction): Transaction {
+function RawTransactionToTransaction(raw: RawTransaction): Transaction {
   return {
-    txid: unconfirmed.hash,
-    version: unconfirmed.ver,
-    locktime: unconfirmed.lock_time,
-    size: unconfirmed.size,
-    weight: unconfirmed.weight,
-    fee: unconfirmed.fee,
+    txid: raw.hash,
+    version: raw.ver,
+    locktime: raw.lock_time,
+    size: raw.size,
+    weight: raw.weight,
+    fee: raw.fee,
     status: {
-      confirmed: !!(unconfirmed.block_index || unconfirmed.block_height)
+      confirmed: !!(raw.block_index || raw.block_height)
     },
-    vin: unconfirmed.inputs.map(input => ({
+    vin: raw.inputs.map(input => ({
       txid: input.prev_out.tx_index.toString(),
       vout: input.prev_out.n,
       prevout: {
@@ -356,7 +357,7 @@ function unconfirmedToTransaction(unconfirmed: UnconfirmedTransaction): Transact
       is_coinbase: false, // Can't be a coinbase txn
       sequence: input.sequence
     })),
-    vout: unconfirmed.out.map(output => ({
+    vout: raw.out.map(output => ({
       scriptpubkey: output.script,
       scriptpubkey_asm: '', // This can be derived if necessary
       scriptpubkey_type: '', // This can be derived if necessary
@@ -379,7 +380,7 @@ export class BlockchainApiService {
 
   constructor(
     private httpClient: HttpClient,
-    private inscriptionFetcherService: InscriptionFetcherService) { }
+    private injector: Injector) { }
 
   /**
    * Fetches unconfirmed transactions from blockchain.info API.
@@ -388,8 +389,8 @@ export class BlockchainApiService {
    * @returns An observable of the list of unconfirmed transactions.
    */
   fetchFirstUnconfirmedTransactions(): Observable<Transaction[]> {
-    return this.httpClient.get<UnconfirmedTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json`).pipe(
-      map(response => response.txs.map(u => unconfirmedToTransaction(u)))
+    return this.httpClient.get<RawTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json`).pipe(
+      map(response => response.txs.map(u => RawTransactionToTransaction(u)))
     );
   }
 
@@ -416,9 +417,11 @@ export class BlockchainApiService {
       }),
       // filter out the final null value, if any
       filter(response => response !== null),
-      map(response => response.txs.map(u => unconfirmedToTransaction(u)))
+      map(response => response.txs.map(u => RawTransactionToTransaction(u)))
     ).subscribe(transactions => {
-      this.inscriptionFetcherService.addTransactions(transactions);
+
+      const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
+      inscriptionFetcher.addTransactions(transactions);
     });
   }
 
@@ -428,11 +431,24 @@ export class BlockchainApiService {
    * @param {number} offset - The offset value indicating the starting point from which records are fetched.
    * @param {number} limit - The number of records to fetch in a single API call.
    *
-   * @returns {Observable<UnconfirmedTransactionsResponse>} An observable that emits the response from the API for the specified page.
+   * @returns {Observable<RawTransactionsResponse>} An observable that emits the response from the API for the specified page.
    */
-  private fetchPage(offset: number, limit: number): Observable<UnconfirmedTransactionsResponse> {
-    return this.httpClient.get<UnconfirmedTransactionsResponse>(
+  private fetchPage(offset: number, limit: number): Observable<RawTransactionsResponse> {
+    return this.httpClient.get<RawTransactionsResponse>(
       `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`);
+  }
+
+  /**
+ * Fetch the details of a single transaction based on its hash (transaction id).
+ *
+ * @param tx_hash The hash of the transaction to retrieve.
+ * @returns An observable containing the transaction details.
+ */
+  fetchSingleTransaction(tx_hash: string): Observable<Transaction> {
+    const url = `${this.baseUrl}/rawtx/${tx_hash}`;
+    return this.httpClient.get<RawTransaction>(url).pipe(
+      map(transaction => RawTransactionToTransaction(transaction))
+    );
   }
 }
 
