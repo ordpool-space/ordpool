@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
-import { map, Observable, of, Subject } from 'rxjs';
+import { catchError, map, Observable, of, Subject, throwError } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { ElectrsApiService } from '../electrs-api.service';
 import { InscriptionParserService, ParsedInscription } from './inscription-parser.service';
+import { BlockchainApiService } from './blockchain-api.service';
 
 
 interface FetchRequest {
@@ -40,7 +41,8 @@ export class InscriptionFetcherService {
    */
   constructor(
     private electrsApiService: ElectrsApiService,
-    private inscriptionParserService: InscriptionParserService) { }
+    private inscriptionParserService: InscriptionParserService,
+    private blockchainApiService: BlockchainApiService) { }
 
   /**
    * Fetches the parsed inscription for the specified transaction.
@@ -107,7 +109,7 @@ export class InscriptionFetcherService {
     this.isProcessing = true;
     const currentRequest = this.requestQueue.shift() as FetchRequest;
 
-    this.electrsApiService.getTransaction$(currentRequest.txid).pipe(
+    this.fetchTransaction(currentRequest.txid).pipe(
       map(transaction => {
         const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
 
@@ -129,7 +131,11 @@ export class InscriptionFetcherService {
       error: error => {
         // console.error('Failed to fetch inscription:', error);
         // Notify the caller with the error and continue to the next request
-        currentRequest.subject.error(error);
+        // currentRequest.subject.error(error);
+
+        // add the request back to que, to try it out later
+        this.requestQueue.push(currentRequest);
+
         this.processQueue();  // Process the next request in the queue
       }
     });
@@ -200,4 +206,21 @@ export class InscriptionFetcherService {
       request.subject.complete();
     }
   }
+
+  /**
+   * Fetches a single transaction by ID.
+   * Tries fetching from electrsApiService first, and falls back to blockchainApiService if the first one fails.
+   * @param transaction - The transaction object containing the ID (hash).
+   * @returns Observable of the transaction data.
+   */
+  fetchTransaction(txid: string): Observable<Transaction> {
+    return this.electrsApiService.getTransaction$(txid).pipe(
+      catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
+      catchError(() => throwError(() => new Error('Failed to fetch transaction from both services.')))
+    );
+  }
 }
+
+// blockchainApiService
+// electrsApiService.getTransaction$
+// this.blockchainApiService.fetchSingleTransaction
