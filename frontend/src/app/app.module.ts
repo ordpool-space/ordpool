@@ -26,6 +26,7 @@ import { AppPreloadingStrategy } from './app.preloading-strategy';
 import { InscriptionParserService } from './services/inscriptions/inscription-parser.service';
 import { InscriptionFetcherService } from './services/inscriptions/inscription-fetcher.service';
 import { BlockchainApiService } from './services/inscriptions/blockchain-api.service';
+import { HiroApiService } from './services/inscriptions/hiro-api.service';
 
 
 const providers = [
@@ -48,6 +49,7 @@ const providers = [
   InscriptionParserService,
   InscriptionFetcherService,
   BlockchainApiService,
+  HiroApiService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }
 ];
