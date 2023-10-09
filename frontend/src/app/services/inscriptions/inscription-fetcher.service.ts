@@ -139,9 +139,9 @@ export class InscriptionFetcherService {
    * Adds a transaction to the cache.
    *
    * @param txid - The transaction ID.
-   * @param inscription - The parsed inscription or null.
+   * @param inscription - The parsed inscription or NULL.
    */
-  private addToCache(txid: string, inscription: ParsedInscription | null): void {
+  public addToCache(txid: string, inscription: ParsedInscription | null): void {
 
     // If the cache size has reached its limit, delete the oldest entry
     if (this.fetchedInscriptions.size >= 100 * 1000) {
@@ -152,6 +152,9 @@ export class InscriptionFetcherService {
 
     // Add the new entry to the cache
     this.fetchedInscriptions.set(txid, inscription);
+
+    // Check and resolve any matching pending request
+    this.resolveMatchingRequest(txid, inscription);
   }
 
   /**
@@ -162,9 +165,6 @@ export class InscriptionFetcherService {
   addTransaction(transaction: Transaction): void {
     const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
     this.addToCache(transaction.txid, parsedInscription);
-
-    // Check and resolve any matching pending request
-    this.resolveMatchingRequest(transaction.txid, parsedInscription);
   }
 
   /**

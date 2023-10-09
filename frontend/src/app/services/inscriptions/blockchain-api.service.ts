@@ -395,6 +395,7 @@ export class BlockchainApiService {
 
   /**
    * Iterates over all pages of unconfirmed transactions (up to MAX_PAGES pages) and caches them using the InscriptionFetcherService.
+   * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
    */
   fetchAndCacheManyUnconfirmedTransactions(): void {
     let currentOffset = 0;
