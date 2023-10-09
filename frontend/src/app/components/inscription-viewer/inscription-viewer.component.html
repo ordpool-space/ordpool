@@ -1,9 +1,9 @@
-<ng-container *ngIf="parsedInscription">
+<ng-container *ngIf="_parsedInscription">
 
-  {{ parsedInscription.contentType }}<br>
+  {{ _parsedInscription.contentType }}<br>
 
   <iframe
-    [srcdoc]="getPreview() | safeHtml"
+    [srcdoc]="preview"
     class=""
     sandbox="allow-scripts"
     scrolling="no"

@@ -16,9 +16,8 @@ const OP_ENDIF = 0x68; // Ends an if/else block.
 
 export interface ParsedInscription {
   contentType: string;
-  contentString: string;
   // fields: { [key: string]: Uint8Array };
-  dataUri: string;
+  getDataUri: () => string;
 }
 
 /**
@@ -93,9 +92,27 @@ export class InscriptionParserService {
    * @param bytes - The byte array to convert.
    * @returns The corresponding UTF8 string.
    */
-  static uint8ArrayToString(bytes: Uint8Array): string {
+  static uint8ArrayToUtf8String(bytes: Uint8Array): string {
     const decoder = new TextDecoder('utf-8');
     return decoder.decode(bytes);
+  }
+
+  /**
+   * Convert a Uint8Array to a string by treating each byte as a character code.
+   *
+   * Note: This method is different from using `String.fromCharCode(...combinedData)` which can
+   * cause a "Maximum call stack size exceeded" error for large arrays due to the limitation of
+   * the spread operator in JavaScript. It avoids interpreting bytes as UTF-8 encoded sequences.
+   *
+   * @param bytes - The byte array to convert.
+   * @returns The resulting string where each byte value is treated as a direct character code.
+   */
+  static uint8ArrayToSingleByteChars(bytes: Uint8Array): string {
+    let resultStr = '';
+    for (let i = 0; i < bytes.length; i++) {
+        resultStr += String.fromCharCode(bytes[i]);
+    }
+    return resultStr;
   }
 
   /**
@@ -204,7 +221,7 @@ export class InscriptionParserService {
       // Process fields until OP_0 is encountered
       const fields: { [key: string]: Uint8Array } = {};
       while (this.pointer < this.raw.length && this.raw[this.pointer] !== OP_0) {
-        const tag = InscriptionParserService.uint8ArrayToString(this.readPushdata());
+        const tag = InscriptionParserService.uint8ArrayToUtf8String(this.readPushdata());
         const value = this.readPushdata();
 
         fields[tag] = value;
@@ -233,10 +250,8 @@ export class InscriptionParserService {
         idx += segment.length;
       }
 
-      const contentType = InscriptionParserService.uint8ArrayToString(fields['\u0001']);
-      const contentString = InscriptionParserService.uint8ArrayToString(combinedData);
-      const base64Data = window.btoa(String.fromCharCode(...combinedData));
-      const dataUri = `data:${contentType};base64,${base64Data}`;
+      const contentType = InscriptionParserService.uint8ArrayToUtf8String(fields['\u0001']);
+      // const contentString = InscriptionParserService.uint8ArrayToUtf8String(combinedData);
 
       // Let's ignore inscriptions without a contentType, because there is (right now) no good way to display them
       if (!contentType) {
@@ -245,9 +260,12 @@ export class InscriptionParserService {
 
       return {
         contentType,
-        contentString,
+        // contentString,
         // fields,
-        dataUri
+        getDataUri: (): string  => {
+          const base64Data = window.btoa(InscriptionParserService.uint8ArrayToSingleByteChars(combinedData));
+          return `data:${contentType};base64,${base64Data}`;
+        }
       };
 
     } catch (ex) {
