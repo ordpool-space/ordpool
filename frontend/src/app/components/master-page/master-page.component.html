@@ -22,7 +22,7 @@
     </div>
   </ng-template>
     <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
-      🟧 Ordinals Mempool
+      <h4 class="mb-1">🟧&nbsp;ordpool<span class="text-primary">.space</span></h4>
       <!-- <app-svg-images *ngIf="!officialMempoolSpace" name="mempoolSpace" viewBox="0 0 500 126" class="mempool-logo" [ngStyle]="{'opacity': connectionState.val === 2 ? 1 : 0.5 }"></app-svg-images>
       <app-svg-images *ngIf="officialMempoolSpace" name="officialMempoolSpace" viewBox="0 0 500 126"></app-svg-images> -->
       <div class="connection-badge">

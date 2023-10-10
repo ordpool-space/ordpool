@@ -30,7 +30,7 @@ export class BisqDashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.seoService.setTitle($localize`:@@meta.title.bisq.markets:Markets`);
-    this.seoService.setDescription($localize`:@@meta.description.bisq.markets:See what's inscribed next with 🟧 Ordinals Mempool. See Bisq market prices, trading activity, and more.`);
+    this.seoService.setDescription($localize`:@@meta.description.bisq.markets:See what's inscribed next with 🟧 ordpool.space. See Bisq market prices, trading activity, and more.`);
     this.websocketService.want(['blocks']);
 
     this.volumes$ = this.bisqApiService.getAllVolumesDay$()
