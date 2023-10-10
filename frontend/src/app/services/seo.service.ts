@@ -9,8 +9,8 @@ import { StateService } from './state.service';
 })
 export class SeoService {
   network = '';
-  baseTitle = '🟧 Ordinals Mempool';
-  baseDescription = 'See what\'s inscribed next with 🟧 Ordinals Mempool.';
+  baseTitle = '🟧 ordpool.space';
+  baseDescription = 'See what\'s inscribed next with 🟧 ordpool.space.';
 
   canonicalLink: HTMLElement = document.getElementById('canonical');
 
