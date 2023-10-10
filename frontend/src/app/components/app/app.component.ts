@@ -52,7 +52,7 @@ export class AppComponent implements OnInit {
   ngOnInit() {
     this.router.events.subscribe((val) => {
       if (val instanceof NavigationEnd) {
-        let domain = 'ordinals-mempool.haushoppe.art';
+        let domain = 'ordpool.space';
         if (this.stateService.env.BASE_MODULE === 'liquid') {
           domain = 'liquid.network';
         } else if (this.stateService.env.BASE_MODULE === 'bisq') {

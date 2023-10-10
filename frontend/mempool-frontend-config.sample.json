@@ -13,7 +13,7 @@
   "BLOCK_WEIGHT_UNITS": 4000000,
   "MEMPOOL_BLOCKS_AMOUNT": 8,
   "BASE_MODULE": "mempool",
-  "MEMPOOL_WEBSITE_URL": "https://ordinals-mempool.haushoppe.art",
+  "MEMPOOL_WEBSITE_URL": "https://ordpool.space",
   "LIQUID_WEBSITE_URL": "https://liquid.network",
   "BISQ_WEBSITE_URL": "https://bisq.markets",
   "MINING_DASHBOARD": true,
