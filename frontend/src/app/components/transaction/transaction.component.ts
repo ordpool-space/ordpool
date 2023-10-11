@@ -113,7 +113,16 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     private priceService: PriceService,
     private storageService: StorageService,
     public inscriptionParser: InscriptionParserService
-  ) {}
+  ) {
+
+    // HACK, redirect to the correct URL if someone accidently insert a inscription ID
+    const id = this.route.snapshot.paramMap.get('id');
+    // Check if id has the unwanted suffix pattern
+    const match = id.match(/^(.*)(i\d+)$/);
+    if (match) {
+      this.router.navigate(['/tx', match[1]]);
+    }
+  }
 
   getParsedInscripion(): ParsedInscription | null {
     return this.inscriptionParser.parseInscription(this.tx);

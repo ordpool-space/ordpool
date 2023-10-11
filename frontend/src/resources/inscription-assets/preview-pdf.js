@@ -8,7 +8,7 @@ function decodeBase64DataURI(uri) {
 
 let canvas = document.querySelector('canvas');
 
-const pdf = decodeBase64DataURI(window.pdfBase64);
+const pdf = await pdfjs.getDocument({data: decodeBase64DataURI(window.pdfBase64) }).promise;
 let page = await pdf.getPage(1);
 let scale = window.devicePixelRatio || 1;
 let viewport = page.getViewport({ scale });
