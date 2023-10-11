@@ -1,3 +1,5 @@
+import { marked } from '/resources/inscription-assets/preview-markdown-marked.js';
+
 function decodeBase64DataURI(uri) {
   const [, , data] = uri.match(/^data:.+\/(.+);base64,(.*)$/);
   return atob(data);

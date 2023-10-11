@@ -150,8 +150,7 @@ export class InscriptionViewerComponent {
     <meta charset='utf-8'>
     <link rel='stylesheet' href='/resources/inscription-assets/preview-markdown.css'></link>
     <script>window.markdownBase64 = '${ dataUri }'</script>
-    <script src='/resources/inscription-assets/preview-markdown-marked.js'></script>
-    <script src='/resources/inscription-assets/preview-markdown.js'></script>
+    <script src='/resources/inscription-assets/preview-markdown.js' type=module defer></script>
   </head>
   <body>
   </body>

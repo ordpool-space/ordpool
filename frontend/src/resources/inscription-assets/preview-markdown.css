@@ -5,3 +5,7 @@ html {
   margin: 0 auto;
   font-family: system-ui, sans-serif;
 }
+
+img {
+  max-width: 100%;
+}
