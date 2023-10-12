@@ -42,7 +42,7 @@
     <div class="row col-md-12 link-tree pt-4" [class]="{'services': isServicesPage}">
 
       <div class="main-logo" [class]="{'services': isServicesPage}">
-        <h4>🟧&nbsp;ordpool<span class="text-primary">.space</span></h4>
+        <h4><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space</span></h4>
         <i>See what's inscribed next!</i>
       </div>
 
@@ -84,8 +84,9 @@
         </ng-template> -->
         <div class="links">
           <p class="category">Legal</p>
+          <p><a [routerLink]="['/about']">About</a></p>
           <p><a [routerLink]="['/terms-of-service']" i18n="shared.terms-of-service|Terms of Service">Terms of Service</a></p>
-          <p><a [routerLink]="['/privacy-policy']" i18n="shared.privacy-policy|Privacy Policy">Privacy Policy</a></p>
+          <!-- <p><a [routerLink]="['/privacy-policy']" i18n="shared.privacy-policy|Privacy Policy">Privacy Policy</a></p> -->
           <p><a [routerLink]="['/trademark-policy']">Trademark Policy</a></p>
         </div>
     </div>
