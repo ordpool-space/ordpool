@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Injector } from '@angular/core';
-import { expand, filter, map, Observable, of } from 'rxjs';
+import { expand, filter, map, Observable, of, tap } from 'rxjs';
 
 import { Transaction } from '../../interfaces/electrs.interface';
 import { InscriptionFetcherService } from './inscription-fetcher.service';
@@ -398,11 +398,11 @@ export class BlockchainApiService {
    * Iterates over all pages of unconfirmed transactions (up to MAX_PAGES pages) and caches them using the InscriptionFetcherService.
    * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
    */
-  fetchAndCacheManyUnconfirmedTransactions(): void {
+  fetchAndCacheManyUnconfirmedTransactions(): Observable<Transaction[]> {
     let currentOffset = 0;
     let pagesFetched = 0;
 
-    this.fetchPage(currentOffset, this.itemsPerPage).pipe(
+    return this.fetchPage(currentOffset, this.itemsPerPage).pipe(
       expand(response => {
         pagesFetched++;
 
@@ -417,12 +417,13 @@ export class BlockchainApiService {
       }),
       // filter out the final null value, if any
       filter(response => response !== null),
-      map(response => response.txs.map(u => RawTransactionToTransaction(u)))
-    ).subscribe(transactions => {
+      map(response => response.txs.map(u => RawTransactionToTransaction(u))),
+      tap(transactions => {
 
       const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
       inscriptionFetcher.addTransactions(transactions);
-    });
+      })
+    );
   }
 
   /**

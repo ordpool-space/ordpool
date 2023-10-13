@@ -9,6 +9,7 @@ import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
 import { BlockchainApiService } from '../../services/inscriptions/blockchain-api.service';
 import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-mempool-block',
@@ -35,13 +36,18 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
 
   ) {
     this.webGlEnabled = detectWebGL();
-  }
-
-  ngOnInit(): void {
 
     // boost our inscriptions chache with data from blockchain.info
     // to speed things up! 🚀
-    this.blockchainApiService.fetchAndCacheManyUnconfirmedTransactions();
+    this.route.paramMap.pipe(
+      takeUntilDestroyed(),
+      switchMap(() => {
+        return this.blockchainApiService.fetchAndCacheManyUnconfirmedTransactions();
+      })
+    ).subscribe();
+  }
+
+  ngOnInit(): void {
 
     this.websocketService.want(['blocks', 'mempool-blocks']);
 
