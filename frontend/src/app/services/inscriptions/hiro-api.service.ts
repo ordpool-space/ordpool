@@ -130,7 +130,7 @@ export class HiroApiService {
         // If there is NO match, we are save to call addToCache with NULL,
         // so that this txn is not any longer catched!
         for (const transaction of transactions) {
-          const matchingInscription = inscriptions.find(i => i.tx_id === transaction.txid);
+          const matchingInscription = inscriptions.find(i => i.genesis_tx_id === transaction.txid);
           if (!matchingInscription) {
             this.inscriptionFetcherService.addToCache(transaction.txid, null); // assuming addToCache takes an array of TransactionStripped type.
           }
