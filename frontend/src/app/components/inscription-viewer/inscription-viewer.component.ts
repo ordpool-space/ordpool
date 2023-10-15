@@ -49,6 +49,7 @@ export class InscriptionViewerComponent {
     'image/avif': this.getPreviewImage,
     'image/gif': this.getPreviewImage,
     'image/jpeg': this.getPreviewImage,
+     // 'image/jp2': this.getPreviewImage, // seen here 06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0 - not supported by chrome!
     'image/png': this.getPreviewImage,
     'image/svg+xml': this.getPreviewIframe,
     'image/webp': this.getPreviewImage,
