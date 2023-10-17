@@ -50,7 +50,7 @@
   <div class="navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-home">
-        <a class="nav-link" [routerLink]="['/' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'tachometer-alt']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon></a>
+        <a class="nav-link" [routerLink]="['/' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> Dashboard</a>
       </li>
       <!--
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
@@ -70,9 +70,15 @@
         <a class="nav-link" [routerLink]="['/docs' | relativeUrl ]" (click)="collapse()"><fa-icon [icon]="['fas', 'book']" [fixedWidth]="true" i18n-title="documentation.title" title="Documentation"></fa-icon></a>
       </li>
       -->
+
       <li class="nav-item" routerLinkActive="active" id="btn-about">
-        <a class="nav-link" [routerLink]="['/about']" (click)="collapse()"><fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" i18n-title="master-page.about" title="About"></fa-icon></a>
+        <a class="nav-link" [routerLink]="['/about']" (click)="collapse()"><fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" i18n-title="master-page.about" title="About"></fa-icon> About</a>
       </li>
+
+      <li class="nav-item" routerLinkActive="active" id="btn-about">
+        <a class="nav-link" href="https://ordinalsbot.com/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a>
+      </li>
+
     </ul>
     <app-search-form class="search-form-container" location="top" (searchTriggered)="collapse()"></app-search-form>
   </div>

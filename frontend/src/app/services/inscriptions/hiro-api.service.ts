@@ -114,8 +114,8 @@ export class HiroApiService {
       expand((results: Inscription[]) => {
         if (results.length === 0 && this.retryCount <= this.maxRetrys) {
           this.retryCount++;
-          // Increment the delay by multiplying the retry count with 5000 (5 seconds)
-          return timer(this.retryCount * 5000).pipe(
+          // Increment the delay by multiplying the retry count with 2500 (2.5 seconds)
+          return timer(this.retryCount * 2500).pipe(
             mergeMap(() => this.fetchAllInscriptions(genesis_block))
           );
         } else {
