@@ -184,7 +184,8 @@
             "production": {
               "assets": [
                 "src/favicon.ico",
-                "src/robots.txt"
+                "src/robots.txt",
+                "src/_redirects"
               ],
               "fileReplacements": [
                 {
