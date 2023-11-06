@@ -1,8 +1,8 @@
-name: Build Frontend (main & stage-prod)
+name: Build Frontend (main, stage-test & stage-prod)
 
 on:
   push:
-    branches: [ main, stage-prod ]
+    branches: [ main, stage-test, stage-prod ]
     paths:
       - 'frontend/**'
       - '.github/workflows/build-frontend.yml'
@@ -25,7 +25,8 @@ jobs:
     - run: npm install
     - run: npm run build
     - run: mv dist/mempool/browser/en-US/* dist/mempool/browser
-    - name: Deploy Frontend to `haushoppe/ordinals-mempool-build` repo
+    - name: Deploy Frontend to `haushoppe/ordpool-build` repo
+      if: ${{ github.ref_name != 'main' }}
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: npx angular-cli-ghpages --message="Auto-generated commit" --repo=https://github.com/haushoppe/ordinals-mempool-build.git --branch=$GITHUB_REF_NAME --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-silent
+      run: npx angular-cli-ghpages --message="Auto-generated commit" --repo=https://github.com/haushoppe/ordpool-build.git --branch=$GITHUB_REF_NAME --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-silent
