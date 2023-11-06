@@ -1,3 +1,2 @@
 /r/* https://ordinals.com/r/:splat 301
-/block* https://ordinals.com/block:splat 301
 /content/* https://ordinals.com/content/:splat 301
