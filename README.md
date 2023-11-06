@@ -7,6 +7,9 @@ This is a fork of the awesome [The Mempool Open Source Project](https://github.c
 It shows you ordinal inscriptions in the mempool transactions.
 So you know in advance what will be inscribed soon. 
 
+* Production: https://ordpool.space/ (`stage-prod` branch)
+* Test Stage: https://test.ordpool.space/ (`stage-test` branch)
+
 <!--
 
 
