@@ -1,14 +1,13 @@
-# Mempool Fork: Ordinals!
+# Ordpool
 
-This is a fork of the awesome The Mempool Open Source Project:
-https://github.com/mempool/mempool#the-mempool-open-source-project
+![Preview](frontend/src/resources/mempool-space-preview.png)
+
+This is a fork of the awesome [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with changes for the Bitcoin Ordinals community.
 
 It shows you ordinal inscriptions in the mempool transactions.
 So you know in advance what will be inscribed soon. 
-There are rate limits to the mempool.space API, 
-so you may experience interruptions in functionality.
 
------
+<!--
 
 
 # The Mempool Open Source Project®
@@ -46,3 +45,5 @@ Mempool can be installed in other ways too, but we only recommend doing so if yo
 - See the [`docker/`](./docker/) directory for instructions on deploying Mempool with Docker.
 - See the [`backend/`](./backend/) and [`frontend/`](./frontend/) directories for manual install instructions oriented for developers.
 - See the [`production/`](./production/) directory for guidance on setting up a more serious Mempool instance designed for high performance at scale.
+
+-->
