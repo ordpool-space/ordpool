@@ -2,7 +2,7 @@ import { FastVertexArray } from './fast-vertex-array';
 import TxView from './tx-view';
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position, Square, ViewUpdateParams } from './sprite-types';
-import { InscriptionFetcherService } from '../../services/_ordinals/inscription-fetcher.service';
+import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};

@@ -23,11 +23,11 @@ import { FiatCurrencyPipe } from './shared/pipes/fiat-currency.pipe';
 import { ShortenStringPipe } from './shared/pipes/shorten-string-pipe/shorten-string.pipe';
 import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe';
 import { AppPreloadingStrategy } from './app.preloading-strategy';
-import { InscriptionParserService } from './services/_ordinals/inscription-parser.service';
-import { InscriptionFetcherService } from './services/_ordinals/inscription-fetcher.service';
-import { BlockchainApiService } from './services/_ordinals/blockchain-api.service';
-import { HiroApiService } from './services/_ordinals/hiro-api.service';
-import { CpfpApiService } from './services/_ordinals/cfpf-api.service';
+import { InscriptionParserService } from './services/ordinals/inscription-parser.service';
+import { InscriptionFetcherService } from './services/ordinals/inscription-fetcher.service';
+import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
+import { HiroApiService } from './services/ordinals/hiro-api.service';
+import { CpfpApiService } from './services/ordinals/cfpf-api.service';
 
 
 const providers = [

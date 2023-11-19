@@ -2,10 +2,10 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
-import { InscriptionParserService, ParsedInscription } from '../../services/_ordinals/inscription-parser.service';
+import { InscriptionParserService, ParsedInscription } from '../../services/ordinals/inscription-parser.service';
 import { ElectrsApiService } from '../../services/electrs-api.service';
 import { Observable, map, of, retry, startWith } from 'rxjs';
-import { InscriptionFetcherService } from 'src/app/services/ordinals/inscription-fetcher.service';
+import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
 
 @Component({
   selector: 'app-block-overview-tooltip',

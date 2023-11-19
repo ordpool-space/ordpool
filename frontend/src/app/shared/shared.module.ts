@@ -106,6 +106,7 @@ import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
 import { InscriptionViewerComponent } from '../components/_ordinals/inscription-viewer/inscription-viewer.component';
+import { CpfpAccelerationComponent } from '../components/_ordinals/cpfp-acceleration/cpfp-acceleration.component';
 
 
 @NgModule({
@@ -205,7 +206,8 @@ import { InscriptionViewerComponent } from '../components/_ordinals/inscription-
     OnlyVsizeDirective,
     OnlyWeightDirective,
     MempoolErrorComponent,
-    InscriptionViewerComponent
+    InscriptionViewerComponent,
+    CpfpAccelerationComponent
   ],
   imports: [
     CommonModule,

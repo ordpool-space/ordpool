@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 
-import { ParsedInscription } from '../../../services/_ordinals/inscription-parser.service';
+import { ParsedInscription } from '../../../services/ordinals/inscription-parser.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 @Component({

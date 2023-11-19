@@ -26,7 +26,7 @@ import { LiquidUnblinding } from './liquid-ublinding';
 import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
 import { Price, PriceService } from '../../services/price.service';
 import { isFeatureActive } from '../../bitcoin.utils';
-import { InscriptionParserService, ParsedInscription } from '../../services/_ordinals/inscription-parser.service';
+import { InscriptionParserService, ParsedInscription } from '../../services/ordinals/inscription-parser.service';
 
 @Component({
   selector: 'app-transaction',

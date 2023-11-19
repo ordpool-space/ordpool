@@ -4,8 +4,8 @@ import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from './sprite-types';
 import { feeLevels, mempoolFeeColors } from '../../app.constants';
 import BlockScene from './block-scene';
-import { InscriptionFetcherService } from '../../services/_ordinals/inscription-fetcher.service';
-import { ParsedInscription } from '../../services/_ordinals/inscription-parser.service';
+import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
+import { ParsedInscription } from '../../services/ordinals/inscription-parser.service';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
