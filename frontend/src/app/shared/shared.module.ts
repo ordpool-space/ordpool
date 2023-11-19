@@ -105,7 +105,7 @@ import { CalculatorComponent } from '../components/calculator/calculator.compone
 import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
-import { InscriptionViewerComponent } from '../components/inscription-viewer/inscription-viewer.component';
+import { InscriptionViewerComponent } from '../components/_ordinals/inscription-viewer/inscription-viewer.component';
 
 
 @NgModule({
