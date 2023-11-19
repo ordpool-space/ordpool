@@ -1,4 +1,4 @@
-import { ParsedInscription } from "../services/inscriptions/inscription-parser.service";
+import { ParsedInscription } from "../services/_ordinals/inscription-parser.service";
 import { Block, Transaction } from "./electrs.interface";
 
 export interface OptimizedMempoolStats {

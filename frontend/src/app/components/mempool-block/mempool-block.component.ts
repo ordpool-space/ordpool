@@ -7,8 +7,8 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { SeoService } from '../../services/seo.service';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
-import { BlockchainApiService } from '../../services/inscriptions/blockchain-api.service';
-import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
+import { BlockchainApiService } from '../../services/_ordinals/blockchain-api.service';
+import { InscriptionFetcherService } from '../../services/_ordinals/inscription-fetcher.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({

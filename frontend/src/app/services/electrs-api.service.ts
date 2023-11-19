@@ -6,7 +6,7 @@ import { StateService } from './state.service';
 import { BlockExtended } from '../interfaces/node-api.interface';
 import { calcScriptHash$ } from '../bitcoin.utils';
 import { environment } from 'src/environments/environment';
-import { InscriptionFetcherService } from './inscriptions/inscription-fetcher.service';
+import { InscriptionFetcherService } from './_ordinals/inscription-fetcher.service';
 
 @Injectable({
   providedIn: 'root'
