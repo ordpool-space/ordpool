@@ -12,12 +12,14 @@
 <div class="row">
 
   <!-- Content for the second column (appears first on mobile) -->
-  <div class="col-md-5 order-md-2">
-    <app-fees-box class="d-block"></app-fees-box>
+  <div class="col-md-6 order-md-2">
+    <app-fees-box-clickable
+      (feeClicked)="feeRate = $event"
+      class="d-block"></app-fees-box-clickable>
   </div>
 
   <!-- Content for the first column (appears second on mobile) -->
-  <div class="col-md-7 order-md-1 pr-md-5">
+  <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
     <form [formGroup]="form">
 
@@ -33,45 +35,14 @@
 
       <div class="input-group input-group-lg mb-1">
         <div class="input-group-prepend">
-          <span class="input-group-text">New fee rate
+          <span class="input-group-text">Target fee rate
           </span>
         </div>
         <input type="text" class="form-control" [formControl]="c.feeRate">
         <div class="input-group-append">
-          <span class="input-group-text">sats/vB</span>
+          <span class="input-group-text">sat/vB</span>
         </div>
       </div>
-
-      <!--
-
-      <div class="input-group input-group-lg mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Your Ordinals Address</span>
-        </div>
-        <input type="text" class="form-control" [formControl]="c.buyerOrdinalAddress">
-      </div>
-
-      <div class="input-group input-group-lg mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Your Ordinals Public Key</span>
-        </div>
-        <input type="text" class="form-control" [formControl]="c.buyerOrdinalPublicKey">
-      </div>
-
-      <div class="input-group input-group-lg mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Your Payment Address</span>
-        </div>
-        <input type="text" class="form-control" [formControl]="c.buyerPaymentAddress">
-      </div>
-
-      <div class="input-group input-group-lg mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Your Payment Public Key</span>
-        </div>
-        <input type="text" class="form-control" [formControl]="c.buyerPaymentPublicKey">
-      </div>
-      -->
 
       <button type="submit" class="btn btn-primary mt-4 mb-4 text-white float-right">
         <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" i18n-title="search-form.search-title" title="Search"></fa-icon>

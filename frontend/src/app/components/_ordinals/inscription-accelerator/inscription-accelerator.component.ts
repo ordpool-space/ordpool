@@ -51,25 +51,9 @@ export class InscriptionAcceleratorComponent {
     this.form.patchValue({ utxo });
   }
 
-  // @Input() set feeRate(feeRate: number) {
-  //   this.form.patchValue({ feeRate });
-  // }
-
-  // @Input() set buyerOrdinalAddress(buyerOrdinalAddress: string) {
-  //   this.form.patchValue({ buyerOrdinalAddress });
-  // }
-
-  // @Input() set buyerOrdinalPublicKey(buyerOrdinalPublicKey: string) {
-  //   this.form.patchValue({ buyerOrdinalPublicKey });
-  // }
-
-  // @Input() set buyerPaymentAddress(buyerPaymentAddress: string) {
-  //   this.form.patchValue({ buyerPaymentAddress });
-  // }
-
-  // @Input() set buyerPaymentPublicKey(buyerPaymentPublicKey: string) {
-  //   this.form.patchValue({ buyerPaymentPublicKey });
-  // }
+  set feeRate(feeRate: number) {
+    this.form.patchValue({ feeRate });
+  }
 
   stateService = inject(StateService);
   recommendedFees$ = this.stateService.recommendedFees$;

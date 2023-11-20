@@ -107,6 +107,7 @@ import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
 import { InscriptionViewerComponent } from '../components/_ordinals/inscription-viewer/inscription-viewer.component';
 import { InscriptionAcceleratorComponent } from '../components/_ordinals/inscription-accelerator/inscription-accelerator.component';
+import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
 
 
 @NgModule({
@@ -207,7 +208,8 @@ import { InscriptionAcceleratorComponent } from '../components/_ordinals/inscrip
     OnlyWeightDirective,
     MempoolErrorComponent,
     InscriptionViewerComponent,
-    InscriptionAcceleratorComponent
+    InscriptionAcceleratorComponent,
+    FeesBoxClickableComponent
   ],
   imports: [
     CommonModule,
