@@ -11,11 +11,13 @@ export type Utxo = string;
 
 export interface CpfpRequestBody {
   utxos: Utxo[];
-  buyerPaymentAddress: string;
-  buyerOrdinalAddress: string;
-  buyerPaymentPublicKey: string;
-  buyerOrdinalPublicKey: string;
   feeRate: number;
+
+  buyerOrdinalAddress: string;
+  buyerOrdinalPublicKey: string;
+
+  buyerPaymentAddress: string;
+  buyerPaymentPublicKey: string;
 }
 
 export interface CpfpErrorResponse {

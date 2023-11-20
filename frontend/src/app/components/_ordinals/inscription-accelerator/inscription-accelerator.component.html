@@ -1,0 +1,111 @@
+
+
+<p class="mb-4">
+  Is your inscription stuck in the mempool and you don't want to wait any longer?<br>
+  We will help you to create a high-priority follow-up transaction that will boost this inscription.<br>
+
+
+</p>
+
+<!-- <ng-container *ngIf="price$ | async; else loading"> -->
+
+<div class="row">
+
+  <!-- Content for the second column (appears first on mobile) -->
+  <div class="col-md-5 order-md-2">
+    <app-fees-box class="d-block"></app-fees-box>
+  </div>
+
+  <!-- Content for the first column (appears second on mobile) -->
+  <div class="col-md-7 order-md-1 pr-md-5">
+
+    <form [formGroup]="form">
+
+      <!--
+      <div class="input-group input-group-lg  mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">Output to accelerate</span>
+        </div>
+        <input type="text" class="form-control" [formControl]="c.utxo" readonly>
+        <app-clipboard [button]="true" [text]="c.utxo.value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
+      </div>
+      -->
+
+      <div class="input-group input-group-lg mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">New fee rate
+          </span>
+        </div>
+        <input type="text" class="form-control" [formControl]="c.feeRate">
+        <div class="input-group-append">
+          <span class="input-group-text">sats/vB</span>
+        </div>
+      </div>
+
+      <!--
+
+      <div class="input-group input-group-lg mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">Your Ordinals Address</span>
+        </div>
+        <input type="text" class="form-control" [formControl]="c.buyerOrdinalAddress">
+      </div>
+
+      <div class="input-group input-group-lg mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">Your Ordinals Public Key</span>
+        </div>
+        <input type="text" class="form-control" [formControl]="c.buyerOrdinalPublicKey">
+      </div>
+
+      <div class="input-group input-group-lg mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">Your Payment Address</span>
+        </div>
+        <input type="text" class="form-control" [formControl]="c.buyerPaymentAddress">
+      </div>
+
+      <div class="input-group input-group-lg mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">Your Payment Public Key</span>
+        </div>
+        <input type="text" class="form-control" [formControl]="c.buyerPaymentPublicKey">
+      </div>
+      -->
+
+      <button type="submit" class="btn btn-primary mt-4 mb-4 text-white float-right">
+        <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" i18n-title="search-form.search-title" title="Search"></fa-icon>
+        Accelerate my inscription
+      </button>
+
+    </form>
+  </div>
+
+
+
+
+</div>
+
+      <!-- <div class="input-group input-group-lg mb-1">
+        <div class="input-group-prepend">
+          <span class="input-group-text">sats</span>
+        </div>
+        <input type="text" class="form-control" formControlName="satoshis" (input)="transformInput('satoshis')" (click)="selectAll($event)">
+        <app-clipboard [button]="true" [text]="form.get('satoshis').value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
+      </div> -->
+
+
+  <small class="text-muted">
+    We charge a fee of 5% for this service.
+    Please carefully review the PSBT (Partially Signed Bitcoin Transaction) you are signing to ensure that everything meets your expectations.
+    Note that this service is highly experimental, and we cannot assume responsibility for any issues that may arise!
+  </small>
+
+
+<!-- </ng-container>
+
+<ng-template #loading>
+  <div class="text-center">
+    Waiting for price feed...
+  </div>
+</ng-template> -->

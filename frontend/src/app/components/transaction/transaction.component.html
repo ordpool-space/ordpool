@@ -220,19 +220,34 @@
       <br>
     </ng-container>
 
-    <ng-container>
-      <div class="title float-left">
-        <h2 id="rbf">Inscription</h2>
-      </div>
-      <div class="clearfix"></div>
+    <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
 
-      <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
+
+      <!-- HACK -->
+      <!-- Our own Inscription Accelerator -->
+      <ng-container *ngIf="!tx?.status?.confirmed && enableInscriptionAccelerator">
+        <div class="title mt-3" id="acceleratePreviewAnchor">
+          <h2>Inscription Accelerator</h2>
+        </div>
+        <div class="box">
+          <!-- <app-accelerate-preview [tx]="tx" [scrollEvent]="scrollIntoAccelPreview"></app-accelerate-preview> -->
+          <app-inscription-accelerator
+
+            [utxo]="txId + ':0'"
+
+          ></app-inscription-accelerator>
+        </div>
+
+      </ng-container>
+
+
+      <div class="title mt-5 mb-3">
+        <h2>Inscription</h2>
+      </div>
+
+      <ng-container>
 
         <ng-container *ngIf="!i.parsedInscription">
-          None
-        </ng-container>
-
-        <ng-container *ngIf="i.parsedInscription">
           None
         </ng-container>
 
@@ -245,7 +260,6 @@
         </div>
       </ng-container>
 
-      <br><br><br>
     </ng-container>
 
 

@@ -4,7 +4,7 @@ import { NgbCollapseModule, NgbTypeaheadModule } from '@ng-bootstrap/ng-bootstra
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, faChartArea, faCogs, faCubes, faHammer, faDatabase, faExchangeAlt, faInfoCircle,
   faLink, faList, faSearch, faCaretUp, faCaretDown, faTachometerAlt, faThList, faTint, faTv, faClock, faAngleDoubleDown, faSortUp, faAngleDoubleUp, faChevronDown,
-  faFileAlt, faRedoAlt, faArrowAltCircleRight, faExternalLinkAlt, faBook, faListUl, faDownload, faQrcode, faArrowRightArrowLeft, faArrowsRotate, faCircleLeft, faFastForward, faWallet, faUserClock, faWrench, faUserFriends, faQuestionCircle, faHistory, faSignOutAlt, faKey, faSuitcase, faIdCardAlt, faNetworkWired, faUserCheck, faCircleCheck, faUserCircle } from '@fortawesome/free-solid-svg-icons';
+  faFileAlt, faRedoAlt, faArrowAltCircleRight, faExternalLinkAlt, faBook, faListUl, faDownload, faQrcode, faArrowRightArrowLeft, faArrowsRotate, faCircleLeft, faFastForward, faWallet, faUserClock, faWrench, faUserFriends, faQuestionCircle, faHistory, faSignOutAlt, faKey, faSuitcase, faIdCardAlt, faNetworkWired, faUserCheck, faCircleCheck, faUserCircle, faRocket } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollModule } from 'ngx-infinite-scroll';
 import { MasterPageComponent } from '../components/master-page/master-page.component';
 import { MenuComponent } from '../components/menu/menu.component';
@@ -106,7 +106,7 @@ import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
 import { InscriptionViewerComponent } from '../components/_ordinals/inscription-viewer/inscription-viewer.component';
-import { CpfpAccelerationComponent } from '../components/_ordinals/cpfp-acceleration/cpfp-acceleration.component';
+import { InscriptionAcceleratorComponent } from '../components/_ordinals/inscription-accelerator/inscription-accelerator.component';
 
 
 @NgModule({
@@ -207,7 +207,7 @@ import { CpfpAccelerationComponent } from '../components/_ordinals/cpfp-accelera
     OnlyWeightDirective,
     MempoolErrorComponent,
     InscriptionViewerComponent,
-    CpfpAccelerationComponent
+    InscriptionAcceleratorComponent
   ],
   imports: [
     CommonModule,
@@ -392,5 +392,8 @@ export class SharedModule {
     library.addIcons(faUserCheck);
     library.addIcons(faCircleCheck);
     library.addIcons(faUserCircle);
+
+    // HACK
+    library.addIcons(faRocket);
   }
 }

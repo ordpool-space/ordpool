@@ -27,6 +27,7 @@ import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pi
 import { Price, PriceService } from '../../services/price.service';
 import { isFeatureActive } from '../../bitcoin.utils';
 import { InscriptionParserService, ParsedInscription } from '../../services/ordinals/inscription-parser.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-transaction',
@@ -95,6 +96,9 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   acceleratorAvailable: boolean = this.stateService.env.OFFICIAL_MEMPOOL_SPACE && this.stateService.env.ACCELERATOR && this.stateService.network === '';
   showAccelerationSummary = false;
   scrollIntoAccelPreview = false;
+
+  // HACK
+  enableInscriptionAccelerator = environment.enableInscriptionAccelerator;
 
   @ViewChild('graphContainer')
   graphContainer: ElementRef;
