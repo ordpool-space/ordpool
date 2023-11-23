@@ -52,6 +52,15 @@ ngb-modal-backdrop {
   z-index: 1050 !important;
 }
 
+// hack to add ng-bootstrap modals
+$modal-content-color: $light;
+$modal-content-bg: $body-bg;
+
+// this is a Bootstrap 5 class, let's already use the future one
+.btn-close {
+  @extend .close
+}
+
 $h5-font-size: 1.15rem !default;
 
 $gray-800: #1d1f31;

@@ -91,6 +91,7 @@
     "ngx-infinite-scroll": "^16.0.0",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",
+    "sats-connect": "^1.1.2",
     "tinyify": "^4.0.0",
     "tlite": "^0.1.9",
     "tslib": "~2.6.0",

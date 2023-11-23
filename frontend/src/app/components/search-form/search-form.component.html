@@ -5,10 +5,17 @@
       <app-search-results #searchResults [hidden]="dropdownHidden" [results]="typeAhead$ | async" (selectedResult)="selectedResult($event)"></app-search-results>
     </div>
     <div>
-      <button [disabled]="isSearching" type="submit" class="btn btn-block btn-purple">
+      <button [disabled]="isSearching" type="submit" class="btn btn-block btn-secondary">
         <fa-icon *ngIf="!(isTypeaheading$ | async) else searchLoading" [icon]="['fas', 'search']" [fixedWidth]="true" i18n-title="search-form.search-title" title="Search"></fa-icon>
       </button>
     </div>
+
+    <!--
+      this is definitely not the nicest place to add the connect button,
+      but the responsive design looks fine here! 🙈
+    -->
+    <app-wallet-connect></app-wallet-connect>
+
   </div>
 </form>
 

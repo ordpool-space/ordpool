@@ -1,0 +1,42 @@
+<ng-template #connect let-modal>
+  <div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Connect Wallet</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()">&times;</button>
+  </div>
+  <div class="modal-body" *ngIf="installedWallets$ | async as wallets">
+
+    <ul class="list-unstyled">
+      <li *ngFor="let w of wallets.installedWallets">
+        <button class="btn btn-purple my-2 w-100 text-left" (click)="connectWallet(w.type)">
+          <img [src]="w.logo" width="25" height="25" class="mr-2">
+          {{ w.label }}</button>
+      </li>
+    </ul>
+
+    <ng-container *ngIf="wallets.notInstalledWallets.length">
+      Not installed, click to download:
+
+      <ul class="list-unstyled">
+        <li *ngFor="let w of wallets.notInstalledWallets">
+          <a class="btn btn-secondary my-2 w-100 text-left" [href]="w.downloadLink" target="_blank">
+            <img [src]="w.logo" width="25" height="25" class="mr-2">
+            {{ w.label }}</a>
+        </li>
+      </ul>
+
+    </ng-container>
+
+  </div>
+</ng-template>
+
+<ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
+
+  <button *ngIf="!x.connectedWallet" class="ml-4 btn btn-purple" (click)="open(connect)" title="Connect your Wallet">
+    Connect
+  </button>
+
+  <span *ngIf="x.connectedWallet" class="ml-4 btn btn-secondary" title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
+    <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
+  </span>
+</ng-container>
+

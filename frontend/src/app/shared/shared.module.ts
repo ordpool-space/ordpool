@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgbCollapseModule, NgbTypeaheadModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbCollapseModule, NgbTypeaheadModule, NgbModalModule } from '@ng-bootstrap/ng-bootstrap';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, faChartArea, faCogs, faCubes, faHammer, faDatabase, faExchangeAlt, faInfoCircle,
   faLink, faList, faSearch, faCaretUp, faCaretDown, faTachometerAlt, faThList, faTint, faTv, faClock, faAngleDoubleDown, faSortUp, faAngleDoubleUp, faChevronDown,
@@ -105,9 +105,10 @@ import { CalculatorComponent } from '../components/calculator/calculator.compone
 import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
-import { InscriptionViewerComponent } from '../components/_ordinals/inscription-viewer/inscription-viewer.component';
-import { InscriptionAcceleratorComponent } from '../components/_ordinals/inscription-accelerator/inscription-accelerator.component';
+import { InscriptionViewerComponent } from '../components/ordinals/inscription-viewer/inscription-viewer.component';
+import { InscriptionAcceleratorComponent } from '../components/ordinals/inscription-accelerator/inscription-accelerator.component';
 import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
+import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
 
 
 @NgModule({
@@ -209,7 +210,8 @@ import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees
     MempoolErrorComponent,
     InscriptionViewerComponent,
     InscriptionAcceleratorComponent,
-    FeesBoxClickableComponent
+    FeesBoxClickableComponent,
+    WalletConnectComponent
   ],
   imports: [
     CommonModule,
@@ -223,6 +225,7 @@ import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees
     NgbCollapseModule,
     InfiniteScrollModule,
     FontAwesomeModule,
+    NgbModalModule
   ],
   providers: [
     VbytesPipe,
