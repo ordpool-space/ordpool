@@ -225,20 +225,20 @@
 
     <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
 
-
       <!-- HACK -->
-      <!-- Our own Inscription Accelerator -->
-      <ng-container *ngIf="!tx?.status?.confirmed && enableInscriptionAccelerator">
-        <div class="title mt-3" id="acceleratePreviewAnchor">
-          <h2>Inscription Accelerator</h2>
+      <!--
+        Our own Inscription Accelerator
+        (which is not the same like the Transaction Accelerator)
+      -->
+      <ng-container *ngIf="!tx?.status?.confirmed && enableInscriptionAccelerator || true">
+        <div class="title" id="acceleratePreviewAnchor">
+          <h2>
+            <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true"></fa-icon>
+            Inscription Accelerator
+          </h2>
         </div>
         <div class="box">
-          <!-- <app-accelerate-preview [tx]="tx" [scrollEvent]="scrollIntoAccelPreview"></app-accelerate-preview> -->
-          <app-inscription-accelerator
-
-            [utxo]="txId + ':0'"
-
-          ></app-inscription-accelerator>
+          <app-inscription-accelerator [tx]="tx" />
         </div>
 
       </ng-container>
@@ -263,6 +263,7 @@
         </div>
       </ng-container>
 
+    <br>
     </ng-container>
 
 

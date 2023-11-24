@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, Input } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { Observable, take } from 'rxjs';
-import { Recommendedfees } from '../../../interfaces/websocket.interface';
+import { take } from 'rxjs';
+
+import { Transaction } from '../../../interfaces/electrs.interface';
+import { KnownOrdinalWalletType, WalletService } from '../../../services/ordinals/wallet.service';
 import { StateService } from '../../../services/state.service';
 
 
@@ -13,33 +15,16 @@ import { StateService } from '../../../services/state.service';
 })
 export class InscriptionAcceleratorComponent {
 
+  walletService = inject(WalletService);
+  recommendedFees$ = inject(StateService).recommendedFees$;
+  connectedWallet$ = this.walletService.connectedWallet$;
+
+  KnownOrdinalWalletType = KnownOrdinalWalletType;
+
+  @Input({ required: true }) tx?: Transaction;
+
   form = new FormGroup({
-    utxo: new FormControl('', {
-      validators: Validators.required,
-      nonNullable: true
-    }),
-
     feeRate: new FormControl(0, {
-      validators: Validators.required,
-      nonNullable: true
-    }),
-
-    buyerOrdinalAddress: new FormControl('', {
-      validators: Validators.required,
-      nonNullable: true
-    }),
-
-    buyerOrdinalPublicKey: new FormControl('', {
-      validators: Validators.required,
-      nonNullable: true
-    }),
-
-    buyerPaymentAddress: new FormControl('', {
-      validators: Validators.required,
-      nonNullable: true
-    }),
-
-    buyerPaymentPublicKey: new FormControl('', {
       validators: Validators.required,
       nonNullable: true
     })
@@ -47,28 +32,12 @@ export class InscriptionAcceleratorComponent {
 
   c = this.form.controls;
 
-  @Input() set utxo(utxo: string) {
-    this.form.patchValue({ utxo });
+  constructor() {
+    this.recommendedFees$.pipe(take(1))
+      .subscribe(({ fastestFee }) => this.form.patchValue({ feeRate: fastestFee }));
   }
 
-  set feeRate(feeRate: number) {
+  setFeeRate(feeRate: number): void {
     this.form.patchValue({ feeRate });
   }
-
-  stateService = inject(StateService);
-  recommendedFees$ = this.stateService.recommendedFees$;
-
-
-  constructor() {
-
-    this.recommendedFees$.pipe(
-      take(1),
-    ).subscribe(fees => {
-      this.form.patchValue({ feeRate: fees.fastestFee });
-    });
-
-  }
-
-
-
 }

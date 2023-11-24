@@ -1,82 +1,121 @@
+<ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
+  <ng-container *ngIf="tx">
+
+    <p>
+      Is your inscription stuck in the mempool and you don't want to wait any longer?<br>
+      We can help you to create a high-priority follow-up transaction that will boost this inscription.<br>
+    </p>
+
+    <p *ngIf="!x.connectedWallet" class="mb-0">
+      Please
+      <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+      so that we can check if you can accelerate this inscription!
+    </p>
+
+    <!-- {{ x.connectedWallet | json  }} -->
+
+    <ng-container *ngIf="x.connectedWallet">
+
+      <ng-container *ngIf="x.connectedWallet.type === KnownOrdinalWalletType.unisat">
+
+        <p class="mb-0">
+          ❌&nbsp; Unfortunately, we can't provide this feature for the Unisat wallet right now.<br>
+          To try with another account, please
+          <a href="javascript:void(0)" (click)="walletService.disconnectWallet()">disconnect your wallet</a>
+          first and then connect again.
+        </p>
+
+      </ng-container>
+      <ng-container *ngIf="x.connectedWallet.type !== KnownOrdinalWalletType.unisat">
+
+        <ng-container *ngIf="x.connectedWallet.ordinalsAddress !== tx.vout[0]?.scriptpubkey_address">
+          <p class="mb-0">
+            ❌&nbsp; It looks like you are not the recipient of this inscription!<br>
+            To try with another account, please
+            <a href="javascript:void(0)" (click)="walletService.disconnectWallet()">disconnect your wallet</a>
+            first and then connect again.
+          </p>
+        </ng-container>
 
 
-<p class="mb-4">
-  Is your inscription stuck in the mempool and you don't want to wait any longer?<br>
-  We will help you to create a high-priority follow-up transaction that will boost this inscription.<br>
+        <ng-container *ngIf="x.connectedWallet.ordinalsAddress === tx.vout[0]?.scriptpubkey_address">
+          <p>
+            ✅&nbsp; You are the recipient of this inscription.<br>
+            It's possible to boost this inscription via our Inscription Accelerator!
+          </p>
 
+          <div class="row mt-4">
 
-</p>
+            <!-- Content for the second column (appears first on mobile) -->
+            <div class="col-md-6 order-md-2">
+              <app-fees-box-clickable (feeClicked)="setFeeRate($event)" class="d-block"></app-fees-box-clickable>
+            </div>
 
-<!-- <ng-container *ngIf="price$ | async; else loading"> -->
+            <!-- Content for the first column (appears second on mobile) -->
+            <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
-<div class="row">
+              <form [formGroup]="form">
 
-  <!-- Content for the second column (appears first on mobile) -->
-  <div class="col-md-6 order-md-2">
-    <app-fees-box-clickable
-      (feeClicked)="feeRate = $event"
-      class="d-block"></app-fees-box-clickable>
-  </div>
+                <!--
+                <div class="input-group input-group-lg  mb-1">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Output to accelerate</span>
+                  </div>
+                  <input type="text" class="form-control" [formControl]="c.utxo" readonly>
+                  <app-clipboard [button]="true" [text]="c.utxo.value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
+                </div>
+                -->
 
-  <!-- Content for the first column (appears second on mobile) -->
-  <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
+                <div class="input-group input-group-lg mb-1">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Target fee rate
+                    </span>
+                  </div>
+                  <input type="text" class="form-control" [formControl]="c.feeRate">
+                  <div class="input-group-append">
+                    <span class="input-group-text">sat/vB</span>
+                  </div>
+                </div>
 
-    <form [formGroup]="form">
+                <button type="submit" class="btn btn-primary mt-4 mb-4 text-white float-right">
+                  <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true"></fa-icon>
+                  Accelerate my inscription
+                </button>
 
-      <!--
-      <div class="input-group input-group-lg  mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Output to accelerate</span>
-        </div>
-        <input type="text" class="form-control" [formControl]="c.utxo" readonly>
-        <app-clipboard [button]="true" [text]="c.utxo.value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
-      </div>
-      -->
-
-      <div class="input-group input-group-lg mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">Target fee rate
-          </span>
-        </div>
-        <input type="text" class="form-control" [formControl]="c.feeRate">
-        <div class="input-group-append">
-          <span class="input-group-text">sat/vB</span>
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary mt-4 mb-4 text-white float-right">
-        <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" i18n-title="search-form.search-title" title="Search"></fa-icon>
-        Accelerate my inscription
-      </button>
-
-    </form>
-  </div>
+              </form>
+            </div>
 
 
 
 
-</div>
+          </div>
 
-      <!-- <div class="input-group input-group-lg mb-1">
-        <div class="input-group-prepend">
-          <span class="input-group-text">sats</span>
-        </div>
-        <input type="text" class="form-control" formControlName="satoshis" (input)="transformInput('satoshis')" (click)="selectAll($event)">
-        <app-clipboard [button]="true" [text]="form.get('satoshis').value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
-      </div> -->
-
-
-  <small class="text-muted">
-    We charge a fee of 5% for this service.
-    Please carefully review the PSBT (Partially Signed Bitcoin Transaction) you are signing to ensure that everything meets your expectations.
-    Note that this service is highly experimental, and we cannot assume responsibility for any issues that may arise!
-  </small>
+          <!-- <div class="input-group input-group-lg mb-1">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">sats</span>
+                </div>
+                <input type="text" class="form-control" formControlName="satoshis" (input)="transformInput('satoshis')" (click)="selectAll($event)">
+                <app-clipboard [button]="true" [text]="form.get('satoshis').value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
+              </div> -->
 
 
-<!-- </ng-container>
+          <small class="text-muted">
+            We charge a fee of 5% for this service.
+            Please carefully review the PSBT (Partially Signed Bitcoin Transaction) you are signing to ensure that everything
+            meets your expectations.
+            Note that this service is highly experimental, and we cannot assume responsibility for any issues that may arise!
+          </small>
 
-<ng-template #loading>
-  <div class="text-center">
-    Waiting for price feed...
-  </div>
-</ng-template> -->
+        </ng-container>
+
+      </ng-container>
+    </ng-container>
+  </ng-container>
+
+
+
+  <ng-container *ngIf="!tx">
+    Please wait...
+  </ng-container>
+
+</ng-container>

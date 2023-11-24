@@ -1,12 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, EMPTY, Observable, distinctUntilChanged, from, map, of, take, tap, timer } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, distinctUntilChanged, from, map, of, take, tap, timer } from 'rxjs';
 import { AddressPurpose, BitcoinNetworkType, getAddress } from 'sats-connect';
 import { StorageService } from '../storage.service';
 
 export enum KnownOrdinalWalletType {
-  unisat = 'unisat',
+  xverse = 'xverse',
   leather = 'leather',
-  xverse = 'xverse'
+  unisat = 'unisat'
 }
 
 export interface KnownOrdinalWallet {
@@ -94,6 +94,8 @@ export const LAST_CONNECTED_WALLET = 'LAST_CONNECTED_WALLET';
 export class WalletService {
 
   storageService = inject(StorageService);
+
+  walletConnectRequested$ = new Subject<boolean>();
 
   connectedWallet$ = new BehaviorSubject<WalletInfo | null>(null);
   wallets$ = timer(0, 500) // Start immediately and repeat every 500ms
@@ -192,6 +194,10 @@ export class WalletService {
   disconnectWallet(): void {
     this.storageService.removeItem(LAST_CONNECTED_WALLET);
     this.connectedWallet$.next(undefined);
+  }
+
+  requestWalletConnect(): void {
+    this.walletConnectRequested$.next(true);
   }
 
   /**

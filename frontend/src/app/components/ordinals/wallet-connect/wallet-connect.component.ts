@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
 
-import { KnownOrdinalWallet, KnownOrdinalWallets, KnownOrdinalWalletType, WalletService } from '../../../services/ordinals/wallet.service';
+import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletService } from '../../../services/ordinals/wallet.service';
 
 
 @Component({
@@ -19,19 +19,29 @@ export class WalletConnectComponent {
 
   installedWallets$ = this.walletService.wallets$;
   connectedWallet$ = this.walletService.connectedWallet$;
+  walletConnectRequested$ = this.walletService.walletConnectRequested$;
 
   knownOrdinalWallets = KnownOrdinalWallets;
 
+  @ViewChild('connect') connectTemplateRef: TemplateRef<any>;
   modalRef: NgbModalRef;
 
-  open(content: TemplateRef<any>): void {
-    this.modalRef = this.modalService.open(content, {
+  constructor() {
+    this.walletConnectRequested$.subscribe(() => this.open());
+
+  }
+
+  open(): void {
+    this.connectButtonDisabled = false;
+
+    this.modalRef = this.modalService.open(this.connectTemplateRef, {
       ariaLabelledBy: 'modal-basic-title',
       centered: true
     });
   }
 
   disconnect(popover: NgbPopover): void {
+
     // Close the popover
     popover.close();
 
@@ -45,7 +55,10 @@ export class WalletConnectComponent {
     // 1. You should only initiate a connection request in response to direct user action, such as clicking a button.
     // 2. You should always disable the "connect" button while the connection request is pending.
     // 3. You should never initiate a connection request on page load.
-    this.connectButtonDisabled = true;
+
+    if (key !== KnownOrdinalWalletType.leather) { // leather has no cancel event
+      this.connectButtonDisabled = true;
+    }
 
     const done = (): void => {
       this.modalRef.close();
@@ -54,7 +67,7 @@ export class WalletConnectComponent {
 
     this.walletService.connectWallet(key).subscribe({
       next: () => done(),
-      error: () => done()
+      error: (err) => { console.log('*** Error while connecting ***', err); done(); }
     });
   }
 }
