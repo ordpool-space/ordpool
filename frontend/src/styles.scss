@@ -52,9 +52,14 @@ ngb-modal-backdrop {
   z-index: 1050 !important;
 }
 
-// hack to add ng-bootstrap modals
+$gray-800: #1d1f31;
+
+// HACK: more colors for ng-bootstrap modals + popover
 $modal-content-color: $light;
 $modal-content-bg: $body-bg;
+$popover-body-color: $light;
+$popover-bg: $body-bg;
+$popover-border-color: $gray-800;
 
 // this is a Bootstrap 5 class, let's already use the future one
 .btn-close {
@@ -63,7 +68,6 @@ $modal-content-bg: $body-bg;
 
 $h5-font-size: 1.15rem !default;
 
-$gray-800: #1d1f31;
 $pagination-bg: $body-bg;
 $pagination-border-color: $gray-800;
 $pagination-disabled-bg:           #FFF;

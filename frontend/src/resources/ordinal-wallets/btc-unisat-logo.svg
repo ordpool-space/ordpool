@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="_frame_2" data-name="frame 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100">
+<svg id="_frame_2" data-name="frame 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 80 100">
   <defs>
     <style>
       .cls-1 {
@@ -12,13 +12,6 @@
 
       .cls-3 {
         fill: url(#_ll_121);
-      }
-
-      .cls-4 {
-        fill: #fff;
-        font-family: JetBrainsMonoRoman-Medium, 'JetBrains Mono';
-        font-size: 24.79px;
-        font-variation-settings: 'wght' 500;
       }
     </style>
     <linearGradient id="_ll_126"  x1="961.68" y1="-45.57" x2="986.14" y2="-110.06" gradientTransform="translate(780.99 671.7) rotate(-134.73)" gradientUnits="userSpaceOnUse">

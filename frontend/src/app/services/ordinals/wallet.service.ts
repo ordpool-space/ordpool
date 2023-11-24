@@ -31,7 +31,7 @@ export const KnownOrdinalWallets: { [K in KnownOrdinalWalletType]: KnownOrdinalW
   },
   [KnownOrdinalWalletType.unisat]: {
     type: KnownOrdinalWalletType.unisat,
-    label: 'Unisat (not fully supported!)',
+    label: 'Unisat',
     logo: '/resources/ordinal-wallets/btc-unisat-logo.svg',
     downloadLink: 'https://www.xverse.app/download'
   }
@@ -81,9 +81,9 @@ interface LeatherStxAddress {
 }
 
 // CodeReview @ Leather
-// is this a safe assumption? p2wpkh for payments, p2tr for ordinals?
-export const leatherOrdinalsAddressType = 'p2tr';
-export const leatherPaymentAddressType = 'p2wpkh';
+// is this a correct    assumption? p2wpkh always for payments, p2tr always for ordinals?
+export const leatherOrdinalsAddressType = 'p2tr';  // Taproot
+export const leatherPaymentAddressType = 'p2wpkh'; // Native Segwit
 
 export const LAST_CONNECTED_WALLET = 'LAST_CONNECTED_WALLET';
 
@@ -172,15 +172,15 @@ export class WalletService {
     let obs: Observable<WalletInfo>;
 
     if (key === KnownOrdinalWalletType.xverse) {
-      obs = this.connectXverseWallet();
+      obs = this.connectWalletXverse();
     }
 
     if (key === KnownOrdinalWalletType.leather) {
-      obs = this.connectLeatherWallet();
+      obs = this.connectWalletLeather();
     }
 
     if (key === KnownOrdinalWalletType.unisat) {
-      obs = this.connectUnisatWallet();
+      obs = this.connectWalletUnisat();
     }
 
     return obs.pipe(
@@ -198,7 +198,7 @@ export class WalletService {
    * Get adresses:
    * see also: https://docs.xverse.app/sats-connect/get-address
    */
-  connectXverseWallet(): Observable<WalletInfo> {
+  connectWalletXverse(): Observable<WalletInfo> {
 
     return new Observable<WalletInfo>((observer) => {
       getAddress({
@@ -215,23 +215,21 @@ export class WalletService {
           const ordinalsAddress = addresses.find(x => x.purpose === AddressPurpose.Ordinals);
           const paymentAddress = addresses.find(x => x.purpose === AddressPurpose.Payment);
 
-          if (!ordinalsAddress) {
-            observer.error(new Error('No Ordinals address found?!'));
-          } else if (!paymentAddress) {
-            observer.error(new Error('No Payment address found?!'));
+          if (!ordinalsAddress || !paymentAddress) {
+            observer.error(new Error('Required address not found?!'));
+            return;
           }
-          else {
-            observer.next({
-              type: KnownOrdinalWalletType.xverse,
 
-              ordinalsAddress: ordinalsAddress.address,
-              ordinalsPublicKey: ordinalsAddress.publicKey,
+          observer.next({
+            type: KnownOrdinalWalletType.xverse,
 
-              paymentAddress: paymentAddress.address,
-              paymentPublicKey: paymentAddress.publicKey
-            });
-            observer.complete();
-          }
+            ordinalsAddress: ordinalsAddress.address,
+            ordinalsPublicKey: ordinalsAddress.publicKey,
+
+            paymentAddress: paymentAddress.address,
+            paymentPublicKey: paymentAddress.publicKey
+          });
+          observer.complete();
         },
         onCancel: () => {
           observer.error(new Error('Request was cancelled'));
@@ -244,9 +242,9 @@ export class WalletService {
    * Get addresses
    * see also: https://leather.gitbook.io/developers/bitcoin/connect-users/get-addresses
    */
-  connectLeatherWallet(): Observable<WalletInfo> {
+  connectWalletLeather(): Observable<WalletInfo> {
 
-    return from((window as any).btc?.request('getAddresses')).pipe(
+    return from((window as any).btc.request('getAddresses')).pipe(
       map((response: LeatherAddressResponse) => {
 
         const addresses = response.result.addresses as LeatherBtcAddress[];
@@ -254,33 +252,70 @@ export class WalletService {
         const ordinalsAddress = addresses.find(x => x.type === leatherOrdinalsAddressType);
         const paymentAddress = addresses.find(x => x.type === leatherPaymentAddressType);
 
-        if (!ordinalsAddress) {
-          throw new Error('No Ordinals address found?!');
-        } else if (!paymentAddress) {
-          throw new Error('No Payment address found?!');
+        if (!ordinalsAddress || !paymentAddress) {
+          throw new Error('Required address not found?!');
         }
 
         return {
-            type: KnownOrdinalWalletType.leather,
+          type: KnownOrdinalWalletType.leather,
 
-            ordinalsAddress: ordinalsAddress.address,
-            ordinalsPublicKey: ordinalsAddress.publicKey,
+          ordinalsAddress: ordinalsAddress.address,
+          ordinalsPublicKey: ordinalsAddress.publicKey,
 
-            paymentAddress: paymentAddress.address,
-            paymentPublicKey: paymentAddress.publicKey
-          };
-        })
+          paymentAddress: paymentAddress.address,
+          paymentPublicKey: paymentAddress.publicKey
+        };
+      })
     );
   }
 
-    /**
-   * Get addresses
-   * see ???
-   */
-    connectUnisatWallet(): Observable<WalletInfo> {
-      return EMPTY as any;
-    }
 
+  // as seen here: https://github.com/unisat-wallet/unisat-web3-demo/blob/1109c79b07517ef4abe069c0c80b2d2118915e19/src/App.tsx#L18
+  private async getBasicUnisatInfo(): Promise<{ address: string, publicKey: string }> {
+
+    const unisat = (window as any).unisat;
+    await unisat.requestAccounts();
+
+    const [address] = await unisat.getAccounts();
+    const publicKey = await unisat.getPublicKey();
+    // const balance = await unisat.getBalance();
+    // const network = await unisat.getNetwork();
+
+    return { address, publicKey };
+  }
+
+
+  /**
+   * Get addresses
+   * see https://docs.unisat.io/dev/unisat-developer-service/unisat-wallet#requestaccounts
+   *
+   * Unisat uses the same address for payments and ordinals! 😱
+   *
+   * TODO: handle accountsChanged / networkChanged
+   */
+  connectWalletUnisat(): Observable<WalletInfo> {
+    return from(this.getBasicUnisatInfo()).pipe(
+      map(({ address, publicKey }) => {
+
+        return {
+          type: KnownOrdinalWalletType.unisat,
+
+          ordinalsAddress: address,
+          ordinalsPublicKey: publicKey,
+
+          paymentAddress: null,
+          paymentPublicKey: null
+        };
+      })
+    );
+  }
+
+  // as seen here: https://github.com/unisat-wallet/unisat-web3-demo/blob/1109c79b07517ef4abe069c0c80b2d2118915e19/src/App.tsx#L208C70-L208C77
+  async signPsbtUnisat(psbtHex: string) {
+
+    const psbtResult = await (window as any).unisat.signPsbt(psbtHex);
+
+  }
 }
 
 

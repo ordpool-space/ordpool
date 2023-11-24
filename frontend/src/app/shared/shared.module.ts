@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgbCollapseModule, NgbTypeaheadModule, NgbModalModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbCollapseModule, NgbTypeaheadModule, NgbModalModule, NgbPopoverModule } from '@ng-bootstrap/ng-bootstrap';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, faChartArea, faCogs, faCubes, faHammer, faDatabase, faExchangeAlt, faInfoCircle,
   faLink, faList, faSearch, faCaretUp, faCaretDown, faTachometerAlt, faThList, faTint, faTv, faClock, faAngleDoubleDown, faSortUp, faAngleDoubleUp, faChevronDown,
@@ -225,7 +225,8 @@ import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wa
     NgbCollapseModule,
     InfiniteScrollModule,
     FontAwesomeModule,
-    NgbModalModule
+    NgbModalModule,
+    NgbPopoverModule
   ],
   providers: [
     VbytesPipe,

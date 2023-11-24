@@ -1,0 +1,22 @@
+.my-flex-container li {
+  display: flex;
+  align-items: center;
+}
+
+.label {
+  width: 150px;
+  flex-shrink: 0; /* Prevents the label from shrinking */
+}
+
+.address {
+  flex-grow: 1; /* Allows the address to take up remaining space */
+}
+
+::ng-deep .walletConnectPopover {
+  min-width: 380px !important;
+  font-size: 1rem;
+
+  .popover-header {
+    border-bottom: 1px solid #f8f9fa; // $light
+  }
+}
