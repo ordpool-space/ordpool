@@ -54,7 +54,7 @@
             <!-- Content for the first column (appears second on mobile) -->
             <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
-              <form [formGroup]="form">
+              <form [formGroup]="form" (ngSubmit)="accelerateInscription(x.connectedWallet)">
 
                 <!--
                 <div class="input-group input-group-lg  mb-1">
@@ -77,33 +77,49 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary mt-4 mb-4 text-white float-right">
-                  <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true"></fa-icon>
+                <button type="submit" [disabled]="broadcastPsbtSuccess" class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="!broadcastPsbtLoading">
+                  <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" ></fa-icon>
                   Accelerate my inscription
+                </button>
+
+                <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="broadcastPsbtLoading">
+                  <i class="spinner-border spinner-border-sm text-light"></i>
+                  Accelerating your inscription…
                 </button>
 
               </form>
             </div>
-
-
-
-
           </div>
 
-          <!-- <div class="input-group input-group-lg mb-1">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">sats</span>
-                </div>
-                <input type="text" class="form-control" formControlName="satoshis" (input)="transformInput('satoshis')" (click)="selectAll($event)">
-                <app-clipboard [button]="true" [text]="form.get('satoshis').value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
-              </div> -->
+          <div class="alert alert-success" *ngIf="broadcastPsbtSuccess">
+            ✅&nbsp; Your transaction has now been submitted to the mempool for acceleration.
+            <!-- You can track the progress <a class="alert-link" routerLink="/services/accelerator/history">here</a>. -->
+          </div>
 
+          <div class="alert alert-danger"  *ngIf="broadcastPsbtError">
+            ❌&nbsp; {{ broadcastPsbtError }}
+          </div>
 
           <small class="text-muted">
+
+            <!-- Please carefully review the PSBT (Partially Signed Bitcoin Transaction) you are signing to ensure that everything
+            meets your expectations. -->
+            Please note that the 'Inscription Accelerator' is highly experimental,
+            and we cannot assume responsibility for any issues that may arise.
+            Use this functionality at your own risk!
+            Made in partnership with our friends at
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 50 62.8" height="18" style="margin-top: -5px">
+              <g>
+                <path fill="#6c757d" d="M46.9,34.9C49.7,72-2.6,72,0.1,34.9c0-0.9,0.7-1.6,1.6-1.6l0,0h43.6C46.2,33.4,46.9,34.1,46.9,34.9L46.9,34.9z
+                  M40.5,5.6V24c0,2.8-2.2,5-5,5h-24c-2.8,0-5-2.3-5-5V5.6c0-2.8,2.3-5.1,5.1-5.1h23.9C38.3,0.5,40.5,2.8,40.5,5.6L40.5,5.6z
+                  M21.5,14.5c0-2.5-2.1-4.5-4.6-4.5s-4.4,2-4.5,4.5c0,2.5,2.1,4.5,4.6,4.5S21.5,17,21.5,14.5z M34.6,14.5c0-2.5-2.1-4.5-4.6-4.5
+                  s-4.4,2-4.5,4.5c0,2.5,2.1,4.5,4.6,4.5C32.5,19,34.5,17,34.6,14.5L34.6,14.5z M30,13.1c-0.8,0-1.4,0.7-1.3,1.4
+                  c0,0.7,0.6,1.3,1.3,1.3c0.8,0,1.4-0.7,1.3-1.4C31.3,13.7,30.7,13.2,30,13.1L30,13.1z M17,13.1c-0.8,0-1.4,0.7-1.3,1.4
+                  c0,0.7,0.6,1.3,1.3,1.3c0.8,0,1.4-0.7,1.3-1.4C18.3,13.7,17.7,13.2,17,13.1L17,13.1z"/>
+              </g>
+            </svg>
+            OrdinalsBot!
             We charge a fee of 5% for this service.
-            Please carefully review the PSBT (Partially Signed Bitcoin Transaction) you are signing to ensure that everything
-            meets your expectations.
-            Note that this service is highly experimental, and we cannot assume responsibility for any issues that may arise!
           </small>
 
         </ng-container>
@@ -119,3 +135,9 @@
   </ng-container>
 
 </ng-container>
+
+<!-- <div class="d-flex flex-column justify-content-around align-items-center mt-5 w-100" style="min-height: 100px">
+
+</div> -->
+
+

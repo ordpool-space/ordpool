@@ -230,7 +230,7 @@
         Our own Inscription Accelerator
         (which is not the same like the Transaction Accelerator)
       -->
-      <ng-container *ngIf="!tx?.status?.confirmed && enableInscriptionAccelerator || true">
+      <ng-container *ngIf="!tx?.status?.confirmed && enableInscriptionAccelerator">
         <div class="title" id="acceleratePreviewAnchor">
           <h2>
             <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true"></fa-icon>

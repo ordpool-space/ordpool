@@ -27,7 +27,7 @@ import { InscriptionParserService } from './services/ordinals/inscription-parser
 import { InscriptionFetcherService } from './services/ordinals/inscription-fetcher.service';
 import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
 import { HiroApiService } from './services/ordinals/hiro-api.service';
-import { CpfpApiService } from './services/ordinals/cfpf-api.service';
+import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
 import { WalletService } from './services/ordinals/wallet.service';
 
 
@@ -52,7 +52,7 @@ const providers = [
   InscriptionFetcherService,
   BlockchainApiService,
   HiroApiService,
-  CpfpApiService,
+  InscriptionAcceleratorApiService,
   WalletService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }

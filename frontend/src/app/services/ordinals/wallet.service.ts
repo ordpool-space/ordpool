@@ -191,6 +191,11 @@ export class WalletService {
     );
   }
 
+  connectFakeWallet(walletInfo: WalletInfo): void {
+    this.storageService.setValue(LAST_CONNECTED_WALLET, JSON.stringify(walletInfo));
+    this.connectedWallet$.next(walletInfo);
+  }
+
   disconnectWallet(): void {
     this.storageService.removeItem(LAST_CONNECTED_WALLET);
     this.connectedWallet$.next(undefined);
