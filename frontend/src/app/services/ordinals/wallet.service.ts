@@ -1,6 +1,7 @@
-import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, EMPTY, Observable, Subject, distinctUntilChanged, from, map, of, take, tap, timer } from 'rxjs';
+import { inject, Injectable } from '@angular/core';
+import { BehaviorSubject, distinctUntilChanged, from, map, Observable, Subject, take, tap, timer } from 'rxjs';
 import { AddressPurpose, BitcoinNetworkType, getAddress } from 'sats-connect';
+
 import { StorageService } from '../storage.service';
 
 export enum KnownOrdinalWalletType {
@@ -319,13 +320,6 @@ export class WalletService {
         };
       })
     );
-  }
-
-  // as seen here: https://github.com/unisat-wallet/unisat-web3-demo/blob/1109c79b07517ef4abe069c0c80b2d2118915e19/src/App.tsx#L208C70-L208C77
-  async signPsbtUnisat(psbtHex: string) {
-
-    const psbtResult = await (window as any).unisat.signPsbt(psbtHex);
-
   }
 }
 

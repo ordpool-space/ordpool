@@ -92,8 +92,8 @@
           </div>
 
           <div class="alert alert-success" *ngIf="broadcastPsbtSuccess">
-            ✅&nbsp; Your transaction has now been submitted to the mempool for acceleration.
-            <!-- You can track the progress <a class="alert-link" routerLink="/services/accelerator/history">here</a>. -->
+            ✅&nbsp; Your transaction has now been submitted to the mempool for acceleration.<br>
+            You can track the progress <a class="alert-link text-decoration-underline" [routerLink]="'/tx/' + broadcastPsbtSuccess?.txId">here</a>.
           </div>
 
           <div class="alert alert-danger"  *ngIf="broadcastPsbtError">

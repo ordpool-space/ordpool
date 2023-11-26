@@ -12,6 +12,9 @@ import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo, WalletService 
 })
 export class WalletConnectComponent {
 
+  // just for debugging
+  showFakeWallet = false;
+
   connectButtonDisabled = false;
 
   modalService = inject(NgbModal);
