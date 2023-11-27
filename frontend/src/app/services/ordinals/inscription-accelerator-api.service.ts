@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, switchMap } from 'rxjs';
+import { from, map, Observable, switchMap } from 'rxjs';
 import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
 
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
@@ -35,6 +35,16 @@ export interface CreatePsbtSuccessResponse {
   buyerInputIndices: number[];
 }
 
+// see https://github.com/leather-wallet/extension/blob/8dbfefe8fcf5de687c2a137bce5eb2ff7a94b794/src/shared/rpc/methods/sign-psbt.ts#L49
+interface LeatherSignPsbtRequestParams {
+  hex: string;
+  allowedSighash?: any[];
+  signAtIndex?: number | number[];
+  network?: 'mainnet' | 'testnet' | 'signet' | 'sbtcDevenv' | 'devnet'; // default is user's current network
+  account?: number; // default is user's current account
+  broadcast?: boolean; // default is false - finalize/broadcast tx
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -54,17 +64,23 @@ export class InscriptionAcceleratorApiService {
 
     return this.createPsbt(requestBody).pipe(
       // tap(result => console.log('Generated PSBT:', result)),
-      switchMap(psbt => {
+      switchMap(preparedPsbt => {
 
         // // testing
         // return of({ txId: '1212' });
 
         if (walletType === KnownOrdinalWalletType.xverse) {
           return this.signTransactionXverse({
-            psbt,
+            preparedPsbt,
             buyerOrdinalAddress: requestBody.buyerOrdinalAddress,
             buyerPaymentAddress: requestBody.buyerPaymentAddress
           });
+        }
+
+        if (walletType === KnownOrdinalWalletType.leather) {
+          return from(this.signTransactionLeather({ preparedPsbt })).pipe(
+            map(() => ({ txId: '' })) // :-/
+          );
         }
 
         throw new Error('Wallet not supported (yet)!');
@@ -79,13 +95,13 @@ export class InscriptionAcceleratorApiService {
    *
    * see also: https://docs.xverse.app/sats-connect/sign-transaction
    */
-  private signTransactionXverse({ psbt, buyerOrdinalAddress, buyerPaymentAddress }: {
-    psbt: CreatePsbtSuccessResponse,
+  private signTransactionXverse({ preparedPsbt, buyerOrdinalAddress, buyerPaymentAddress }: {
+    preparedPsbt: CreatePsbtSuccessResponse,
     buyerOrdinalAddress: string,
     buyerPaymentAddress: string
   }): Observable<{ txId: string }> {
 
-    const inputsToSign: InputToSign[] = psbt.buyerInputIndices
+    const inputsToSign: InputToSign[] = preparedPsbt.buyerInputIndices
       .filter(index => index !== 0)
       .map(index => ({
         address: buyerPaymentAddress,
@@ -106,7 +122,7 @@ export class InscriptionAcceleratorApiService {
             address: buyerOrdinalAddress
           },
           message: 'Sign Transaction (Inscription Accelerator)',
-          psbtBase64: psbt.psbt,
+          psbtBase64: preparedPsbt.psbt,
           broadcast: true,
           inputsToSign
         },
@@ -122,6 +138,19 @@ export class InscriptionAcceleratorApiService {
         }
       });
     });
+  }
+
+  private async signTransactionLeather({ preparedPsbt }: { preparedPsbt: CreatePsbtSuccessResponse}): Promise<any> {
+
+    const requestParams: LeatherSignPsbtRequestParams = {
+      hex: preparedPsbt.psbt,
+      signAtIndex: preparedPsbt.buyerInputIndices,
+      network: 'mainnet',
+      broadcast: true
+    };
+
+    const result = await (window as any).btc.request('signPsbt', requestParams);
+    return result;
   }
 
   /**

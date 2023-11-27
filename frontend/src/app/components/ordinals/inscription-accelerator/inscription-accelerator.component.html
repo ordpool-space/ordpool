@@ -93,7 +93,9 @@
 
           <div class="alert alert-success" *ngIf="broadcastPsbtSuccess">
             ✅&nbsp; Your transaction has now been submitted to the mempool for acceleration.<br>
-            You can track the progress <a class="alert-link text-decoration-underline" [routerLink]="'/tx/' + broadcastPsbtSuccess?.txId">here</a>.
+            <ng-container *ngIf="broadcastPsbtSuccess?.txId">
+              You can track the progress <a class="alert-link text-decoration-underline" [routerLink]="'/tx/' + broadcastPsbtSuccess.txId">here</a>.
+            </ng-container>
           </div>
 
           <div class="alert alert-danger"  *ngIf="broadcastPsbtError">
