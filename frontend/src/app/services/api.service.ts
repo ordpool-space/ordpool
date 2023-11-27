@@ -393,7 +393,7 @@ export class ApiService {
   estimate$(txInput: string) {
 
     // just for testing - AccelerationEstimate
-
+    /*
     return of(new HttpResponse({
       body: {
         txSummary:  {
@@ -412,9 +412,9 @@ export class ApiService {
       },
       status: 200,
       statusText: 'OK'
-    }));
+    }));*/
 
-    // return this.httpClient.post<any>(`${SERVICES_API_PREFIX}/accelerator/estimate`, { txInput: txInput }, { observe: 'response' });
+    return this.httpClient.post<any>(`${SERVICES_API_PREFIX}/accelerator/estimate`, { txInput: txInput }, { observe: 'response' });
   }
 
   accelerate$(txInput: string, userBid: number) {
