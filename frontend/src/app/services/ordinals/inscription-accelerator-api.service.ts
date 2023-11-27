@@ -124,6 +124,18 @@ export class InscriptionAcceleratorApiService {
    *
    * Example data:
    *
+   * POST
+   *  {
+   *    "utxos": [
+   *      "430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379:0"
+   *    ],
+   *    "buyerPaymentAddress": "3Ec1WB9ihWTxAfZSpGmQpNq4pr4goi3KgP",
+   *    "buyerOrdinalAddress": "bc1p64fa7mjsvlfcutnfapwhxyuvchxgk22l4at7xsh4z02tuuqwaj5syt6x2e",
+   *    "buyerPaymentPublicKey": "0278875d226dd610b06c41d698c9fe0ea4915c797ddc31a3310299d9acd07ff37b",
+   *    "buyerOrdinalPublicKey": "5df12ac222a1cd78dd4681c7c7a56f3e273884a086b2b6100957d20c73be3c37",
+   *    "feeRate": 50
+   *  }
+   *
    * CreatePsbtSuccessResponse:
    * {
    *   "psbt": "cHNidP8BAKcCAAAAAnnzHlWM00tiMqH/PKxyz0KXS+6VOO2sERHkMXgUAQlDAAAAAAD//////XhWSWi0h7+oVict55iS8NDCaqY+XHJFVStRhNb4d0oKAAAAAP////8CIgIAAAAAAAAiUSDE4igAqO/bFWqbYInboc0428uv5y8xWkAgucaQqjqfUxqWAQAAAAAAF6kUcEnus0Anf54TWc06YkiA6tqu63eHAAAAAAABASsiAgAAAAAAACJRINVT325QZ9OOLmnoXXMTjMXMiylfr1fjQvUT1L5wDuypAQMEgwAAAAEXICPMmoHvarM+O7gHkY7Ye/Qhp5geRcl4xqeCmy0LPtJTAAEBICasAQAAAAAAF6kUcEnus0Anf54TWc06YkiA6tqu63eHAQQWABTwyVwBTWHy2SpaH+F7GdCHfeG0AAAAAA==",
