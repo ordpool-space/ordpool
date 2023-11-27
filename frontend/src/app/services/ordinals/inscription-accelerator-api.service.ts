@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, switchMap } from 'rxjs';
-import { BitcoinNetworkType, signTransaction } from 'sats-connect';
+import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
 
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
 
@@ -54,14 +54,14 @@ export class InscriptionAcceleratorApiService {
 
     return this.createPsbt(requestBody).pipe(
       // tap(result => console.log('Generated PSBT:', result)),
-      switchMap(result => {
+      switchMap(psbt => {
 
         // // testing
         // return of({ txId: '1212' });
 
         if (walletType === KnownOrdinalWalletType.xverse) {
           return this.signTransactionXverse({
-            psbtBase64: result.psbt,
+            psbt,
             buyerOrdinalAddress: requestBody.buyerOrdinalAddress,
             buyerPaymentAddress: requestBody.buyerPaymentAddress
           });
@@ -79,30 +79,36 @@ export class InscriptionAcceleratorApiService {
    *
    * see also: https://docs.xverse.app/sats-connect/sign-transaction
    */
-  private signTransactionXverse(d: {
-    psbtBase64: string,
+  private signTransactionXverse({ psbt, buyerOrdinalAddress, buyerPaymentAddress }: {
+    psbt: CreatePsbtSuccessResponse,
     buyerOrdinalAddress: string,
     buyerPaymentAddress: string
   }): Observable<{ txId: string }> {
+
+    const inputsToSign: InputToSign[] = psbt.buyerInputIndices
+      .filter(index => index !== 0)
+      .map(index => ({
+        address: buyerPaymentAddress,
+        signingIndexes: [index]
+      }));
+
+    inputsToSign.push({
+      address: buyerOrdinalAddress,
+      signingIndexes: [0],
+      sigHash: 131 // SIGHASH_SINGLE | ANYONECANPAY
+    });
 
     return new Observable<{ txId: string }>((observer) => {
       signTransaction({
         payload: {
           network: {
             type: BitcoinNetworkType.Mainnet,
-            address: d.buyerOrdinalAddress
+            address: buyerOrdinalAddress
           },
           message: 'Sign Transaction (Inscription Accelerator)',
-          psbtBase64: d.psbtBase64,
+          psbtBase64: psbt.psbt,
           broadcast: true,
-          inputsToSign: [{
-            address: d.buyerOrdinalAddress,
-            signingIndexes: [0],
-            sigHash: 131 // SIGHASH_SINGLE | ANYONECANPAY
-          }, {
-            address: d.buyerPaymentAddress,
-            signingIndexes: [1]
-          }]
+          inputsToSign
         },
         onFinish: (response) => {
 
