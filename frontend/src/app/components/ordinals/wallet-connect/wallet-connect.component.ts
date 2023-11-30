@@ -23,6 +23,7 @@ export class WalletConnectComponent {
   installedWallets$ = this.walletService.wallets$;
   connectedWallet$ = this.walletService.connectedWallet$;
   walletConnectRequested$ = this.walletService.walletConnectRequested$;
+  isMainnet$ = this.walletService.isMainnet$;
 
   knownOrdinalWallets = KnownOrdinalWallets;
 
@@ -31,7 +32,6 @@ export class WalletConnectComponent {
 
   constructor() {
     this.walletConnectRequested$.subscribe(() => this.open());
-
   }
 
   open(): void {

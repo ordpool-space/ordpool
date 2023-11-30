@@ -1,8 +1,9 @@
 import { inject, Injectable } from '@angular/core';
-import { BehaviorSubject, distinctUntilChanged, from, map, Observable, Subject, take, tap, timer } from 'rxjs';
+import { BehaviorSubject, distinctUntilChanged, filter, from, map, Observable, shareReplay, startWith, Subject, take, tap, timer } from 'rxjs';
 import { AddressPurpose, BitcoinNetworkType, getAddress } from 'sats-connect';
 
 import { StorageService } from '../storage.service';
+import { NavigationEnd, Router } from '@angular/router';
 
 export enum KnownOrdinalWalletType {
   xverse = 'xverse',
@@ -108,11 +109,28 @@ export class WalletService {
       })
     );
 
+  router = inject(Router);
+  isMainnet$ = this.router.events.pipe(
+    filter(event => event instanceof NavigationEnd),
+    startWith(undefined), // start with current URL
+    map(() => {
+      const url = this.router.url;
+      return !url.includes('testnet');
+    }),
+    shareReplay({
+      refCount: true,
+      bufferSize: 1
+    })
+  );
+  isMainnet = true;
+
   constructor() {
     const lastConnectedWallet = this.storageService.getValue(LAST_CONNECTED_WALLET);
     if (lastConnectedWallet) {
       this.connectedWallet$.next(JSON.parse(lastConnectedWallet));
     }
+
+    this.isMainnet$.subscribe(isMainnet => this.isMainnet = isMainnet);
   }
 
 
@@ -218,7 +236,7 @@ export class WalletService {
           purposes: [AddressPurpose.Ordinals, AddressPurpose.Payment],
           message: 'Please share your address for receiving Ordinals and payments.',
           network: {
-            type: BitcoinNetworkType.Mainnet
+            type: this.isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet
           }
         },
         onFinish: (response: XverseAddressResponse) => {

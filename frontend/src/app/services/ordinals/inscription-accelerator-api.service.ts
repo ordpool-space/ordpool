@@ -13,13 +13,36 @@ export type Utxo = string;
 
 
 export interface CreatePsbtBody {
+
+  /**
+   * Array of transaction outputs to be accelerated in the following format
+   * ["430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379:0"]
+   */
   utxos: Utxo[];
+
+  /**
+   * Target Fee rate that stuck transaction should be bumped to in sats/vB
+   */
   feeRate: number;
 
+  /**
+   * Ordinals address where stuck inscription is destined for and will be sent to.
+   */
   buyerOrdinalAddress: string;
+
+  /**
+   * Ordinals public key where stuck inscription is destined for and will be sent to.
+   */
   buyerOrdinalPublicKey: string;
 
+  /**
+   * Bitcoin payment address where extra fees will be paid from.
+   */
   buyerPaymentAddress: string;
+
+  /**
+   * Bitcoin payment public key where extra fees will be paid from.
+   */
   buyerPaymentPublicKey: string;
 }
 
@@ -31,7 +54,19 @@ export interface CreatePsbtErrorResponse {
 }
 
 export interface CreatePsbtSuccessResponse {
+  /**
+   * PSBT to be signed and published by user's wallet
+   */
   psbt: string;
+
+  /**
+   * same PSBT in hex format (for leather wallet)
+   */
+  hex: string;
+
+  /**
+   * input indices user will need to sign to create the transaction
+   */
   buyerInputIndices: number[];
 }
 
@@ -45,15 +80,27 @@ interface LeatherSignPsbtRequestParams {
   broadcast?: boolean; // default is false - finalize/broadcast tx
 }
 
+const ordinalsbotMainnetApiUrl = 'https://api.ordinalsbot.com/cpfp';
+const ordinalsbotTestnetApiUrl = 'https://testnet-api.ordinalsbot.com/cpfp';
+
 @Injectable({
   providedIn: 'root'
 })
 export class InscriptionAcceleratorApiService {
 
-  apiUrl = 'https://api.ordinalsbot.com/cpfp';
+  apiUrl = ordinalsbotMainnetApiUrl;
   http = inject(HttpClient);
   walletService = inject(WalletService);
 
+  isMainnet = true;
+
+  constructor() {
+    this.walletService.isMainnet$.subscribe(isMainnet => {
+
+      this.isMainnet = isMainnet;
+      this.apiUrl = isMainnet ? ordinalsbotMainnetApiUrl : ordinalsbotTestnetApiUrl;
+    });
+  }
 
   /**
    * Requests to sign the Psbt and to broadcast it
@@ -118,7 +165,7 @@ export class InscriptionAcceleratorApiService {
       signTransaction({
         payload: {
           network: {
-            type: BitcoinNetworkType.Mainnet,
+            type: this.isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet,
             address: buyerOrdinalAddress
           },
           message: 'Sign Transaction (Inscription Accelerator)',
@@ -140,13 +187,14 @@ export class InscriptionAcceleratorApiService {
     });
   }
 
-  private async signTransactionLeather({ preparedPsbt }: { preparedPsbt: CreatePsbtSuccessResponse}): Promise<any> {
+  private async signTransactionLeather({ preparedPsbt }: { preparedPsbt: CreatePsbtSuccessResponse }): Promise<any> {
 
     const requestParams: LeatherSignPsbtRequestParams = {
-      hex: preparedPsbt.psbt,
+      hex: preparedPsbt.hex,
+      // allowedSighash?: SignatureHash[];
       signAtIndex: preparedPsbt.buyerInputIndices,
-      network: 'mainnet',
-      broadcast: true
+      network: this.isMainnet ? 'mainnet' : 'testnet',
+      broadcast: true // default is false - finalize/broadcast tx
     };
 
     const result = await (window as any).btc.request('signPsbt', requestParams);

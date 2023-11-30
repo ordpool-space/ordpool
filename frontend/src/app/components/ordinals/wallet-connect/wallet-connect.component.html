@@ -44,9 +44,9 @@
 
 <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
-  <button *ngIf="!x.connectedWallet" class="ml-4 btn btn-purple" (click)="open()" title="Connect your Wallet">
-    Connect
-  </button>
+  <button *ngIf="!x.connectedWallet" class="ml-4 btn btn-purple" (click)="open()" title="Connect your Wallet"
+    [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }"
+  >Connect</button>
 
   <ng-container *ngIf="x.connectedWallet">
 
