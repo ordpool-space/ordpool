@@ -84,6 +84,13 @@
           <!-- <p><a [routerLink]="['/clock/mined/0']">Clock (Mined)</a></p> -->
           <p><a [routerLink]="['/tools/calculator']">BTC/Fiat Converter</a></p>
 
+          <ng-container *ngIf="{ val: network$ | async } as network">
+            <p *ngIf="env.TESTNET_ENABLED">
+              <a *ngIf="network.val !== ''" class="mainnet" [routerLink]="networkPaths['mainnet'] || '/'"><app-svg-images name="bitcoin" width="22" height="22" viewBox="0 0 65 65" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images> Switch to Mainnet</a>
+              <a *ngIf="network.val !== 'testnet'" class="testnet" [class.active]="network.val === 'testnet'" [routerLink]="networkPaths['testnet'] || '/testnet'"><app-svg-images name="testnet" width="22" height="22" viewBox="0 0 65 65" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images> Switch to Testnet</a>
+            </p>
+          </ng-container>
+
         </div>
         <!--
         </ng-template> -->
