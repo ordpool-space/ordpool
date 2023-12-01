@@ -80,6 +80,14 @@ interface LeatherSignPsbtRequestParams {
   broadcast?: boolean; // default is false - finalize/broadcast tx
 }
 
+export interface LeatherPSBTBroadcastResponse {
+  jsonrpc: string;
+  id: string;
+  result: {
+    hex: string;
+  };
+}
+
 const ordinalsbotMainnetApiUrl = 'https://api.ordinalsbot.com/cpfp';
 const ordinalsbotTestnetApiUrl = 'https://testnet-api.ordinalsbot.com/cpfp';
 
@@ -126,7 +134,9 @@ export class InscriptionAcceleratorApiService {
 
         if (walletType === KnownOrdinalWalletType.leather) {
           return from(this.signTransactionLeather({ preparedPsbt })).pipe(
-            map(() => ({ txId: '' })) // :-/
+            map(result => {
+              return { txId:'' }; // No Transaction ID available provided! :-/
+            })
           );
         }
 
@@ -187,7 +197,18 @@ export class InscriptionAcceleratorApiService {
     });
   }
 
-  private async signTransactionLeather({ preparedPsbt }: { preparedPsbt: CreatePsbtSuccessResponse }): Promise<any> {
+  /**
+   * Example result:
+   *
+   * {
+   *  "jsonrpc": "2.0",
+   *  "id": "df423e60-b173-4cf3-9e51-71c93f9c7e5e",
+   *  "result": {
+   *    "hex": "xxxx"
+   *  }
+   * }
+   */
+  private async signTransactionLeather({ preparedPsbt }: { preparedPsbt: CreatePsbtSuccessResponse }): Promise<LeatherPSBTBroadcastResponse> {
 
     const requestParams: LeatherSignPsbtRequestParams = {
       hex: preparedPsbt.hex,
