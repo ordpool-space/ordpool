@@ -79,6 +79,7 @@
     "@fortawesome/free-solid-svg-icons": "~6.4.0",
     "@mempool/mempool.js": "2.3.0",
     "@ng-bootstrap/ng-bootstrap": "^15.1.0",
+    "@scure/btc-signer": "^1.1.0",
     "@types/qrcode": "~1.5.0",
     "bootstrap": "~4.6.2",
     "browserify": "^17.0.0",

@@ -1,10 +1,23 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { from, map, Observable, switchMap } from 'rxjs';
+import { concatMap, from, map, Observable, switchMap, tap } from 'rxjs';
 import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
 
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
+import { ApiService } from '../api.service';
 
+import * as btc from '@scure/btc-signer';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { StorageService } from '../storage.service';
+
+
+export const LAST_INSCRIPTION_ACCELERATIONS = 'LAST_INSCRIPTION_ACCELERATIONS';
+
+export interface InscriptionAcceleration {
+  txId: string,
+  acceleratedTxId: string;
+  createdAt: string // ISO formated string
+}
 
 /**
  * UTXO in the format txid:vout
@@ -98,7 +111,9 @@ export class InscriptionAcceleratorApiService {
 
   apiUrl = ordinalsbotMainnetApiUrl;
   http = inject(HttpClient);
+  apiService = inject(ApiService);
   walletService = inject(WalletService);
+  storageService = inject(StorageService);
 
   isMainnet = true;
 
@@ -125,7 +140,8 @@ export class InscriptionAcceleratorApiService {
         // return of({ txId: '1212' });
 
         if (walletType === KnownOrdinalWalletType.xverse) {
-          return this.signTransactionXverse({
+          // Xverse is broadcasting on its own
+          return this.signTransactionAndBroadcastXverse({
             preparedPsbt,
             buyerOrdinalAddress: requestBody.buyerOrdinalAddress,
             buyerPaymentAddress: requestBody.buyerPaymentAddress
@@ -134,13 +150,16 @@ export class InscriptionAcceleratorApiService {
 
         if (walletType === KnownOrdinalWalletType.leather) {
           return from(this.signTransactionLeather({ preparedPsbt })).pipe(
-            map(result => {
-              return { txId:'' }; // No Transaction ID available provided! :-/
-            })
+            concatMap((signedPsbt) => this.broadcastTransactionLeather(signedPsbt))
           );
         }
 
-        throw new Error('Wallet not supported (yet)!');
+        // Unisat!
+        throw new Error('Your wallet is not supported!');
+      }),
+      tap(({ txId }) => {
+        const acceleratedTxId = requestBody.utxos[0].split(':')[0];
+        this.saveNewAcceleration(txId, acceleratedTxId);
       })
     );
   }
@@ -152,7 +171,7 @@ export class InscriptionAcceleratorApiService {
    *
    * see also: https://docs.xverse.app/sats-connect/sign-transaction
    */
-  private signTransactionXverse({ preparedPsbt, buyerOrdinalAddress, buyerPaymentAddress }: {
+  private signTransactionAndBroadcastXverse({ preparedPsbt, buyerOrdinalAddress, buyerPaymentAddress }: {
     preparedPsbt: CreatePsbtSuccessResponse,
     buyerOrdinalAddress: string,
     buyerPaymentAddress: string
@@ -215,11 +234,31 @@ export class InscriptionAcceleratorApiService {
       // allowedSighash?: SignatureHash[];
       signAtIndex: preparedPsbt.buyerInputIndices,
       network: this.isMainnet ? 'mainnet' : 'testnet',
-      broadcast: true // default is false - finalize/broadcast tx
+      broadcast: false // default is false - finalize/broadcast tx
     };
 
-    const result = await (window as any).btc.request('signPsbt', requestParams);
-    return result;
+    const result: LeatherPSBTBroadcastResponse = await (window as any).btc.request('signPsbt', requestParams);
+    return result ;
+  }
+
+  /**
+   * We broadcast via the mempool API to receive the txId
+   *
+   * Hint: executing this twice ends in the following error:
+   * sendrawtransaction RPC error: {"code":-26,"message":"bad-txns-spends-conflicting-tx, xxxx spends conflicting transaction yyy "}
+   *
+   * TODO: flag txn as replaceable
+   */
+  private broadcastTransactionLeather(resp: LeatherPSBTBroadcastResponse): Observable<{ txId: string }> {
+
+    // as seen in the Leather docs
+    const hexRespFromLeather = resp.result.hex;
+    const tx = btc.Transaction.fromPSBT(hexToBytes(hexRespFromLeather));
+    tx.finalize();
+
+    return this.apiService.postTransaction$(tx.hex).pipe(
+      map(txId => ({ txId }))
+    );
   }
 
   /**
@@ -269,9 +308,26 @@ export class InscriptionAcceleratorApiService {
 
 
   // as seen here: https://github.com/unisat-wallet/unisat-web3-demo/blob/1109c79b07517ef4abe069c0c80b2d2118915e19/src/App.tsx#L208C70-L208C77
+  /*
   private async signPsbtUnisat(psbtHex: string) {
 
     const psbtResult = await (window as any).unisat.signPsbt(psbtHex);
+  }*/
 
+  saveNewAcceleration(txId: string, acceleratedTxId: string): void {
+
+    let lastAccelerations: InscriptionAcceleration[] = [];
+    const stringified = this.storageService.getValue(LAST_INSCRIPTION_ACCELERATIONS);
+    if (stringified) {
+      lastAccelerations = JSON.parse(stringified);
+    }
+
+    lastAccelerations.push({
+      txId,
+      acceleratedTxId,
+      createdAt: (new Date()).toISOString()
+    });
+
+    this.storageService.setValue(LAST_INSCRIPTION_ACCELERATIONS, JSON.stringify(lastAccelerations));
   }
 }

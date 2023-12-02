@@ -19,6 +19,7 @@ export class InscriptionAcceleratorComponent {
   walletService = inject(WalletService);
   inscriptionAcceleratorApi = inject(InscriptionAcceleratorApiService);
   cd = inject(ChangeDetectorRef);
+  isMainnet$ = this.walletService.isMainnet$;
 
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
