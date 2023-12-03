@@ -50,6 +50,10 @@ export class MasterPageComponent implements OnInit {
     if (router.routerState.snapshot.url === '/') {
       router.navigate(['/mempool-block', '0']);
     }
+
+    if (router.routerState.snapshot.url === '/testnet') {
+      router.navigate(['/testnet/mempool-block', '0']);
+    }
   }
 
   ngOnInit(): void {

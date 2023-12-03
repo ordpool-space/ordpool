@@ -23,10 +23,12 @@ import { FiatCurrencyPipe } from './shared/pipes/fiat-currency.pipe';
 import { ShortenStringPipe } from './shared/pipes/shorten-string-pipe/shorten-string.pipe';
 import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe';
 import { AppPreloadingStrategy } from './app.preloading-strategy';
-import { InscriptionParserService } from './services/inscriptions/inscription-parser.service';
-import { InscriptionFetcherService } from './services/inscriptions/inscription-fetcher.service';
-import { BlockchainApiService } from './services/inscriptions/blockchain-api.service';
-import { HiroApiService } from './services/inscriptions/hiro-api.service';
+import { InscriptionParserService } from './services/ordinals/inscription-parser.service';
+import { InscriptionFetcherService } from './services/ordinals/inscription-fetcher.service';
+import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
+import { HiroApiService } from './services/ordinals/hiro-api.service';
+import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
+import { WalletService } from './services/ordinals/wallet.service';
 
 
 const providers = [
@@ -50,6 +52,8 @@ const providers = [
   InscriptionFetcherService,
   BlockchainApiService,
   HiroApiService,
+  InscriptionAcceleratorApiService,
+  WalletService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }
 ];

@@ -1,10 +1,10 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgbCollapseModule, NgbTypeaheadModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbCollapseModule, NgbTypeaheadModule, NgbModalModule, NgbPopoverModule } from '@ng-bootstrap/ng-bootstrap';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, faChartArea, faCogs, faCubes, faHammer, faDatabase, faExchangeAlt, faInfoCircle,
   faLink, faList, faSearch, faCaretUp, faCaretDown, faTachometerAlt, faThList, faTint, faTv, faClock, faAngleDoubleDown, faSortUp, faAngleDoubleUp, faChevronDown,
-  faFileAlt, faRedoAlt, faArrowAltCircleRight, faExternalLinkAlt, faBook, faListUl, faDownload, faQrcode, faArrowRightArrowLeft, faArrowsRotate, faCircleLeft, faFastForward, faWallet, faUserClock, faWrench, faUserFriends, faQuestionCircle, faHistory, faSignOutAlt, faKey, faSuitcase, faIdCardAlt, faNetworkWired, faUserCheck, faCircleCheck, faUserCircle } from '@fortawesome/free-solid-svg-icons';
+  faFileAlt, faRedoAlt, faArrowAltCircleRight, faExternalLinkAlt, faBook, faListUl, faDownload, faQrcode, faArrowRightArrowLeft, faArrowsRotate, faCircleLeft, faFastForward, faWallet, faUserClock, faWrench, faUserFriends, faQuestionCircle, faHistory, faSignOutAlt, faKey, faSuitcase, faIdCardAlt, faNetworkWired, faUserCheck, faCircleCheck, faUserCircle, faRocket } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollModule } from 'ngx-infinite-scroll';
 import { MasterPageComponent } from '../components/master-page/master-page.component';
 import { MenuComponent } from '../components/menu/menu.component';
@@ -105,7 +105,10 @@ import { CalculatorComponent } from '../components/calculator/calculator.compone
 import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
-import { InscriptionViewerComponent } from '../components/inscription-viewer/inscription-viewer.component';
+import { InscriptionViewerComponent } from '../components/ordinals/inscription-viewer/inscription-viewer.component';
+import { InscriptionAcceleratorComponent } from '../components/ordinals/inscription-accelerator/inscription-accelerator.component';
+import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
+import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
 
 
 @NgModule({
@@ -205,7 +208,10 @@ import { InscriptionViewerComponent } from '../components/inscription-viewer/ins
     OnlyVsizeDirective,
     OnlyWeightDirective,
     MempoolErrorComponent,
-    InscriptionViewerComponent
+    InscriptionViewerComponent,
+    InscriptionAcceleratorComponent,
+    FeesBoxClickableComponent,
+    WalletConnectComponent
   ],
   imports: [
     CommonModule,
@@ -219,6 +225,8 @@ import { InscriptionViewerComponent } from '../components/inscription-viewer/ins
     NgbCollapseModule,
     InfiniteScrollModule,
     FontAwesomeModule,
+    NgbModalModule,
+    NgbPopoverModule
   ],
   providers: [
     VbytesPipe,
@@ -390,5 +398,8 @@ export class SharedModule {
     library.addIcons(faUserCheck);
     library.addIcons(faCircleCheck);
     library.addIcons(faUserCircle);
+
+    // HACK
+    library.addIcons(faRocket);
   }
 }

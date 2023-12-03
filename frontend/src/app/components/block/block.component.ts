@@ -16,7 +16,7 @@ import { detectWebGL } from '../../shared/graphs.utils';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { PriceService, Price } from '../../services/price.service';
 import { CacheService } from '../../services/cache.service';
-import { HiroApiService } from '../../services/inscriptions/hiro-api.service';
+import { HiroApiService } from '../../services/ordinals/hiro-api.service';
 
 @Component({
   selector: 'app-block',

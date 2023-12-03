@@ -1,10 +1,11 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, of, Subject, throwError } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { ElectrsApiService } from '../electrs-api.service';
 import { InscriptionParserService, ParsedInscription } from './inscription-parser.service';
 import { BlockchainApiService } from './blockchain-api.service';
+import { WalletService } from './wallet.service';
 
 
 interface FetchRequest {
@@ -20,6 +21,8 @@ interface FetchRequest {
   providedIn: 'root',
 })
 export class InscriptionFetcherService {
+
+  walletService = inject(WalletService);
 
   /** A queue to hold the fetch requests. */
   private requestQueue: FetchRequest[] = [];
@@ -42,7 +45,16 @@ export class InscriptionFetcherService {
   constructor(
     private electrsApiService: ElectrsApiService,
     private inscriptionParserService: InscriptionParserService,
-    private blockchainApiService: BlockchainApiService) { }
+    private blockchainApiService: BlockchainApiService) {
+
+      // reset everything on network change!
+      this.walletService.isMainnet$.subscribe(() => {
+
+        this.requestQueue = [];
+        this.isProcessing = false;
+        this.fetchedInscriptions = new Map();
+      });
+    }
 
   /**
    * Fetches the parsed inscription for the specified transaction.
@@ -220,7 +232,3 @@ export class InscriptionFetcherService {
     );
   }
 }
-
-// blockchainApiService
-// electrsApiService.getTransaction$
-// this.blockchainApiService.fetchSingleTransaction

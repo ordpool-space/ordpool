@@ -154,7 +154,10 @@
     <ng-template [ngIf]="showCpfpDetails">
       <br>
 
-      <h2 class="text-left">CPFP <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" size="xs"></fa-icon></h2>
+      <h2 class="text-left">CPFP
+        <!-- <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" size="xs"></fa-icon> -->
+        <small class="h6">&nbsp;(Child Pays for Parent)</small>
+      </h2>
       <div class="box cpfp-details">
         <table class="table table-fixed table-borderless table-striped">
           <thead>
@@ -220,13 +223,24 @@
       <br>
     </ng-container>
 
-    <ng-container>
-      <div class="title float-left">
-        <h2 id="rbf">Inscription</h2>
-      </div>
-      <div class="clearfix"></div>
+    <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
 
-      <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
+      <!-- HACK -->
+      <!--
+        Our own Inscription Accelerator
+        (which is not the same like the Transaction Accelerator)
+      -->
+      <ng-container *ngIf="tx">
+        <app-inscription-accelerator
+          [tx]="tx"
+          [parsedInscription]="i.parsedInscription" />
+      </ng-container>
+
+      <div class="title">
+        <h2>Inscription</h2>
+      </div>
+
+      <div class="box">
 
         <ng-container *ngIf="!i.parsedInscription">
           None
@@ -239,9 +253,9 @@
           ></app-inscription-viewer>
 
         </div>
-      </ng-container>
+      </div>
 
-      <br><br><br>
+    <br>
     </ng-container>
 
 

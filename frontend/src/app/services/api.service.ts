@@ -12,7 +12,9 @@ import { StorageService } from './storage.service';
 import { environment } from 'src/environments/environment';
 
 // Todo - move to config.json
-const SERVICES_API_PREFIX = `/api/v1/services`;
+// HACK
+// const SERVICES_API_PREFIX = `/api/v1/services`;
+const SERVICES_API_PREFIX = environment.apiBaseUrl + '/api/v1/services';
 
 @Injectable({
   providedIn: 'root'
@@ -387,7 +389,31 @@ export class ApiService {
     return this.httpClient.get<IBackendInfo>(`${SERVICES_API_PREFIX}/version`);
   }
 
+
   estimate$(txInput: string) {
+
+    // just for testing - AccelerationEstimate
+    /*
+    return of(new HttpResponse({
+      body: {
+        txSummary:  {
+          txid: '000',
+          effectiveVsize: 20,
+          effectiveFee: 1,
+          ancestorCount: 1
+        },
+        nextBlockFee: 1,
+        targetFeeRate: 1,
+        userBalance: 1,
+        enoughBalance: true,
+        cost: 1,
+        mempoolBaseFee: 9919,
+        vsizeFee: 1
+      },
+      status: 200,
+      statusText: 'OK'
+    }));*/
+
     return this.httpClient.post<any>(`${SERVICES_API_PREFIX}/accelerator/estimate`, { txInput: txInput }, { observe: 'response' });
   }
 

@@ -8,7 +8,7 @@ import { Position } from './sprite-types';
 import { Price } from '../../services/price.service';
 import { StateService } from '../../services/state.service';
 import { Subscription } from 'rxjs';
-import { InscriptionFetcherService } from '../../services/inscriptions/inscription-fetcher.service';
+import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
 
 @Component({
   selector: 'app-block-overview-graph',
