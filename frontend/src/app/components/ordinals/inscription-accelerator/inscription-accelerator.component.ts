@@ -1,11 +1,14 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { Observable, of, take } from 'rxjs';
+import { map, Observable, take } from 'rxjs';
 
 import { Transaction } from '../../../interfaces/electrs.interface';
-import { InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
+import { InscriptionAcceleration, InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
 import { KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
 import { StateService } from '../../../services/state.service';
+import { extractErrorMessage } from './extract-error-message';
+import { ParsedInscription } from '../../../services/ordinals/inscription-parser.service';
+import { environment } from '../../../../environments/environment';
 
 
 @Component({
@@ -14,7 +17,9 @@ import { StateService } from '../../../services/state.service';
   styleUrls: ['./inscription-accelerator.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class InscriptionAcceleratorComponent {
+export class InscriptionAcceleratorComponent implements OnInit  {
+
+  enableInscriptionAccelerator = environment.enableInscriptionAccelerator;
 
   walletService = inject(WalletService);
   inscriptionAcceleratorApi = inject(InscriptionAcceleratorApiService);
@@ -23,7 +28,9 @@ export class InscriptionAcceleratorComponent {
 
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
-  broadcastPsbt$: Observable<any> = of(undefined);
+
+  thisTxWasAccelerated$?: Observable<InscriptionAcceleration> = undefined;
+  thisTxIsAccelerator$?: Observable<InscriptionAcceleration> = undefined;
 
   broadcastPsbtLoading = false;
   broadcastPsbtSuccess?: { txId: string } = undefined;
@@ -31,20 +38,42 @@ export class InscriptionAcceleratorComponent {
 
   KnownOrdinalWalletType = KnownOrdinalWalletType;
 
-  @Input({ required: true }) tx?: Transaction;
+  private _tx?: Transaction;
+  public get tx(): Transaction {
+    return this._tx;
+  }
+
+  // tx is always set (*ngIf wrapping this component)
+  @Input({ required: true })
+  public set tx(value: Transaction) {
+    this._tx = value;
+
+    this.thisTxWasAccelerated$ = this.inscriptionAcceleratorApi.allAccelerations$.pipe(
+      map(acceration => acceration.reverse().find(a => a.acceleratedTxId === this._tx.txid))
+    );
+
+    this.thisTxIsAccelerator$ = this.inscriptionAcceleratorApi.allAccelerations$.pipe(
+      map(acceration => acceration.reverse().find(a => a.txId === this._tx.txid))
+    );
+
+  }
+
+  @Input({ required: true }) parsedInscription?: ParsedInscription;
 
   form = new FormGroup({
     feeRate: new FormControl(0, {
-      validators: Validators.required,
+      validators: [Validators.required, Validators.min(1)],
       nonNullable: true
     })
   });
 
   c = this.form.controls;
-
-  constructor() {
+  ngOnInit(): void {
     this.recommendedFees$.pipe(take(1))
-      .subscribe(({ fastestFee }) => this.form.patchValue({ feeRate: fastestFee }));
+      .subscribe(({ fastestFee }) => {
+        this.form.patchValue({ feeRate: fastestFee });
+        this.cd.detectChanges();
+      });
   }
 
   setFeeRate(feeRate: number): void {
@@ -75,10 +104,12 @@ export class InscriptionAcceleratorComponent {
 
         this.broadcastPsbtSuccess = result,
         this.broadcastPsbtLoading = false;
+        this.cd.detectChanges();
       },
       error: (err: Error) => {
-        this.broadcastPsbtError = err.message;
+        this.broadcastPsbtError = extractErrorMessage(err);
         this.broadcastPsbtLoading = false;
+        this.cd.detectChanges();
       }
     });
   }

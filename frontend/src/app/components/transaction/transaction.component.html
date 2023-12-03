@@ -230,20 +230,11 @@
         Our own Inscription Accelerator
         (which is not the same like the Transaction Accelerator)
       -->
-      <ng-container *ngIf="i.parsedInscription && !tx?.status?.confirmed && enableInscriptionAccelerator">
-        <div class="title">
-          <h2>
-            <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true"></fa-icon>
-            Inscription Accelerator
-          </h2>
-        </div>
-        <div class="box">
-          <app-inscription-accelerator [tx]="tx" />
-        </div>
-        <br>
+      <ng-container *ngIf="tx">
+        <app-inscription-accelerator
+          [tx]="tx"
+          [parsedInscription]="i.parsedInscription" />
       </ng-container>
-
-
 
       <div class="title">
         <h2>Inscription</h2>
