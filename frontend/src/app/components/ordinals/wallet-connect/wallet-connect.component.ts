@@ -1,7 +1,18 @@
 import { ChangeDetectionStrategy, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
+import { limitArray } from './limit-array';
 
-import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
+import {
+  InscriptionAcceleration,
+  InscriptionAcceleratorApiService,
+} from '../../../services/ordinals/inscription-accelerator-api.service';
+import {
+  KnownOrdinalWallets,
+  KnownOrdinalWalletType,
+  WalletInfo,
+  WalletService,
+} from '../../../services/ordinals/wallet.service';
+import { map } from 'rxjs';
 
 
 @Component({
@@ -19,11 +30,15 @@ export class WalletConnectComponent {
 
   modalService = inject(NgbModal);
   walletService = inject(WalletService);
+  inscriptionAcceleratorApiService = inject(InscriptionAcceleratorApiService);
 
   installedWallets$ = this.walletService.wallets$;
   connectedWallet$ = this.walletService.connectedWallet$;
   walletConnectRequested$ = this.walletService.walletConnectRequested$;
   isMainnet$ = this.walletService.isMainnet$;
+  lastAccelerations$ = this.inscriptionAcceleratorApiService.allAccelerations$.pipe(
+    map(x => limitArray(x.reverse(), 10))
+  );
 
   knownOrdinalWallets = KnownOrdinalWallets;
 

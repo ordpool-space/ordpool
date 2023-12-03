@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { concatMap, from, map, Observable, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, concatMap, from, map, Observable, switchMap, tap } from 'rxjs';
 import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
 
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
@@ -16,6 +16,8 @@ export const LAST_INSCRIPTION_ACCELERATIONS = 'LAST_INSCRIPTION_ACCELERATIONS';
 export interface InscriptionAcceleration {
   txId: string,
   acceleratedTxId: string;
+  acceleratedUtxos: string[],
+  feeRate: number;
   createdAt: string // ISO formated string
 }
 
@@ -117,12 +119,17 @@ export class InscriptionAcceleratorApiService {
 
   isMainnet = true;
 
+  allAccelerations$ = new BehaviorSubject<InscriptionAcceleration[]>([]);
+
   constructor() {
     this.walletService.isMainnet$.subscribe(isMainnet => {
 
       this.isMainnet = isMainnet;
       this.apiUrl = isMainnet ? ordinalsbotMainnetApiUrl : ordinalsbotTestnetApiUrl;
     });
+
+    const allAccelerations = this.getAllAccelerations();
+    this.allAccelerations$.next(allAccelerations);
   }
 
   /**
@@ -158,8 +165,7 @@ export class InscriptionAcceleratorApiService {
         throw new Error('Your wallet is not supported!');
       }),
       tap(({ txId }) => {
-        const acceleratedTxId = requestBody.utxos[0].split(':')[0];
-        this.saveNewAcceleration(txId, acceleratedTxId);
+        this.saveNewAcceleration(txId, requestBody);
       })
     );
   }
@@ -306,7 +312,6 @@ export class InscriptionAcceleratorApiService {
     return this.http.post<CreatePsbtSuccessResponse>(this.apiUrl, requestBody);
   }
 
-
   // as seen here: https://github.com/unisat-wallet/unisat-web3-demo/blob/1109c79b07517ef4abe069c0c80b2d2118915e19/src/App.tsx#L208C70-L208C77
   /*
   private async signPsbtUnisat(psbtHex: string) {
@@ -314,7 +319,11 @@ export class InscriptionAcceleratorApiService {
     const psbtResult = await (window as any).unisat.signPsbt(psbtHex);
   }*/
 
-  saveNewAcceleration(txId: string, acceleratedTxId: string): void {
+
+  /**
+   * Get all from local storage
+   */
+  getAllAccelerations(): InscriptionAcceleration[] {
 
     let lastAccelerations: InscriptionAcceleration[] = [];
     const stringified = this.storageService.getValue(LAST_INSCRIPTION_ACCELERATIONS);
@@ -322,12 +331,26 @@ export class InscriptionAcceleratorApiService {
       lastAccelerations = JSON.parse(stringified);
     }
 
-    lastAccelerations.push({
+    return lastAccelerations;
+  }
+
+  /**
+   * Save to local storage
+   */
+  saveNewAcceleration(txId: string, { utxos, feeRate }: CreatePsbtBody): void {
+
+    const allAccelerations = this.getAllAccelerations();
+    const acceleratedTxId = utxos[0].split(':')[0];
+
+    allAccelerations.push({
       txId,
       acceleratedTxId,
+      acceleratedUtxos: utxos,
+      feeRate,
       createdAt: (new Date()).toISOString()
     });
 
-    this.storageService.setValue(LAST_INSCRIPTION_ACCELERATIONS, JSON.stringify(lastAccelerations));
+    this.storageService.setValue(LAST_INSCRIPTION_ACCELERATIONS, JSON.stringify(allAccelerations));
+    this.allAccelerations$.next(allAccelerations);
   }
 }

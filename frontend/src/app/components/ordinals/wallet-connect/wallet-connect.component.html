@@ -7,8 +7,7 @@
 
     <ul class="list-unstyled">
       <li *ngFor="let w of wallets.installedWallets">
-        <button class="btn btn-purple my-2 w-100 text-left"
-          [disabled]="connectButtonDisabled"
+        <button class="btn btn-purple my-2 w-100 text-left" [disabled]="connectButtonDisabled"
           (click)="connectWallet(w.type)">
           <img [src]="w.logo" width="25" height="25" class="mr-2">
           {{ w.label }}</button>
@@ -29,12 +28,11 @@
     </ng-container>
 
     <ng-container *ngIf="showFakeWallet">
-     Just for debugging:
+      Just for debugging:
 
       <ul class="list-unstyled">
         <li>
-          <button class="btn btn-purple my-2 w-100 text-left"
-            (click)="connectFakeWallet()">Fake Wallet</button>
+          <button class="btn btn-purple my-2 w-100 text-left" (click)="connectFakeWallet()">Fake Wallet</button>
         </li>
       </ul>
     </ng-container>
@@ -45,18 +43,13 @@
 <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
   <button *ngIf="!x.connectedWallet" class="ml-4 btn btn-purple" (click)="open()" title="Connect your Wallet"
-    [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }"
-  >Connect</button>
+    [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }">Connect</button>
 
   <ng-container *ngIf="x.connectedWallet">
 
-    <button
-          #myPopover="ngbPopover"
-          [popoverTitle]="popTitle"
-          [ngbPopover]="popContent"
-          [autoClose]="'outside'"
-          popoverClass="walletConnectPopover"
-          class="ml-4 btn btn-secondary" title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
+    <button #myPopover="ngbPopover" [popoverTitle]="popTitle" [ngbPopover]="popContent" [autoClose]="'outside'"
+      popoverClass="walletConnectPopover" class="ml-4 btn btn-secondary"
+      title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
     </button>
 
@@ -71,12 +64,14 @@
         <li title="{{ x.connectedWallet.ordinalsAddress || 'None'}}">
           <span class="label">Ordinals Address:</span>
           <span class="address">{{ (x.connectedWallet.ordinalsAddress | shortenString) || 'None' }}</span>
-          <app-clipboard [button]="true" [text]="x.connectedWallet.ordinalsAddress" [class]="'btn btn-secondary mb-2'"></app-clipboard>
+          <app-clipboard [button]="true" [text]="x.connectedWallet.ordinalsAddress"
+            [class]="'btn btn-secondary mb-2'"></app-clipboard>
         </li>
         <li title="{{ x.connectedWallet.paymentAddress || 'None' }}">
           <span class="label">Payment Address:</span>
           <span class="address">{{ (x.connectedWallet.paymentAddress | shortenString) || 'None' }}</span>
-          <app-clipboard [button]="true" [text]="x.connectedWallet.paymentAddress" [class]="'btn btn-secondary mb-2'"></app-clipboard>
+          <app-clipboard [button]="true" [text]="x.connectedWallet.paymentAddress"
+            [class]="'btn btn-secondary mb-2'"></app-clipboard>
         </li>
       </ul>
 
@@ -84,9 +79,43 @@
         Disconnect
       </button>
 
+      <hr>
+
+      Your last Inscription Accelerations:
+      <table class="table table-borderless table-striped" *ngIf="(lastAccelerations$ | async)?.length">
+        <tbody>
+          <tr *ngFor="let acceleration of lastAccelerations$ | async">
+
+            <td>
+              {{ acceleration.createdAt | date:'yyyy-MM-dd' }}
+            </td>
+
+            <td>
+
+              <span class="tx-link">
+                <span class="txid">
+                  <app-truncate
+                    [text]="acceleration.txId"
+                    [lastChars]="5"
+                    [link]="['/tx/' | relativeUrl, acceleration.txId]"
+                    [maxWidth]="220"
+                    ><app-clipboard [text]="acceleration.txId" />
+                  </app-truncate>
+                </span>
+              </span>
+            </td>
+
+          </tr>
+        </tbody>
+      </table>
+      <div>
+        <small class="text-muted" *ngIf="!(lastAccelerations$ | async)?.length">
+          No inscription accelerations have been started on this computer yet.
+          If you want to accelerate a pending inscription in the mempool,
+          first select the transaction and try out our new service!
+        </small>
+      </div>
+
     </ng-template>
   </ng-container>
 </ng-container>
-
-
-

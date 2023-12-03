@@ -95,8 +95,7 @@
             ✅&nbsp; Your transaction has now been submitted to the mempool for acceleration.<br>
             <ng-container *ngIf="broadcastPsbtSuccess?.txId">
               You can track the progress
-              <a *ngIf="isMainnet$ | async" class="alert-link text-decoration-underline" [routerLink]="'/tx/' + broadcastPsbtSuccess.txId">here</a>.
-              <a *ngIf="!(isMainnet$ | async)" class="alert-link text-decoration-underline" [routerLink]="'/testnet/tx/' + broadcastPsbtSuccess.txId">here</a>.
+              <a class="alert-link text-decoration-underline" [routerLink]="['/tx/' | relativeUrl, broadcastPsbtSuccess.txId]">here</a>.
             </ng-container>
           </div>
 
