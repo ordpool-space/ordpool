@@ -91,7 +91,7 @@ export class HiroApiService {
       expand(response =>
         response.offset + response.results.length < response.total
           ? this.getInscriptions(genesis_block, response.offset + response.limit)
-          : EMPTY  // Use EMPTY here instead of null
+          : EMPTY // finish expand
       ),
       concatMap(response => response.results),
       toArray()

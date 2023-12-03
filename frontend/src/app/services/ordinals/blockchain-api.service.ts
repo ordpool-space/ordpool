@@ -1,9 +1,10 @@
-import { HttpClient } from '@angular/common/http';
-import { Injectable, Injector } from '@angular/core';
-import { expand, filter, map, Observable, of, tap } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { inject, Injectable, Injector } from '@angular/core';
+import { EMPTY, expand, map, Observable, of, tap } from 'rxjs';
 
 import { Transaction } from '../../interfaces/electrs.interface';
 import { InscriptionFetcherService } from './inscription-fetcher.service';
+import { WalletService } from './wallet.service';
 
 /**
  * Represents the spending outpoint of a transaction.
@@ -373,18 +374,27 @@ function RawTransactionToTransaction(raw: RawTransaction): Transaction {
 })
 export class BlockchainApiService {
 
+  walletService = inject(WalletService);
+  isMainnet = true;
+
   private readonly baseUrl = 'https://blockchain.info';
   private readonly itemsPerPage = 500; // set based on API's maximum allowed value
   private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
 
-
   constructor(
     private httpClient: HttpClient,
-    private injector: Injector) { }
+    private injector: Injector) {
+
+    this.walletService.isMainnet$.subscribe(isMainnet => {
+      this.isMainnet = isMainnet;
+    });
+  }
 
   /**
    * Fetches unconfirmed transactions from blockchain.info API.
    * Hint: there is also a https://blockchain.info/q/unconfirmedcount
+   *
+   * Hint: Only used for testing
    *
    * @returns An observable of the list of unconfirmed transactions.
    */
@@ -399,6 +409,7 @@ export class BlockchainApiService {
    * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
    */
   fetchAndCacheManyUnconfirmedTransactions(): Observable<Transaction[]> {
+
     let currentOffset = 0;
     let pagesFetched = 0;
 
@@ -408,20 +419,17 @@ export class BlockchainApiService {
 
         // Stop if we've fetched the desired number of pages or the length of transactions in the response is less than the limit
         if (pagesFetched >= this.maxPagesToFetch || response.txs.length < this.itemsPerPage) {
-          return of(null); // End the observable stream by emitting null
+          return EMPTY; // finish expand
         }
 
         // Update the offset for the next page
         currentOffset += this.itemsPerPage;
         return this.fetchPage(currentOffset, this.itemsPerPage);
       }),
-      // filter out the final null value, if any
-      filter(response => response !== null),
       map(response => response.txs.map(u => RawTransactionToTransaction(u))),
       tap(transactions => {
-
-      const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
-      inscriptionFetcher.addTransactions(transactions);
+        const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
+        inscriptionFetcher.addTransactions(transactions);
       })
     );
   }
@@ -435,17 +443,29 @@ export class BlockchainApiService {
    * @returns {Observable<RawTransactionsResponse>} An observable that emits the response from the API for the specified page.
    */
   private fetchPage(offset: number, limit: number): Observable<RawTransactionsResponse> {
+
+    // early exit if we are not on Mainnet – seems like blockchain.info has no testnet API :-(
+    if (!this.isMainnet) {
+      return of({ txs: [] });
+    }
+
     return this.httpClient.get<RawTransactionsResponse>(
       `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`);
   }
 
   /**
- * Fetch the details of a single transaction based on its hash (transaction id).
- *
- * @param tx_hash The hash of the transaction to retrieve.
- * @returns An observable containing the transaction details.
- */
+   * Fetch the details of a single transaction based on its hash (transaction id).
+   *
+   * @param tx_hash The hash of the transaction to retrieve.
+   * @returns An observable containing the transaction details.
+   */
   fetchSingleTransaction(tx_hash: string): Observable<Transaction> {
+
+    // early exit if we are not on Mainnet – seems like blockchain.info has no testnet API :-(
+    if (!this.isMainnet) {
+      throw new HttpErrorResponse({ error: 'No support for Testnet!', status: 404 });
+    }
+
     const url = `${this.baseUrl}/rawtx/${tx_hash}`;
     return this.httpClient.get<RawTransaction>(url).pipe(
       map(transaction => RawTransactionToTransaction(transaction))

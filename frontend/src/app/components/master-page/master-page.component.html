@@ -32,6 +32,7 @@
     </ng-container>
   </a>
 
+  <!--
   <div (window:resize)="onResize()" ngbDropdown class="dropdown-container" *ngIf="env.TESTNET_ENABLED || env.SIGNET_ENABLED || env.LIQUID_ENABLED || env.BISQ_ENABLED || env.LIQUID_TESTNET_ENABLED">
     <button ngbDropdownToggle type="button" class="btn btn-secondary dropdown-toggle-split d-flex justify-content-center align-items-center" aria-haspopup="true">
       <app-svg-images class="d-flex justify-content-center align-items-center current-network-svg" [name]="network.val === '' ? 'bitcoin' : network.val" width="20" height="20" viewBox="0 0 65 65"></app-svg-images>
@@ -46,6 +47,7 @@
       <a [href]="env.LIQUID_WEBSITE_URL + urlLanguage  + (networkPaths['liquidtestnet'] || '/testnet')" ngbDropdownItem *ngIf="env.LIQUID_TESTNET_ENABLED" class="liquidtestnet" [class.active]="network.val === 'liquid'"><app-svg-images name="liquidtestnet" width="22" height="22" viewBox="0 0 125 125" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images> Liquid Testnet</a>
     </div>
   </div>
+  -->
 
   <div class="navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
@@ -75,9 +77,9 @@
         <a class="nav-link" [routerLink]="['/about']" (click)="collapse()"><fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" i18n-title="master-page.about" title="About"></fa-icon> About</a>
       </li>
 
-      <li class="nav-item" routerLinkActive="active" id="btn-about">
+      <!-- <li class="nav-item" routerLinkActive="active" id="btn-about">
         <a class="nav-link" href="https://ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a>
-      </li>
+      </li> -->
 
     </ul>
     <app-search-form class="search-form-container" location="top" (searchTriggered)="collapse()"></app-search-form>

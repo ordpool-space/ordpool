@@ -22,6 +22,8 @@ $dark-gray: #6c757d;
 $body-bg: #1f1f1f;
 $body-color: $light;
 
+$input-disabled-bg: $dark;
+
 $theme-colors: (
   "primary": $primary,
   "secondary": $dark-gray,
@@ -45,9 +47,27 @@ $nav-tabs-link-active-bg: #11131f;
 // $success: #1a9436;
 // $info: $bitcoin;
 
-$h5-font-size: 1.15rem !default;
+// Workaround for https://github.com/ng-bootstrap/ng-bootstrap/issues/2686
+ngb-modal-backdrop {
+  z-index: 1050 !important;
+}
 
 $gray-800: #1d1f31;
+
+// HACK: more colors for ng-bootstrap modals + popover
+$modal-content-color: $light;
+$modal-content-bg: $body-bg;
+$popover-body-color: $light;
+$popover-bg: $body-bg;
+$popover-border-color: $gray-800;
+
+// this is a Bootstrap 5 class, let's already use the future one
+.btn-close {
+  @extend .close
+}
+
+$h5-font-size: 1.15rem !default;
+
 $pagination-bg: $body-bg;
 $pagination-border-color: $gray-800;
 $pagination-disabled-bg:           #FFF;

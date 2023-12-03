@@ -1,0 +1,27 @@
+# v0.0.2 – "Inscription Accelerator" 🚀 
+
+**New Feature:**
+
+We are proud to present the 'Inscription Accelerator'! 🚀  ([PR #6](https://github.com/haushoppe/ordpool/pull/6))
+
+Is your inscription stuck in the mempool and you don't want to wait any longer?
+We can help you to create a high-priority follow-up transaction that will boost this inscription.
+Made in partnership with our friends at OrdinalsBot.
+
+**Bugfixes:**
+
+- Fixes broken caching of existing blocks, see [#1](https://github.com/haushoppe/ordpool/issues/1)
+
+**Known Issues:**
+
+- Right now, the Parser is not aware of batch inscriptions, see [#2](https://github.com/haushoppe/ordpool/issues/2)
+
+
+<br>
+
+# v0.0.1 – Initial Release: "Amsterdam"
+
+![mempool-space-preview](https://github.com/haushoppe/ordpool/assets/108269257/f15ee074-72ad-4cbd-acad-cb93931a5258)
+The very first public version that was released right before Inscribing Amsterdam!
+
+https://twitter.com/HausHoppe/status/1712793358769242288
