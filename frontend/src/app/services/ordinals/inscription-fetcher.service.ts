@@ -22,6 +22,8 @@ interface FetchRequest {
 })
 export class InscriptionFetcherService {
 
+  private readonly maxCacheSize = 1000 * 1000; // maximum number of transaction to cache (let's see if this breaks browsers)
+
   walletService = inject(WalletService);
 
   /** A queue to hold the fetch requests. */
@@ -162,7 +164,7 @@ export class InscriptionFetcherService {
   public addToCache(txid: string, inscription: ParsedInscription | null): void {
 
     // If the cache size has reached its limit, delete the oldest entry
-    if (this.fetchedInscriptions.size >= 100 * 1000) {
+    if (this.fetchedInscriptions.size >= this.maxCacheSize) {
       const firstKey = this.fetchedInscriptions.keys().next().value;
       this.fetchedInscriptions.delete(firstKey);
       // console.log('Cache limit reached!')
