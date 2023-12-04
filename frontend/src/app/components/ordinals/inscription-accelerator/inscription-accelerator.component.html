@@ -115,7 +115,7 @@
                     </ng-container>
                   </div>
 
-                  <div class="alert alert-danger"  *ngIf="broadcastPsbtError">
+                  <div class="alert alert-danger" *ngIf="broadcastPsbtError">
                     ❌&nbsp; {{ broadcastPsbtError }}
                   </div>
 
@@ -156,7 +156,7 @@
 
       </div>
 
-      <div class="box">
+      <div class="box" *ngIf="(x.thisTxWasAccelerated || x.thisTxIsAccelerator) && !broadcastPsbtSuccess && !broadcastPsbtError">
         <div class="alert alert-success" *ngIf="x.thisTxWasAccelerated">
           This inscription was accelerated by you on
           {{ x.thisTxWasAccelerated.createdAt | date:'yyyy-MM-dd HH:mm' }}
