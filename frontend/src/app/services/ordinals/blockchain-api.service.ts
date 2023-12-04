@@ -379,7 +379,7 @@ export class BlockchainApiService {
 
   private readonly baseUrl = 'https://blockchain.info';
   private readonly itemsPerPage = 500; // set based on API's maximum allowed value
-  private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
+  private readonly maxPagesToFetch = 40; // maximum number of pages to fetch
 
   constructor(
     private httpClient: HttpClient,
@@ -405,7 +405,7 @@ export class BlockchainApiService {
   }
 
   /**
-   * Iterates over all pages of unconfirmed transactions (up to MAX_PAGES pages) and caches them using the InscriptionFetcherService.
+   * Iterates over all pages of unconfirmed transactions (up to maxPagesToFetch) and caches them using the InscriptionFetcherService.
    * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
    */
   fetchAndCacheManyUnconfirmedTransactions(): Observable<Transaction[]> {
