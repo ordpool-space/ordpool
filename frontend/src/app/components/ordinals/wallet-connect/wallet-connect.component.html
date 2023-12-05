@@ -5,12 +5,13 @@
   </div>
   <div class="modal-body" *ngIf="installedWallets$ | async as wallets">
 
-    <ul class="list-unstyled">
+    <ul class="list-unstyled" *ngIf="wallets.installedWallets.length">
       <li *ngFor="let w of wallets.installedWallets">
-        <button class="btn btn-purple my-2 w-100 text-left" [disabled]="connectButtonDisabled"
+        <button class="btn btn-purple mt-3 w-100 text-left" [disabled]="connectButtonDisabled"
           (click)="connectWallet(w.type)">
           <img [src]="w.logo" width="25" height="25" class="mr-2">
-          {{ w.label }}</button>
+          {{ w.label }}<small style="font-size: 0.7em" *ngIf="w.subLabel">&nbsp; {{ w.subLabel }}</small>
+        </button>
       </li>
     </ul>
 
@@ -19,9 +20,10 @@
 
       <ul class="list-unstyled">
         <li *ngFor="let w of wallets.notInstalledWallets">
-          <a class="btn btn-secondary my-2 w-100 text-left" [href]="w.downloadLink" target="_blank">
+          <a class="btn btn-secondary mt-3 w-100 text-left" [href]="w.downloadLink" target="_blank">
             <img [src]="w.logo" width="25" height="25" class="mr-2">
-            {{ w.label }}</a>
+            {{ w.label }}<small style="font-size: 0.7em" *ngIf="w.subLabel">&nbsp; {{ w.subLabel }}</small>
+          </a>
         </li>
       </ul>
 
