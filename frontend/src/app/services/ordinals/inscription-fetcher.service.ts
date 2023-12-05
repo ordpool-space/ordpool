@@ -22,7 +22,7 @@ interface FetchRequest {
 })
 export class InscriptionFetcherService {
 
-  private readonly maxCacheSize = 1000 * 1000; // maximum number of transaction to cache (let's see if this breaks browsers)
+  private readonly maxCacheSize = 100 * 1000; // maximum number of transaction to cache (let's see if this breaks browsers)
 
   walletService = inject(WalletService);
 
