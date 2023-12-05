@@ -379,7 +379,7 @@ export class BlockchainApiService {
 
   private readonly baseUrl = 'https://blockchain.info';
   private readonly itemsPerPage = 500; // set based on API's maximum allowed value
-  private readonly maxPagesToFetch = 40; // maximum number of pages to fetch
+  private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
 
   constructor(
     private httpClient: HttpClient,
