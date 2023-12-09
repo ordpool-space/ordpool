@@ -1,5 +1,9 @@
 # v0.0.2 – "Inscription Accelerator" 🚀 
 
+![Screenshot](https://github.com/haushoppe/ordpool/assets/108269257/5a6179cd-e835-414c-b4a8-4167a14ae85c)
+
+Announcement: https://twitter.com/HausHoppe/status/1732070762972868920
+
 **New Feature:**
 
 We are proud to present the 'Inscription Accelerator'! 🚀  ([PR #6](https://github.com/haushoppe/ordpool/pull/6))
@@ -24,4 +28,4 @@ Made in partnership with our friends at OrdinalsBot.
 ![mempool-space-preview](https://github.com/haushoppe/ordpool/assets/108269257/f15ee074-72ad-4cbd-acad-cb93931a5258)
 The very first public version that was released right before Inscribing Amsterdam!
 
-https://twitter.com/HausHoppe/status/1712793358769242288
+Announcement: https://twitter.com/HausHoppe/status/1712793358769242288
