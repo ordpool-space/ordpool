@@ -1,3 +1,16 @@
+# v0.0.3 – ordpool-parser
+
+**New Feature:**
+
+We've extracted the Inscription parser to a separate repository! 
+Now it's your turn! Fork it and add support for Bitcoin Stamps, Atomicals or any other Metaprotocol.
+Can't wait to see what you come up with! 🚀
+
+More at: 
+* https://github.com/haushoppe/ordpool-parser
+* https://www.npmjs.com/package/ordpool-parser
+
+
 # v0.0.2 – "Inscription Accelerator" 🚀 
 
 ![Screenshot](https://github.com/haushoppe/ordpool/assets/108269257/5a6179cd-e835-414c-b4a8-4167a14ae85c)
