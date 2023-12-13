@@ -5,10 +5,24 @@
 This is a fork of the awesome [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with changes for the Bitcoin Ordinals community.
 
 It shows you ordinal inscriptions in the mempool transactions.
-So you know in advance what will be inscribed soon. 
+So you know in advance what will be inscribed next. 
 
 * Production: https://ordpool.space/ (`stage-prod` branch)
 * Test Stage: https://test.ordpool.space/ (`stage-test` branch)
+
+---
+
+## ordpool-parser
+
+We've extracted the Inscription parser to a separate repository! 
+Now it's your turn! Fork it and add support for Bitcoin Stamps, Atomicals or any other Metaprotocol.
+Can't wait to see what you come up with! 🚀
+
+More at: 
+* https://github.com/haushoppe/ordpool-parser
+* https://www.npmjs.com/package/ordpool-parser
+
+If you want to integrate the parser into your own project, feel free to do so. The code is 100% open-source and is under the MIT License. Do whatever you want with it!
 
 <!--
 

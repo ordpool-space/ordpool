@@ -26,7 +26,7 @@ import { LiquidUnblinding } from './liquid-ublinding';
 import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
 import { Price, PriceService } from '../../services/price.service';
 import { isFeatureActive } from '../../bitcoin.utils';
-import { InscriptionParserService, ParsedInscription } from '../../services/ordinals/inscription-parser.service';
+import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
 
 @Component({
   selector: 'app-transaction',
@@ -111,8 +111,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     private apiService: ApiService,
     private seoService: SeoService,
     private priceService: PriceService,
-    private storageService: StorageService,
-    public inscriptionParser: InscriptionParserService
+    private storageService: StorageService
   ) {
 
     // HACK, redirect to the correct URL if someone accidently insert a inscription ID
@@ -125,7 +124,8 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getParsedInscripion(): ParsedInscription | null {
-    return this.inscriptionParser.parseInscription(this.tx);
+    const parser = new InscriptionParserService();
+    return parser.parseInscription(this.tx);
   }
 
   ngOnInit() {

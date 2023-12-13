@@ -7,7 +7,7 @@ import { InscriptionAcceleration, InscriptionAcceleratorApiService } from '../..
 import { KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
 import { StateService } from '../../../services/state.service';
 import { extractErrorMessage } from './extract-error-message';
-import { ParsedInscription } from '../../../services/ordinals/inscription-parser.service';
+import { ParsedInscription } from 'ordpool-parser';
 import { environment } from '../../../../environments/environment';
 
 

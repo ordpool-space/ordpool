@@ -3,7 +3,7 @@ import { catchError, map, Observable, of, Subject, throwError } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { ElectrsApiService } from '../electrs-api.service';
-import { InscriptionParserService, ParsedInscription } from './inscription-parser.service';
+import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
 import { BlockchainApiService } from './blockchain-api.service';
 import { WalletService } from './wallet.service';
 
@@ -46,7 +46,6 @@ export class InscriptionFetcherService {
    */
   constructor(
     private electrsApiService: ElectrsApiService,
-    private inscriptionParserService: InscriptionParserService,
     private blockchainApiService: BlockchainApiService) {
 
       // reset everything on network change!
@@ -125,7 +124,8 @@ export class InscriptionFetcherService {
 
     this.fetchTransaction(currentRequest.txid).pipe(
       map(transaction => {
-        const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
+        const parser = new InscriptionParserService();
+        const parsedInscription = parser.parseInscription(transaction);
 
         // Cache the result
         this.addToCache(currentRequest.txid, parsedInscription);
@@ -183,7 +183,8 @@ export class InscriptionFetcherService {
    * @param transaction - The full transaction object.
    */
   addTransaction(transaction: Transaction): void {
-    const parsedInscription = this.inscriptionParserService.parseInscription(transaction);
+    const parser = new InscriptionParserService();
+    const parsedInscription = parser.parseInscription(transaction);
     this.addToCache(transaction.txid, parsedInscription);
   }
 

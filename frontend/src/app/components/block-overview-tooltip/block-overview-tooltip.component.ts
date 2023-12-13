@@ -2,8 +2,7 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
-import { InscriptionParserService, ParsedInscription } from '../../services/ordinals/inscription-parser.service';
-import { ElectrsApiService } from '../../services/electrs-api.service';
+import { ParsedInscription } from 'ordpool-parser';
 import { Observable, map, of, retry, startWith } from 'rxjs';
 import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
 
