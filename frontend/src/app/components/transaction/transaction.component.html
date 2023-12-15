@@ -246,12 +246,8 @@
           None
         </ng-container>
 
-        <div *ngIf="i.parsedInscription" style="max-width: 600px;">
-
-          <app-inscription-viewer
-            [parsedInscription]="i.parsedInscription"
-          ></app-inscription-viewer>
-
+        <div *ngIf="i.parsedInscription">
+          <app-inscription-viewer [parsedInscription]="i.parsedInscription"></app-inscription-viewer>
         </div>
       </div>
 

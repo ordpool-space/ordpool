@@ -28,7 +28,7 @@ import { BlockchainApiService } from './services/ordinals/blockchain-api.service
 import { HiroApiService } from './services/ordinals/hiro-api.service';
 import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
 import { WalletService } from './services/ordinals/wallet.service';
-
+import { HIGHLIGHT_OPTIONS } from 'ngx-highlightjs';
 
 const providers = [
   ElectrsApiService,
@@ -53,7 +53,16 @@ const providers = [
   InscriptionAcceleratorApiService,
   WalletService,
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
-  { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true }
+  { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
+  { provide: HIGHLIGHT_OPTIONS,
+    useValue: {
+      coreLibraryLoader: () => import('highlight.js/lib/core'),
+      languages: {
+        json: () => import('highlight.js/lib/languages/json')
+      },
+      // themePath: 'path-to-theme.css' // Optional, and useful if you want to change the theme dynamically
+    }
+  }
 ];
 
 @NgModule({

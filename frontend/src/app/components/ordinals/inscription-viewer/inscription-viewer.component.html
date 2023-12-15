@@ -2,13 +2,20 @@
 
   {{ _parsedInscription.contentType }}<br>
 
-  <iframe
-    [srcdoc]="preview"
-    class=""
+  <ng-container *ngIf="!formatedJSON">
+    <iframe
+      [srcdoc]="preview"
+      scrolling="yes"
+    ></iframe>
 
-    scrolling="yes"
-  ></iframe>
+    <!-- sandbox="allow-scripts" -->
+  </ng-container>
 
-  <!-- sandbox="allow-scripts" -->
+
+  <ng-container *ngIf="formatedJSON">
+
+    <pre class="mb-0"><code [highlight]="formatedJSON"></code></pre>
+
+  </ng-container>
 
 </ng-container>

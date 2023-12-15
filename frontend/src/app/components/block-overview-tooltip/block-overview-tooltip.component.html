@@ -74,13 +74,10 @@
             None
           </ng-container>
 
-          <div class="text-left" style="width: 200px"
+          <div class="text-left" style="width: 300px;"
             *ngIf="i.parsedInscription && i.parsedInscription.contentType !== '?'">
-            <app-inscription-viewer
-              [parsedInscription]="i.parsedInscription"
-            ></app-inscription-viewer>
-        </div>
-
+            <app-inscription-viewer [parsedInscription]="i.parsedInscription"></app-inscription-viewer>
+          </div>
 
         </td>
       </tr>
