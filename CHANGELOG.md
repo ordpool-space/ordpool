@@ -10,6 +10,10 @@ More at:
 * https://github.com/haushoppe/ordpool-parser
 * https://www.npmjs.com/package/ordpool-parser
 
+**Bugfixes:**
+
+- Fixes broken Unicode encoding, see [#5](https://github.com/haushoppe/ordpool/issues/5)
+
 
 # v0.0.2 – "Inscription Accelerator" 🚀 
 
