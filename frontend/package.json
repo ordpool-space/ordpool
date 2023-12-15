@@ -90,7 +90,7 @@
     "lightweight-charts": "~3.8.0",
     "ngx-echarts": "~16.0.0",
     "ngx-infinite-scroll": "^16.0.0",
-    "ordpool-parser": "^0.0.2",
+    "ordpool-parser": "^0.0.3",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",
     "sats-connect": "^1.1.2",
