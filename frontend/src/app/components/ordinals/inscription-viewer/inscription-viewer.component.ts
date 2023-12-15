@@ -13,6 +13,7 @@ export class InscriptionViewerComponent {
 
   public _parsedInscription: ParsedInscription | undefined;
   public _lastParsedInscription: ParsedInscription | undefined;
+  public formatedJSON = '';
 
   public preview?: SafeHtml;
 
@@ -27,11 +28,18 @@ export class InscriptionViewerComponent {
     this._parsedInscription = inscription;
     this._lastParsedInscription = inscription;
 
+    const contentString = inscription.getContentString();
+    if (inscription.contentType.startsWith('text/plain') &&
+      this.validateJson(contentString)) {
+      this.formatedJSON = this.formatJSON(contentString);
+    } else {
+      this.formatedJSON = '';
+    }
     const previewString = this.getPreview(inscription);
     this.preview = this.domSanitizer.bypassSecurityTrustHtml(previewString);
   }
 
-  table: { [key: string] : (dataUri: string) => string } = {
+  table: { [key: string]: (dataUri: string) => string } = {
     'application/cbor': this.getPreviewUnknown,
     'application/json': this.getPreviewText,
     'application/pdf': this.getPreviewPdf,
@@ -49,7 +57,7 @@ export class InscriptionViewerComponent {
     'image/avif': this.getPreviewImage,
     'image/gif': this.getPreviewImage,
     'image/jpeg': this.getPreviewImage,
-     // 'image/jp2': this.getPreviewImage, // seen here 06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0 - not supported by chrome!
+    // 'image/jp2': this.getPreviewImage, // seen here 06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0 - not supported by chrome!
     'image/png': this.getPreviewImage,
     'image/svg+xml': this.getPreviewIframe,
     'image/webp': this.getPreviewImage,
@@ -83,6 +91,33 @@ export class InscriptionViewerComponent {
     return previewFunction.call(this, inscription.getDataUri());
   }
 
+  /**
+   * Checks if a given string is valid JSON.
+   *
+   * @param {string} str - The string to be tested.
+   * @returns {boolean} Returns true if the string is valid JSON, otherwise false.
+   */
+  validateJson(str: string) {
+    try {
+      JSON.parse(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Formats a JSON string with indentation for better readability.
+   *
+   * @param {string} jsonString - The JSON string to be formatted.
+   * @param {number} [indentation=2] - The number of spaces to use for indentation. Default is 4.
+   * @returns {string} The formatted JSON string, or an error message if the input is not valid JSON.
+   */
+  formatJSON(jsonString, indentation = 2) {
+    const parsed = JSON.parse(jsonString);
+    return JSON.stringify(parsed, null, indentation);
+  }
+
   // test here: http://localhost:4200/tx/751007cf3090703f241894af5c057fc8850d650a577a800447d4f21f5d2cecde
   getPreviewIframe(dataUri: string): string {
     return decodeDataURI(dataUri);
@@ -99,7 +134,7 @@ export class InscriptionViewerComponent {
   </head>
   <body>
     <audio controls>
-      <source src='${ dataUri }'>
+      <source src='${dataUri}'>
     </audio>
   </body>
 </html>`;
@@ -120,7 +155,7 @@ export class InscriptionViewerComponent {
       }
 
       body {
-        background-image: url('${ dataUri }');
+        background-image: url('${dataUri}');
         background-position: center;
         background-repeat: no-repeat;
         background-size: contain;
@@ -137,7 +172,7 @@ export class InscriptionViewerComponent {
     </style>
   </head>
   <body>
-    <img src='${ dataUri }'></img>
+    <img src='${dataUri}'></img>
   </body>
 </html>`;
   }
@@ -150,7 +185,7 @@ export class InscriptionViewerComponent {
   <head>
     <meta charset='utf-8'>
     <link rel='stylesheet' href='/resources/inscription-assets/preview-markdown.css'></link>
-    <script>window.markdownBase64 = '${ dataUri }'</script>
+    <script>window.markdownBase64 = '${dataUri}'</script>
     <script src='/resources/inscription-assets/preview-markdown.js' type=module defer></script>
   </head>
   <body>
@@ -175,7 +210,7 @@ export class InscriptionViewerComponent {
     </style>
   </head>
   <body>
-    <model-viewer src='${ dataUri }' auto-rotate='true' camera-controls='true' shadow-intensity='1'></model-viewer>
+    <model-viewer src='${dataUri}' auto-rotate='true' camera-controls='true' shadow-intensity='1'></model-viewer>
   </body>
 </html>`;
   }
@@ -189,7 +224,7 @@ export class InscriptionViewerComponent {
   <head>
     <meta charset='utf-8'>
     <link rel='stylesheet' href='/resources/inscription-assets/preview-pdf.css'>
-    <script>window.pdfBase64 = '${ dataUri }'</script>
+    <script>window.pdfBase64 = '${dataUri}'</script>
     <script src='/resources/inscription-assets/preview-pdf.js' defer type='module'></script>
   </head>
   <body>
@@ -208,7 +243,7 @@ export class InscriptionViewerComponent {
     <meta name='format-detection' content='telephone=no'>
     <link href='/resources/inscription-assets/preview-text.css' rel='stylesheet'>
 
-    <script>window.textBase64 = '${ dataUri }'</script>
+    <script>window.textBase64 = '${dataUri}'</script>
     <script src='/resources/inscription-assets/preview-text.js' defer type='module'></script>
   </head>
   <body>
@@ -235,7 +270,7 @@ export class InscriptionViewerComponent {
   // test here: http://localhost:4200/tx/700f348e1acef6021cdee8bf09e4183d6a3f4d573b4dc5585defd54009a0148c
   getPreviewVideo(dataUri: string): string {
 
-  return `<!doctype html>
+    return `<!doctype html>
 <html lang='en'>
   <head>
     <meta charset='utf-8'>
@@ -243,7 +278,7 @@ export class InscriptionViewerComponent {
   </head>
   <body>
     <video controls loop muted autoplay>
-      <source src="${ dataUri }">
+      <source src="${dataUri}">
     </video>
   </body>
 </html>`;

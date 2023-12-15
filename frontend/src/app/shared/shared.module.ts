@@ -109,6 +109,7 @@ import { InscriptionViewerComponent } from '../components/ordinals/inscription-v
 import { InscriptionAcceleratorComponent } from '../components/ordinals/inscription-accelerator/inscription-accelerator.component';
 import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
 import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
+import { HighlightModule } from 'ngx-highlightjs';
 
 
 @NgModule({
@@ -226,7 +227,8 @@ import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wa
     InfiniteScrollModule,
     FontAwesomeModule,
     NgbModalModule,
-    NgbPopoverModule
+    NgbPopoverModule,
+    HighlightModule
   ],
   providers: [
     VbytesPipe,

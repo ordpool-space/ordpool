@@ -89,6 +89,7 @@
     "echarts-gl": "^2.0.9",
     "lightweight-charts": "~3.8.0",
     "ngx-echarts": "~16.0.0",
+    "ngx-highlightjs": "^10.0.0",
     "ngx-infinite-scroll": "^16.0.0",
     "ordpool-parser": "^0.0.3",
     "qrcode": "1.5.1",
