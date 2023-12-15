@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 
-import { ParsedInscription } from 'ordpool-parser';
+import { ParsedInscription, decodeDataURI } from 'ordpool-parser';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 @Component({
@@ -70,13 +70,9 @@ export class InscriptionViewerComponent {
 
   constructor(private domSanitizer: DomSanitizer) { }
 
-  decodeBase64DataURI(dataUri: string): string {
-    const [, , data] = dataUri.match(/^data:.+\/(.+);base64,(.*)$/);
-    return atob(data);
-  }
-
   // all templates from here: https://github.com/ordinals/ord/tree/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/templates
   // see media-types here: https://github.com/ordinals/ord/blob/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/src/media.rs
+  // see never version of media-types here: https://github.com/ordinals/ord/blob/bf37836667a9c58f74f1889f95b71d5a08bc1d77/src/media.rs#L50
   getPreview(inscription: ParsedInscription | undefined): string {
 
     if (!inscription) {
@@ -87,10 +83,12 @@ export class InscriptionViewerComponent {
     return previewFunction.call(this, inscription.getDataUri());
   }
 
+  // test here: http://localhost:4200/tx/751007cf3090703f241894af5c057fc8850d650a577a800447d4f21f5d2cecde
   getPreviewIframe(dataUri: string): string {
-    return this.decodeBase64DataURI(dataUri);
+    return decodeDataURI(dataUri);
   }
 
+  // test here: http://localhost:4200/tx/ad99172fce60028406f62725b91b5c508edd95bf21310de5afeb0966ddd89be3
   getPreviewAudio(dataUri: string): string {
 
     return `<!doctype html>
@@ -107,6 +105,7 @@ export class InscriptionViewerComponent {
 </html>`;
   }
 
+  // test here http://localhost:4200/tx/6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799
   getPreviewImage(dataUri: string): string {
 
     return `<!doctype html>
@@ -143,6 +142,7 @@ export class InscriptionViewerComponent {
 </html>`;
   }
 
+  // test here: http://localhost:4200/tx/c133c03e2ed44bb8ada79b1640b6649129de75a8f31d8e6ad573ede442f91cdb
   getPreviewMarkdown(dataUri: string): string {
 
     return `<!doctype html>
@@ -158,13 +158,14 @@ export class InscriptionViewerComponent {
 </html>`;
   }
 
+  // test here: http://localhost:4200/tx/25013a3ab212e0ca5b3ccbd858ff988f506b77080c51963c948c055028af2051
   getPreviewModel(dataUri: string): string {
 
     return `<!doctype html>
 <html lang='en'>
   <head>
     <meta charset='utf-8'>
-    <script type='module' src='/resources/inscription-assets/preview-model-viewer.js'></script>
+    <script src='/resources/inscription-assets/preview-model-viewer.js' type='module'></script>
     <style>
       model-viewer {
         position: fixed;
@@ -179,6 +180,8 @@ export class InscriptionViewerComponent {
 </html>`;
   }
 
+  // test here: http://localhost:4200/tx/85b10531435304cbe47d268106b58b57a4416c76573d4b50fa544432597ad670i0
+  // (shows only the first page)
   getPreviewPdf(dataUri: string): string {
 
     return `<!doctype html>
@@ -195,6 +198,7 @@ export class InscriptionViewerComponent {
 </html>`;
   }
 
+  // test here: http://localhost:4200/tx/430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379
   getPreviewText(dataUri: string): string {
 
     return `<!doctype html>
@@ -205,7 +209,7 @@ export class InscriptionViewerComponent {
     <link href='/resources/inscription-assets/preview-text.css' rel='stylesheet'>
 
     <script>window.textBase64 = '${ dataUri }'</script>
-    <script src='/resources/inscription-assets/preview-text.js' defer></script>
+    <script src='/resources/inscription-assets/preview-text.js' defer type='module'></script>
   </head>
   <body>
     <pre></pre>
@@ -213,6 +217,7 @@ export class InscriptionViewerComponent {
 </html>`;
   }
 
+  // test here: http://localhost:4200/tx/06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01c
   getPreviewUnknown(dataUri: string): string {
 
     return `<!doctype html>
@@ -227,7 +232,8 @@ export class InscriptionViewerComponent {
 `;
   }
 
-getPreviewVideo(dataUri: string): string {
+  // test here: http://localhost:4200/tx/700f348e1acef6021cdee8bf09e4183d6a3f4d573b4dc5585defd54009a0148c
+  getPreviewVideo(dataUri: string): string {
 
   return `<!doctype html>
 <html lang='en'>

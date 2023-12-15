@@ -1,10 +1,7 @@
-function decodeBase64DataURI(uri) {
-  const [, , data] = uri.match(/^data:.+\/(.+);base64,(.*)$/);
-  return atob(data);
-}
 
-const text = decodeBase64DataURI(window.textBase64);
+import { decodeDataURI } from '/resources/inscription-assets/decode-data-uri.js';
 
+const text = decodeDataURI(window.textBase64);
 
 let pre = document.querySelector('body > pre');
 pre.innerText = text;

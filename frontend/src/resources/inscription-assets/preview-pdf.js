@@ -1,14 +1,12 @@
 import pdfjs from '/resources/inscription-assets/preview-pdf-pdfjs.js';
-pdfjs.GlobalWorkerOptions.workerSrc = '/resources/inscription-assets/preview-pdf-pdf.worker.js';
+import { decodeDataURI } from '/resources/inscription-assets/decode-data-uri.js';
 
-function decodeBase64DataURI(uri) {
-  const [, , data] = uri.match(/^data:.+\/(.+);base64,(.*)$/);
-  return atob(data);
-}
+
+pdfjs.GlobalWorkerOptions.workerSrc = '/resources/inscription-assets/preview-pdf-pdf.worker.js';
 
 let canvas = document.querySelector('canvas');
 
-const pdf = await pdfjs.getDocument({data: decodeBase64DataURI(window.pdfBase64) }).promise;
+const pdf = await pdfjs.getDocument({data: decodeDataURI(window.pdfBase64) }).promise;
 let page = await pdf.getPage(1);
 let scale = window.devicePixelRatio || 1;
 let viewport = page.getViewport({ scale });
