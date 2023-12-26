@@ -29,7 +29,7 @@ export class InscriptionViewerComponent {
     this._lastParsedInscription = inscription;
 
     const contentString = inscription.getContentString();
-    if (inscription.contentType.startsWith('text/plain') &&
+    if ((inscription.contentType.startsWith('text/plain') || inscription.contentType.startsWith('application/json')) &&
       this.validateJson(contentString)) {
       this.formatedJSON = this.formatJSON(contentString);
     } else {
