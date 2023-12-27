@@ -4,3 +4,8 @@ iframe {
   width: 100%;
   max-width: 600px;
 }
+
+.formatedText {
+  max-height: 600px;
+  overflow: scroll;
+}

@@ -123,9 +123,8 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getParsedInscripion(): ParsedInscription | null {
-    const parser = new InscriptionParserService();
-    return parser.parseInscription(this.tx);
+  getParsedInscripions(): ParsedInscription[] {
+    return InscriptionParserService.parseInscriptions(this.tx);
   }
 
   ngOnInit() {

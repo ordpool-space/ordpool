@@ -10,7 +10,7 @@ import { WalletService } from './wallet.service';
 
 interface FetchRequest {
   txid: string;
-  subject: Subject<ParsedInscription | null>;
+  subject: Subject<ParsedInscription[]>;
   priority: boolean;
 }
 
@@ -37,7 +37,7 @@ export class InscriptionFetcherService {
    * JavaScript Map objects retain insertion order, which makes it convenient to implement a rudimentary LRU cache
    * LRU (Least Recently Used)
   */
-  private fetchedInscriptions: Map<string, ParsedInscription | null> = new Map();
+  private fetchedInscriptions: Map<string, ParsedInscription[]> = new Map();
 
 
   /**
@@ -58,13 +58,13 @@ export class InscriptionFetcherService {
     }
 
   /**
-   * Fetches the parsed inscription for the specified transaction.
+   * Fetches inscriptions for the specified transaction.
    *
    * @param txid - The transaction ID.
    * @param priority - Whether the request has a higher priority.
-   * @returns An Observable that emits the parsed inscription.
+   * @returns An Observable that emits the parsed inscriptions.
    */
-  fetchInscription(txid: string, priority: boolean = false): Observable<ParsedInscription | null> {
+  fetchInscriptions(txid: string, priority: boolean = false): Observable<ParsedInscription[]> {
 
     const cachedResult = this.fetchedInscriptions.get(txid);
     if (cachedResult !== undefined) {
@@ -85,7 +85,7 @@ export class InscriptionFetcherService {
       return existingRequest.subject.asObservable();
     }
 
-    const requestSubject = new Subject<ParsedInscription | null>();
+    const requestSubject = new Subject<ParsedInscription[]>();
     const request: FetchRequest = { txid, subject: requestSubject, priority };
 
     if (priority) {
@@ -106,7 +106,7 @@ export class InscriptionFetcherService {
    *
    * @param txid - The transaction ID.
    */
-  cancelFetchInscription(txid: string): void {
+  cancelFetchInscriptions(txid: string): void {
     // Remove the request from the queue
     this.requestQueue = this.requestQueue.filter(request => request.txid !== txid);
   }
@@ -124,18 +124,17 @@ export class InscriptionFetcherService {
 
     this.fetchTransaction(currentRequest.txid).pipe(
       map(transaction => {
-        const parser = new InscriptionParserService();
-        const parsedInscription = parser.parseInscription(transaction);
+        const parsedInscriptions = InscriptionParserService.parseInscriptions(transaction);
 
         // Cache the result
-        this.addToCache(currentRequest.txid, parsedInscription);
+        this.addToCache(currentRequest.txid, parsedInscriptions);
 
-        return parsedInscription;
+        return parsedInscriptions;
       })
     ).subscribe({
-      next: parsedInscription => {
-        // Notify the caller with the parsed inscription and complete the subject
-        currentRequest.subject.next(parsedInscription);
+      next: parsedInscriptions => {
+        // Notify the caller with the parsed inscriptions and complete the subject
+        currentRequest.subject.next(parsedInscriptions);
         currentRequest.subject.complete();
 
         // Process the next request in the queue
@@ -156,12 +155,12 @@ export class InscriptionFetcherService {
   }
 
   /**
-   * Adds a transaction to the cache.
+   * Adds a transaction to the cache (no fetching required).
    *
    * @param txid - The transaction ID.
-   * @param inscription - The parsed inscription or NULL.
+   * @param inscriptions - The parsed inscriptions or an empty array.
    */
-  public addToCache(txid: string, inscription: ParsedInscription | null): void {
+  public addToCache(txid: string, inscriptions: ParsedInscription[]): void {
 
     // If the cache size has reached its limit, delete the oldest entry
     if (this.fetchedInscriptions.size >= this.maxCacheSize) {
@@ -171,10 +170,10 @@ export class InscriptionFetcherService {
     }
 
     // Add the new entry to the cache
-    this.fetchedInscriptions.set(txid, inscription);
+    this.fetchedInscriptions.set(txid, inscriptions);
 
     // Check and resolve any matching pending request
-    this.resolveMatchingRequest(txid, inscription);
+    this.resolveMatchingRequest(txid, inscriptions);
   }
 
   /**
@@ -183,9 +182,8 @@ export class InscriptionFetcherService {
    * @param transaction - The full transaction object.
    */
   addTransaction(transaction: Transaction): void {
-    const parser = new InscriptionParserService();
-    const parsedInscription = parser.parseInscription(transaction);
-    this.addToCache(transaction.txid, parsedInscription);
+    const parsedInscriptions = InscriptionParserService.parseInscriptions(transaction);
+    this.addToCache(transaction.txid, parsedInscriptions);
   }
 
   /**
@@ -203,21 +201,20 @@ export class InscriptionFetcherService {
     // let countAfter = 0;
     // this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
     // console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
-
   }
 
   /**
    * Resolves a request from the queue that matches the given txid.
    *
    * @param txid - The transaction ID.
-   * @param parsedInscription - The parsed inscription.
+   * @param parsedInscriptions - The parsed inscription.
    */
-  private resolveMatchingRequest(txid: string, parsedInscription: ParsedInscription | null): void {
+  private resolveMatchingRequest(txid: string, parsedInscriptions: ParsedInscription[]): void {
     const index = this.requestQueue.findIndex(request => request.txid === txid);
 
     if (index !== -1) {
       const request = this.requestQueue.splice(index, 1)[0];
-      request.subject.next(parsedInscription);
+      request.subject.next(parsedInscriptions);
       request.subject.complete();
     }
   }

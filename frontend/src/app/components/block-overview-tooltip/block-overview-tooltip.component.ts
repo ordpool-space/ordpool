@@ -18,7 +18,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   @Input() auditEnabled: boolean = false;
   @Input() blockConversion: Price;
 
-  parsedInscription$: Observable<ParsedInscription> = of(null);
+  parsedInscriptions$: Observable<ParsedInscription[]> = of(null);
 
   txid = '';
   fee = 0;
@@ -63,12 +63,11 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
       // HACK
       if (this.txid) {
-        this.parsedInscription$ = this.inscriptionFetcher.fetchInscription(this.txid, true).pipe(
+        this.parsedInscriptions$ = this.inscriptionFetcher.fetchInscriptions(this.txid, true).pipe(
           startWith(undefined)
         );
-
       } else {
-        this.parsedInscription$ = of(null);
+        this.parsedInscriptions$ = of([]);
       }
     }
   }

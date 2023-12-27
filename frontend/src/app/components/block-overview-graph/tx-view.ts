@@ -60,7 +60,7 @@ export default class TxView implements TransactionStripped {
   dirty: boolean;
 
   // HACK
-  parsedInscription: ParsedInscription | undefined | null;
+  parsedInscriptions: ParsedInscription[] | undefined | null;
   inscriptionFetcher: InscriptionFetcherService;
 
   constructor(tx: TransactionStripped, scene: BlockScene, ) {
@@ -96,21 +96,21 @@ export default class TxView implements TransactionStripped {
     }
 
     // HACK
-    this.inscriptionFetcher.cancelFetchInscription(this.txid);
+    this.inscriptionFetcher.cancelFetchInscriptions(this.txid);
   }
 
   private fetchInscription(): void {
-    this.inscriptionFetcher.fetchInscription(this.txid).subscribe({
-      next: (parsedInscription) => this.updateInscription(parsedInscription),
+    this.inscriptionFetcher.fetchInscriptions(this.txid).subscribe({
+      next: (parsedInscriptions) => this.updateInscriptions(parsedInscriptions),
       error: error => {
         // console.error('TxView: Failed to fetch inscription:', error);
       }
     });
   }
 
-  private updateInscription(parsedInscription: ParsedInscription | null): void {
+  private updateInscriptions(parsedInscriptions: ParsedInscription[]): void {
 
-    this.parsedInscription = parsedInscription;
+    this.parsedInscriptions = parsedInscriptions;
 
     // Mark the view as dirty to trigger re-rendering
     this.dirty = true;
@@ -248,12 +248,12 @@ export default class TxView implements TransactionStripped {
   getColor(): Color {
 
     // HACK
-    if (this.parsedInscription === undefined) {
+    if (this.parsedInscriptions === undefined) {
       // return light gray if parsedInscription is undefined (initial state)
       return { r: 0.8, g: 0.8, b: 0.8, a: 0.7 };
     }
 
-    if (this.parsedInscription === null) {
+    if (this.parsedInscriptions && !this.parsedInscriptions.length) {
       // return darker gray if parsedInscription is null (no inscription found)
       return { r: 0.8, g: 0.8, b: 0.8, a: 0.3 };
     }

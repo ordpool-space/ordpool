@@ -1,3 +1,24 @@
+# v0.0.4 – Parsing everything
+
+This version finally brings support for all types of inscriptions and features to Ordpool:
+
+* Inscriptions on inputs after the first
+* Batch inscriptions via pointers, see pointer docs: https://docs.ordinals.com/inscriptions/pointer.html)
+* Parent inscriptions, see provenance docs: https://docs.ordinals.com/inscriptions/provenance.html
+* Metadata, see metadata docs: https://docs.ordinals.com/inscriptions/metadata.html
+* Metaprotocol
+* Brotli content-encoding
+
+**More Features:**
+
+* CSS, JavaScript, and JSON are now formatted and displayed with Syntax-Highlighting
+
+´
+**Bugfixes:**
+
+- Parser is not aware of batch inscriptions, see [#2](https://github.com/haushoppe/ordpool/issues/2)
+
+
 # v0.0.3 – ordpool-parser
 
 **New Feature:**

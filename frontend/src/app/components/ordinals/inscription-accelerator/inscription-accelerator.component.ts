@@ -58,7 +58,7 @@ export class InscriptionAcceleratorComponent implements OnInit  {
 
   }
 
-  @Input({ required: true }) parsedInscription?: ParsedInscription;
+  @Input({ required: true }) parsedInscriptions?: ParsedInscription[];
 
   form = new FormGroup({
     feeRate: new FormControl(0, {

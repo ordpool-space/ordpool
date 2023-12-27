@@ -52,13 +52,15 @@ const providers = [
   HiroApiService,
   InscriptionAcceleratorApiService,
   WalletService,
+  // HACK
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
   { provide: HIGHLIGHT_OPTIONS,
     useValue: {
       coreLibraryLoader: () => import('highlight.js/lib/core'),
       languages: {
-        json: () => import('highlight.js/lib/languages/json')
+        json: () => import('highlight.js/lib/languages/json'),
+        yaml: () => import('highlight.js/lib/languages/yaml'),
       },
       // themePath: 'path-to-theme.css' // Optional, and useful if you want to change the theme dynamically
     }

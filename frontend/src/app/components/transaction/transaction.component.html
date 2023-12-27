@@ -223,7 +223,7 @@
       <br>
     </ng-container>
 
-    <ng-container *ngIf="{ parsedInscription: getParsedInscripion() } as i">
+    <ng-container *ngIf="getParsedInscripions() as parsedInscriptions">
 
       <!-- HACK -->
       <!--
@@ -233,21 +233,26 @@
       <ng-container *ngIf="tx">
         <app-inscription-accelerator
           [tx]="tx"
-          [parsedInscription]="i.parsedInscription" />
+          [parsedInscriptions]="parsedInscriptions" />
       </ng-container>
 
       <div class="title">
-        <h2>Inscription</h2>
+        <h2>Ordinal Inscription{{ parsedInscriptions.length > 1 ? 's' : ''}}</h2>
       </div>
 
       <div class="box">
 
-        <ng-container *ngIf="!i.parsedInscription">
+        <ng-container *ngIf="!parsedInscriptions.length">
           None
         </ng-container>
 
-        <div *ngIf="i.parsedInscription">
-          <app-inscription-viewer [parsedInscription]="i.parsedInscription"></app-inscription-viewer>
+        <div *ngIf="parsedInscriptions.length">
+          <app-inscription-viewer [parsedInscription]="parsedInscriptions[0]"></app-inscription-viewer>
+
+          <!-- TODO: show all inscriptions here -->
+          <div *ngIf="parsedInscriptions.length > 1">
+            + {{ parsedInscriptions.length - 1 }} more inscriptions
+          </div>
         </div>
       </div>
 

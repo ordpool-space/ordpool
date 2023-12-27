@@ -2,7 +2,7 @@
   <ng-container *ngIf="{
     thisTxWasAccelerated: (thisTxWasAccelerated$ | async),
     thisTxIsAccelerator: (thisTxIsAccelerator$ | async),
-    isPendingInscription: parsedInscription && !tx?.status?.confirmed
+    isPendingInscription: parsedInscriptions && parsedInscriptions.length && !tx?.status?.confirmed
   } as x">
     <ng-container *ngIf="x.thisTxWasAccelerated || x.thisTxIsAccelerator || x.isPendingInscription">
       <div class="title">
