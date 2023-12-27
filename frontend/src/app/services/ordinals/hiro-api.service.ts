@@ -132,7 +132,7 @@ export class HiroApiService {
         for (const transaction of transactions) {
           const matchingInscription = inscriptions.find(i => i.genesis_tx_id === transaction.txid);
           if (!matchingInscription) {
-            this.inscriptionFetcherService.addToCache(transaction.txid, null); // assuming addToCache takes an array of TransactionStripped type.
+            this.inscriptionFetcherService.addToCache(transaction.txid, []); // assuming addToCache takes an array of TransactionStripped type.
           }
         }
       }

@@ -1,7 +1,20 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input } from '@angular/core';
+import * as prettier from 'prettier';
+import * as  prettierPluginCss from 'prettier/plugins/postcss';
+import * as  prettierPluginBabel from 'prettier/plugins/babel';
+import * as  prettierPluginEstree from 'prettier/plugins/estree';
 
 import { ParsedInscription, decodeDataURI } from 'ordpool-parser';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+
+/*
+More test cases:
+
+- Batch inscription with pointer: http://localhost:4200/tx/11d3f4b39e8ab97995bab1eacf7dcbf1345ec59c07261c0197e18bf29b88d8da
+- Inscriptions on multiple inputs: http://localhost:4200/tx/092111e882a8025f3f05ab791982e8cc7fd7395afe849a5949fd56255b5c41cc
+- Content with brotli encryption: http://localhost:4200/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db
+- Metadata and Metaprotocol: http://localhost:4200/tx/49cbc5cbac92cf917dd4539d62720a3e528d17e22ef5fc47070a17ec0d3cf307
+*/
 
 @Component({
   selector: 'app-inscription-viewer',
@@ -13,7 +26,7 @@ export class InscriptionViewerComponent {
 
   public _parsedInscription: ParsedInscription | undefined;
   public _lastParsedInscription: ParsedInscription | undefined;
-  public formatedJSON = '';
+  public formatedText = '';
 
   public preview?: SafeHtml;
 
@@ -29,11 +42,23 @@ export class InscriptionViewerComponent {
     this._lastParsedInscription = inscription;
 
     const contentString = inscription.getContentString();
-    if ((inscription.contentType.startsWith('text/plain') || inscription.contentType.startsWith('application/json')) &&
+    if ((inscription.contentType.startsWith('text/plain') ||
+         inscription.contentType.startsWith('application/json')) &&
+
       this.validateJson(contentString)) {
-      this.formatedJSON = this.formatJSON(contentString);
-    } else {
-      this.formatedJSON = '';
+      this.formatedText = this.formatJSON(contentString);
+
+    } else if (
+      inscription.contentType.startsWith('application/yaml') ||
+      inscription.contentType.startsWith('text/css') ||
+      inscription.contentType.startsWith('text/javascript') ||
+      inscription.contentType.startsWith('application/x-javascript')) {
+
+      this.formatWithPrettier(contentString, inscription.contentType);
+      this.formatedText = '…';
+    }
+    else {
+      this.formatedText = '';
     }
     const previewString = this.getPreview(inscription);
     this.preview = this.domSanitizer.bypassSecurityTrustHtml(previewString);
@@ -42,14 +67,16 @@ export class InscriptionViewerComponent {
   table: { [key: string]: (dataUri: string) => string } = {
     'application/cbor': this.getPreviewUnknown,
     'application/json': this.getPreviewText,
+    'application/octet-stream': this.getPreviewUnknown,
     'application/pdf': this.getPreviewPdf,
     'application/pgp-signature': this.getPreviewText,
     'application/protobuf': this.getPreviewUnknown,
+    'application/x-javascript': this.getPreviewText,
     'application/yaml': this.getPreviewText,
     'audio/flac': this.getPreviewAudio,
     'audio/mpeg': this.getPreviewAudio,
     'audio/wav': this.getPreviewAudio,
-    'font/otf': this.getPreviewUnknown,
+    'font/otf': this.getPreviewUnknown, // TODO: preview-font, maybe, one day...
     'font/ttf': this.getPreviewUnknown,
     'font/woff': this.getPreviewUnknown,
     'font/woff2': this.getPreviewUnknown,
@@ -57,7 +84,6 @@ export class InscriptionViewerComponent {
     'image/avif': this.getPreviewImage,
     'image/gif': this.getPreviewImage,
     'image/jpeg': this.getPreviewImage,
-    // 'image/jp2': this.getPreviewImage, // seen here 06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0 - not supported by chrome!
     'image/png': this.getPreviewImage,
     'image/svg+xml': this.getPreviewIframe,
     'image/webp': this.getPreviewImage,
@@ -72,15 +98,16 @@ export class InscriptionViewerComponent {
     'text/markdown;charset=utf-8': this.getPreviewMarkdown,
     'text/plain': this.getPreviewText,
     'text/plain;charset=utf-8': this.getPreviewText,
+    'text/x-python': this.getPreviewText,
     'video/mp4': this.getPreviewVideo,
     'video/webm': this.getPreviewVideo,
   };
 
-  constructor(private domSanitizer: DomSanitizer) { }
+  constructor(private domSanitizer: DomSanitizer, private cd: ChangeDetectorRef) { }
 
   // all templates from here: https://github.com/ordinals/ord/tree/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/templates
   // see media-types here: https://github.com/ordinals/ord/blob/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/src/media.rs
-  // see never version of media-types here: https://github.com/ordinals/ord/blob/bf37836667a9c58f74f1889f95b71d5a08bc1d77/src/media.rs#L50
+  // see newer version of media-types here: https://github.com/ordinals/ord/blob/bf37836667a9c58f74f1889f95b71d5a08bc1d77/src/media.rs#L50
   getPreview(inscription: ParsedInscription | undefined): string {
 
     if (!inscription) {
@@ -91,11 +118,12 @@ export class InscriptionViewerComponent {
     return previewFunction.call(this, inscription.getDataUri());
   }
 
+  // json: http://localhost:4200/tx/49cbc5cbac92cf917dd4539d62720a3e528d17e22ef5fc47070a17ec0d3cf307
   /**
    * Checks if a given string is valid JSON.
    *
-   * @param {string} str - The string to be tested.
-   * @returns {boolean} Returns true if the string is valid JSON, otherwise false.
+   * @param str - The string to be tested.
+   * @returns Returns true if the string is valid JSON, otherwise false.
    */
   validateJson(str: string) {
     try {
@@ -109,13 +137,37 @@ export class InscriptionViewerComponent {
   /**
    * Formats a JSON string with indentation for better readability.
    *
-   * @param {string} jsonString - The JSON string to be formatted.
-   * @param {number} [indentation=2] - The number of spaces to use for indentation. Default is 4.
-   * @returns {string} The formatted JSON string, or an error message if the input is not valid JSON.
+   * @param jsonString - The JSON string to be formatted.
+   * @param [indentation=2] - The number of spaces to use for indentation. Default is 4.
+   * @returns The formatted JSON string, or an error message if the input is not valid JSON.
    */
-  formatJSON(jsonString, indentation = 2) {
+  formatJSON(jsonString: string, indentation = 2) {
     const parsed = JSON.parse(jsonString);
     return JSON.stringify(parsed, null, indentation);
+  }
+
+  // css: http://localhost:4200/tx/73eb12c506adaf02e219229b1c800ea1caa70c86a981e8fdb9e231237957224fi0
+  // js: http://localhost:4200/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db
+  formatWithPrettier(source: string, contentType: string) {
+
+    let parser = '';
+    // list of available parsers: https://prettier.io/docs/en/options#parser
+    if (contentType.startsWith('text/css')) {
+      parser = 'css';
+    }
+
+    if (contentType.startsWith('text/javascript') ||
+        contentType.startsWith('application/x-javascript')) {
+      parser = 'babel';
+    }
+
+    prettier.format(source, {
+      parser,
+      plugins: [prettierPluginCss, prettierPluginBabel, prettierPluginEstree]
+    }).then(formatedText => {
+      this.formatedText = formatedText;
+      this.cd.detectChanges();
+    });
   }
 
   // test here: http://localhost:4200/tx/751007cf3090703f241894af5c057fc8850d650a577a800447d4f21f5d2cecde

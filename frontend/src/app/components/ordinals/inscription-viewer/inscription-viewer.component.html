@@ -2,7 +2,7 @@
 
   {{ _parsedInscription.contentType }}<br>
 
-  <ng-container *ngIf="!formatedJSON">
+  <ng-container *ngIf="!formatedText">
     <iframe
       [srcdoc]="preview"
       scrolling="yes"
@@ -11,11 +11,18 @@
     <!-- sandbox="allow-scripts" -->
   </ng-container>
 
+  <div class="formatedText" *ngIf="formatedText">
 
-  <ng-container *ngIf="formatedJSON">
+    <pre class="mb-0"><code [highlight]="formatedText"></code></pre>
 
-    <pre class="mb-0"><code [highlight]="formatedJSON"></code></pre>
+  </div>
 
-  </ng-container>
+  <div *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
+    Metaprotocol: {{ metaprotocol }}
+  </div>
+
+  <div *ngIf="_parsedInscription.getMetadata() as metadata">
+    Metadata: {{ metadata }}
+  </div>
 
 </ng-container>
