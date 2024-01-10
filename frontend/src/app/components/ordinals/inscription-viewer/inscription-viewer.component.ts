@@ -41,12 +41,12 @@ export class InscriptionViewerComponent {
     this._parsedInscription = inscription;
     this._lastParsedInscription = inscription;
 
-    const contentString = inscription.getContentString();
-    if ((inscription.contentType.startsWith('text/plain') ||
+    if (inscription &&
+        (inscription.contentType.startsWith('text/plain') ||
          inscription.contentType.startsWith('application/json')) &&
+         this.validateJson(inscription.getContent())) {
 
-      this.validateJson(contentString)) {
-      this.formatedText = this.formatJSON(contentString);
+      this.formatedText = this.formatJSON(inscription.getContent());
 
     } else if (
       inscription.contentType.startsWith('application/yaml') ||
@@ -54,7 +54,7 @@ export class InscriptionViewerComponent {
       inscription.contentType.startsWith('text/javascript') ||
       inscription.contentType.startsWith('application/x-javascript')) {
 
-      this.formatWithPrettier(contentString, inscription.contentType);
+      this.formatWithPrettier(inscription.getContent(), inscription.contentType);
       this.formatedText = '…';
     }
     else {

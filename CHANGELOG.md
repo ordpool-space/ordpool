@@ -3,20 +3,24 @@
 This version finally brings support for all types of inscriptions and features to Ordpool:
 
 * Inscriptions on inputs after the first
-* Batch inscriptions via pointers, see pointer docs: https://docs.ordinals.com/inscriptions/pointer.html)
-* Parent inscriptions, see provenance docs: https://docs.ordinals.com/inscriptions/provenance.html
-* Metadata, see metadata docs: https://docs.ordinals.com/inscriptions/metadata.html
-* Metaprotocol
+* Batch inscriptions via pointers (see [pointer docs](https://docs.ordinals.com/inscriptions/pointer.html))
+* Parent inscriptions (see [provenance docs](https://docs.ordinals.com/inscriptions/provenance.html))
+* Metadata and Metaprotocol (see [metadata docs](https://docs.ordinals.com/inscriptions/metadata.html)), which is important for [CBRC-20](https://cybord.org/)
 * Brotli content-encoding
+* Support for multiple parents
+* Support for minimal push numbers (OP_PUSHNUM) for tags, which are not encoded by `ord` but by [Chisel](https://chisel.xyz)
+
+We also added experimental support for Bitcoin Stamps (SRC-20).
+'Experimental' means that SRC-20 Bitcoin Transactions are highlighted in the Mempool Block Overview and shown on the Transaction-Details page, but they are not highlighted for confirmed blocks.
 
 **More Features:**
 
 * CSS, JavaScript, and JSON are now formatted and displayed with Syntax-Highlighting
 
-´
 **Bugfixes:**
 
 - Parser is not aware of batch inscriptions, see [#2](https://github.com/haushoppe/ordpool/issues/2)
+- Download links to Xverse and Unisat were mixed
 
 
 # v0.0.3 – ordpool-parser
