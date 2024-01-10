@@ -24,7 +24,7 @@ export const KnownOrdinalWallets: { [K in KnownOrdinalWalletType]: KnownOrdinalW
     type: KnownOrdinalWalletType.xverse,
     label: 'Xverse',
     logo: '/resources/ordinal-wallets/btc-xverse-logo.png',
-    downloadLink: 'https://unisat.io/download'
+    downloadLink: 'https://www.xverse.app/download'
   },
   [KnownOrdinalWalletType.leather]: {
     type: KnownOrdinalWalletType.leather,
@@ -37,7 +37,7 @@ export const KnownOrdinalWallets: { [K in KnownOrdinalWalletType]: KnownOrdinalW
     label: 'Unisat',
     subLabel: '(not fully supported)',
     logo: '/resources/ordinal-wallets/btc-unisat-logo.svg',
-    downloadLink: 'https://www.xverse.app/download'
+    downloadLink: 'https://unisat.io/download'
   }
 };
 
