@@ -2,15 +2,15 @@
 
 This version finally brings support for all types of inscriptions and features to Ordpool:
 
-* Inscriptions on inputs after the first
-* Batch inscriptions via pointers (see [pointer docs](https://docs.ordinals.com/inscriptions/pointer.html))
-* Parent inscriptions (see [provenance docs](https://docs.ordinals.com/inscriptions/provenance.html))
-* Metadata and Metaprotocol (see [metadata docs](https://docs.ordinals.com/inscriptions/metadata.html)), which is important for [CBRC-20](https://cybord.org/)
-* Brotli content-encoding
-* Support for multiple parents
-* Support for minimal push numbers (OP_PUSHNUM) for tags, which are not encoded by `ord` but by [Chisel](https://chisel.xyz)
+* Inscriptions on inputs after the first → [Example](https://ordpool.space/tx/092111e882a8025f3f05ab791982e8cc7fd7395afe849a5949fd56255b5c41cc)
+* Batch inscriptions via pointers (see [pointer docs](https://docs.ordinals.com/inscriptions/pointer.html)) → [Example](https://ordpool.space/tx/11d3f4b39e8ab97995bab1eacf7dcbf1345ec59c07261c0197e18bf29b88d8da)
+* Parent inscriptions (see [provenance docs](https://docs.ordinals.com/inscriptions/provenance.html)) → [Example](https://ordpool.space/tx/11d3f4b39e8ab97995bab1eacf7dcbf1345ec59c07261c0197e18bf29b88d8da)
+* Metadata and Metaprotocol (see [metadata docs](https://docs.ordinals.com/inscriptions/metadata.html)), which are used by **[CBRC-20](https://cybord.org/)** → [Example](https://ordpool.space/tx/49cbc5cbac92cf917dd4539d62720a3e528d17e22ef5fc47070a17ec0d3cf307)
+* Brotli content-encoding → [Example](https://ordpool.space/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db)
+* Support for multiple parents → [Example](https://ordpool.space/tx/f988fe4b414a3f3d4a815dd1b1675dea0ba6140b1d698d8970273c781fb95746)
+* Support for minimal push numbers (OP_PUSHNUM) for tags, which are not encoded by `ord` but by [Chisel](https://chisel.xyz) → [Example](https://ordpool.space/tx/f988fe4b414a3f3d4a815dd1b1675dea0ba6140b1d698d8970273c781fb95746)
 
-We also added experimental support for Bitcoin Stamps (SRC-20).
+We also added experimental support for Bitcoin Stamps (**[SRC-20](https://stampchain.io/)**) → [Example](https://ordpool.space/tx/50aeb77245a9483a5b077e4e7506c331dc2f628c22046e7d2b4c6ad6c6236ae1).
 'Experimental' means that SRC-20 Bitcoin Transactions are highlighted in the Mempool Block Overview and shown on the Transaction-Details page, but they are not highlighted for confirmed blocks.
 
 **More Features:**

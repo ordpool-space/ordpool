@@ -2,20 +2,23 @@
 
   {{ _parsedInscription.contentType }}<br>
 
-  <ng-container *ngIf="!formatedText">
-    <iframe
-      [srcdoc]="preview"
-      scrolling="yes"
-    ></iframe>
+  <app-json-viewer
+    *ngIf="whatToShow === 'json'"
+    [text]="_parsedInscription.getContent()"
+  />
 
-    <!-- sandbox="allow-scripts" -->
-  </ng-container>
+  <app-code-viewer
+    *ngIf="whatToShow === 'code'"
+    [textAndContentType]="{
+      text: _parsedInscription.getContent(),
+      contentType: _parsedInscription.contentType
+    }"
+  />
 
-  <div class="formatedText" *ngIf="formatedText">
-
-    <pre class="mb-0"><code [highlight]="formatedText"></code></pre>
-
-  </div>
+  <app-preview-viewer
+    *ngIf="whatToShow === 'preview'"
+    [parsedInscription]="_parsedInscription"
+  />
 
   <div *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
     Metaprotocol: {{ metaprotocol }}
