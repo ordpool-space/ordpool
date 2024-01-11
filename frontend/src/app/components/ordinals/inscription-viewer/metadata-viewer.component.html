@@ -1,0 +1,18 @@
+<div *ngIf="data" class="metadata-container hljs">
+  <div *ngFor="let key of getObjectKeys(data); let i = index; odd as isOdd" [ngClass]="{'odd-row': isOdd}" class="row-item">
+    <span class="key">
+      <span class="hljs-attr">{{ key }}</span>
+      <span class="hljs-punctuation">:</span>
+    </span>
+    <span *ngIf="isPrimitive(data[key])" class="value hljs-string">{{ data[key] }}</span>
+    <div *ngIf="isObject(data[key])" class="nested-object">
+      <app-metadata-viewer [data]="data[key]"></app-metadata-viewer>
+    </div>
+    <ul *ngIf="isArray(data[key])" class="list-unstyled">
+      <li *ngFor="let item of data[key]">
+        <app-metadata-viewer *ngIf="isObject(item) || isArray(item)" [data]="item"></app-metadata-viewer>
+        <span *ngIf="isPrimitive(item)">{{ item }}</span>
+      </li>
+    </ul>
+  </div>
+</div>

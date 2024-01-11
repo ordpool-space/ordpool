@@ -24,6 +24,8 @@ export class InscriptionViewerComponent {
   public whatToShow: 'nothing' | 'json' | 'code' | 'preview' = 'nothing';
 
 
+  @Input() showDetails = false;
+
   @Input()
   public set parsedInscription(inscription: ParsedInscription | undefined) {
 

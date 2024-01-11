@@ -75,8 +75,10 @@
           </ng-container>
 
           <div class="text-left" style="width: 300px;" *ngIf="i.parsedInscriptions && i.parsedInscriptions.length">
-            <app-inscription-viewer [parsedInscription]="i.parsedInscriptions[0]" />
-
+            <app-inscription-viewer
+              [showDetails]="false"
+              [parsedInscription]="i.parsedInscriptions[0]"
+            />
             <div *ngIf="i.parsedInscriptions.length > 1">
               + {{ i.parsedInscriptions.length - 1 }} more inscriptions
             </div>

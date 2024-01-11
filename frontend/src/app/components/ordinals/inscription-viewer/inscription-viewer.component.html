@@ -24,8 +24,13 @@
     Metaprotocol: {{ metaprotocol }}
   </div>
 
-  <div *ngIf="_parsedInscription.getMetadata() as metadata">
-    Metadata: {{ metadata }}
+  <div class="mt-2" *ngIf="showDetails && _parsedInscription.getMetadata() as metadata">
+    Metadata:
+    <app-metadata-viewer [data]="metadata" />
+  </div>
+
+  <div *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
+    Content Encoding: {{ contentEncoding }}
   </div>
 
 </ng-container>

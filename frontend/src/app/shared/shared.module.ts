@@ -109,6 +109,7 @@ import { InscriptionViewerComponent } from '../components/ordinals/inscription-v
 import { JsonViewerComponent } from '../components/ordinals/json-viewer/json-viewer.component';
 import { CodeViewerComponent } from '../components/ordinals/code-viewer/code-viewer.component';
 import { PreviewViewerComponent } from '../components/ordinals/preview-viewer/preview-viewer.component';
+import { MetadataViewerComponent } from '../components/ordinals/inscription-viewer/metadata-viewer.component';
 import { InscriptionAcceleratorComponent } from '../components/ordinals/inscription-accelerator/inscription-accelerator.component';
 import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
 import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
@@ -216,6 +217,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     JsonViewerComponent,
     CodeViewerComponent,
     PreviewViewerComponent,
+    MetadataViewerComponent,
     InscriptionAcceleratorComponent,
     FeesBoxClickableComponent,
     WalletConnectComponent
