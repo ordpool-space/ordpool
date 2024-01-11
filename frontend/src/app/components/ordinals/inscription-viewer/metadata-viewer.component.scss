@@ -1,0 +1,30 @@
+.metadata-container {
+  padding: 6px;
+  display: grid;
+  grid-template-columns: max-content auto;
+  gap: 6px;
+  padding-left: 6px;
+  border-left: 1px solid #839496;
+}
+
+.row-item {
+  display: contents;
+}
+
+.key {
+  font-weight: bold;
+  grid-column: 1;
+}
+
+.value, .array-item, .nested-object, .list-unstyled {
+  grid-column: 2;
+}
+
+.nested-object, .list-unstyled {
+  padding-left: 6px;
+}
+
+.list-unstyled {
+  list-style-type: none;
+  padding-left: 0;
+}

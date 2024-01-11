@@ -247,7 +247,10 @@
         </ng-container>
 
         <div *ngIf="parsedInscriptions.length">
-          <app-inscription-viewer [parsedInscription]="parsedInscriptions[0]" />
+          <app-inscription-viewer
+            [showDetails]="true"
+            [parsedInscription]="parsedInscriptions[0]"
+          />
 
           <!-- TODO: show all inscriptions here -->
           <div *ngIf="parsedInscriptions.length > 1">
