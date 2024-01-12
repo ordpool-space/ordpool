@@ -223,7 +223,7 @@
       <br>
     </ng-container>
 
-    <ng-container *ngIf="getParsedInscripions() as parsedInscriptions">
+    <ng-container *ngIf="getParsedDigitalArtifacts() as digitalArtifacts">
 
       <!-- HACK -->
       <!--
@@ -233,28 +233,29 @@
       <ng-container *ngIf="tx">
         <app-inscription-accelerator
           [tx]="tx"
-          [parsedInscriptions]="parsedInscriptions" />
+          [digitalArtifacts]="digitalArtifacts" />
       </ng-container>
 
       <div class="title">
-        <h2>Ordinal Inscription{{ parsedInscriptions.length > 1 ? 's' : ''}}</h2>
+        <h2>Digital Artifacts</h2>
       </div>
 
       <div class="box">
 
-        <ng-container *ngIf="!parsedInscriptions.length">
+        <ng-container *ngIf="!digitalArtifacts.length">
           None
         </ng-container>
 
-        <div *ngIf="parsedInscriptions.length">
-          <app-inscription-viewer
+        <div *ngIf="digitalArtifacts.length">
+
+          <app-digital-artifact-viewer
             [showDetails]="true"
-            [parsedInscription]="parsedInscriptions[0]"
+            [digitalArtifact]="digitalArtifacts[0]"
           />
 
           <!-- TODO: show all inscriptions here -->
-          <div *ngIf="parsedInscriptions.length > 1">
-            + {{ parsedInscriptions.length - 1 }} more inscriptions
+          <div *ngIf="digitalArtifacts.length > 1">
+            + {{ digitalArtifacts.length - 1 }} more digital artifacts
           </div>
         </div>
       </div>

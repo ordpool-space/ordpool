@@ -1,25 +1,21 @@
-import { inject, Injectable, Injector } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
+import { DigitalArtifact, DigitalArtifactsParserService } from 'ordpool-parser';
 import { catchError, map, merge, Observable, of, Subject, throwError } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
-import { ElectrsApiService } from '../electrs-api.service';
-import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
 import { BlockchainApiService } from './blockchain-api.service';
-import { WalletService } from './wallet.service';
-import { HttpClient } from '@angular/common/http';
-import { StateService } from '../state.service';
-import { environment } from '../../../environments/environment';
 import { RollingElectrsApiService } from './rolling-electrs-api.service';
+import { WalletService } from './wallet.service';
 
 
 interface FetchRequest {
   txid: string;
-  subject: Subject<ParsedInscription[]>;
+  subject: Subject<DigitalArtifact[]>;
   priority: boolean;
 }
 
 /**
- * A service to fetch parsed inscriptions sequentially / parallel for given transactions.
+ * A service to fetch parsed artifacts sequentially / parallel for given transactions.
  */
 @Injectable({
   providedIn: 'root',
@@ -41,7 +37,7 @@ export class InscriptionFetcherService {
    * JavaScript Map objects retain insertion order, which makes it convenient to implement a rudimentary LRU cache
    * LRU (Least Recently Used)
   */
-  private fetchedInscriptions: Map<string, ParsedInscription[]> = new Map();
+  private fetchedInscriptions: Map<string, DigitalArtifact[]> = new Map();
 
   /**
    * Initializes a new instance of the InscriptionFetcherService.
@@ -67,7 +63,7 @@ export class InscriptionFetcherService {
    * @param priority - Whether the request has a higher priority.
    * @returns An Observable that emits the parsed inscriptions.
    */
-  fetchInscriptions(txid: string, priority: boolean = false): Observable<ParsedInscription[]> {
+  fetchInscriptions(txid: string, priority: boolean = false): Observable<DigitalArtifact[]> {
 
     const cachedResult = this.fetchedInscriptions.get(txid);
     if (cachedResult !== undefined) {
@@ -88,7 +84,7 @@ export class InscriptionFetcherService {
       return existingRequest.subject.asObservable();
     }
 
-    const requestSubject = new Subject<ParsedInscription[]>();
+    const requestSubject = new Subject<DigitalArtifact[]>();
     const request: FetchRequest = { txid, subject: requestSubject, priority };
 
     if (priority) {
@@ -114,49 +110,6 @@ export class InscriptionFetcherService {
     this.requestQueue = this.requestQueue.filter(request => request.txid !== txid);
   }
 
-  /** OLD VERSION: Processes the requests in the queue sequentially. */
-  private processQueueSquentially(): void {
-
-    if (this.requestQueue.length === 0) {
-      this.isProcessing = false;
-      return;
-    }
-
-    this.isProcessing = true;
-    const currentRequest = this.requestQueue.shift() as FetchRequest;
-
-    this.fetchTransaction(currentRequest.txid).pipe(
-      map(transaction => {
-        const parsedInscriptions = InscriptionParserService.parseInscriptions(transaction);
-
-        // Cache the result
-        this.addToCache(currentRequest.txid, parsedInscriptions);
-
-        return parsedInscriptions;
-      })
-    ).subscribe({
-      next: parsedInscriptions => {
-        // Notify the caller with the parsed inscriptions and complete the subject
-        currentRequest.subject.next(parsedInscriptions);
-        currentRequest.subject.complete();
-
-        // Process the next request in the queue
-        // without a delay we will get a HTTP 429 Too Many Requests response
-        window.setTimeout(() => this.processQueue(), 50);
-      },
-      error: error => {
-        // console.error('Failed to fetch inscription:', error);
-        // Notify the caller with the error and continue to the next request
-        // currentRequest.subject.error(error);
-
-        // add the request back to que, to try it out later
-        this.requestQueue.push(currentRequest);
-
-        this.processQueue();  // Process the next request in the queue
-      }
-    });
-  }
-
   /** Processes requests in the queue simultaneously without waiting for each other. */
   private processQueue(): void {
 
@@ -175,10 +128,10 @@ export class InscriptionFetcherService {
         this.fetchTransaction(request.txid).pipe(
           map(transaction => {
 
-            const parsedInscriptions = InscriptionParserService.parseInscriptions(transaction);
-            this.addToCache(request.txid, parsedInscriptions);
+            const artifacts = DigitalArtifactsParserService.parse(transaction);
+            this.addToCache(request.txid, artifacts);
 
-            request.subject.next(parsedInscriptions);
+            request.subject.next(artifacts);
             request.subject.complete();
 
             return of(null);
@@ -212,7 +165,7 @@ export class InscriptionFetcherService {
    * @param txid - The transaction ID.
    * @param inscriptions - The parsed inscriptions or an empty array.
    */
-  public addToCache(txid: string, inscriptions: ParsedInscription[]): void {
+  public addToCache(txid: string, inscriptions: DigitalArtifact[]): void {
 
     // If the cache size has reached its limit, delete the oldest entry
     if (this.fetchedInscriptions.size >= this.maxCacheSize) {
@@ -234,8 +187,8 @@ export class InscriptionFetcherService {
    * @param transaction - The full transaction object.
    */
   addTransaction(transaction: Transaction): void {
-    const parsedInscriptions = InscriptionParserService.parseInscriptions(transaction);
-    this.addToCache(transaction.txid, parsedInscriptions);
+    const artifacts = InscriptionParserService.parseInscriptions(transaction);
+    this.addToCache(transaction.txid, artifacts);
   }
 
   /**
@@ -259,14 +212,14 @@ export class InscriptionFetcherService {
    * Resolves a request from the queue that matches the given txid.
    *
    * @param txid - The transaction ID.
-   * @param parsedInscriptions - The parsed inscription.
+   * @param artifacts - The parsed inscription.
    */
-  private resolveMatchingRequest(txid: string, parsedInscriptions: ParsedInscription[]): void {
+  private resolveMatchingRequest(txid: string, artifacts: DigitalArtifact[]): void {
     const index = this.requestQueue.findIndex(request => request.txid === txid);
 
     if (index !== -1) {
       const request = this.requestQueue.splice(index, 1)[0];
-      request.subject.next(parsedInscriptions);
+      request.subject.next(artifacts);
       request.subject.complete();
     }
   }
