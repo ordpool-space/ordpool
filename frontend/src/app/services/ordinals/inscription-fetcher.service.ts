@@ -1,11 +1,15 @@
-import { inject, Injectable } from '@angular/core';
-import { catchError, map, Observable, of, Subject, throwError } from 'rxjs';
+import { inject, Injectable, Injector } from '@angular/core';
+import { catchError, map, merge, Observable, of, Subject, throwError } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { ElectrsApiService } from '../electrs-api.service';
 import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
 import { BlockchainApiService } from './blockchain-api.service';
 import { WalletService } from './wallet.service';
+import { HttpClient } from '@angular/common/http';
+import { StateService } from '../state.service';
+import { environment } from '../../../environments/environment';
+import { RollingElectrsApiService } from './rolling-electrs-api.service';
 
 
 interface FetchRequest {
@@ -15,7 +19,7 @@ interface FetchRequest {
 }
 
 /**
- * A service to fetch parsed inscriptions sequentially for given transactions.
+ * A service to fetch parsed inscriptions sequentially / parallel for given transactions.
  */
 @Injectable({
   providedIn: 'root',
@@ -39,23 +43,22 @@ export class InscriptionFetcherService {
   */
   private fetchedInscriptions: Map<string, ParsedInscription[]> = new Map();
 
-
   /**
    * Initializes a new instance of the InscriptionFetcherService.
-   * @param electrsApiService - A service to interact with the Electrs API.
+   * @param rolling - A service to interact with an Esplora Electrs APIs.
    */
   constructor(
-    private electrsApiService: ElectrsApiService,
+    private rollingElectrsApiService: RollingElectrsApiService,
     private blockchainApiService: BlockchainApiService) {
 
-      // reset everything on network change!
-      this.walletService.isMainnet$.subscribe(() => {
+    // reset everything on network change!
+    this.walletService.isMainnet$.subscribe(() => {
 
-        this.requestQueue = [];
-        this.isProcessing = false;
-        this.fetchedInscriptions = new Map();
-      });
-    }
+      this.requestQueue = [];
+      this.isProcessing = false;
+      this.fetchedInscriptions = new Map();
+    });
+  }
 
   /**
    * Fetches inscriptions for the specified transaction.
@@ -111,8 +114,8 @@ export class InscriptionFetcherService {
     this.requestQueue = this.requestQueue.filter(request => request.txid !== txid);
   }
 
-  /** Processes the requests in the queue sequentially. */
-  private processQueue(): void {
+  /** OLD VERSION: Processes the requests in the queue sequentially. */
+  private processQueueSquentially(): void {
 
     if (this.requestQueue.length === 0) {
       this.isProcessing = false;
@@ -139,7 +142,7 @@ export class InscriptionFetcherService {
 
         // Process the next request in the queue
         // without a delay we will get a HTTP 429 Too Many Requests response
-        window.setTimeout(() => this.processQueue(), 200);
+        window.setTimeout(() => this.processQueue(), 50);
       },
       error: error => {
         // console.error('Failed to fetch inscription:', error);
@@ -150,6 +153,55 @@ export class InscriptionFetcherService {
         this.requestQueue.push(currentRequest);
 
         this.processQueue();  // Process the next request in the queue
+      }
+    });
+  }
+
+  /** Processes requests in the queue simultaneously without waiting for each other. */
+  private processQueue(): void {
+
+    if (this.requestQueue.length === 0) {
+      this.isProcessing = false;
+      return;
+    }
+
+    this.isProcessing = true;
+
+    // Fetch 3 requests in parallel
+    const requestsToProcess = this.requestQueue.splice(0, 3);
+
+    merge(
+      ...requestsToProcess.map(request =>
+        this.fetchTransaction(request.txid).pipe(
+          map(transaction => {
+
+            const parsedInscriptions = InscriptionParserService.parseInscriptions(transaction);
+            this.addToCache(request.txid, parsedInscriptions);
+
+            request.subject.next(parsedInscriptions);
+            request.subject.complete();
+
+            return of(null);
+          }),
+          catchError(error => {
+            // add the request back to que, to try it out later
+            this.requestQueue.push(request);
+
+            return of(null);
+          })
+        )
+      )
+    ).subscribe({
+      complete: () => {
+        if (this.requestQueue.length > 0) {
+
+          // Process the next requests in the queue
+          // but wit a tiny delay to avaoid too many HTTP 429 Too Many Requests responses
+          // window.setTimeout(() => this.processQueue(), 50);
+          this.processQueue();
+        } else {
+          this.isProcessing = false;
+        }
       }
     });
   }
@@ -166,7 +218,7 @@ export class InscriptionFetcherService {
     if (this.fetchedInscriptions.size >= this.maxCacheSize) {
       const firstKey = this.fetchedInscriptions.keys().next().value;
       this.fetchedInscriptions.delete(firstKey);
-      // console.log('Cache limit reached!')
+      console.log('Cache limit reached!');
     }
 
     // Add the new entry to the cache
@@ -193,14 +245,14 @@ export class InscriptionFetcherService {
    */
   addTransactions(transactions: Transaction[]): void {
 
-    // let countBefore = 0;
-    // this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countBefore++; }});
+    let countBefore = 0;
+    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countBefore++; }});
 
     transactions.forEach(transaction => this.addTransaction(transaction));
 
-    // let countAfter = 0;
-    // this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
-    // console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
+    let countAfter = 0;
+    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
+    console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
   }
 
   /**
@@ -221,14 +273,18 @@ export class InscriptionFetcherService {
 
   /**
    * Fetches a single transaction by ID.
-   * Tries fetching from electrsApiService first, and falls back to blockchainApiService if the first one fails.
+   * Tries fetching from
+   *
+   * 1. Our list of Electrs APIs
+   * 2. and as last resort the blockchainApiService if everything else fails.
+   *
    * @param transaction - The transaction object containing the ID (hash).
    * @returns Observable of the transaction data.
    */
   fetchTransaction(txid: string): Observable<Transaction> {
-    return this.electrsApiService.getTransaction$(txid).pipe(
+    return this.rollingElectrsApiService.getTransaction$(txid).pipe(
       catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
-      catchError(() => throwError(() => new Error('Failed to fetch transaction from both services.')))
+      catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
     );
   }
 }
