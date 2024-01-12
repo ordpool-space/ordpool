@@ -6,6 +6,10 @@ import { Transaction } from '../../interfaces/electrs.interface';
 import { InscriptionFetcherService } from './inscription-fetcher.service';
 import { WalletService } from './wallet.service';
 
+// found here: https://github.com/input-output-hk/symphony-2/blob/7aa0a6e359c61b0668f1ddf8202065dd4833cf0c/src/Config.js#L32
+// const apiCode = '0a52b97c-0d8e-4033-a87d-abfda8bfe940';
+const apiCode = '';
+
 /**
  * Represents the spending outpoint of a transaction.
  */
@@ -378,7 +382,7 @@ export class BlockchainApiService {
   isMainnet = true;
 
   private readonly baseUrl = 'https://blockchain.info';
-  private readonly itemsPerPage = 500; // set based on API's maximum allowed value
+  private readonly itemsPerPage = 250; // 5000 is the API's maximum allowed value
   private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
 
   constructor(
@@ -395,11 +399,12 @@ export class BlockchainApiService {
    * Hint: there is also a https://blockchain.info/q/unconfirmedcount
    *
    * Hint: Only used for testing
+   * Undocumented parameters: show_adv=true
    *
    * @returns An observable of the list of unconfirmed transactions.
    */
   fetchFirstUnconfirmedTransactions(): Observable<Transaction[]> {
-    return this.httpClient.get<RawTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json`).pipe(
+    return this.httpClient.get<RawTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json` + (apiCode ? `&apiCode=${apiCode}`: '')).pipe(
       map(response => response.txs.map(u => RawTransactionToTransaction(u)))
     );
   }
@@ -450,7 +455,7 @@ export class BlockchainApiService {
     }
 
     return this.httpClient.get<RawTransactionsResponse>(
-      `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}`);
+      `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}` + (apiCode ? `&apiCode=${apiCode}`: ''));
   }
 
   /**
