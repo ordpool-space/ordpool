@@ -399,7 +399,7 @@ export class BlockchainApiService {
    * Hint: there is also a https://blockchain.info/q/unconfirmedcount
    *
    * Hint: Only used for testing
-   * Undocumented parameters: show_adv=true
+   * Undocumented parameter: show_adv=true
    *
    * @returns An observable of the list of unconfirmed transactions.
    */

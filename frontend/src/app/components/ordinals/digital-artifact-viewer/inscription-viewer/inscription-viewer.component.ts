@@ -23,14 +23,13 @@ export class InscriptionViewerComponent {
 
   public whatToShow: 'nothing' | 'json' | 'code' | 'preview' = 'nothing';
 
-
   @Input() showDetails = false;
 
   @Input()
   public set parsedInscription(inscription: ParsedInscription | undefined) {
 
-    // the setter is called multiple times, let's mitigate this issue
-    if (this._lastParsedInscription?.getDataUri() === inscription?.getDataUri()) {
+    // early exit if setter is called multiple times (don't remove!)
+    if (this._lastParsedInscription?.uniqueId === inscription?.uniqueId) {
       return;
     }
 

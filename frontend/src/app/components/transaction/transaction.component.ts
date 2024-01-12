@@ -26,7 +26,7 @@ import { LiquidUnblinding } from './liquid-ublinding';
 import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
 import { Price, PriceService } from '../../services/price.service';
 import { isFeatureActive } from '../../bitcoin.utils';
-import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
+import { DigitalArtifactsParserService, DigitalArtifact } from 'ordpool-parser';
 
 @Component({
   selector: 'app-transaction',
@@ -123,8 +123,8 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  getParsedInscripions(): ParsedInscription[] {
-    return InscriptionParserService.parseInscriptions(this.tx);
+  getParsedDigitalArtifacts(): DigitalArtifact[] {
+    return DigitalArtifactsParserService.parse(this.tx);
   }
 
   ngOnInit() {

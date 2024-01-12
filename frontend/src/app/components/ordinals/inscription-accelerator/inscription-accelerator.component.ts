@@ -7,7 +7,7 @@ import { InscriptionAcceleration, InscriptionAcceleratorApiService } from '../..
 import { KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
 import { StateService } from '../../../services/state.service';
 import { extractErrorMessage } from './extract-error-message';
-import { ParsedInscription } from 'ordpool-parser';
+import { DigitalArtifact, DigitalArtifactType, ParsedInscription } from 'ordpool-parser';
 import { environment } from '../../../../environments/environment';
 
 
@@ -58,7 +58,14 @@ export class InscriptionAcceleratorComponent implements OnInit  {
 
   }
 
-  @Input({ required: true }) parsedInscriptions?: ParsedInscription[];
+  @Input({ required: true }) digitalArtifacts?: DigitalArtifact[];
+
+  get parsedInscriptions(): ParsedInscription[] {
+    if (!this.digitalArtifacts) {
+      return [];
+    }
+    return this.digitalArtifacts.filter(x => x.type === DigitalArtifactType.Inscription) as ParsedInscription[];
+  }
 
   form = new FormGroup({
     feeRate: new FormControl(0, {
