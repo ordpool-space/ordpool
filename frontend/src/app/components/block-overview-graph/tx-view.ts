@@ -4,8 +4,8 @@ import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from './sprite-types';
 import { feeLevels, mempoolFeeColors } from '../../app.constants';
 import BlockScene from './block-scene';
-import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
-import { ParsedInscription } from 'ordpool-parser';
+import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
+import { DigitalArtifact, ParsedInscription } from 'ordpool-parser';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
@@ -60,8 +60,8 @@ export default class TxView implements TransactionStripped {
   dirty: boolean;
 
   // HACK
-  parsedInscriptions: ParsedInscription[] | undefined | null;
-  inscriptionFetcher: InscriptionFetcherService;
+  digitalArtifacts: DigitalArtifact[] | undefined;
+  digitalArtifactsFetcher: DigitalArtifactsFetcherService;
 
   constructor(tx: TransactionStripped, scene: BlockScene, ) {
     this.scene = scene;
@@ -83,8 +83,8 @@ export default class TxView implements TransactionStripped {
 
     this.dirty = true;
 
-    // HACK
-    this.inscriptionFetcher = this.scene.inscriptionFetcher;
+    // HACK: forward from BlockScene > TxView
+    this.digitalArtifactsFetcher = this.scene.digitalArtifactsFetcher;
     this.fetchInscription();
   }
 
@@ -96,21 +96,21 @@ export default class TxView implements TransactionStripped {
     }
 
     // HACK
-    this.inscriptionFetcher.cancelFetchInscriptions(this.txid);
+    this.digitalArtifactsFetcher.cancelFetchInscriptions(this.txid);
   }
 
   private fetchInscription(): void {
-    this.inscriptionFetcher.fetchInscriptions(this.txid).subscribe({
-      next: (parsedInscriptions) => this.updateInscriptions(parsedInscriptions),
+    this.digitalArtifactsFetcher.fetchArtifacts(this.txid).subscribe({
+      next: (artifacts) => this.updateArtifacts(artifacts),
       error: error => {
         // console.error('TxView: Failed to fetch inscription:', error);
       }
     });
   }
 
-  private updateInscriptions(parsedInscriptions: ParsedInscription[]): void {
+  private updateArtifacts(digitalArtifacts: DigitalArtifact[]): void {
 
-    this.parsedInscriptions = parsedInscriptions;
+    this.digitalArtifacts = digitalArtifacts;
 
     // Mark the view as dirty to trigger re-rendering
     this.dirty = true;
@@ -248,12 +248,12 @@ export default class TxView implements TransactionStripped {
   getColor(): Color {
 
     // HACK
-    if (this.parsedInscriptions === undefined) {
+    if (this.digitalArtifacts === undefined) {
       // return light gray if parsedInscription is undefined (initial state)
       return { r: 0.8, g: 0.8, b: 0.8, a: 0.7 };
     }
 
-    if (this.parsedInscriptions && !this.parsedInscriptions.length) {
+    if (this.digitalArtifacts && !this.digitalArtifacts.length) {
       // return darker gray if parsedInscription is null (no inscription found)
       return { r: 0.8, g: 0.8, b: 0.8, a: 0.3 };
     }

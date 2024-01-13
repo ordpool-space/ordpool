@@ -61,26 +61,26 @@
 
       <!-- HACK -->
       <tr >
-        <td class="td-width" colspan="2">Ordinal Inscription:</td>
+        <td class="td-width" colspan="2">Digital Artifacts:</td>
       </tr>
       <tr>
-        <td class="text-center" *ngIf="{ parsedInscriptions: parsedInscriptions$ | async } as i"  colspan="2" style="height: 220px;">
+        <td class="text-center" *ngIf="{ digitalArtifacts: digitalArtifacts$ | async } as i"  colspan="2" style="height: 220px;">
 
-          <ng-container *ngIf="i.parsedInscriptions === undefined">
+          <ng-container *ngIf="i.digitalArtifacts === undefined">
             Loading...
           </ng-container>
 
-          <ng-container *ngIf="i.parsedInscriptions && !i.parsedInscriptions.length">
+          <ng-container *ngIf="i.digitalArtifacts && !i.digitalArtifacts.length">
             None
           </ng-container>
 
-          <div class="text-left" style="width: 300px;" *ngIf="i.parsedInscriptions && i.parsedInscriptions.length">
-            <app-inscription-viewer
+          <div class="text-left" style="width: 300px;" *ngIf="i.digitalArtifacts && i.digitalArtifacts.length">
+            <app-digital-artifact-viewer
               [showDetails]="false"
-              [parsedInscription]="i.parsedInscriptions[0]"
+              [digitalArtifact]="i.digitalArtifacts[0]"
             />
-            <div *ngIf="i.parsedInscriptions.length > 1">
-              + {{ i.parsedInscriptions.length - 1 }} more inscriptions
+            <div *ngIf="i.digitalArtifacts.length > 1">
+              + {{ i.digitalArtifacts.length - 1 }} more digital artifacts
             </div>
           </div>
 

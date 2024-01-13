@@ -23,7 +23,7 @@ import { FiatCurrencyPipe } from './shared/pipes/fiat-currency.pipe';
 import { ShortenStringPipe } from './shared/pipes/shorten-string-pipe/shorten-string.pipe';
 import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe';
 import { AppPreloadingStrategy } from './app.preloading-strategy';
-import { InscriptionFetcherService } from './services/ordinals/inscription-fetcher.service';
+import { DigitalArtifactsFetcherService } from './services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
 import { HiroApiService } from './services/ordinals/hiro-api.service';
 import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
@@ -49,7 +49,7 @@ const providers = [
   FiatCurrencyPipe,
   CapAddressPipe,
   AppPreloadingStrategy,
-  InscriptionFetcherService,
+  DigitalArtifactsFetcherService,
   BlockchainApiService,
   HiroApiService,
   InscriptionAcceleratorApiService,

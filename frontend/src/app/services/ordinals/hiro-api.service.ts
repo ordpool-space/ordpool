@@ -4,7 +4,7 @@ import { EMPTY, Observable, of, timer } from 'rxjs';
 import { catchError, concatMap, expand, mergeMap, takeWhile, toArray } from 'rxjs/operators';
 import { TransactionStripped } from 'src/app/interfaces/node-api.interface';
 
-import { InscriptionFetcherService } from './inscription-fetcher.service';
+import { DigitalArtifactsFetcherService } from './digital-artifacts-fetcher.service';
 
 export interface Inscription {
   id: string;
@@ -50,7 +50,7 @@ export class HiroApiService {
   private maxRetrys = 4;
 
   constructor(private httpClient: HttpClient,
-    private inscriptionFetcherService: InscriptionFetcherService) { }
+    private inscriptionFetcherService: DigitalArtifactsFetcherService) { }
 
   /**
    * Retrieves a list of inscriptions based on the provided filters.
@@ -127,12 +127,13 @@ export class HiroApiService {
     ).subscribe(inscriptions => {
       if (inscriptions.length) {
 
-        // If there is NO match, we are save to call addToCache with NULL,
+        // If there is NO match, we call addToCache with [],
         // so that this txn is not any longer catched!
+        // TODO: this ignores all other types of artifacts!!!
         for (const transaction of transactions) {
           const matchingInscription = inscriptions.find(i => i.genesis_tx_id === transaction.txid);
           if (!matchingInscription) {
-            this.inscriptionFetcherService.addToCache(transaction.txid, []); // assuming addToCache takes an array of TransactionStripped type.
+            this.inscriptionFetcherService.addToCache(transaction.txid, []); // TODO: this ignores all other types of artifacts!!!
           }
         }
       }
