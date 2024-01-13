@@ -2,9 +2,9 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
-import { ParsedInscription } from 'ordpool-parser';
-import { Observable, map, of, retry, startWith } from 'rxjs';
-import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
+import { DigitalArtifact } from 'ordpool-parser';
+import { Observable, of, startWith } from 'rxjs';
+import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -18,7 +18,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   @Input() auditEnabled: boolean = false;
   @Input() blockConversion: Price;
 
-  parsedInscriptions$: Observable<ParsedInscription[]> = of(null);
+  digitalArtifacts$: Observable<DigitalArtifact[]> = of(null);
 
   txid = '';
   fee = 0;
@@ -32,7 +32,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
 
-  constructor(private inscriptionFetcher: InscriptionFetcherService) { }
+  constructor(private digitalArtifactsFetcher: DigitalArtifactsFetcherService) { }
 
   ngOnChanges(changes): void {
     if (changes.cursorPosition && changes.cursorPosition.currentValue) {
@@ -63,11 +63,11 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
       // HACK
       if (this.txid) {
-        this.parsedInscriptions$ = this.inscriptionFetcher.fetchInscriptions(this.txid, true).pipe(
+        this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid, true).pipe(
           startWith(undefined)
         );
       } else {
-        this.parsedInscriptions$ = of([]);
+        this.digitalArtifacts$ = of([]);
       }
     }
   }

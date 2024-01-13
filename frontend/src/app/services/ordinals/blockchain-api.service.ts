@@ -3,7 +3,7 @@ import { inject, Injectable, Injector } from '@angular/core';
 import { EMPTY, expand, map, Observable, of, tap } from 'rxjs';
 
 import { Transaction } from '../../interfaces/electrs.interface';
-import { InscriptionFetcherService } from './inscription-fetcher.service';
+import { DigitalArtifactsFetcherService } from './digital-artifacts-fetcher.service';
 import { WalletService } from './wallet.service';
 
 // found here: https://github.com/input-output-hk/symphony-2/blob/7aa0a6e359c61b0668f1ddf8202065dd4833cf0c/src/Config.js#L32
@@ -410,7 +410,7 @@ export class BlockchainApiService {
   }
 
   /**
-   * Iterates over all pages of unconfirmed transactions (up to maxPagesToFetch) and caches them using the InscriptionFetcherService.
+   * Iterates over all pages of unconfirmed transactions (up to maxPagesToFetch) and caches them using the DigitalArtifactsFetcherService.
    * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
    */
   fetchAndCacheManyUnconfirmedTransactions(): Observable<Transaction[]> {
@@ -433,8 +433,8 @@ export class BlockchainApiService {
       }),
       map(response => response.txs.map(u => RawTransactionToTransaction(u))),
       tap(transactions => {
-        const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
-        inscriptionFetcher.addTransactions(transactions);
+        const digitalArtifactsFetcher = this.injector.get(DigitalArtifactsFetcherService);
+        digitalArtifactsFetcher.addTransactions(transactions);
       })
     );
   }

@@ -8,7 +8,6 @@ import { SeoService } from '../../services/seo.service';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
 import { BlockchainApiService } from '../../services/ordinals/blockchain-api.service';
-import { InscriptionFetcherService } from '../../services/ordinals/inscription-fetcher.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
@@ -31,9 +30,7 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
     public stateService: StateService,
     private seoService: SeoService,
     private websocketService: WebsocketService,
-    private blockchainApiService: BlockchainApiService,
-    private inscriptionFetcherService: InscriptionFetcherService
-
+    private blockchainApiService: BlockchainApiService
   ) {
     this.webGlEnabled = detectWebGL();
 

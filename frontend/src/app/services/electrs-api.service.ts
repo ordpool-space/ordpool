@@ -6,7 +6,7 @@ import { StateService } from './state.service';
 import { BlockExtended } from '../interfaces/node-api.interface';
 import { calcScriptHash$ } from '../bitcoin.utils';
 import { environment } from 'src/environments/environment';
-import { InscriptionFetcherService } from './ordinals/inscription-fetcher.service';
+import { DigitalArtifactsFetcherService } from './ordinals/digital-artifacts-fetcher.service';
 
 @Injectable({
   providedIn: 'root'
@@ -64,10 +64,10 @@ export class ElectrsApiService {
    * Transactions returned here do not have the status field, since all the transactions share the same block and confirmation status.
    */
   getBlockTransactions$(hash: string, index: number = 0): Observable<Transaction[]> {
-    const inscriptionFetcher = this.injector.get(InscriptionFetcherService);
+    const digitalArtifactsFetcher = this.injector.get(DigitalArtifactsFetcherService);
     return this.httpClient.get<Transaction[]>(this.apiBaseUrl + this.apiBasePath + '/api/block/' + hash + '/txs/' + index).pipe(
       // HACK
-      tap(transactions => inscriptionFetcher.addTransactions(transactions))
+      tap(transactions => digitalArtifactsFetcher.addTransactions(transactions))
     );
   }
 

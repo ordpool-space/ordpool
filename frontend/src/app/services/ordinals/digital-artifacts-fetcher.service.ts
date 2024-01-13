@@ -20,7 +20,7 @@ interface FetchRequest {
 @Injectable({
   providedIn: 'root',
 })
-export class InscriptionFetcherService {
+export class DigitalArtifactsFetcherService {
 
   private readonly maxCacheSize = 100 * 1000; // maximum number of transaction to cache (let's see if this breaks browsers)
 
@@ -37,10 +37,10 @@ export class InscriptionFetcherService {
    * JavaScript Map objects retain insertion order, which makes it convenient to implement a rudimentary LRU cache
    * LRU (Least Recently Used)
   */
-  private fetchedInscriptions: Map<string, DigitalArtifact[]> = new Map();
+  private cachedArtifactsTxns: Map<string, DigitalArtifact[]> = new Map();
 
   /**
-   * Initializes a new instance of the InscriptionFetcherService.
+   * Initializes a new instance of the DigitalArtifactsFetcherService.
    * @param rolling - A service to interact with an Esplora Electrs APIs.
    */
   constructor(
@@ -52,7 +52,7 @@ export class InscriptionFetcherService {
 
       this.requestQueue = [];
       this.isProcessing = false;
-      this.fetchedInscriptions = new Map();
+      this.cachedArtifactsTxns = new Map();
     });
   }
 
@@ -63,9 +63,9 @@ export class InscriptionFetcherService {
    * @param priority - Whether the request has a higher priority.
    * @returns An Observable that emits the parsed inscriptions.
    */
-  fetchInscriptions(txid: string, priority: boolean = false): Observable<DigitalArtifact[]> {
+  fetchArtifacts(txid: string, priority: boolean = false): Observable<DigitalArtifact[]> {
 
-    const cachedResult = this.fetchedInscriptions.get(txid);
+    const cachedResult = this.cachedArtifactsTxns.get(txid);
     if (cachedResult !== undefined) {
       return of(cachedResult);
     }
@@ -168,14 +168,14 @@ export class InscriptionFetcherService {
   public addToCache(txid: string, inscriptions: DigitalArtifact[]): void {
 
     // If the cache size has reached its limit, delete the oldest entry
-    if (this.fetchedInscriptions.size >= this.maxCacheSize) {
-      const firstKey = this.fetchedInscriptions.keys().next().value;
-      this.fetchedInscriptions.delete(firstKey);
+    if (this.cachedArtifactsTxns.size >= this.maxCacheSize) {
+      const firstKey = this.cachedArtifactsTxns.keys().next().value;
+      this.cachedArtifactsTxns.delete(firstKey);
       console.log('Cache limit reached!');
     }
 
     // Add the new entry to the cache
-    this.fetchedInscriptions.set(txid, inscriptions);
+    this.cachedArtifactsTxns.set(txid, inscriptions);
 
     // Check and resolve any matching pending request
     this.resolveMatchingRequest(txid, inscriptions);
@@ -187,7 +187,7 @@ export class InscriptionFetcherService {
    * @param transaction - The full transaction object.
    */
   addTransaction(transaction: Transaction): void {
-    const artifacts = InscriptionParserService.parseInscriptions(transaction);
+    const artifacts = DigitalArtifactsParserService.parse(transaction);
     this.addToCache(transaction.txid, artifacts);
   }
 
@@ -199,12 +199,12 @@ export class InscriptionFetcherService {
   addTransactions(transactions: Transaction[]): void {
 
     let countBefore = 0;
-    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countBefore++; }});
+    this.cachedArtifactsTxns.forEach((a) => { if (a.length) { countBefore++; }});
 
     transactions.forEach(transaction => this.addTransaction(transaction));
 
     let countAfter = 0;
-    this.fetchedInscriptions.forEach((inscription) => { if (inscription !== null) { countAfter++; }});
+    this.cachedArtifactsTxns.forEach((a) => { if (a.length) { countAfter++; }});
     console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
   }
 
