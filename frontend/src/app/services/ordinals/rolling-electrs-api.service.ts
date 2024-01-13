@@ -4,6 +4,31 @@ import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { Transaction } from '../../interfaces/electrs.interface';
+import { StateService } from '../state.service';
+
+const apiUrlsMainnet = [
+  // the well-known electrs instance from blockstream
+  // 'https://blockstream.info',
+
+  // and the one and only mempool.space API
+  'https://mempool.space',           // @wiz
+
+  // self-hosted mempool.space instances
+  'https://mempool.ninja',           // @wiz and/or @softsimon ?
+  //'https://mempool.emzy.de',         // @emzy
+  //'https://mempool.bisq.services', // @devinbileck -- CORS!
+  'https://mempool.bitaroo.net',     // @BitarooExchange
+  'https://mempool.nixbitcoin.org',  // @nixbitcoinorg
+
+   // enterprise mempool.space instances
+  'https://mutiny.mempool.space',  // @MutinyWallet
+  'https://diba.mempool.space'     // @trydiba
+];
+
+const apiUrlsTestnet = [
+  'https://mempool.space'
+];
+
 
 /**
  * Service to interact with Electrs APIs in a rolling fashion to distribute load.
@@ -15,35 +40,27 @@ import { Transaction } from '../../interfaces/electrs.interface';
   providedIn: 'root'
 })
 export class RollingElectrsApiService {
-  private apiUrls = [
-    // the well-known electrs instance from blockstream
-    // 'https://blockstream.info',
-
-    // and the one and only mempool.space API
-    'https://mempool.space',           // @wiz
-
-    // self-hosted mempool.space instances
-    'https://mempool.ninja',           // @wiz and/or @softsimon ?
-    'https://mempool.emzy.de/',        // @emzy
-    //'https://mempool.bisq.services', // @devinbileck -- CORS!
-    'https://mempool.bitaroo.net',     // @BitarooExchange
-    'https://mempool.nixbitcoin.org',  // @nixbitcoinorg
-
-     // enterprise mempool.space instances
-    'https://mutiny.mempool.space/',  // @MutinyWallet
-    'https://diba.mempool.space/'     // @trydiba
-  ];
+  private apiUrls = apiUrlsMainnet;
 
   private currentApiIndex = 0;
   private requestCount = 0; // Counter to track the number of requests made
-
+  private apiBasePath: string; // network path is /testnet, etc. or '' for mainnet
 
   /**
    * Constructs the RollingElectrsApiService.
    *
    * @param httpClient The HttpClient used for making API requests.
    */
-  constructor(private httpClient: HttpClient) { }
+  constructor(private httpClient: HttpClient,
+    private stateService: StateService) {
+
+    this.apiBasePath = ''; // assume mainnet by default
+
+    this.stateService.networkChanged$.subscribe((network) => {
+      this.apiBasePath = network ? '/' + network : '';
+      this.apiUrls = network ? apiUrlsTestnet : apiUrlsMainnet;
+    });
+  }
 
   /**
    * Gets the next API URL from the list and updates the current index.
@@ -72,7 +89,7 @@ export class RollingElectrsApiService {
     const apiUrl = this.getNextApiUrl();
     this.requestCount++; // Increment the request counter
 
-    return this.httpClient.get<Transaction>(`${apiUrl}/api/tx/${txid}`).pipe(
+    return this.httpClient.get<Transaction>(`${apiUrl}${this.apiBasePath}/api/tx/${txid}`).pipe(
       catchError((error) => {
         if (retryCount < this.apiUrls.length - 1) {
           return this.getTransaction$(txid, retryCount + 1);
