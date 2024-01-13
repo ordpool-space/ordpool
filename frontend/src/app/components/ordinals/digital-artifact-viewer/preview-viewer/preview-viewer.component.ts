@@ -11,13 +11,11 @@ import { decodeDataURI, ParsedInscription } from 'ordpool-parser';
 })
 export class PreviewViewerComponent {
 
-  public preview?: SafeHtml;
+  public preview: string;
 
   @Input()
   public set parsedInscription(inscription: ParsedInscription | undefined) {
-
-    const previewString = this.getPreview(inscription);
-    this.preview = this.domSanitizer.bypassSecurityTrustHtml(previewString);
+    this.preview = this.getPreview(inscription);
   }
 
   table: { [key: string]: (dataUri: string) => string } = {

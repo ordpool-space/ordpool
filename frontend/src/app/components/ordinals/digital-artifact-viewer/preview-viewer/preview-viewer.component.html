@@ -1,6 +1,6 @@
 <ng-container *ngIf="preview">
   <iframe
-    [srcdoc]="preview"
+    [srcdoc]="preview | noSanitize"
     scrolling="yes"
   ></iframe>
 

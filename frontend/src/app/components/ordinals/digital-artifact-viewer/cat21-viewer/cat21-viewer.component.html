@@ -1,0 +1,59 @@
+<ng-container *ngIf="svg">
+
+  <strong>CAT-21</strong><br>
+  <br *ngIf="showDetails">
+
+  <div class="cat-container" [innerHTML]="svg | noSanitize"></div>
+
+  <div class="mt-2" *ngIf="showDetails">
+    <strong>Traits</strong>
+
+    <div class="row mt-2">
+      <div class="col-sm">
+        <table class="table table-borderless table-striped">
+          <tbody>
+
+            <tr>
+              <td>Origin</td>
+              <td>{{ traits.genesis ? 'Genesis cat' : 'Normal cat' }}</td>
+            </tr>
+
+            <tr>
+              <td>Colors</td>
+              <td>{{ traits.colors.join(', ') }}</td>
+            </tr>
+
+            <tr>
+              <td>Orientation</td>
+              <td>{{ traits.inverted ? 'Inverted' : 'Standard' }}</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+      <div class="col-sm">
+        <table class="table table-borderless table-striped">
+          <tbody>
+
+            <tr>
+              <td>Design Index</td>
+              <td>{{ traits.designIndex }}</td>
+            </tr>
+
+            <tr>
+              <td>Eyes</td>
+              <td>{{ traits.laserEyes ? 'Laser eyes' : 'Standard' }}</td>
+            </tr>
+
+            <tr>
+              <td>Background</td>
+              <td>{{ traits.orangeBackground ? 'Orange' : 'Transparent' }}</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</ng-container>

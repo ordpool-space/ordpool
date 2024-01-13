@@ -1,14 +1,17 @@
-<ng-container *ngIf="whatToShow === 'inscription'">
-  <app-inscription-viewer
-    [showDetails]="showDetails"
-    [parsedInscription]="asInscription" />
-</ng-container>
+<app-inscription-viewer
+  *ngIf="whatToShow === 'inscription'"
+  [showDetails]="showDetails"
+  [parsedInscription]="asInscription"
+/>
 
-<!--
-TODO
+<app-src20-viewer
+  *ngIf="whatToShow === 'src20'"
+  [showDetails]="showDetails"
+  [parsedSrc20]="asSrc20"
+/>
 
-<ng-container *ngIf="whatToShow === 'src20'">
-  <app-json-viewer
-    [text]="_parsedDigitalArtifact" />
-</ng-container>
--->
+<app-cat21-viewer
+  *ngIf="whatToShow === 'cat21'"
+  [showDetails]="showDetails"
+  [parsedCat21]="asCat21"
+/>

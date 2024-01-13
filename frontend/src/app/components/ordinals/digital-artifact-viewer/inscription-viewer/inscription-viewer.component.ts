@@ -18,15 +18,15 @@ More test cases:
 })
 export class InscriptionViewerComponent {
 
-  public _parsedInscription: ParsedInscription | undefined;
+  _parsedInscription: ParsedInscription | undefined;
   private _lastParsedInscription: ParsedInscription | undefined;
 
-  public whatToShow: 'nothing' | 'json' | 'code' | 'preview' = 'nothing';
+  whatToShow: 'nothing' | 'json' | 'code' | 'preview' = 'nothing';
 
   @Input() showDetails = false;
 
   @Input()
-  public set parsedInscription(inscription: ParsedInscription | undefined) {
+  set parsedInscription(inscription: ParsedInscription | undefined) {
 
     // early exit if setter is called multiple times (don't remove!)
     if (this._lastParsedInscription?.uniqueId === inscription?.uniqueId) {
