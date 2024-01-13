@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { DigitalArtifact, DigitalArtifactType, ParsedInscription } from 'ordpool-parser';
+import { DigitalArtifact, DigitalArtifactType, ParsedCat21, ParsedInscription, ParsedSrc20 } from 'ordpool-parser';
 
 
 @Component({
@@ -10,15 +10,15 @@ import { DigitalArtifact, DigitalArtifactType, ParsedInscription } from 'ordpool
 })
 export class DigitalArtifactViewerComponent {
 
-  public _parsedDigitalArtifact: DigitalArtifact | undefined;
+  _parsedDigitalArtifact: DigitalArtifact | undefined;
   private _lastParsedDigitalArtifact: DigitalArtifact | undefined;
 
-  public whatToShow: 'nothing' | 'inscription' | 'src20' | 'cat21' = 'nothing';
+  whatToShow: 'nothing' | 'inscription' | 'src20' | 'cat21' = 'nothing';
 
   @Input() showDetails = false;
 
   @Input()
-  public set digitalArtifact(artifact: DigitalArtifact | undefined) {
+  set digitalArtifact(artifact: DigitalArtifact | undefined) {
 
     // early exit if setter is called multiple times (don't remove!)
     if (this._lastParsedDigitalArtifact?.uniqueId === artifact?.uniqueId) {
@@ -53,5 +53,13 @@ export class DigitalArtifactViewerComponent {
 
   get asInscription() {
     return this._parsedDigitalArtifact as ParsedInscription;
+  }
+
+  get asSrc20() {
+    return this._parsedDigitalArtifact as ParsedSrc20;
+  }
+
+  get asCat21() {
+    return this._parsedDigitalArtifact as ParsedCat21;
   }
 }

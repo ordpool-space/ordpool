@@ -107,6 +107,8 @@ import { BitcoinsatoshisPipe } from '../shared/pipes/bitcoinsatoshis.pipe';
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
 import { DigitalArtifactViewerComponent } from '../components/ordinals/digital-artifact-viewer/digital-artifact-viewer.component';
 import { InscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
+import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-viewer/src20-viewer/src20-viewer.component';
+import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { JsonViewerComponent } from '../components/ordinals/digital-artifact-viewer/json-viewer/json-viewer.component';
 import { CodeViewerComponent } from '../components/ordinals/digital-artifact-viewer/code-viewer/code-viewer.component';
 import { PreviewViewerComponent } from '../components/ordinals/digital-artifact-viewer/preview-viewer/preview-viewer.component';
@@ -216,6 +218,8 @@ import { HighlightModule } from 'ngx-highlightjs';
     MempoolErrorComponent,
     DigitalArtifactViewerComponent,
     InscriptionViewerComponent,
+    Src20ViewerComponent,
+    Cat21ViewerComponent,
     JsonViewerComponent,
     CodeViewerComponent,
     PreviewViewerComponent,

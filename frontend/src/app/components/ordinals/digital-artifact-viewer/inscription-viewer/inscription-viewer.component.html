@@ -1,6 +1,7 @@
 <ng-container *ngIf="_parsedInscription">
 
-  {{ _parsedInscription.contentType }}<br>
+  <strong>Inscription: </strong>{{ _parsedInscription.contentType }}<br>
+  <br *ngIf="showDetails">
 
   <app-json-viewer
     *ngIf="whatToShow === 'json'"
