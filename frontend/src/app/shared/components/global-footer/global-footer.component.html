@@ -8,13 +8,11 @@
           <app-svg-images *ngIf="officialMempoolSpace" name="officialMempoolSpace" viewBox="0 0 500 126"></app-svg-images>
           <app-svg-images *ngIf="!officialMempoolSpace" name="mempoolSpace" viewBox="0 0 500 126"></app-svg-images>
         </div>
-        <p class="d-block d-sm-none">
-          <ng-container i18n="@@7deec1c1520f06170e1f8e8ddfbe4532312f638f">See what's inscribed next!</ng-container>
+        <p class="explore-tagline-mobile">
+          <ng-container i18n="@@7deec1c1520f06170e1f8e8ddfbe4532312f638f">Explore the full Bitcoin ecosystem</ng-container>
           <ng-template [ngIf]="locale.substr(0, 2) === 'en'"> &trade;</ng-template>
         </p>
-
-
-        <div class="site-options d-flex justify-content-center align-items-center" [class]="{'services': isServicesPage}">
+        <div class="site-options language-selector d-flex justify-content-center align-items-center" [class]="{'services': isServicesPage}">
           <div class="selector">
             <app-language-selector></app-language-selector>
           </div>
@@ -26,15 +24,15 @@
           </div>
           <a *ngIf="servicesEnabled" class="btn btn-purple sponsor d-none d-sm-flex justify-content-center" [routerLink]="['/login' | relativeUrl]">
             <span *ngIf="loggedIn" i18n="shared.my-account">My Account</span>
-            <span *ngIf="!loggedIn" i18n="shared.sign-in">Sign In / Sign Up</span>
+            <span *ngIf="!loggedIn" i18n="shared.sign-in">Sign In</span>
           </a>
         </div>
-        <a *ngIf="servicesEnabled" class="btn btn-purple sponsor d-flex d-sm-none justify-content-center ml-auto mr-auto mt-3 mb-2" [routerLink]="['/login' | relativeUrl]">
+        <a *ngIf="servicesEnabled" class="btn btn-purple sponsor d-flex d-sm-none justify-content-center ml-auto mr-auto mt-0 mb-2" [routerLink]="['/login' | relativeUrl]">
           <span *ngIf="loggedIn" i18n="shared.my-account">My Account</span>
-          <span *ngIf="!loggedIn" i18n="shared.sign-in">Sign In / Sign Up</span>
+          <span *ngIf="!loggedIn" i18n="shared.sign-in">Sign In</span>
         </a>
-        <p class="d-none d-sm-block">
-          <ng-container i18n="@@7deec1c1520f06170e1f8e8ddfbe4532312f638f">See what's inscribed next!</ng-container>
+        <p class="explore-tagline-desktop">
+          <ng-container i18n="@@7deec1c1520f06170e1f8e8ddfbe4532312f638f">Explore the full Bitcoin ecosystem</ng-container>
           <ng-template [ngIf]="locale.substr(0, 2) === 'en'"> &trade;</ng-template>
         </p>
       </div>
@@ -45,33 +43,32 @@
         <h4><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space</span></h4>
         <i>See what's inscribed next!</i>
       </div>
-
         <!-- <div class="links">
-          <p class="category">Explore</p>
-          <p><a [routerLink]="['/mining' | relativeUrl]">Mining Dashboard</a></p>
-          <p><a *ngIf="env.LIGHTNING" [routerLink]="['/lightning' | relativeUrl]">Lightning Dashboard</a></p>
-          <p><a [routerLink]="['/blocks' | relativeUrl]">Recent Blocks</a></p>
+          <p class="category" i18n="footer.explore">Explore</p>
+          <p><a [routerLink]="['/mining' | relativeUrl]" i18n="mining.mining-dashboard">Mining Dashboard</a></p>
+          <p><a *ngIf="env.LIGHTNING" [routerLink]="['/lightning' | relativeUrl]" i18n="master-page.lightning">Lightning Explorer</a></p>
+          <p><a [routerLink]="['/blocks' | relativeUrl]" i18n="dashboard.recent-blocks">Recent Blocks</a></p>
           <p><a [routerLink]="['/tx/push' | relativeUrl]" i18n="shared.broadcast-transaction|Broadcast Transaction">Broadcast Transaction</a></p>
           <p *ngIf="officialMempoolSpace"><a [routerLink]="['/lightning/group/the-mempool-open-source-project' | relativeUrl]" i18n="footer.connect-to-our-nodes">Connect to our Nodes</a></p>
-          <p><a [routerLink]="['/docs/api' | relativeUrl]">API Documentation</a></p>
+          <p><a [routerLink]="['/docs/api' | relativeUrl]" i18n="footer.api-documentation">API Documentation</a></p>
         </div>
         <div class="links">
-          <p class="category">Learn</p>
-          <p><a [routerLink]="['/docs/faq']" fragment="what-is-a-mempool">What is a mempool?</a></p>
-          <p><a [routerLink]="['/docs/faq']" fragment="what-is-a-block-explorer">What is a block explorer?</a></p>
-          <p><a [routerLink]="['/docs/faq']" fragment="what-is-a-mempool-explorer">What is a mempool explorer?</a></p>
-          <p><a [routerLink]="['/docs/faq']" fragment="why-is-transaction-stuck-in-mempool">Why isn't my transaction confirming?</a></p>
-          <p><a [routerLink]="['/docs/faq' | relativeUrl]">More FAQs ›</a></p>
+          <p class="category" i18n="footer.learn">Learn</p>
+          <p><a [routerLink]="['/docs/faq']" fragment="what-is-a-mempool" i18n="faq.what-is-a-mempool">What is a mempool?</a></p>
+          <p><a [routerLink]="['/docs/faq']" fragment="what-is-a-block-explorer" i18n="faq.what-is-a-block-exlorer">What is a block explorer?</a></p>
+          <p><a [routerLink]="['/docs/faq']" fragment="what-is-a-mempool-explorer" i18n="faq.what-is-a-mempool-exlorer">What is a mempool explorer?</a></p>
+          <p><a [routerLink]="['/docs/faq']" fragment="why-is-transaction-stuck-in-mempool" i18n="faq.why-isnt-my-transaction-confirming">Why isn't my transaction confirming?</a></p>
+          <p><a [routerLink]="['/docs/faq' | relativeUrl]" i18n="faq.more-faq">More FAQs &raquo;</a></p>
         </div>
 
         <div class="links" *ngIf="officialMempoolSpace || env.TESTNET_ENABLED || env.SIGNET_ENABLED || env.LIQUID_ENABLED || env.LIQUID_TESTNET_ENABLED else toolBox" >
-          <p class="category">Networks</p>
-          <p *ngIf="(officialMempoolSpace || (env.BASE_MODULE === 'mempool')) && (currentNetwork !== '') && (currentNetwork !== 'mainnet')"><a [href]="networkLink('mainnet')">Mainnet Explorer</a></p>
-          <p *ngIf="(officialMempoolSpace || (env.BASE_MODULE === 'mempool')) && (currentNetwork !== 'testnet') && env.TESTNET_ENABLED"><a [href]="networkLink('testnet')">Testnet Explorer</a></p>
-          <p *ngIf="(officialMempoolSpace || (env.BASE_MODULE === 'mempool')) && (currentNetwork !== 'signet') && env.SIGNET_ENABLED"><a [href]="networkLink('signet')">Signet Explorer</a></p>
-          <p *ngIf="(officialMempoolSpace || env.LIQUID_ENABLED) && (currentNetwork !== 'liquidtestnet')"><a [href]="networkLink('liquidtestnet')">Liquid Testnet Explorer</a></p>
-          <p *ngIf="(officialMempoolSpace || env.LIQUID_ENABLED) && (currentNetwork !== 'liquid')"><a [href]="networkLink('liquid')">Liquid Explorer</a></p>
-          <p *ngIf="(officialMempoolSpace && (currentNetwork !== 'bisq'))"><a [href]="networkLink('bisq')">Bisq Explorer</a></p>
+          <p class="category" i18n="footer.networks">Networks</p>
+          <p *ngIf="(officialMempoolSpace || (env.BASE_MODULE === 'mempool')) && (currentNetwork !== '') && (currentNetwork !== 'mainnet')"><a [href]="networkLink('mainnet')" i18n="footer.mainnet-explorer">Mainnet Explorer</a></p>
+          <p *ngIf="(officialMempoolSpace || (env.BASE_MODULE === 'mempool')) && (currentNetwork !== 'testnet') && env.TESTNET_ENABLED"><a [href]="networkLink('testnet')" i18n="footer.testnet-explorer">Testnet Explorer</a></p>
+          <p *ngIf="(officialMempoolSpace || (env.BASE_MODULE === 'mempool')) && (currentNetwork !== 'signet') && env.SIGNET_ENABLED"><a [href]="networkLink('signet')" i18n="footer.signet-explorer">Signet Explorer</a></p>
+          <p *ngIf="(officialMempoolSpace || env.LIQUID_ENABLED) && (currentNetwork !== 'liquidtestnet')"><a [href]="networkLink('liquidtestnet')" i18n="footer.liquid-testnet-explorer">Liquid Testnet Explorer</a></p>
+          <p *ngIf="(officialMempoolSpace || env.LIQUID_ENABLED) && (currentNetwork !== 'liquid')"><a [href]="networkLink('liquid')" i18n="footer.liquid-explorer">Liquid Explorer</a></p>
+          <p *ngIf="(officialMempoolSpace && (currentNetwork !== 'bisq'))"><a [href]="networkLink('bisq')" i18n="footer.bisq-explorer">Bisq Explorer</a></p>
         </div>
         <ng-template #toolBox>
         -->
@@ -81,8 +78,8 @@
           <p><a *ngIf="network.val === ''" href="https://ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a></p>
           <p><a *ngIf="network.val === 'testnet'" href="https://testnet.ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now! (Testnet)</a></p>
           <p><a href="https://cubes.haushoppe.art/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Mint an Ordinal Cube"></fa-icon> Mint an Ordinal Cube</a></p>
-          <!-- <p><a [routerLink]="['/clock/mempool/0']">Clock (Mempool)</a></p> -->
-          <!-- <p><a [routerLink]="['/clock/mined/0']">Clock (Mined)</a></p> -->
+          <!--<p><a [routerLink]="['/clock/mempool/0']" i18n="footer.clock-mempool">Clock (Mempool)</a></p>-->
+          <!--<p><a [routerLink]="['/clock/mined/0']" i18n="footer.clock-mined">Clock (Mined)</a></p>-->
           <p><a [routerLink]="['/tools/calculator']">BTC/Fiat Converter</a></p>
 
           <p *ngIf="env.TESTNET_ENABLED">

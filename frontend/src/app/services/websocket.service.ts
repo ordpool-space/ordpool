@@ -82,15 +82,20 @@ export class WebsocketService {
 
         this.stateService.resetChainTip();
 
-        this.websocketSubject.complete();
-        this.subscription.unsubscribe();
-        this.websocketSubject = webSocket<WebsocketResponse>(
-          this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : '')
-        );
-
-        this.startSubscription();
+        this.reconnectWebsocket();
       });
     }
+  }
+
+  reconnectWebsocket(retrying = false, hasInitData = false) {
+    console.log('reconnecting websocket');
+    this.websocketSubject.complete();
+    this.subscription.unsubscribe();
+    this.websocketSubject = webSocket<WebsocketResponse>(
+      this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : '')
+    );
+
+    this.startSubscription(retrying, hasInitData);
   }
 
   startSubscription(retrying = false, hasInitData = false) {
@@ -184,14 +189,18 @@ export class WebsocketService {
   }
 
   startTrackMempoolBlock(block: number) {
-    this.websocketSubject.next({ 'track-mempool-block': block });
-    this.isTrackingMempoolBlock = true
-    this.trackingMempoolBlock = block
+    // skip duplicate tracking requests
+    if (this.trackingMempoolBlock !== block) {
+      this.websocketSubject.next({ 'track-mempool-block': block });
+      this.isTrackingMempoolBlock = true;
+      this.trackingMempoolBlock = block;
+    }
   }
 
   stopTrackMempoolBlock() {
     this.websocketSubject.next({ 'track-mempool-block': -1 });
-    this.isTrackingMempoolBlock = false
+    this.isTrackingMempoolBlock = false;
+    this.trackingMempoolBlock = null;
   }
 
   startTrackRbf(mode: 'all' | 'fullRbf') {
@@ -243,7 +252,7 @@ export class WebsocketService {
     this.goneOffline = true;
     this.stateService.connectionState$.next(0);
     window.setTimeout(() => {
-      this.startSubscription(true);
+      this.reconnectWebsocket(true);
     }, retryDelay);
   }
 

@@ -1,7 +1,7 @@
 import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy } from '@angular/core';
-import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
+import { TransactionStripped } from '../../interfaces/node-api.interface.js';
 import { DigitalArtifact } from 'ordpool-parser';
 import { Observable, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
