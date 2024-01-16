@@ -1,3 +1,29 @@
 .cat-container {
   max-width: 600px;
+  background-color: #11131f;
+}
+
+i.colorBlock {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}
+
+// same as in transaction.component.scss
+.table {
+  tr td {
+    padding: 0.75rem 0.5rem;
+    @media (min-width: 576px) {
+      padding: 0.75rem 0.75rem;
+    }
+    &:last-child {
+      text-align: right;
+      @media (min-width: 850px) {
+        text-align: left;
+      }
+    }
+    .btn {
+      display: block;
+    }
+  }
 }

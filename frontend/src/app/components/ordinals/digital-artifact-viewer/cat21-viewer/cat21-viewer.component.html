@@ -14,18 +14,51 @@
           <tbody>
 
             <tr>
-              <td>Origin</td>
+              <td>Origin
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Genesis cat or normal cat. Genesis cats are the only white or black cats. Probability: 0.4%"
+                ></fa-icon>
               <td>{{ traits.genesis ? 'Genesis cat' : 'Normal cat' }}</td>
             </tr>
 
             <tr>
-              <td>Colors</td>
-              <td>{{ traits.colors.join(', ') }}</td>
+              <td>Colors
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="This includes all colors used to paint the cat, excluding the colors of the laser eyes."
+                ></fa-icon>
+              </td>
+              <td>
+                <ng-container *ngFor="let color of traits.colors; last as l">
+                  <i class="colorBlock mr-2" [ngbTooltip]="color" [ngStyle]="{'background-color': color}"></i>{{ color }}<br *ngIf="!l">
+                </ng-container>
+              </td>
             </tr>
 
             <tr>
-              <td>Orientation</td>
-              <td>{{ traits.inverted ? 'Inverted' : 'Standard' }}</td>
+              <td>Color Palette
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Regular or Inverted color palette. There is a 50% chance to receive an inverted cat."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.inverted ? 'Inverted' : 'Regular' }}</td>
+            </tr>
+
+            <tr>
+              <td>Layer Eyes
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="The gorgeous laser eyes trait. There is a 10% chance to receive a cat with red laser eyes, 10% chance for green, 10% chance for blue. There is a 70% chance to receive no laser eyes at all."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.laserEyes.charAt(0).toUpperCase() + traits.laserEyes.slice(1) }}</td>
+            </tr>
+
+            <tr>
+              <td>Background
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="There is a 10% chance to receive a cat with an orange background instead of a transparent background."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.orangeBackground ? 'Orange' : 'Transparent' }}</td>
             </tr>
 
           </tbody>
@@ -35,20 +68,48 @@
         <table class="table table-borderless table-striped">
           <tbody>
 
-            <tr>
+            <!-- <tr>
               <td>Design Index</td>
               <td>{{ traits.designIndex }}</td>
+            </tr> -->
+
+            <tr>
+              <td>Pose
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Design pose of the cat: Standing, Sleeping, Pouncing or Stalking. Same chance for all traits (25%)."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.designPose }}</td>
             </tr>
 
             <tr>
-              <td>Eyes</td>
-              <td>{{ traits.laserEyes ? 'Laser eyes' : 'Standard' }}</td>
+              <td>Expression
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Design expression of the cat: Smile, Grumpy, Pouting or Shy. Same chance for all traits (25%)."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.designExpression }}</td>
             </tr>
 
             <tr>
-              <td>Background</td>
-              <td>{{ traits.orangeBackground ? 'Orange' : 'Transparent' }}</td>
+              <td>Pattern
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Design pattern of the cat: Solid, Striped, Eyepatch or Half/Half. Same chance for all traits (25%)."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.designPattern }}</td>
             </tr>
+
+            <tr>
+              <td>Facing
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Design facing of the cat: Left or Right. 50% chance."
+                ></fa-icon>
+              </td>
+              <td>{{ traits.designFacing }}</td>
+            </tr>
+
+
 
           </tbody>
         </table>
