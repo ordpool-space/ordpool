@@ -8,6 +8,8 @@ More test cases:
 - Inscriptions on multiple inputs: http://localhost:4200/tx/092111e882a8025f3f05ab791982e8cc7fd7395afe849a5949fd56255b5c41cc
 - Content with brotli encryption: http://localhost:4200/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db
 - Metadata and Metaprotocol: http://localhost:4200/tx/49cbc5cbac92cf917dd4539d62720a3e528d17e22ef5fc47070a17ec0d3cf307
+- Multiple Parens: http://localhost:4200/tx/f988fe4b414a3f3d4a815dd1b1675dea0ba6140b1d698d8970273c781fb95746
+- Delegatation (basic support): http://localhost:4200/tx/6b6f65ba4bc2cbb8cec1e1ca5e1d426e442a05729cdbac6009cca185f7d95bab
 */
 
 @Component({
@@ -20,8 +22,9 @@ export class InscriptionViewerComponent {
 
   _parsedInscription: ParsedInscription | undefined;
   private _lastParsedInscription: ParsedInscription | undefined;
+  delegates: string[] = [];
 
-  whatToShow: 'nothing' | 'json' | 'code' | 'preview' = 'nothing';
+  whatToShow: 'nothing' | 'json' | 'code' | 'preview' | 'delegates' = 'nothing';
 
   @Input() showDetails = false;
 
@@ -39,6 +42,16 @@ export class InscriptionViewerComponent {
     if (!inscription) {
       this.whatToShow = 'nothing';
       return;
+    }
+
+    const delegates = inscription.getDelegates();
+
+    if (delegates.length) {
+      this.whatToShow = 'delegates';
+      this.delegates = delegates;
+      return;
+    } else {
+      this.delegates = [];
     }
 
     if ((inscription.contentType.startsWith('text/plain') ||

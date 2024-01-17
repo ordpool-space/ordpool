@@ -1,3 +1,8 @@
+# v0.0.5 – ?
+
+* Basic support for delegate inscriptions → [Example](https://ordpool.space/tx/6b6f65ba4bc2cbb8cec1e1ca5e1d426e442a05729cdbac6009cca185f7d95bab)
+* TODO: gzip content-encoding!
+
 # v0.0.4 – Parsing everything
 
 <img width="1024" alt="Stamps (SRC-20)" src="https://github.com/haushoppe/ordpool/assets/108269257/765e5e4a-11a4-41db-87aa-aad6671689ac">
