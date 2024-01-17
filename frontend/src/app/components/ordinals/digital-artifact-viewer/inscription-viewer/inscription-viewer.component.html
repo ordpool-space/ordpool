@@ -1,59 +1,80 @@
 <ng-container *ngIf="_parsedInscription">
 
-  <strong>Inscription: </strong>{{ _parsedInscription.contentType }}<br>
-  <br *ngIf="showDetails">
+  <ng-container *ngIf="whatToShow === 'delegates'">
 
-  <app-json-viewer
-    *ngIf="whatToShow === 'json'"
-    [text]="_parsedInscription.getContent()"
-  />
+    <div *ngFor="let delegate of delegates">
+      <strong>Delegate Inscription:</strong>
 
-  <app-code-viewer
-    *ngIf="whatToShow === 'code'"
-    [textAndContentType]="{
-      text: _parsedInscription.getContent(),
-      contentType: _parsedInscription.contentType
-    }"
-  />
-
-  <app-preview-viewer
-    *ngIf="whatToShow === 'preview'"
-    [parsedInscription]="_parsedInscription"
-  />
-
-  <div *ngIf="showDetails && _parsedInscription.getParents() as parents">
-    <ng-container *ngIf="parents.length === 1">
-      Parent Inscription:
-      <a class="address smaller-text" [routerLink]="['/tx/' | relativeUrl, parents[0].split('i')[0]]" title="{{ parents[0] }}">
-        <app-truncate [text]="parents[0]" [lastChars]="10"></app-truncate>
-      </a>
-    </ng-container>
-
-    <ng-container *ngIf="parents.length > 1">
-      Parent Inscriptions:
-      <ol class="smaller-text pb-2">
-        <li *ngFor="let parent of parents" class="pl-2">
-          <a class="address" [routerLink]="['/tx/' | relativeUrl, parent.split('i')[0]]" title="{{ parent }}">
-            <app-truncate [text]="parent" [lastChars]="10"></app-truncate>
+      <ol class="smaller-text mt-2">
+        <li *ngFor="let delegate of delegates" class="pl-2">
+          <a class="address" [routerLink]="['/tx/' | relativeUrl, delegate.split('i')[0]]" title="{{ delegate }}">
+            <app-truncate [text]="delegate" [lastChars]="10"></app-truncate>
           </a>
         </li>
       </ol>
-    </ng-container>
+
+    </div>
+
+  </ng-container>
+
+  <ng-container *ngIf="whatToShow !== 'delegates'">
+
+    <strong>Inscription: </strong>{{ _parsedInscription.contentType }}<br>
+    <br *ngIf="showDetails">
+
+    <app-json-viewer
+      *ngIf="whatToShow === 'json'"
+      [text]="_parsedInscription.getContent()"
+    />
+
+    <app-code-viewer
+      *ngIf="whatToShow === 'code'"
+      [textAndContentType]="{
+        text: _parsedInscription.getContent(),
+        contentType: _parsedInscription.contentType
+      }"
+    />
+
+    <app-preview-viewer
+      *ngIf="whatToShow === 'preview'"
+      [parsedInscription]="_parsedInscription"
+    />
+
+    <div *ngIf="showDetails && _parsedInscription.getParents() as parents">
+      <ng-container *ngIf="parents.length === 1">
+        Parent Inscription:
+        <a class="address smaller-text" [routerLink]="['/tx/' | relativeUrl, parents[0].split('i')[0]]" title="{{ parents[0] }}">
+          <app-truncate [text]="parents[0]" [lastChars]="10"></app-truncate>
+        </a>
+      </ng-container>
+
+      <ng-container *ngIf="parents.length > 1">
+        Parent Inscriptions:
+        <ol class="smaller-text pb-2 mt-2">
+          <li *ngFor="let parent of parents" class="pl-2">
+            <a class="address" [routerLink]="['/tx/' | relativeUrl, parent.split('i')[0]]" title="{{ parent }}">
+              <app-truncate [text]="parent" [lastChars]="10"></app-truncate>
+            </a>
+          </li>
+        </ol>
+      </ng-container>
 
 
-  </div>
+    </div>
 
-  <div *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
-    Metaprotocol: {{ metaprotocol }}
-  </div>
+    <div *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
+      Metaprotocol: {{ metaprotocol }}
+    </div>
 
-  <div class="mt-2" *ngIf="showDetails && _parsedInscription.getMetadata() as metadata">
-    Metadata:
-    <app-metadata-viewer [data]="metadata" />
-  </div>
+    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getMetadata() as metadata">
+      Metadata:
+      <app-metadata-viewer [data]="metadata" />
+    </div>
 
-  <div *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
-    Content Encoding: {{ contentEncoding }}
-  </div>
+    <div *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
+      Content Encoding: {{ contentEncoding }}
+    </div>
+
+  </ng-container>
 
 </ng-container>
