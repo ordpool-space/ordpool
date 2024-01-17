@@ -21,6 +21,19 @@
     [parsedInscription]="_parsedInscription"
   />
 
+  <div *ngIf="showDetails && _parsedInscription.getParents() as parents">
+    Parent Inscriptions:
+    <ol class="smaller-text pb-2">
+      <li *ngFor="let parent of parents" class="pl-2">
+        <a class="address" [routerLink]="['/tx/' | relativeUrl, parent.split('i')[0]]" title="{{ parent }}">
+          <app-truncate [text]="parent" [lastChars]="10"></app-truncate>
+        </a>
+
+      </li>
+    </ol>
+
+  </div>
+
   <div *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
     Metaprotocol: {{ metaprotocol }}
   </div>

@@ -1,0 +1,15 @@
+
+// as seen in transactions-list.component.scss
+.address {
+  font-family: monospace;
+
+  // same as for tr's in global stylesheet
+  white-space: nowrap;
+}
+
+.smaller-text {
+  font-size: 12px;
+  @media (min-width: 576px) {
+    font-size: 14px !important;
+  }
+}
