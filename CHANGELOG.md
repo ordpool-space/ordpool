@@ -1,5 +1,10 @@
 # v0.0.4 – Parsing everything
 
+<img width="1024" alt="Stamps (SRC-20)" src="https://github.com/haushoppe/ordpool/assets/108269257/765e5e4a-11a4-41db-87aa-aad6671689ac">
+<img width="1031" alt="Multiple Parents" src="https://github.com/haushoppe/ordpool/assets/108269257/491907f3-fac9-4f41-b61b-becd11df7d2c">
+
+Announcement: https://twitter.com/HausHoppe/status/1747656943286571047
+
 This version finally brings support for all types of inscriptions and features to Ordpool:
 
 * Inscriptions on inputs after the first → [Example](https://ordpool.space/tx/092111e882a8025f3f05ab791982e8cc7fd7395afe849a5949fd56255b5c41cc)
