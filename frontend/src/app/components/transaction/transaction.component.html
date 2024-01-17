@@ -250,12 +250,22 @@
 
           <app-digital-artifact-viewer
             [showDetails]="true"
-            [digitalArtifact]="digitalArtifacts[0]"
+            [digitalArtifact]="digitalArtifacts[digitalArtifactsPage - 1]"
           />
 
-          <!-- TODO: show all inscriptions here -->
-          <div *ngIf="digitalArtifacts.length > 1">
-            + {{ digitalArtifacts.length - 1 }} more digital artifacts
+        <div *ngIf="digitalArtifacts.length > 1" class="mt-2">
+          Discover all {{ digitalArtifacts.length }} digital artifacts in this transaction:<br>
+
+          <ngb-pagination
+            class="pagination-container mt-2"
+            style="margin-left: -5px"
+            [collectionSize]="digitalArtifacts.length"
+            [rotate]="true"
+            [pageSize]="1"
+            [maxSize]="5"
+            [(page)]="digitalArtifactsPage"
+            [boundaryLinks]="true">
+          </ngb-pagination>
           </div>
         </div>
       </div>

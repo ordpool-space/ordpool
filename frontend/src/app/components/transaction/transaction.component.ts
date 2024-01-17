@@ -123,6 +123,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  digitalArtifactsPage = 1;
   getParsedDigitalArtifacts(): DigitalArtifact[] {
     return DigitalArtifactsParserService.parse(this.tx);
   }

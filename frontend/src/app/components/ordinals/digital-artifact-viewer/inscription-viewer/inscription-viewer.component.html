@@ -22,15 +22,24 @@
   />
 
   <div *ngIf="showDetails && _parsedInscription.getParents() as parents">
-    Parent Inscriptions:
-    <ol class="smaller-text pb-2">
-      <li *ngFor="let parent of parents" class="pl-2">
-        <a class="address" [routerLink]="['/tx/' | relativeUrl, parent.split('i')[0]]" title="{{ parent }}">
-          <app-truncate [text]="parent" [lastChars]="10"></app-truncate>
-        </a>
+    <ng-container *ngIf="parents.length === 1">
+      Parent Inscription:
+      <a class="address smaller-text" [routerLink]="['/tx/' | relativeUrl, parents[0].split('i')[0]]" title="{{ parents[0] }}">
+        <app-truncate [text]="parents[0]" [lastChars]="10"></app-truncate>
+      </a>
+    </ng-container>
 
-      </li>
-    </ol>
+    <ng-container *ngIf="parents.length > 1">
+      Parent Inscriptions:
+      <ol class="smaller-text pb-2">
+        <li *ngFor="let parent of parents" class="pl-2">
+          <a class="address" [routerLink]="['/tx/' | relativeUrl, parent.split('i')[0]]" title="{{ parent }}">
+            <app-truncate [text]="parent" [lastChars]="10"></app-truncate>
+          </a>
+        </li>
+      </ol>
+    </ng-container>
+
 
   </div>
 
