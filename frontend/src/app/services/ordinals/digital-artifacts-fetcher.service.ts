@@ -198,14 +198,14 @@ export class DigitalArtifactsFetcherService {
    */
   addTransactions(transactions: Transaction[]): void {
 
-    let countBefore = 0;
-    this.cachedArtifactsTxns.forEach((a) => { if (a.length) { countBefore++; }});
+    // let countBefore = 0;
+    // this.cachedArtifactsTxns.forEach((a) => { if (a.length) { countBefore++; }});
 
     transactions.forEach(transaction => this.addTransaction(transaction));
 
-    let countAfter = 0;
-    this.cachedArtifactsTxns.forEach((a) => { if (a.length) { countAfter++; }});
-    console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
+    // let countAfter = 0;
+    // this.cachedArtifactsTxns.forEach((a) => { if (a.length) { countAfter++; }});
+    // console.log('Adding ' + transactions.length + ' entries to the cache. Found ' + (countAfter - countBefore)  + ' inscriptions!');
   }
 
   /**
