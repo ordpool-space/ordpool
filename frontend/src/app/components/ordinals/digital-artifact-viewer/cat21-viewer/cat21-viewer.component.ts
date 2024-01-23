@@ -29,7 +29,7 @@ import { CatTraits, ParsedCat21 } from 'ordpool-parser';
 })
 export class Cat21ViewerComponent {
 
-  private _lastCat21: ParsedCat21 | undefined;
+  private _parsedCat21: ParsedCat21 | undefined;
   svg: string | undefined = undefined;
   traits: CatTraits | undefined = undefined;
 
@@ -39,11 +39,11 @@ export class Cat21ViewerComponent {
   set parsedCat21(cat21: ParsedCat21 | undefined) {
 
     // early exit if setter is called multiple times (don't remove!)
-    if (this._lastCat21?.uniqueId === cat21?.uniqueId) {
+    if (this._parsedCat21?.uniqueId === cat21?.uniqueId) {
       return;
     }
 
-    this._lastCat21 = cat21;
+    this._parsedCat21 = cat21;
 
     if (cat21) {
       this.svg = cat21.getImage();

@@ -15,23 +15,23 @@ import { ParsedSrc20 } from 'ordpool-parser';
 })
 export class Src20ViewerComponent {
 
-  private _lastSrc20: ParsedSrc20 | undefined;
+  private _src20: ParsedSrc20 | undefined;
   public json: string | undefined = undefined;
 
   @Input() showDetails = false;
 
   @Input()
-  public set parsedSrc20(src20: ParsedSrc20 | undefined) {
+  public set parsedSrc20(parsedSrc20: ParsedSrc20 | undefined) {
 
     // early exit if setter is called multiple times (don't remove!)
-    if (this._lastSrc20?.uniqueId === src20?.uniqueId) {
+    if (this._src20?.uniqueId === parsedSrc20?.uniqueId) {
       return;
     }
 
-    this._lastSrc20 = src20;
+    this._src20 = parsedSrc20;
 
-    if (src20) {
-      this.json = src20.getContent();
+    if (parsedSrc20) {
+      this.json = parsedSrc20.getContent();
       return;
     }
 
