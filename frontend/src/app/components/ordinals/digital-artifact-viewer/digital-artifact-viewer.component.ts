@@ -10,8 +10,7 @@ import { DigitalArtifact, DigitalArtifactType, ParsedCat21, ParsedInscription, P
 })
 export class DigitalArtifactViewerComponent {
 
-  _parsedDigitalArtifact: DigitalArtifact | undefined;
-  private _lastParsedDigitalArtifact: DigitalArtifact | undefined;
+  private _parsedDigitalArtifact: DigitalArtifact | undefined;
 
   whatToShow: 'nothing' | 'inscription' | 'src20' | 'cat21' = 'nothing';
 
@@ -21,12 +20,11 @@ export class DigitalArtifactViewerComponent {
   set digitalArtifact(artifact: DigitalArtifact | undefined) {
 
     // early exit if setter is called multiple times (don't remove!)
-    if (this._lastParsedDigitalArtifact?.uniqueId === artifact?.uniqueId) {
+    if (this._parsedDigitalArtifact?.uniqueId === artifact?.uniqueId) {
       return;
     }
 
     this._parsedDigitalArtifact = artifact;
-    this._lastParsedDigitalArtifact = artifact;
 
     if (!artifact) {
       this.whatToShow = 'nothing';

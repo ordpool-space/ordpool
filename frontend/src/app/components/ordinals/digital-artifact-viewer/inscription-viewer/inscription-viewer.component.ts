@@ -21,7 +21,6 @@ More test cases:
 export class InscriptionViewerComponent {
 
   _parsedInscription: ParsedInscription | undefined;
-  private _lastParsedInscription: ParsedInscription | undefined;
   delegates: string[] = [];
 
   whatToShow: 'nothing' | 'json' | 'code' | 'preview' | 'delegates' = 'nothing';
@@ -32,12 +31,11 @@ export class InscriptionViewerComponent {
   set parsedInscription(inscription: ParsedInscription | undefined) {
 
     // early exit if setter is called multiple times (don't remove!)
-    if (this._lastParsedInscription?.uniqueId === inscription?.uniqueId) {
+    if (this._parsedInscription?.uniqueId === inscription?.uniqueId) {
       return;
     }
 
     this._parsedInscription = inscription;
-    this._lastParsedInscription = inscription;
 
     if (!inscription) {
       this.whatToShow = 'nothing';
