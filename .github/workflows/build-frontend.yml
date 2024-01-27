@@ -29,4 +29,4 @@ jobs:
       if: ${{ github.ref_name != 'main' }}
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: npx angular-cli-ghpages --message="Auto-generated commit" --repo=https://github.com/haushoppe/ordpool-build.git --branch=$GITHUB_REF_NAME --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-silent
+      run: npx angular-cli-ghpages --repo=https://github.com/haushoppe/ordpool-build.git --branch=$GITHUB_REF_NAME --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-notfound --no-nojekyll
