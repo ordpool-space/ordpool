@@ -31,7 +31,7 @@ export class Cat21ViewerComponent {
 
   private _parsedCat21: ParsedCat21 | undefined;
   svg: string | undefined = undefined;
-  traits: CatTraits | undefined = undefined;
+  traits: CatTraits | undefined | null = undefined;
 
   @Input() showDetails = false;
 

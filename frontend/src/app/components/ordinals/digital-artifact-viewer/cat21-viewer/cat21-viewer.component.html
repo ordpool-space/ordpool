@@ -1,11 +1,11 @@
-<ng-container *ngIf="svg && traits">
+<ng-container *ngIf="svg">
 
   <strong>CAT-21</strong><br>
   <br *ngIf="showDetails">
 
   <div class="cat-container" [innerHTML]="svg | noSanitize"></div>
 
-  <div class="mt-2" *ngIf="showDetails">
+  <div class="mt-2" *ngIf="showDetails && traits">
     <strong>Traits</strong>
 
     <div class="row mt-2">
@@ -18,6 +18,7 @@
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
                   ngbTooltip="Genesis cat or normal cat. Genesis cats are the only white or black cats. Probability: 0.4%"
                 ></fa-icon>
+              </td>
               <td>{{ traits.genesis ? 'Genesis cat' : 'Normal cat' }}</td>
             </tr>
 
@@ -68,11 +69,6 @@
         <table class="table table-borderless table-striped">
           <tbody>
 
-            <!-- <tr>
-              <td>Design Index</td>
-              <td>{{ traits.designIndex }}</td>
-            </tr> -->
-
             <tr>
               <td>Pose
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
@@ -115,6 +111,16 @@
         </table>
       </div>
     </div>
+  </div>
+
+  <div class="mt-4 p-2 alert alert-dark" role="alert" *ngIf="showDetails && !traits">
+
+      <strong>
+        This is an unconfirmed transaction.<br>
+        The CAT-21 artwork and traits will be revealed once the transaction is included in a block.<br>
+      </strong>
+
+      (The block hash contributes to the seed.)
   </div>
 
 </ng-container>
