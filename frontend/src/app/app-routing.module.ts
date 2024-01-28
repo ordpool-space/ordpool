@@ -23,6 +23,7 @@ import { AssetsComponent } from './components/assets/assets.component';
 import { AssetComponent } from './components/asset/asset.component';
 import { AssetsNavComponent } from './components/assets/assets-nav/assets-nav.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
+import { Cat21MintComponent } from './components/ordinals/cat21-mint/cat21-mint.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -54,6 +55,10 @@ let routes: Routes = [
           {
             path: 'about',
             component: AboutComponent,
+          },
+          {
+            path: 'cat21-mint',
+            component: Cat21MintComponent,
           },
           {
             path: 'blocks',
@@ -166,6 +171,10 @@ let routes: Routes = [
             component: AboutComponent,
           },
           {
+            path: 'cat21-mint',
+            component: Cat21MintComponent,
+          },
+          {
             path: 'blocks',
             component: BlocksList,
           },
@@ -270,6 +279,10 @@ let routes: Routes = [
       {
         path: 'about',
         component: AboutComponent,
+      },
+      {
+        path: 'cat21-mint',
+        component: Cat21MintComponent,
       },
       {
         path: 'blocks',
@@ -419,6 +432,10 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
               component: AboutComponent,
             },
             {
+              path: 'cat21-mint',
+              component: Cat21MintComponent,
+            },
+            {
               path: 'blocks',
               component: BlocksList,
             },
@@ -535,6 +552,10 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
         {
           path: 'about',
           component: AboutComponent,
+        },
+        {
+          path: 'cat21-mint',
+          component: Cat21MintComponent,
         },
         {
           path: 'blocks',

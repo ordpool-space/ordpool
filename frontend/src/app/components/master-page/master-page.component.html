@@ -51,8 +51,8 @@
 
   <div class="navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
-      <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-home">
-        <a class="nav-link" [routerLink]="['/' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> Pool</a>
+      <li class="nav-item" routerLinkActive="active" id="btn-home">
+        <a class="nav-link" [routerLink]="['/mempool-block' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> Pool</a>
       </li>
       <!--
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
@@ -77,8 +77,13 @@
         <a class="nav-link" [routerLink]="['/about']" (click)="collapse()"><fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" i18n-title="master-page.about" title="About"></fa-icon> About</a>
       </li>
 
-      <li class="nav-item" routerLinkActive="active" id="btn-about">
+      <!-- <li class="nav-item" routerLinkActive="active" id="btn-ordinalsbot">
         <a class="nav-link" href="https://ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a>
+      </li> -->
+
+      <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint">
+        <a class="nav-link" [routerLink]="['/cat21-mint']" (click)="collapse()">
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">Mint CAT-21</a>
       </li>
 
     </ul>
