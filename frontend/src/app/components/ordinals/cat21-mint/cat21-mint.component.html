@@ -6,18 +6,15 @@
 
     <div class="text-left">
 
-      <p class="">
+      <p class="mx-auto" style="max-width: 800px;">
         <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">CAT-21</a> is a new protocol built atop the Ordinals Theory.
         Every Bitcoin transaction with the <code style="color:#FF9900">nLockTime</code> field set to <code style="color:#FF9900">21</code> is a CAT-21 mint transaction.
-        <!-- The distribution of the artwork and traits is fair and unpredictable.
-        because the seed for the generated cat is
-        a combination of the transaction ID and the Bitcoin block ID (hash).
-        This ensures that every cat is revealed only after confirmation on the blockchain. -->
 
-        This minting process is completely free, with no pre-allocations or extra service fees.
-        Participate now, be among the early adopters, and celebrate Bitcoin! Meow!
+        This minting process on Ordpool is completely free, with no pre-allocations or extra service fees.
 
-
+        By minting a CAT-21 ordinal, you can signal your support for the <code style="color:#FF9900">OP_CAT</code> opcode.
+        As a reward, you'll receive your very own unique CAT-21 ordinal.
+        Be part of the movement, and celebrate Bitcoin! Meow!
 
       </p>
 
@@ -25,16 +22,101 @@
 
   </div>
 
-
   <div class="row justify-content-center">
+    <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
-    <form [formGroup]="form">
+      <p *ngIf="!x.connectedWallet" class="mt-3 mb-5">
+        Please
+        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+        first.
+      </p>
+
+      <ng-container *ngIf="x.connectedWallet">
+
+        <ng-container *ngIf="x.connectedWallet.type === KnownOrdinalWalletType.unisat">
+
+          <p class="mb-0">
+            ❌&nbsp; Unfortunately, we can't provide this feature for the Unisat wallet right now.<br>
+            To try with another account, please
+            <a href="javascript:void(0)" (click)="walletService.disconnectWallet()">disconnect your wallet</a>
+            first and then connect again.
+          </p>
+
+        </ng-container>
+        <ng-container *ngIf="x.connectedWallet.type !== KnownOrdinalWalletType.unisat">
+
+          <!-- check UTXOs here -->
+          <ng-container *ngIf="true">
+            <!-- <p>
+              ✅&nbsp;We support your wallet.<br>
+              It's time to rescue your cat now!
+            </p> -->
+
+            <div class="row mt-4">
+
+              <!-- Content for the second column (appears first on mobile) -->
+              <div class="col-md-6 order-md-2">
+                <app-fees-box-clickable (feeClicked)="setFeeRate($event)" class="d-block"></app-fees-box-clickable>
+              </div>
+
+              <!-- Content for the first column (appears second on mobile) -->
+              <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
+
+                <form [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
+
+                  <!--
+                  <div class="input-group input-group-lg  mb-1">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">Output to accelerate</span>
+                    </div>
+                    <input type="text" class="form-control" [formControl]="c.utxo" readonly>
+                    <app-clipboard [button]="true" [text]="c.utxo.value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
+                  </div>
+                  -->
+
+                  <div class="input-group input-group-lg mb-1">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">F  ee rate
+                      </span>
+                    </div>
+                    <input type="text" class="form-control" [formControl]="c.feeRate">
+                    <div class="input-group-append">
+                      <span class="input-group-text">sat/vB</span>
+                    </div>
+                  </div>
+
+                  <button type="submit" [disabled]="mintCat21Success || form.invalid" class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="!mintCat21Loading">
+                    <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" ></fa-icon>
+                    Mint my cat
+                  </button>
+
+                  <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="mintCat21Loading">
+                    <i class="spinner-border spinner-border-sm text-light"></i>
+                    Minting your cat
+                  </button>
+
+                </form>
+              </div>
+            </div>
+
+            <div class="alert alert-success" *ngIf="mintCat21Success">
+              ✅&nbsp; Your CAT-21 transaction has now been submitted to the mempool.<br>
+              <ng-container *ngIf="mintCat21Success?.txId">
+                You can track the progress
+                <a class="alert-link text-decoration-underline" [routerLink]="['/tx/' | relativeUrl, mintCat21Success.txId]">here</a>.
+              </ng-container>
+            </div>
+
+            <div class="alert alert-danger" *ngIf="mintCat21Error">
+              ❌&nbsp; {{ mintCat21Error }}
+            </div>
 
 
-    </form>
+        </ng-container>
+      </ng-container>
 
+      </ng-container>
+
+    </ng-container>
   </div>
-
-
-
 </div>

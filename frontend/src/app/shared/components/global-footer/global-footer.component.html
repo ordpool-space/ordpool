@@ -80,6 +80,7 @@
 
           <p><a *ngIf="network.val === ''" href="https://ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a></p>
           <p><a *ngIf="network.val === 'testnet'" href="https://testnet.ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now! (Testnet)</a></p>
+          <p><a *ngIf="enableCat21Mint" [routerLink]="['/cat21-mint']"><img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">Mint a CAT-21</a></p>
           <p><a href="https://cubes.haushoppe.art/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Mint an Ordinal Cube"></fa-icon> Mint an Ordinal Cube</a></p>
           <!-- <p><a [routerLink]="['/clock/mempool/0']">Clock (Mempool)</a></p> -->
           <!-- <p><a [routerLink]="['/clock/mined/0']">Clock (Mined)</a></p> -->
