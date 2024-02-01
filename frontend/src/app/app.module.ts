@@ -29,6 +29,7 @@ import { HiroApiService } from './services/ordinals/hiro-api.service';
 import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
 import { WalletService } from './services/ordinals/wallet.service';
 import { RollingElectrsApiService } from './services/ordinals/rolling-electrs-api.service';
+import { Cat21Service } from './services/ordinals/cat21.service';
 
 import { HIGHLIGHT_OPTIONS } from 'ngx-highlightjs';
 
@@ -55,6 +56,7 @@ const providers = [
   InscriptionAcceleratorApiService,
   WalletService,
   RollingElectrsApiService,
+  Cat21Service,
   // HACK
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },

@@ -7,10 +7,10 @@
     <div class="text-left">
 
       <p class="mx-auto" style="max-width: 800px;">
-        <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">CAT-21</a> is a new protocol built atop the Ordinals Theory.
+        <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">CAT-21</a> is a new protocol from the creator of ordpool.space.
         Every Bitcoin transaction with the <code style="color:#FF9900">nLockTime</code> field set to <code style="color:#FF9900">21</code> is a CAT-21 mint transaction.
 
-        This minting process on Ordpool is completely free, with no pre-allocations or extra service fees.
+        The minting is completely free, with no pre-allocations or extra service fees.
 
         By minting a CAT-21 ordinal, you can signal your support for the <code style="color:#FF9900">OP_CAT</code> opcode.
         As a reward, you'll receive your very own unique CAT-21 ordinal.
@@ -64,19 +64,9 @@
 
                 <form [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
 
-                  <!--
-                  <div class="input-group input-group-lg  mb-1">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text">Output to accelerate</span>
-                    </div>
-                    <input type="text" class="form-control" [formControl]="c.utxo" readonly>
-                    <app-clipboard [button]="true" [text]="c.utxo.value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
-                  </div>
-                  -->
-
                   <div class="input-group input-group-lg mb-1">
                     <div class="input-group-prepend">
-                      <span class="input-group-text">F  ee rate
+                      <span class="input-group-text">Fee rate
                       </span>
                     </div>
                     <input type="text" class="form-control" [formControl]="c.feeRate">
@@ -86,8 +76,7 @@
                   </div>
 
                   <button type="submit" [disabled]="mintCat21Success || form.invalid" class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="!mintCat21Loading">
-                    <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" ></fa-icon>
-                    Mint my cat
+                    <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint my cat
                   </button>
 
                   <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="mintCat21Loading">

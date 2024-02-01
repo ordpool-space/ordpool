@@ -5,6 +5,7 @@ import { StateService } from '../../../services/state.service';
 import { KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
 import { take } from 'rxjs';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
+import { Cat21Service } from '../../../services/ordinals/cat21.service';
 
 @Component({
   selector: 'app-cat21-mint',
@@ -15,6 +16,7 @@ import { extractErrorMessage } from '../inscription-accelerator/extract-error-me
 export class Cat21MintComponent implements OnInit {
 
   walletService = inject(WalletService);
+  cat21Service = inject(Cat21Service);
   cd = inject(ChangeDetectorRef);
 
   recommendedFees$ = inject(StateService).recommendedFees$;
@@ -56,22 +58,21 @@ export class Cat21MintComponent implements OnInit {
     this.mintCat21Success = undefined;
     this.mintCat21Error = '';
 
-
-
-
-
-    // this.inscriptionAcceleratorApi.signPsbtAndBroadcast(walletInfo.type, cpfpRequest).subscribe({
-    //   next: (result) => {
-
-    //     this.mintCat21Success = result,
-    //     this.mintCat21Loading = false;
-    //     this.cd.detectChanges();
-    //   },
-    //   error: (err: Error) => {
-    //     this.mintCat21Error = extractErrorMessage(err);
-    //     this.mintCat21Loading = false;
-    //     this.cd.detectChanges();
-    //   }
-    // });
+    this.cat21Service.createCat21Transaction(
+      walletInfo.type,
+      walletInfo.ordinalsAddress,
+      walletInfo.paymentAddress,
+      walletInfo.paymentPublicKey).subscribe({
+        next: (result) => {
+          this.mintCat21Loading = false;
+          this.mintCat21Success = result,
+          this.cd.detectChanges();
+        },
+        error: (err: Error) => {
+          this.mintCat21Loading = false;
+          this.mintCat21Error = extractErrorMessage(err);
+          this.cd.detectChanges();
+        }
+      });
   }
 }
