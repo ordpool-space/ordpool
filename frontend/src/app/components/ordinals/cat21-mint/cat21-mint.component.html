@@ -7,14 +7,17 @@
     <div class="text-left">
 
       <p class="mx-auto" style="max-width: 800px;">
-        <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">CAT-21</a> is a new protocol from the creator of ordpool.space.
-        Every Bitcoin transaction with the <code style="color:#FF9900">nLockTime</code> field set to <code style="color:#FF9900">21</code> is a CAT-21 mint transaction.
+        <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">CAT-21</a>
+        is a new protocol from the creator of ordpool.space.
+        Every Bitcoin transaction with the <code style="color:#FF9900">nLockTime</code> field set to
+        <code style="color:#FF9900">21</code> is a CAT-21 mint transaction.
 
         The minting is completely free, with no pre-allocations or extra service fees.
 
-        By minting a CAT-21 ordinal, you can signal your support for the <code style="color:#FF9900">OP_CAT</code> opcode.
+        By minting a CAT-21 ordinal, you can signal your support for the
+        <code style="color:#FF9900">OP_CAT</code> opcode.
         As a reward, you'll receive your very own unique CAT-21 ordinal.
-        Be part of the movement, and celebrate Bitcoin! Meow!
+        Be part of the movement, and celebrate Bitcoin!
 
       </p>
 
@@ -52,47 +55,62 @@
               It's time to rescue your cat now!
             </p> -->
 
-            <div class="row mt-4">
+            <form class="validated" [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
 
-              <!-- Content for the second column (appears first on mobile) -->
-              <div class="col-md-6 order-md-2">
-                <app-fees-box-clickable (feeClicked)="setFeeRate($event)" class="d-block"></app-fees-box-clickable>
-              </div>
+              <div class="row mt-4">
 
-              <!-- Content for the first column (appears second on mobile) -->
-              <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
+                <!-- Content for the second column (appears first on mobile) -->
+                <div class="col-md-6 order-md-2">
+                  <small class="text-muted">Select your preferred fee rate:</small><br>
+                  <app-fees-box-clickable (feeClicked)="setFeeRate($event)"
+                    class="d-block pt-2"></app-fees-box-clickable>
+                </div>
 
-                <form [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
+                <!-- Content for the first column (appears second on mobile) -->
+                <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
-                  <div class="input-group input-group-lg mb-1">
+                  <div class="input-group input-group-lg mt-3">
                     <div class="input-group-prepend">
                       <span class="input-group-text">Fee rate
                       </span>
                     </div>
-                    <input type="text" class="form-control" [formControl]="c.feeRate">
+                    <input type="text" class="form-control" [formControl]="cfeeRate">
                     <div class="input-group-append">
                       <span class="input-group-text">sat/vB</span>
                     </div>
                   </div>
 
-                  <button type="submit" [disabled]="mintCat21Success || form.invalid" class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="!mintCat21Loading">
-                    <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint my cat
-                  </button>
+                  <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+                    <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
+                    <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB!</div>
+                    <div *ngIf="cfeeRate.hasError('notFullNumber')">Enter whole numbers only!</div>
+                  </div>
 
-                  <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="mintCat21Loading">
-                    <i class="spinner-border spinner-border-sm text-light"></i>
-                    Minting your cat
-                  </button>
-
-                </form>
+                </div>
               </div>
-            </div>
+
+              <div class="text-center mt-4">
+
+                <button type="submit" [disabled]="mintCat21Success || form.invalid"
+                  class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading">
+                  <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
+                    title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+                </button>
+
+                <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
+                  <i class="spinner-border spinner-border-sm text-light"></i>
+                  Minting your cat
+                </button>
+
+              </div>
+            </form>
 
             <div class="alert alert-success" *ngIf="mintCat21Success">
               ✅&nbsp; Your CAT-21 transaction has now been submitted to the mempool.<br>
               <ng-container *ngIf="mintCat21Success?.txId">
                 You can track the progress
-                <a class="alert-link text-decoration-underline" [routerLink]="['/tx/' | relativeUrl, mintCat21Success.txId]">here</a>.
+                <a class="alert-link text-decoration-underline"
+                  [routerLink]="['/tx/' | relativeUrl, mintCat21Success.txId]">here</a>.
               </ng-container>
             </div>
 
@@ -101,8 +119,8 @@
             </div>
 
 
+          </ng-container>
         </ng-container>
-      </ng-container>
 
       </ng-container>
 
