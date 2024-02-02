@@ -9,6 +9,7 @@ import { StateService } from '../../../services/state.service';
 import { extractErrorMessage } from './extract-error-message';
 import { DigitalArtifact, DigitalArtifactType, ParsedInscription } from 'ordpool-parser';
 import { environment } from '../../../../environments/environment';
+import { fullNumberValidator } from '../full-number.validator';
 
 
 @Component({
@@ -17,7 +18,7 @@ import { environment } from '../../../../environments/environment';
   styleUrls: ['./inscription-accelerator.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class InscriptionAcceleratorComponent implements OnInit  {
+export class InscriptionAcceleratorComponent implements OnInit {
 
   enableInscriptionAccelerator = environment.enableInscriptionAccelerator;
 
@@ -37,10 +38,15 @@ export class InscriptionAcceleratorComponent implements OnInit  {
 
   KnownOrdinalWalletType = KnownOrdinalWalletType;
 
+  hourFee: number = 0;
+  minRequiredFee: number  = 0;
+  currentFeePerVsize: number = 0;
+
   private _tx?: Transaction;
   public get tx(): Transaction {
     return this._tx;
   }
+
 
   // tx is always set (*ngIf wrapping this component)
   @Input({ required: true })
@@ -55,9 +61,40 @@ export class InscriptionAcceleratorComponent implements OnInit  {
       map(acceration => acceration.reverse().find(a => a.txId === this._tx.txid))
     );
 
+    this.currentFeePerVsize = this.tx.feePerVsize;
+    this.updateMinRequiredFee();
+  }
+
+  // effectiveFeePerVsize is updated later on
+  // see transaction.component.ts
+  // --> this.fetchCpfpSubscription --> this.setCpfpInfo(cpfpInfo)
+  @Input({ required: true })
+  public set hasEffectiveFeeRate(hasRate: boolean) {
+
+    if (hasRate) {
+      this.currentFeePerVsize = this.tx.effectiveFeePerVsize;
+      this.updateMinRequiredFee();
+    }
   }
 
   @Input({ required: true }) digitalArtifacts?: DigitalArtifact[];
+
+  private updateMinRequiredFee() {
+
+    this.minRequiredFee = Math.ceil(Math.max(this.hourFee, this.currentFeePerVsize, 1));
+
+    this.cfeeRate.setValidators([
+      Validators.required,
+      Validators.min(this.minRequiredFee),
+      fullNumberValidator()
+    ]);
+
+    if (this.cfeeRate.value < this.minRequiredFee) {
+      this.cfeeRate.setValue(this.minRequiredFee);
+    }
+
+    this.cfeeRate.updateValueAndValidity();
+  }
 
   get parsedInscriptions(): ParsedInscription[] {
     if (!this.digitalArtifacts) {
@@ -68,16 +105,33 @@ export class InscriptionAcceleratorComponent implements OnInit  {
 
   form = new FormGroup({
     feeRate: new FormControl(0, {
-      validators: [Validators.required, Validators.min(1)],
+      validators: [
+        Validators.required,
+        Validators.min(1),
+        fullNumberValidator()],
       nonNullable: true
     })
   });
 
-  c = this.form.controls;
+  cfeeRate = this.form.controls.feeRate;
+
   ngOnInit(): void {
     this.recommendedFees$.pipe(take(1))
-      .subscribe(({ fastestFee }) => {
-        this.form.patchValue({ feeRate: fastestFee });
+      .subscribe(({ fastestFee, hourFee }) => {
+
+        this.hourFee = hourFee;
+
+        this.updateMinRequiredFee();
+
+        // normal case, user just payed way to less
+        if (fastestFee > this.minRequiredFee) {
+          this.cfeeRate.setValue(fastestFee);
+        }
+
+        // special use case, user payed already fastestFee but want's to boost even more
+        // --> this case is alread covered in updateMinRequiredFee
+
+        // we are out of the CD
         this.cd.detectChanges();
       });
   }
@@ -96,7 +150,7 @@ export class InscriptionAcceleratorComponent implements OnInit  {
       // TODO: research!
       // my big assumption is the fact that the inscription is always sitting on Output #0
       utxos: [this.tx?.txid + ':0'],
-      feeRate: this.c.feeRate.value,
+      feeRate: this.cfeeRate.value,
 
       buyerOrdinalAddress: walletInfo.ordinalsAddress,
       buyerOrdinalPublicKey: walletInfo.ordinalsPublicKey,
@@ -109,7 +163,7 @@ export class InscriptionAcceleratorComponent implements OnInit  {
       next: (result) => {
 
         this.broadcastPsbtSuccess = result,
-        this.broadcastPsbtLoading = false;
+          this.broadcastPsbtLoading = false;
         this.cd.detectChanges();
       },
       error: (err: Error) => {

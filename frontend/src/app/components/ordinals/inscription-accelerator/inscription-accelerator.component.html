@@ -46,7 +46,8 @@
 
                 <ng-container *ngIf="x.connectedWallet.ordinalsAddress !== tx.vout[0]?.scriptpubkey_address">
                   <p class="mb-0">
-                    ❌&nbsp; It looks like you are not the recipient of this inscription!<br>
+                    ❌&nbsp; Only the recipient of an inscription can accelerate it with our tool.
+                    But it looks like you are not the recipient!<br>
                     To try with another account, please
                     <a href="javascript:void(0)" (click)="walletService.disconnectWallet()">disconnect your wallet</a>
                     first and then connect again.
@@ -60,52 +61,54 @@
                     It's possible to boost this inscription via our Inscription Accelerator!
                   </p>
 
-                  <div class="row mt-4">
+                  <form class="validated" [formGroup]="form" (ngSubmit)="accelerateInscription(x.connectedWallet)">
 
-                    <!-- Content for the second column (appears first on mobile) -->
-                    <div class="col-md-6 order-md-2">
-                      <app-fees-box-clickable (feeClicked)="setFeeRate($event)" class="d-block"></app-fees-box-clickable>
-                    </div>
+                    <div class="row mt-4">
 
-                    <!-- Content for the first column (appears second on mobile) -->
-                    <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
+                      <!-- Content for the second column (appears first on mobile) -->
+                      <div class="col-md-6 order-md-2">
+                        <small class="text-muted">Select your preferred fee rate:</small><br>
+                        <app-fees-box-clickable (feeClicked)="setFeeRate($event)" class="d-block"></app-fees-box-clickable>
+                      </div>
 
-                      <form [formGroup]="form" (ngSubmit)="accelerateInscription(x.connectedWallet)">
+                      <!-- Content for the first column (appears second on mobile) -->
+                      <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
-                        <!--
-                        <div class="input-group input-group-lg  mb-1">
-                          <div class="input-group-prepend">
-                            <span class="input-group-text">Output to accelerate</span>
-                          </div>
-                          <input type="text" class="form-control" [formControl]="c.utxo" readonly>
-                          <app-clipboard [button]="true" [text]="c.utxo.value" [class]="'btn btn-lg btn-secondary ml-1'"></app-clipboard>
-                        </div>
-                        -->
-
-                        <div class="input-group input-group-lg mb-1">
+                        <div class="input-group input-group-lg mt-3">
                           <div class="input-group-prepend">
                             <span class="input-group-text">Target fee rate
                             </span>
                           </div>
-                          <input type="text" class="form-control" [formControl]="c.feeRate">
+                          <input type="text" class="form-control" [formControl]="cfeeRate">
                           <div class="input-group-append">
                             <span class="input-group-text">sat/vB</span>
                           </div>
                         </div>
 
-                        <button type="submit" [disabled]="broadcastPsbtSuccess || form.invalid" class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="!broadcastPsbtLoading">
-                          <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" ></fa-icon>
-                          Accelerate my inscription
-                        </button>
+                        <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+                          <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
+                          <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB!</div>
+                          <div *ngIf="cfeeRate.hasError('notFullNumber')">Enter whole numbers only!</div>
+                        </div>
 
-                        <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white float-right" *ngIf="broadcastPsbtLoading">
-                          <i class="spinner-border spinner-border-sm text-light"></i>
-                          Accelerating your inscription…
-                        </button>
-
-                      </form>
+                      </div>
                     </div>
-                  </div>
+
+                    <div class="text-center mt-4">
+
+                      <button type="submit" [disabled]="broadcastPsbtSuccess || form.invalid" class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!broadcastPsbtLoading">
+                        <fa-icon [icon]="['fas', 'rocket']" [fixedWidth]="true" ></fa-icon>
+                        Accelerate my inscription
+                      </button>
+
+                      <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="broadcastPsbtLoading">
+                        <i class="spinner-border spinner-border-sm text-light"></i>
+                        Accelerating your inscription…
+                      </button>
+
+                    </div>
+                  </form>
+
 
                   <div class="alert alert-success" *ngIf="broadcastPsbtSuccess">
                     ✅&nbsp; Your transaction has now been submitted to the mempool for acceleration.<br>
@@ -137,6 +140,7 @@
                     </svg>
                     OrdinalsBot!
                     OrdinalsBot charges a fee of 5% for this service.
+                    <strong>Ordpool does not charge any fees.</strong>
                   </small>
 
                 </ng-container>
@@ -172,7 +176,6 @@
         </div>
       </div>
 
-      <br>
     </ng-container>
   </ng-container>
 </ng-container>
