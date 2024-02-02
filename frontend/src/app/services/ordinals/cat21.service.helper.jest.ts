@@ -1,5 +1,8 @@
+/* eslint-disable no-console */
 import { describe, expect, it } from '@jest/globals';
 import { getMinimumUtxoSize } from './cat21.service.helper';
+import ECPairFactory, { ECPairInterface, networks } from 'ecpair';
+import * as ecc from 'tiny-secp256k1';
 
 describe('getMinimumUtxoSize', () => {
 
@@ -21,5 +24,29 @@ describe('getMinimumUtxoSize', () => {
 
   it('throws an error for unsupported address types', () => {
     expect(() => getMinimumUtxoSize('0xInvalidAddress')).toThrow('Unsupported address type');
+  });
+});
+
+
+/**
+ * Creates a random SECP256k1 keypair via the ECC library
+ */
+export function createRandomPrivateKey(networkString: 'mainnet' | 'testnet'): ECPairInterface {
+  const network = networkString === 'mainnet' ? networks.bitcoin : networks.testnet;
+  const ecPair = ECPairFactory(ecc);
+  return ecPair.makeRandom({ network });
+}
+
+// the key derivation library does not work in the browser!
+// npm install ecpair bip32
+describe('createRandomPrivateKey', () => {
+
+  it('creates 2 random keys for me that I can hardcode', () => {
+
+    const pairMainnet = (createRandomPrivateKey('mainnet'));
+    const pairTestnet = (createRandomPrivateKey('testnet'));
+
+    console.log('*** Mainnet WIF ***' , pairMainnet.toWIF());
+    console.log('*** Testnet WIF ***' , pairTestnet.toWIF());
   });
 });

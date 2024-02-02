@@ -9,7 +9,9 @@ import { Status } from '../../interfaces/electrs.interface';
 import { ApiService } from '../api.service';
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
 import { bytesToHex, hexToBytes } from 'ordpool-parser';
-import { getMinimumUtxoSize } from './cat21.service.helper';
+import { createRandomPrivateKey, getMinimumUtxoSize } from './cat21.service.helper';
+
+
 
 const mempoolMainnetApiUrl = 'https://mempool.space';
 const mempoolTestnetApiUrl = 'https://mempool.space/testnet';
@@ -84,6 +86,7 @@ export class Cat21Service {
     );
   }
 
+  // the payment address for Xverse is always a P2SH-P2WPKH
   private createInputScriptForXverse(paymentPublicKey: Uint8Array, network: typeof btc.NETWORK) {
     const p2wpkh = btc.p2wpkh(paymentPublicKey, network);
     const p2sh = btc.p2sh(p2wpkh, network);
@@ -93,6 +96,7 @@ export class Cat21Service {
     };
   }
 
+  // the payment address for Leather is always a P2SH-P2WPKH
   private createInputScriptForLeather(paymentPublicKey: Uint8Array, network: typeof btc.NETWORK) {
     const p2wpkh = btc.p2wpkh(paymentPublicKey, network);
     return {
@@ -113,12 +117,10 @@ export class Cat21Service {
     const network: typeof btc.NETWORK = this.isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
     const paymentPublicKey: Uint8Array = hex.decode(paymentPublicKeyHex);
 
-
     let scriptInfo: {
       script: Uint8Array;
       redeemScript: Uint8Array | undefined
     };
-
 
     switch (walletType) {
       case KnownOrdinalWalletType.leather:
@@ -251,6 +253,11 @@ export class Cat21Service {
 
         const paymentOutput = largestUTXO;
 
+        // simulate the PSBT first
+        // const keyPair = createRandomPrivateKey(this.isMainnet ? 'mainnet' : 'testnet');
+
+
+        // create the real PSBT
         const psbtBytes: Uint8Array = this.createPSBT(
           walletType,
           recipientAddress,

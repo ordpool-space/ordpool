@@ -6,7 +6,8 @@
     "types": [
       "jest",
       "node"
-    ]
+    ],
+    "allowJs": true
   },
   "include": [
     "src/**/*.spec.ts",
