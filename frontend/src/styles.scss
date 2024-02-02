@@ -99,9 +99,12 @@ $dropdown-link-hover-bg: #11131f;
 $dropdown-link-active-color: #fff;
 $dropdown-link-active-bg: #11131f;
 
-@import "./styles_highlightjs_solarized-dark.scss";
 @import "bootstrap/scss/bootstrap";
 @import 'tlite/tlite.css';
+
+@import "./styles_highlightjs_solarized-dark";
+@import "./styles_form-control";
+
 
 html, body {
   height: 100%;
