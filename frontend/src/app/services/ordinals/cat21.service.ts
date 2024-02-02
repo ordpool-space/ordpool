@@ -9,7 +9,7 @@ import { Status } from '../../interfaces/electrs.interface';
 import { ApiService } from '../api.service';
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
 import { bytesToHex, hexToBytes } from 'ordpool-parser';
-import { createRandomPrivateKey, getMinimumUtxoSize } from './cat21.service.helper';
+import { getHardcodedPrivateKey, getMinimumUtxoSize } from './cat21.service.helper';
 
 
 
@@ -254,7 +254,7 @@ export class Cat21Service {
         const paymentOutput = largestUTXO;
 
         // simulate the PSBT first
-        // const keyPair = createRandomPrivateKey(this.isMainnet ? 'mainnet' : 'testnet');
+        const keyPair = getHardcodedPrivateKey(this.isMainnet);
 
 
         // create the real PSBT

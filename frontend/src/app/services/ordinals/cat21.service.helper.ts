@@ -1,4 +1,5 @@
-import { ECPair } from 'ecpair';
+import ECPairFactory, { ECPairInterface, networks } from 'ecpair';
+const ecc = require('@bitcoinerlab/secp256k1');
 
 /**
  * Determines the minimum UTXO size based on the Bitcoin address type.
@@ -33,15 +34,24 @@ export function getMinimumUtxoSize(address: string): number {
   throw new Error('Unsupported address type');
 }
 
-export const mainnetDummyWIF = 'KxCSQWapwKCk9Fpw5bcrxSPCuyUsfftGC6XNZM5Pj1pYSPg84nTZ';
-export const testnetDummyWIF = 'cUC2eyuM58vaFZTnbbSorJdPBYh62Fe5wULjGshZctNU1irRGVns';
 
 /**
- * Gets a hardoced keypair
+ * Creates a random SECP256k1 keypair via the ECC library
  */
 export function createRandomPrivateKey(isMainnet: boolean): ECPairInterface {
-
-  const keyPair1 = ECPair.fromWIF(isMainnet ?
-  );
+  const network = isMainnet ? networks.bitcoin : networks.testnet;
+  const ecPair = ECPairFactory(ecc);
   return ecPair.makeRandom({ network });
+}
+
+/**
+ * Returns a hardcoded keypair
+ */
+export function getHardcodedPrivateKey(isMainnet: boolean) {
+  const network = isMainnet ? networks.bitcoin : networks.testnet;
+  const mainnetDummyWIF = 'KwFAoPZk4c11vu8xyuBCpCrvHDATU4UofiTY9rARdkoXtZaDcb5k';
+  const testnetDummyWIF = 'cVqWgJgeWP4Bbeso3UtEcocbJ2RcqayQ1RQ9nf2QtQx43kLyz7ac';
+
+  const ecPair = ECPairFactory(ecc);
+  return ecPair.fromWIF(isMainnet ? mainnetDummyWIF : testnetDummyWIF, network);
 }

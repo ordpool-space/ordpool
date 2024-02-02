@@ -18,7 +18,10 @@
       "ES2018",
       "dom",
       "dom.iterable"
-    ]
+    ],
+    "paths": {
+      "stream": ["./node_modules/stream-browserify"],
+    }
   },
   "angularCompilerOptions": {
     "fullTemplateTypeCheck": true,

@@ -57,3 +57,7 @@ import 'zone.js';  // Included with Angular CLI.
  */
 
 (window as any).global = window;
+
+
+// required for the ECC library
+window.Buffer = window.Buffer || require('buffer').Buffer;
