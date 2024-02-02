@@ -1,3 +1,4 @@
+import { ECPair } from 'ecpair';
 
 /**
  * Determines the minimum UTXO size based on the Bitcoin address type.
@@ -30,4 +31,17 @@ export function getMinimumUtxoSize(address: string): number {
   if (address.startsWith('tb1p')) return 330; // P2TR testnet
 
   throw new Error('Unsupported address type');
+}
+
+export const mainnetDummyWIF = 'KxCSQWapwKCk9Fpw5bcrxSPCuyUsfftGC6XNZM5Pj1pYSPg84nTZ';
+export const testnetDummyWIF = 'cUC2eyuM58vaFZTnbbSorJdPBYh62Fe5wULjGshZctNU1irRGVns';
+
+/**
+ * Gets a hardoced keypair
+ */
+export function createRandomPrivateKey(isMainnet: boolean): ECPairInterface {
+
+  const keyPair1 = ECPair.fromWIF(isMainnet ?
+  );
+  return ecPair.makeRandom({ network });
 }
