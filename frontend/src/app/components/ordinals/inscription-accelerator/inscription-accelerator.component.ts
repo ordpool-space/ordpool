@@ -120,7 +120,6 @@ export class InscriptionAcceleratorComponent implements OnInit {
       .subscribe(({ fastestFee, hourFee }) => {
 
         this.hourFee = hourFee;
-
         this.updateMinRequiredFee();
 
         // normal case, user just payed way to less
