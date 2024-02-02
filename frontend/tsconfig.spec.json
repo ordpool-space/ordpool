@@ -2,17 +2,12 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
+    "module": "CommonJs",
     "types": [
-      "jasmine",
-      "node",
-      "cypress",
-      "cypress-wait-until"
-]
+      "jest",
+      "node"
+    ]
   },
-  "files": [
-    "src/test.ts",
-    "src/polyfills.ts"
-  ],
   "include": [
     "src/**/*.spec.ts",
     "src/**/*.d.ts"

@@ -24,6 +24,7 @@ jobs:
 
     - run: npm install
     - run: npm run build
+    - run: npm test
     - run: mv dist/mempool/browser/en-US/* dist/mempool/browser
     - name: Deploy Frontend to `haushoppe/ordpool-build` repo
       if: ${{ github.ref_name != 'main' }}
