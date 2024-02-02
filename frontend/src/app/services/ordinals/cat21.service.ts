@@ -9,6 +9,7 @@ import { Status } from '../../interfaces/electrs.interface';
 import { ApiService } from '../api.service';
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
 import { bytesToHex, hexToBytes } from 'ordpool-parser';
+import { getMinimumUtxoSize } from './cat21.service.helper';
 
 const mempoolMainnetApiUrl = 'https://mempool.space';
 const mempoolTestnetApiUrl = 'https://mempool.space/testnet';
@@ -152,9 +153,8 @@ export class Cat21Service {
       sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
     });
 
-    // Amounts to send
-    const amountToRecipient = 5000n; // Example amount
-
+    // Smallest possible amount
+    const amountToRecipient = BigInt(getMinimumUtxoSize(paymentAddress));
 
     // Calculate change
     const totalAmount = BigInt(paymentOutput.value);
