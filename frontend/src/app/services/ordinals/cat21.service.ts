@@ -1,34 +1,24 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { hexToBytes } from 'ordpool-parser';
 import { from, map, Observable, retry, switchMap } from 'rxjs';
 
-import { Status } from '../../interfaces/electrs.interface';
 import { ApiService } from '../api.service';
 import {
-  createInputScriptForLeather,
-  createInputScriptForXverse,
+  createPSBT,
   getHardcodedPrivateKey,
-  getMinimumUtxoSize,
-  LeatherPSBTBroadcastResponse,
   signTransactionAndBroadcastXverse,
   signTransactionLeather,
 } from './cat21.service.helper';
-import { KnownOrdinalWalletType, WalletService } from './wallet.service';
-
+import { LeatherPSBTBroadcastResponse, TxnOutput } from './cat21.service.types';
+import { WalletService } from './wallet.service';
+import { KnownOrdinalWalletType } from './wallet.service.types';
 
 
 const mempoolMainnetApiUrl = 'https://mempool.space';
 const mempoolTestnetApiUrl = 'https://mempool.space/testnet';
 
-export interface TxnOutput {
-  txid: string;
-  vout: number;
-  status: Status;
-  value: number;
-}
 
 
 @Injectable({
@@ -75,76 +65,10 @@ export class Cat21Service {
     );
   }
 
-  private createPSBT(
-    walletType: KnownOrdinalWalletType,
-    recipientAddress: string,
-
-    paymentOutput: TxnOutput,
-    paymentPublicKeyHex: string,
-    paymentAddress: string
-  ): Uint8Array {
-
-    const network: typeof btc.NETWORK = this.isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
-    const paymentPublicKey: Uint8Array = hex.decode(paymentPublicKeyHex);
-
-    let scriptInfo: {
-      script: Uint8Array;
-      redeemScript: Uint8Array | undefined
-    };
-
-    switch (walletType) {
-      case KnownOrdinalWalletType.leather:
-        scriptInfo = createInputScriptForLeather(paymentPublicKey, network);
-        break;
-
-      case KnownOrdinalWalletType.xverse:
-        scriptInfo = createInputScriptForXverse(paymentPublicKey, network);
-        break;
-
-      case KnownOrdinalWalletType.unisat:
-        throw new Error('The Unisat wallet is right now not supported!');
-
-      default:
-        // this case should never happen, but otherwise the code is not type-safe
-        throw new Error('Unknown wallet');
-    }
-
-    const { script, redeemScript } = scriptInfo;
-
-    const lockTime = 21; // THIS is the most important part 😺
-    const tx = new btc.Transaction({ allowUnknownOutputs: true, lockTime: lockTime });
-
-    tx.addInput({
-      txid: paymentOutput.txid,
-      index: paymentOutput.vout,
-      witnessUtxo: {
-        script: script,
-        amount: BigInt(paymentOutput.value),
-      },
-      redeemScript: redeemScript,
-      sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
-    });
-
-    // Smallest possible amount
-    const amountToRecipient = BigInt(getMinimumUtxoSize(paymentAddress));
-
-    // Calculate change
-    const totalAmount = BigInt(paymentOutput.value);
-    const changeAmount = totalAmount - amountToRecipient - 10000n;
-
-    if (changeAmount < 0) {
-      throw new Error('Insufficient funds for transaction');
-    }
-
-    // Add outputs
-    tx.addOutputAddress(recipientAddress, amountToRecipient, network);
-    tx.addOutputAddress(paymentAddress, changeAmount, network);
-
-    // PSBT as Uint8Array
-    const psbt0 = tx.toPSBT(0);
-    return psbt0;
-  }
-
+  /**
+   * Constructs a PSBT with a CAT-21 mint transaction,
+   * prompts the user to sign it and broadcasts the transaction
+   */
   createCat21Transaction(
     walletType: KnownOrdinalWalletType,
     recipientAddress: string,
@@ -174,13 +98,14 @@ export class Cat21Service {
 
 
         // create the real PSBT
-        const psbtBytes: Uint8Array = this.createPSBT(
+        const psbtBytes: Uint8Array = createPSBT(
           walletType,
           recipientAddress,
 
           paymentOutput,
           paymentPublicKeyHex,
-          paymentAddress
+          paymentAddress,
+          this.isMainnet
         );
 
         switch (walletType) {
