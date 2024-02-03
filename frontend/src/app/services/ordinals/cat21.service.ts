@@ -1,15 +1,22 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { base64, hex } from '@scure/base';
+import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
+import { hexToBytes } from 'ordpool-parser';
 import { from, map, Observable, retry, switchMap } from 'rxjs';
-import { BitcoinNetworkType, signTransaction, SignTransactionResponse } from 'sats-connect';
 
 import { Status } from '../../interfaces/electrs.interface';
 import { ApiService } from '../api.service';
+import {
+  createInputScriptForLeather,
+  createInputScriptForXverse,
+  getHardcodedPrivateKey,
+  getMinimumUtxoSize,
+  LeatherPSBTBroadcastResponse,
+  signTransactionAndBroadcastXverse,
+  signTransactionLeather,
+} from './cat21.service.helper';
 import { KnownOrdinalWalletType, WalletService } from './wallet.service';
-import { bytesToHex, hexToBytes } from 'ordpool-parser';
-import { getHardcodedPrivateKey, getMinimumUtxoSize } from './cat21.service.helper';
 
 
 
@@ -21,24 +28,6 @@ export interface TxnOutput {
   vout: number;
   status: Status;
   value: number;
-}
-
-export interface LeatherPSBTBroadcastResponse {
-  jsonrpc: string;
-  id: string;
-  result: {
-    hex: string;
-  };
-}
-
-// see https://github.com/leather-wallet/extension/blob/8dbfefe8fcf5de687c2a137bce5eb2ff7a94b794/src/shared/rpc/methods/sign-psbt.ts#L49
-interface LeatherSignPsbtRequestParams {
-  hex: string;
-  allowedSighash?: any[];
-  signAtIndex?: number | number[];
-  network?: 'mainnet' | 'testnet' | 'signet' | 'sbtcDevenv' | 'devnet'; // default is user's current network
-  account?: number; // default is user's current account
-  broadcast?: boolean; // default is false - finalize/broadcast tx
 }
 
 
@@ -72,7 +61,7 @@ export class Cat21Service {
   }
 
   /**
-   * Broadcast transaction via the mempool API
+   * Broadcast a transaction via the mempool API
    */
   private broadcastTransactionLeather(resp: LeatherPSBTBroadcastResponse): Observable<{ txId: string }> {
 
@@ -84,25 +73,6 @@ export class Cat21Service {
     return this.apiService.postTransaction$(tx.hex).pipe(
       map(txId => ({ txId })),
     );
-  }
-
-  // the payment address for Xverse is always a P2SH-P2WPKH
-  private createInputScriptForXverse(paymentPublicKey: Uint8Array, network: typeof btc.NETWORK) {
-    const p2wpkh = btc.p2wpkh(paymentPublicKey, network);
-    const p2sh = btc.p2sh(p2wpkh, network);
-    return {
-      script: p2sh.script,
-      redeemScript: p2sh.redeemScript,
-    };
-  }
-
-  // the payment address for Leather is always a P2SH-P2WPKH
-  private createInputScriptForLeather(paymentPublicKey: Uint8Array, network: typeof btc.NETWORK) {
-    const p2wpkh = btc.p2wpkh(paymentPublicKey, network);
-    return {
-      script: p2wpkh.script,
-      redeemScript: undefined,
-    };
   }
 
   private createPSBT(
@@ -124,18 +94,18 @@ export class Cat21Service {
 
     switch (walletType) {
       case KnownOrdinalWalletType.leather:
-        scriptInfo = this.createInputScriptForLeather(paymentPublicKey, network);
+        scriptInfo = createInputScriptForLeather(paymentPublicKey, network);
         break;
 
       case KnownOrdinalWalletType.xverse:
-        scriptInfo = this.createInputScriptForXverse(paymentPublicKey, network);
+        scriptInfo = createInputScriptForXverse(paymentPublicKey, network);
         break;
 
       case KnownOrdinalWalletType.unisat:
-        throw new Error('Due to technical limitations of the Unisat wallet, it is right now not supported!');
+        throw new Error('The Unisat wallet is right now not supported!');
 
       default:
-        // this case should never happen, but otherwise it's not type-safe
+        // this case should never happen, but otherwise the code is not type-safe
         throw new Error('Unknown wallet');
     }
 
@@ -173,60 +143,6 @@ export class Cat21Service {
     // PSBT as Uint8Array
     const psbt0 = tx.toPSBT(0);
     return psbt0;
-  }
-
-
-  private signTransactionAndBroadcastXverse(psbtBytes: Uint8Array, paymentAddress: string): Observable<{ txId: string }> {
-
-    const psbtBase64 = base64.encode(psbtBytes);
-
-    return new Observable<{ txId: string }>((observer) => {
-
-      signTransaction({
-        payload: {
-          network: {
-            type: this.isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet
-          },
-          message: 'Sign Transaction (CAT-21 Mint)',
-          psbtBase64,
-          broadcast: true,
-          inputsToSign: [
-            {
-              address: paymentAddress,
-              signingIndexes: [0],
-              sigHash: btc.SigHash.SINGLE_ANYONECANPAY // 131
-            },
-          ],
-        },
-        onFinish: (response: SignTransactionResponse) => {
-
-          const txId = response.txId || '';
-
-          observer.next({ txId });
-          observer.complete();
-        },
-        onCancel: () => {
-          observer.error(new Error('Request was cancelled'));
-        }
-      });
-    });
-  }
-
-  private async signTransactionLeather(psbtBytes: Uint8Array): Promise<LeatherPSBTBroadcastResponse> {
-
-    const psbtHex = bytesToHex(psbtBytes);
-
-    const signRequestParams: LeatherSignPsbtRequestParams = {
-      hex: psbtHex,
-      allowedSighash: [btc.SigHash.SINGLE_ANYONECANPAY],
-      signAtIndex: 0,
-      network: this.isMainnet ? 'mainnet' : 'testnet',
-      broadcast: false // we will broadcast it via the Mempool API
-    };
-
-    // Sign the PSBT (and broadcast)
-    const result: LeatherPSBTBroadcastResponse = await (window as any).btc.request('signPsbt', signRequestParams);
-    return result;
   }
 
   createCat21Transaction(
@@ -269,20 +185,20 @@ export class Cat21Service {
 
         switch (walletType) {
           case KnownOrdinalWalletType.leather:
-            return from(this.signTransactionLeather(psbtBytes)).pipe(
+            return from(signTransactionLeather(psbtBytes, this.isMainnet)).pipe(
               switchMap(signedPsbt => this.broadcastTransactionLeather(signedPsbt).pipe(
                 retry({ count: 3, delay: 500 })
               ))
             );
 
           case KnownOrdinalWalletType.xverse:
-            return this.signTransactionAndBroadcastXverse(psbtBytes, paymentAddress);
+            return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
 
           case KnownOrdinalWalletType.unisat:
             throw new Error('Due to technical limitations of the Unisat wallet, it is right now not supported!');
 
           default:
-            // this case should never happen, but otherwise it's not type-safe
+            // this case should never happen, but otherwise the code is not type-safe
             throw new Error('Unknown wallet');
         }
       })
