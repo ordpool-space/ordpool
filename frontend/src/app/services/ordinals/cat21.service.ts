@@ -1,15 +1,15 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import { hexToBytes } from 'ordpool-parser';
 import { from, map, Observable, retry, switchMap } from 'rxjs';
 
 import { ApiService } from '../api.service';
 import {
-  createPSBT,
-  getHardcodedPrivateKey,
+  createTransaction,
   signTransactionAndBroadcastXverse,
   signTransactionLeather,
+  simulateTransaction,
 } from './cat21.service.helper';
 import { LeatherPSBTBroadcastResponse, TxnOutput } from './cat21.service.types';
 import { WalletService } from './wallet.service';
@@ -57,7 +57,8 @@ export class Cat21Service {
 
     // as seen in the Leather docs
     const hexRespFromLeather = resp.result.hex;
-    const tx = btc.Transaction.fromPSBT(hexToBytes(hexRespFromLeather));
+    const psbt: Uint8Array = hex.decode(hexRespFromLeather);
+    const tx = btc.Transaction.fromPSBT(psbt);
     tx.finalize();
 
     return this.apiService.postTransaction$(tx.hex).pipe(
@@ -93,20 +94,34 @@ export class Cat21Service {
 
         const paymentOutput = largestUTXO;
 
-        // simulate the PSBT first
-        const keyPair = getHardcodedPrivateKey(this.isMainnet);
+        // simulate the transaction first
+        const vsize = simulateTransaction(
+          walletType,
+          recipientAddress,
+
+          paymentOutput,
+          paymentAddress,
+          this.isMainnet
+        );
+
+        // TODO!
+        const minerFee = 10000; // this is a realistic number
 
 
-        // create the real PSBT
-        const psbtBytes: Uint8Array = createPSBT(
+        // create the real transaction
+        const tx = createTransaction(
           walletType,
           recipientAddress,
 
           paymentOutput,
           paymentPublicKeyHex,
           paymentAddress,
+          minerFee,
           this.isMainnet
         );
+
+        // PSBT as Uint8Array
+        const psbtBytes = tx.toPSBT(0);
 
         switch (walletType) {
           case KnownOrdinalWalletType.leather:
@@ -120,7 +135,7 @@ export class Cat21Service {
             return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
 
           case KnownOrdinalWalletType.unisat:
-            throw new Error('Due to technical limitations of the Unisat wallet, it is right now not supported!');
+            throw new Error('The Unisat wallet is right now not supported!');
 
           default:
             // this case should never happen, but otherwise the code is not type-safe

@@ -1,7 +1,6 @@
-/* eslint-disable no-console */
 import { describe, expect, it } from '@jest/globals';
 
-import { createRandomPrivateKey, getMinimumUtxoSize } from './cat21.service.helper';
+import { getMinimumUtxoSize } from './cat21.service.helper';
 
 describe('getMinimumUtxoSize', () => {
 
@@ -26,17 +25,3 @@ describe('getMinimumUtxoSize', () => {
   });
 });
 
-
-// Warning: this key derivation library does not work in the browser!
-// npm install ecpair bip32 tiny-secp256k1
-describe('createRandomPrivateKey', () => {
-
-  it('creates 2 random keys for me that I can hardcode', () => {
-
-    const pairMainnet = (createRandomPrivateKey(true));
-    const pairTestnet = (createRandomPrivateKey(false));
-
-    console.log('*** Mainnet WIF ***' , pairMainnet.toWIF());
-    console.log('*** Testnet WIF ***' , pairTestnet.toWIF());
-  });
-});

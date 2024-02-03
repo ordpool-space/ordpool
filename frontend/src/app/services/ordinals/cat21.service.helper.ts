@@ -1,8 +1,6 @@
-import * as ecc from '@bitcoinerlab/secp256k1';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { base64, hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import ECPairFactory, { ECPairInterface, networks } from 'ecpair';
-import { bytesToHex } from 'ordpool-parser';
 import { Observable } from 'rxjs';
 import { BitcoinNetworkType, signTransaction, SignTransactionResponse } from 'sats-connect';
 
@@ -43,28 +41,6 @@ export function getMinimumUtxoSize(address: string): number {
 }
 
 /**
- * Creates a random SECP256k1 keypair via the ECC library
- */
-export function createRandomPrivateKey(isMainnet: boolean): ECPairInterface {
-  const network = isMainnet ? networks.bitcoin : networks.testnet;
-  const ecPair = ECPairFactory(ecc);
-  return ecPair.makeRandom({ network });
-}
-
-/**
- * Returns a hardcoded keypair
- * This keypair should ne NEVER user for real transactions
- */
-export function getHardcodedPrivateKey(isMainnet: boolean) {
-  const network = isMainnet ? networks.bitcoin : networks.testnet;
-  const mainnetDummyWIF = 'KwFAoPZk4c11vu8xyuBCpCrvHDATU4UofiTY9rARdkoXtZaDcb5k';
-  const testnetDummyWIF = 'cVqWgJgeWP4Bbeso3UtEcocbJ2RcqayQ1RQ9nf2QtQx43kLyz7ac';
-
-  const ecPair = ECPairFactory(ecc);
-  return ecPair.fromWIF(isMainnet ? mainnetDummyWIF : testnetDummyWIF, network);
-}
-
-/**
  * Creates an input script for the Xverse wallet
  * (the payment address for Xverse is always a P2SH-P2WPKH)
  */
@@ -90,17 +66,18 @@ export function createInputScriptForLeather(paymentPublicKey: Uint8Array, networ
 }
 
 /**
- * Constructs a PSBT with a CAT-21 mint transaction
+ * Constructs a CAT-21 mint transaction
  */
-export function createPSBT(
+export function createTransaction(
   walletType: KnownOrdinalWalletType,
   recipientAddress: string,
 
   paymentOutput: TxnOutput,
   paymentPublicKeyHex: string,
   paymentAddress: string,
+  minerFeeInSats: number,
   isMainnet: boolean
-): Uint8Array {
+): btc.Transaction {
 
   const network: typeof btc.NETWORK = isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
   const paymentPublicKey: Uint8Array = hex.decode(paymentPublicKeyHex);
@@ -130,7 +107,10 @@ export function createPSBT(
   const { script, redeemScript } = scriptInfo;
 
   const lockTime = 21; // THIS is the most important part 😺
-  const tx = new btc.Transaction({ allowUnknownOutputs: true, lockTime: lockTime });
+  const tx = new btc.Transaction({
+    allowUnknownOutputs: true, // Allow output scripts to be unknown scripts (probably unspendable) -- TODO: check if really required!
+    lockTime
+  });
 
   tx.addInput({
     txid: paymentOutput.txid,
@@ -148,7 +128,7 @@ export function createPSBT(
 
   // Calculate change
   const totalAmount = BigInt(paymentOutput.value);
-  const changeAmount = totalAmount - amountToRecipient - BigInt(10000);
+  const changeAmount = totalAmount - amountToRecipient - BigInt(minerFeeInSats);
 
   if (changeAmount < 0) {
     throw new Error('Insufficient funds for transaction');
@@ -158,15 +138,48 @@ export function createPSBT(
   tx.addOutputAddress(recipientAddress, amountToRecipient, network);
   tx.addOutputAddress(paymentAddress, changeAmount, network);
 
-  // PSBT as Uint8Array
-  const psbt0 = tx.toPSBT(0);
-  return psbt0;
+  return tx;
+}
+
+/**
+ * Constructs a fake CAT-21 mint transaction,
+ * finalizes the txn and receives the vsize
+ */
+export function simulateTransaction(
+  walletType: KnownOrdinalWalletType,
+  recipientAddress: string,
+
+  paymentOutput: TxnOutput,
+  paymentAddress: string,
+  isMainnet: boolean
+): number {
+
+  const dummyPrivKey: Uint8Array = hex.decode('0101010101010101010101010101010101010101010101010101010101010101');
+  const dummyPubKey: Uint8Array = secp256k1.getPublicKey(dummyPrivKey, true);
+  const dummyPubKeyHex: string = hex.encode(dummyPubKey);
+
+  const minerFee = 10000; // this is a realistic number
+
+  const tx = createTransaction(
+    walletType,
+    recipientAddress,
+    paymentOutput,
+    dummyPubKeyHex, // !
+    paymentAddress,
+    minerFee,
+    isMainnet);
+
+  tx.signIdx(dummyPrivKey, 0, [btc.SigHash.SINGLE_ANYONECANPAY]);
+  tx.finalize();
+  const vsize = tx.vsize; // 🎉
+
+  return vsize;
 }
 
 export async function signTransactionLeather(psbtBytes: Uint8Array, isMainnet: boolean): Promise<LeatherPSBTBroadcastResponse> {
 
   const network = isMainnet ? 'mainnet' : 'testnet';
-  const psbtHex = bytesToHex(psbtBytes);
+  const psbtHex: string = hex.encode(psbtBytes);
 
   const signRequestParams: LeatherSignPsbtRequestParams = {
     hex: psbtHex,
