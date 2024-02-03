@@ -3,7 +3,8 @@ import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { take } from 'rxjs';
 
 import { Cat21Service } from '../../../services/ordinals/cat21.service';
-import { KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
+import { WalletService } from '../../../services/ordinals/wallet.service';
+import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';

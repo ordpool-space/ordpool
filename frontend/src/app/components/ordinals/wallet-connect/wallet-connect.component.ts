@@ -1,18 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { limitArray } from './limit-array';
-
-import {
-  InscriptionAcceleration,
-  InscriptionAcceleratorApiService,
-} from '../../../services/ordinals/inscription-accelerator-api.service';
-import {
-  KnownOrdinalWallets,
-  KnownOrdinalWalletType,
-  WalletInfo,
-  WalletService,
-} from '../../../services/ordinals/wallet.service';
 import { map } from 'rxjs';
+
+import { InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
+import { WalletService } from '../../../services/ordinals/wallet.service';
+import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
+import { limitArray } from './limit-array';
 
 
 @Component({

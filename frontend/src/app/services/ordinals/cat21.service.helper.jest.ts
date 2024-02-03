@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { describe, expect, it } from '@jest/globals';
+
 import { createRandomPrivateKey, getMinimumUtxoSize } from './cat21.service.helper';
 
 describe('getMinimumUtxoSize', () => {

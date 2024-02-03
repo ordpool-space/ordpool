@@ -1,15 +1,19 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
+import { DigitalArtifact, DigitalArtifactType, ParsedInscription } from 'ordpool-parser';
 import { map, Observable, take } from 'rxjs';
 
-import { Transaction } from '../../../interfaces/electrs.interface';
-import { InscriptionAcceleration, InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
-import { KnownOrdinalWalletType, WalletInfo, WalletService } from '../../../services/ordinals/wallet.service';
-import { StateService } from '../../../services/state.service';
-import { extractErrorMessage } from './extract-error-message';
-import { DigitalArtifact, DigitalArtifactType, ParsedInscription } from 'ordpool-parser';
 import { environment } from '../../../../environments/environment';
+import { Transaction } from '../../../interfaces/electrs.interface';
+import {
+  InscriptionAcceleration,
+  InscriptionAcceleratorApiService,
+} from '../../../services/ordinals/inscription-accelerator-api.service';
+import { WalletService } from '../../../services/ordinals/wallet.service';
+import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
+import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
+import { extractErrorMessage } from './extract-error-message';
 
 
 @Component({

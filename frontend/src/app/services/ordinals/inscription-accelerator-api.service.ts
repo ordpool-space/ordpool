@@ -7,7 +7,8 @@ import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
 
 import { ApiService } from '../api.service';
 import { StorageService } from '../storage.service';
-import { KnownOrdinalWalletType, WalletService } from './wallet.service';
+import { WalletService } from './wallet.service';
+import { KnownOrdinalWalletType } from './wallet.service.types';
 
 
 export const LAST_INSCRIPTION_ACCELERATIONS = 'LAST_INSCRIPTION_ACCELERATIONS';

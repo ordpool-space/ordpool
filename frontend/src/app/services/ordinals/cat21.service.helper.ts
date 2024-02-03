@@ -6,6 +6,8 @@ import { bytesToHex } from 'ordpool-parser';
 import { Observable } from 'rxjs';
 import { BitcoinNetworkType, signTransaction, SignTransactionResponse } from 'sats-connect';
 
+import { LeatherPSBTBroadcastResponse, LeatherSignPsbtRequestParams, TxnOutput } from './cat21.service.types';
+import { KnownOrdinalWalletType } from './wallet.service.types';
 
 /**
  * Determines the minimum UTXO size based on the Bitcoin address type.
@@ -87,22 +89,78 @@ export function createInputScriptForLeather(paymentPublicKey: Uint8Array, networ
   };
 }
 
-// see https://github.com/leather-wallet/extension/blob/8dbfefe8fcf5de687c2a137bce5eb2ff7a94b794/src/shared/rpc/methods/sign-psbt.ts#L49
-export interface LeatherSignPsbtRequestParams {
-  hex: string;
-  allowedSighash?: any[];
-  signAtIndex?: number | number[];
-  network?: 'mainnet' | 'testnet' | 'signet' | 'sbtcDevenv' | 'devnet'; // default is user's current network
-  account?: number; // default is user's current account
-  broadcast?: boolean; // default is false - finalize/broadcast tx
-}
+/**
+ * Constructs a PSBT with a CAT-21 mint transaction
+ */
+export function createPSBT(
+  walletType: KnownOrdinalWalletType,
+  recipientAddress: string,
 
-export interface LeatherPSBTBroadcastResponse {
-  jsonrpc: string;
-  id: string;
-  result: {
-    hex: string;
+  paymentOutput: TxnOutput,
+  paymentPublicKeyHex: string,
+  paymentAddress: string,
+  isMainnet: boolean
+): Uint8Array {
+
+  const network: typeof btc.NETWORK = isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
+  const paymentPublicKey: Uint8Array = hex.decode(paymentPublicKeyHex);
+
+  let scriptInfo: {
+    script: Uint8Array;
+    redeemScript: Uint8Array | undefined
   };
+
+  switch (walletType) {
+    case KnownOrdinalWalletType.leather:
+      scriptInfo = createInputScriptForLeather(paymentPublicKey, network);
+      break;
+
+    case KnownOrdinalWalletType.xverse:
+      scriptInfo = createInputScriptForXverse(paymentPublicKey, network);
+      break;
+
+    case KnownOrdinalWalletType.unisat:
+      throw new Error('The Unisat wallet is right now not supported!');
+
+    default:
+      // this case should never happen, but otherwise the code is not type-safe
+      throw new Error('Unknown wallet');
+  }
+
+  const { script, redeemScript } = scriptInfo;
+
+  const lockTime = 21; // THIS is the most important part 😺
+  const tx = new btc.Transaction({ allowUnknownOutputs: true, lockTime: lockTime });
+
+  tx.addInput({
+    txid: paymentOutput.txid,
+    index: paymentOutput.vout,
+    witnessUtxo: {
+      script: script,
+      amount: BigInt(paymentOutput.value),
+    },
+    redeemScript: redeemScript,
+    sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
+  });
+
+  // Smallest possible amount
+  const amountToRecipient = BigInt(getMinimumUtxoSize(paymentAddress));
+
+  // Calculate change
+  const totalAmount = BigInt(paymentOutput.value);
+  const changeAmount = totalAmount - amountToRecipient - BigInt(10000);
+
+  if (changeAmount < 0) {
+    throw new Error('Insufficient funds for transaction');
+  }
+
+  // Add outputs
+  tx.addOutputAddress(recipientAddress, amountToRecipient, network);
+  tx.addOutputAddress(paymentAddress, changeAmount, network);
+
+  // PSBT as Uint8Array
+  const psbt0 = tx.toPSBT(0);
+  return psbt0;
 }
 
 export async function signTransactionLeather(psbtBytes: Uint8Array, isMainnet: boolean): Promise<LeatherPSBTBroadcastResponse> {
