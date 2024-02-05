@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { take } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, EMPTY, filter, map, merge, of, retry, startWith, switchMap, take, tap } from 'rxjs';
 
 import { Cat21Service } from '../../../services/ordinals/cat21.service';
 import { WalletService } from '../../../services/ordinals/wallet.service';
@@ -8,6 +8,10 @@ import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/w
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
+import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
+import { PriceService } from '../../../services/price.service';
+import { getFileInfo } from 'prettier';
+
 
 @Component({
   selector: 'app-cat21-mint',
@@ -23,8 +27,109 @@ export class Cat21MintComponent implements OnInit {
 
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
+  selectedFeeRate$ = new BehaviorSubject<number>(0);
 
-  minRequiredFee: number  = 0;
+  // getBlockPrice$ = inject(PriceService).getBlockPrice$(undefined, true);
+
+  selectedPaymentOutput: {
+    simulation: SimulateTransactionResult;
+    paymentOutput: TxnOutput;
+  } | undefined = undefined;
+
+
+  form = new FormGroup({
+    // TODO
+    // catRecipient: new FormControl(0, {
+    //   validators: [Validators.required],
+    //   nonNullable: true
+    // }),
+    feeRate: new FormControl(1, {
+      validators: [Validators.required, Validators.min(1)],
+      nonNullable: true
+    })
+  });
+
+  cfeeRate = this.form.controls.feeRate;
+
+  paymentOutputsForCurrentWallet$ = this.connectedWallet$.pipe(
+    switchMap(wallet => this.cat21Service.getUtxos(wallet?.paymentAddress).pipe(
+      retry({ count: 3, delay: 500 }),
+      map(paymentOutputs => ({
+        paymentOutputs,
+        wallet,
+        error: undefined as Error
+      })),
+      catchError(error => of({
+        paymentOutputs: [] as TxnOutput[],
+        wallet: undefined as WalletInfo,
+        error: error as Error
+      }))
+    ))
+  );
+
+  paymentOutputs$ = combineLatest([
+    this.paymentOutputsForCurrentWallet$,
+    this.selectedFeeRate$
+  ]).pipe(
+
+    map(([{ paymentOutputs, wallet, error }, feeRate]) => {
+
+      if (error) {
+        this.mintCat21Error = extractErrorMessage(error);
+        return [];
+      }
+
+      // feeRate is not yet available, or user removed the input
+      if (!feeRate) {
+        return [];
+      }
+
+      // Sort UTXOs by value in descending order
+      return (paymentOutputs || [])
+        .sort((a, b) => b.value - a.value)
+        .map((paymentOutput: TxnOutput) => {
+
+          try {
+            // simulate the transaction with 0 miner fee
+            const simulation1 = this.cat21Service.simulateTransaction(
+              wallet.type,
+              wallet.ordinalsAddress,
+
+              paymentOutput,
+              wallet.paymentAddress,
+              BigInt(0)
+            );
+
+            const transactionFee = BigInt(simulation1.vsize * feeRate);
+
+            // simulate the transaction again, with exact transactionFee
+            const simulation2 = this.cat21Service.simulateTransaction(
+              wallet.type,
+              wallet.ordinalsAddress,
+
+              paymentOutput,
+              wallet.paymentAddress,
+              transactionFee
+            );
+
+            return {
+              simulation: simulation2,
+              paymentOutput
+            };
+
+          } catch(error) {
+            // Throws an Error if paymentOutput has not enough funds!
+            // - 'Insufficient funds for transaction' via the createTransaction
+            // - 'Outputs spends more than inputs amount' when we finalize (second safety net)
+            return undefined;
+          }
+        })
+        .filter(x => x); // removes payments with not enough funds
+    }),
+    tap(simulateTransactions => this.selectedPaymentOutput = simulateTransactions[0])
+  );
+
+  minRequiredFee: number = 0;
 
   mintCat21Loading = false;
   mintCat21Success?: { txId: string } = undefined;
@@ -32,19 +137,6 @@ export class Cat21MintComponent implements OnInit {
 
   KnownOrdinalWalletType = KnownOrdinalWalletType;
 
-  form = new FormGroup({
-    // TODO
-    catRecipient: new FormControl(0, {
-      validators: [Validators.required],
-      nonNullable: true
-    }),
-    feeRate: new FormControl(0, {
-      validators: [Validators.required, Validators.min(1)],
-      nonNullable: true
-    })
-  });
-
-  cfeeRate = this.form.controls.feeRate;
 
   ngOnInit(): void {
     this.recommendedFees$.pipe(take(1))
@@ -54,10 +146,17 @@ export class Cat21MintComponent implements OnInit {
 
         if (fastestFee > this.minRequiredFee) {
           this.cfeeRate.setValue(fastestFee);
+
+          // tigger event manually, otherwise we will miss it
+          // (after routing, when recommendedFees are instant available)
+          this.selectedFeeRate$.next(fastestFee);
         }
 
         this.cd.detectChanges();
       });
+
+    // triggers an update to for every form change
+    this.cfeeRate.valueChanges.subscribe(this.selectedFeeRate$);
   }
 
   private updateMinRequiredFee(hourFee: number) {
@@ -81,27 +180,43 @@ export class Cat21MintComponent implements OnInit {
     this.form.patchValue({ feeRate });
   }
 
-  mintCat21(walletInfo: WalletInfo): void {
+  mintCat21(wallet: WalletInfo): void {
+
+    if (!this.selectedPaymentOutput) {
+      throw new Error('No UTXO selected!');
+    }
+
+    const paymentOutput = this.selectedPaymentOutput.paymentOutput;
+    const transactionFee = this.selectedPaymentOutput.simulation.finalTransactionFee;
 
     this.mintCat21Loading = true;
     this.mintCat21Success = undefined;
     this.mintCat21Error = '';
 
+
     this.cat21Service.createCat21Transaction(
-      walletInfo.type,
-      walletInfo.ordinalsAddress,
-      walletInfo.paymentAddress,
-      walletInfo.paymentPublicKey).subscribe({
-        next: (result) => {
-          this.mintCat21Loading = false;
-          this.mintCat21Success = result,
+      wallet.type,
+      wallet.ordinalsAddress,
+
+      paymentOutput,
+      wallet.paymentAddress,
+      wallet.paymentPublicKey,
+      transactionFee
+    ).subscribe({
+      next: (result) => {
+        this.mintCat21Loading = false;
+        this.mintCat21Success = result,
           this.cd.detectChanges();
-        },
-        error: (err: Error) => {
-          this.mintCat21Loading = false;
-          this.mintCat21Error = extractErrorMessage(err);
-          this.cd.detectChanges();
-        }
-      });
+      },
+      error: (err: Error) => {
+        this.mintCat21Loading = false;
+        this.mintCat21Error = extractErrorMessage(err);
+        this.cd.detectChanges();
+      }
+    });
+  }
+
+  toNumber(number: bigint): number {
+    return Number(number);
   }
 }

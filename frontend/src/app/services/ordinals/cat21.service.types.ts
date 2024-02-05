@@ -1,4 +1,5 @@
 import { Status } from '../../interfaces/electrs.interface';
+import * as btc from '@scure/btc-signer';
 
 export interface TxnOutput {
   txid: string;
@@ -24,3 +25,25 @@ export interface LeatherPSBTBroadcastResponse {
     hex: string;
   };
 }
+
+export interface DummyKeypairResult {
+  dummyPrivateKey: Uint8Array
+  dummyPublicKey: Uint8Array,
+  dummyPublicKeyHex: string,
+  addressP2PKH: string,
+  addressP2WPKH: string,
+  addressP2TR: string
+}
+
+export interface CreateTransactionResult {
+  tx: btc.Transaction | null,
+  amountToRecipient: bigint, // always 546
+  singleInputAmount: bigint,
+  changeAmount: bigint,
+  finalTransactionFee: bigint
+}
+
+export interface SimulateTransactionResult extends CreateTransactionResult {
+  vsize: number
+}
+

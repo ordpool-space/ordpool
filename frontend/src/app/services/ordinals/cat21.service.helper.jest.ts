@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { getMinimumUtxoSize } from './cat21.service.helper';
+import { createTransaction, getDummyKeypair, getMinimumUtxoSize } from './cat21.service.helper';
+import { KnownOrdinalWalletType } from './wallet.service.types';
+import { sha256 } from '@noble/hashes/sha256';
+import { hex } from '@scure/base';
+
 
 describe('getMinimumUtxoSize', () => {
 
@@ -25,3 +29,68 @@ describe('getMinimumUtxoSize', () => {
   });
 });
 
+// prices: 1BTC == 42855 USD
+describe('createTransaction', () => {
+  const paymentUtxo = {
+    txid: hex.encode(sha256('text-txid')),
+    vout: 0,
+    value: 10000, // 10000 sats ($4.28)
+    status: { } as any,
+  };
+
+  const { dummyPublicKeyHex, addressP2PKH, addressP2TR } = getDummyKeypair();
+
+  it('creates only one output if change would be below dust limit, miner gets some more fees', () => {
+
+    const { tx } = createTransaction(
+      KnownOrdinalWalletType.xverse,
+      addressP2TR,
+      paymentUtxo,
+      dummyPublicKeyHex,
+      addressP2PKH,
+      BigInt(9000), // High fee to ensure change of 454 sats ($0.19) is below dust limit of 546 sats ($0.23)
+      true
+    );
+
+    if (!tx) {
+      throw Error('Transaction expected');
+    }
+
+    expect(tx.outputsLength).toBe(1);
+    expect(tx.getOutput(0).amount).toBe(BigInt(546));
+  });
+
+  it('creates two outputs if change is above dust limit', () => {
+
+    const { tx } = createTransaction(
+      KnownOrdinalWalletType.xverse,
+      addressP2TR,
+      paymentUtxo,
+      dummyPublicKeyHex,
+      addressP2PKH,
+      BigInt(5000), // Lower fee to ensure change of 4.454 sats ($1.91) is above dust limit of 546 sats ($0.23)
+      true
+    );
+
+    if (!tx) {
+      throw Error('Transaction expected');
+    }
+
+    expect(tx.outputsLength).toBe(2);
+    expect(tx.getOutput(0).amount).toBe(BigInt(546));
+    expect(tx.getOutput(1).amount).toBe(BigInt(4454));
+  });
+
+  it('fails with an exeption if funds are too low', () => {
+
+    expect(() => createTransaction(
+      KnownOrdinalWalletType.xverse,
+      addressP2TR,
+      paymentUtxo,
+      dummyPublicKeyHex,
+      addressP2PKH,
+      BigInt(9000 + 1000), // now we are out of money, change would be negative
+      true
+    )).toThrowError(new Error('Insufficient funds for transaction'));
+  });
+});

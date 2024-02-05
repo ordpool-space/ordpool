@@ -7,11 +7,11 @@ import { from, map, Observable, retry, switchMap } from 'rxjs';
 import { ApiService } from '../api.service';
 import {
   createTransaction,
+  getDummyKeypair,
   signTransactionAndBroadcastXverse,
   signTransactionLeather,
-  simulateTransaction,
 } from './cat21.service.helper';
-import { LeatherPSBTBroadcastResponse, TxnOutput } from './cat21.service.types';
+import { LeatherPSBTBroadcastResponse, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
 import { WalletService } from './wallet.service';
 import { KnownOrdinalWalletType } from './wallet.service.types';
 
@@ -46,7 +46,12 @@ export class Cat21Service {
    * @param address The Bitcoin address to query.
    * @returns An Observable of UTXO array.
    */
-  private getUtxos(address: string): Observable<TxnOutput[]> {
+  public getUtxos(address: string): Observable<TxnOutput[]> {
+
+    if (!address) {
+      throw new Error('No wallet connected');
+    }
+
     return this.http.get<TxnOutput[]>(`${this.mempoolApiUrl}/api/address/${address}/utxo`);
   }
 
@@ -67,81 +72,90 @@ export class Cat21Service {
   }
 
   /**
+   * Constructs a fake CAT-21 mint transaction,
+   * finalizes the txn and receives the vsize
+   *
+   * Throws an Error if paymentOutput has not enough funds!
+   * - 'Insufficient funds for transaction' via the createTransaction
+   * - 'Outputs spends more than inputs amount' when we finalize (second safety net)
+   */
+  simulateTransaction(
+    walletType: KnownOrdinalWalletType,
+    recipientAddress: string,
+
+    paymentOutput: TxnOutput,
+    paymentAddress: string,
+    transactionFee: bigint
+  ): SimulateTransactionResult {
+
+    const { dummyPrivateKey, dummyPublicKeyHex } = getDummyKeypair();
+
+    const result = createTransaction(
+      walletType,
+      recipientAddress,
+      paymentOutput,
+      dummyPublicKeyHex, // !
+      paymentAddress,
+      transactionFee,
+      this.isMainnet
+    );
+
+    result.tx.signIdx(dummyPrivateKey, 0, [btc.SigHash.SINGLE_ANYONECANPAY]);
+    result.tx.finalize();
+    const vsize = result.tx.vsize; // 🎉
+
+    return {
+      ...result,
+      vsize
+    };
+  }
+
+  /**
    * Constructs a PSBT with a CAT-21 mint transaction,
    * prompts the user to sign it and broadcasts the transaction
    */
   createCat21Transaction(
     walletType: KnownOrdinalWalletType,
     recipientAddress: string,
+
+    paymentOutput: TxnOutput,
     paymentAddress: string,
-    paymentPublicKeyHex: string): Observable<{ txId: string }> {
+    paymentPublicKeyHex: string,
+    transactionFee: bigint
+  ): Observable<{ txId: string }> {
 
-    return this.getUtxos(paymentAddress).pipe(
-      retry({ count: 3, delay: 500 }),
-      switchMap(paymentUnspentOutputs => {
+    // create the real transaction
+    const { tx } = createTransaction(
+      walletType,
+      recipientAddress,
 
-        if (!paymentUnspentOutputs || paymentUnspentOutputs.length === 0) {
-          throw new Error(`No unspent outputs (UTXOs) found for payment address. Please load up your wallet's payment address: ${paymentAddress}`);
-        }
-
-        // Sort UTXOs by value in descending order and select the largest one
-        const largestUTXO = paymentUnspentOutputs.sort((a, b) => b.value - a.value)[0];
-
-        // TODO: calculate the required value (not just hardcoded)
-        if (largestUTXO.value < 20000) {
-          throw new Error(`Not enough funds in your payment address. Pleae load up your wallet's payment address: ${paymentAddress}`);
-        }
-
-        const paymentOutput = largestUTXO;
-
-        // simulate the transaction first
-        const vsize = simulateTransaction(
-          walletType,
-          recipientAddress,
-
-          paymentOutput,
-          paymentAddress,
-          this.isMainnet
-        );
-
-        // TODO!
-        const minerFee = 10000; // this is a realistic number
-
-
-        // create the real transaction
-        const tx = createTransaction(
-          walletType,
-          recipientAddress,
-
-          paymentOutput,
-          paymentPublicKeyHex,
-          paymentAddress,
-          minerFee,
-          this.isMainnet
-        );
-
-        // PSBT as Uint8Array
-        const psbtBytes = tx.toPSBT(0);
-
-        switch (walletType) {
-          case KnownOrdinalWalletType.leather:
-            return from(signTransactionLeather(psbtBytes, this.isMainnet)).pipe(
-              switchMap(signedPsbt => this.broadcastTransactionLeather(signedPsbt).pipe(
-                retry({ count: 3, delay: 500 })
-              ))
-            );
-
-          case KnownOrdinalWalletType.xverse:
-            return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
-
-          case KnownOrdinalWalletType.unisat:
-            throw new Error('The Unisat wallet is right now not supported!');
-
-          default:
-            // this case should never happen, but otherwise the code is not type-safe
-            throw new Error('Unknown wallet');
-        }
-      })
+      paymentOutput,
+      paymentPublicKeyHex,
+      paymentAddress,
+      transactionFee,
+      this.isMainnet
     );
+
+    // PSBT as Uint8Array
+    const psbtBytes = tx.toPSBT(0);
+
+    switch (walletType) {
+      case KnownOrdinalWalletType.leather:
+        return from(signTransactionLeather(psbtBytes, this.isMainnet)).pipe(
+          switchMap(signedPsbt => this.broadcastTransactionLeather(signedPsbt).pipe(
+            retry({ count: 3, delay: 500 })
+          ))
+        );
+
+      case KnownOrdinalWalletType.xverse:
+        return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
+
+      case KnownOrdinalWalletType.unisat:
+        throw new Error('The Unisat wallet is right now not supported!');
+
+      default:
+        // this case should never happen, but otherwise the code is not type-safe
+        throw new Error('Unknown wallet');
+    }
   }
 }
