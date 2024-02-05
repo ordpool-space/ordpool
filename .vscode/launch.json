@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Jest Tests (Browser env)",
+      "program": "${workspaceFolder}/frontend/node_modules/.bin/jest",
+      "args": [
+        "--runInBand",
+        "--config",
+        "frontend/jest.config.js"
+      ]
+    }, {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Jest Tests (Node env)",
+      "program": "${workspaceFolder}/frontend/node_modules/.bin/jest",
+      "args": [
+        "--runInBand",
+        "--config",
+        "frontend/jest.config.node.js"
+      ]
+    }
+  ]
+}
