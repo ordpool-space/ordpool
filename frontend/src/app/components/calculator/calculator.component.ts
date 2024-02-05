@@ -40,7 +40,7 @@ export class CalculatorComponent implements OnInit {
     let currency;
     this.price$ = this.currency$.pipe(
       switchMap((result) => {
-        currency = result; 
+        currency = result;
         return this.stateService.conversions$.asObservable();
       }),
       map((conversions) => {

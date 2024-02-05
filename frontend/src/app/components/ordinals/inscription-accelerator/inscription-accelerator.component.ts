@@ -166,7 +166,7 @@ export class InscriptionAcceleratorComponent implements OnInit {
       next: (result) => {
 
         this.broadcastPsbtSuccess = result,
-          this.broadcastPsbtLoading = false;
+        this.broadcastPsbtLoading = false;
         this.cd.detectChanges();
       },
       error: (err: Error) => {
