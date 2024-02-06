@@ -1,16 +1,14 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, catchError, combineLatest, EMPTY, filter, map, merge, of, retry, startWith, switchMap, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, map, of, retry, switchMap, take, tap } from 'rxjs';
 
 import { Cat21Service } from '../../../services/ordinals/cat21.service';
+import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
 import { WalletService } from '../../../services/ordinals/wallet.service';
 import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
-import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
-import { PriceService } from '../../../services/price.service';
-import { getFileInfo } from 'prettier';
 
 
 @Component({
@@ -28,8 +26,6 @@ export class Cat21MintComponent implements OnInit {
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
   selectedFeeRate$ = new BehaviorSubject<number>(0);
-
-  // getBlockPrice$ = inject(PriceService).getBlockPrice$(undefined, true);
 
   selectedPaymentOutput: {
     simulation: SimulateTransactionResult;
@@ -53,6 +49,10 @@ export class Cat21MintComponent implements OnInit {
 
   paymentOutputsForCurrentWallet$ = this.connectedWallet$.pipe(
     switchMap(wallet => this.cat21Service.getUtxos(wallet?.paymentAddress).pipe(
+      tap(() => {
+        this.utxoLoading = true;
+        this.utxoError = '';
+      }),
       retry({ count: 3, delay: 500 }),
       map(paymentOutputs => ({
         paymentOutputs,
@@ -63,7 +63,11 @@ export class Cat21MintComponent implements OnInit {
         paymentOutputs: [] as TxnOutput[],
         wallet: undefined as WalletInfo,
         error: error as Error
-      }))
+      })),
+      tap(({ error }) => {
+        this.utxoLoading = false;
+        this.utxoError = error ? extractErrorMessage(error) : '';
+      }),
     ))
   );
 
@@ -75,7 +79,6 @@ export class Cat21MintComponent implements OnInit {
     map(([{ paymentOutputs, wallet, error }, feeRate]) => {
 
       if (error) {
-        this.mintCat21Error = extractErrorMessage(error);
         return [];
       }
 
@@ -126,6 +129,7 @@ export class Cat21MintComponent implements OnInit {
         })
         .filter(x => x); // removes payments with not enough funds
     }),
+    // sets it to the largest available UTXO or to undefined
     tap(simulateTransactions => this.selectedPaymentOutput = simulateTransactions[0])
   );
 
@@ -134,6 +138,9 @@ export class Cat21MintComponent implements OnInit {
   mintCat21Loading = false;
   mintCat21Success?: { txId: string } = undefined;
   mintCat21Error = '';
+
+  utxoLoading = false;
+  utxoError = '';
 
   KnownOrdinalWalletType = KnownOrdinalWalletType;
 
@@ -146,12 +153,10 @@ export class Cat21MintComponent implements OnInit {
 
         if (fastestFee > this.minRequiredFee) {
           this.cfeeRate.setValue(fastestFee);
-
-          // tigger event manually, otherwise we will miss it
-          // (after routing, when recommendedFees are instant available)
-          this.selectedFeeRate$.next(fastestFee);
         }
 
+        // always tigger event manually here, otherwise we will miss it in some constellations
+        this.selectedFeeRate$.next(this.cfeeRate.value);
         this.cd.detectChanges();
       });
 

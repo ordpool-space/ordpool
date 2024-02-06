@@ -30,7 +30,7 @@ export const KnownOrdinalWallets: { [K in KnownOrdinalWalletType]: KnownOrdinalW
   [KnownOrdinalWalletType.unisat]: {
     type: KnownOrdinalWalletType.unisat,
     label: 'Unisat',
-    subLabel: '(not fully supported)',
+    // subLabel: '(not fully supported)',
     logo: '/resources/ordinal-wallets/btc-unisat-logo.svg',
     downloadLink: 'https://unisat.io/download'
   }

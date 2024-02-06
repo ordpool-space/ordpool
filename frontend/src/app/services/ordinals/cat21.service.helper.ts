@@ -4,7 +4,13 @@ import * as btc from '@scure/btc-signer';
 import { Observable } from 'rxjs';
 import { BitcoinNetworkType, signTransaction, SignTransactionResponse } from 'sats-connect';
 
-import { CreateTransactionResult, DummyKeypairResult, LeatherPSBTBroadcastResponse, LeatherSignPsbtRequestParams, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
+import {
+  CreateTransactionResult,
+  DummyKeypairResult,
+  LeatherPSBTBroadcastResponse,
+  LeatherSignPsbtRequestParams,
+  TxnOutput,
+} from './cat21.service.types';
 import { KnownOrdinalWalletType } from './wallet.service.types';
 
 /**
@@ -116,6 +122,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
       amount: BigInt(paymentOutput.value),
     },
     redeemScript: redeemScript,
+    sequence: 0xfffffffd, // enables RBF
     sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
   };
 
