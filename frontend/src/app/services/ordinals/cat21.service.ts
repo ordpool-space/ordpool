@@ -10,6 +10,7 @@ import {
   getDummyKeypair,
   signTransactionAndBroadcastXverse,
   signTransactionLeather,
+  signTransactionUnisatAndBroadcast,
 } from './cat21.service.helper';
 import { LeatherPSBTBroadcastResponse, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
 import { WalletService } from './wallet.service';
@@ -151,7 +152,7 @@ export class Cat21Service {
         return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
 
       case KnownOrdinalWalletType.unisat:
-        throw new Error('The Unisat wallet is right now not supported!');
+        return from(signTransactionUnisatAndBroadcast(psbtBytes));
 
       default:
         // this case should never happen, but otherwise the code is not type-safe
