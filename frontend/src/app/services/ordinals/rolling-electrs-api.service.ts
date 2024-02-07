@@ -6,23 +6,25 @@ import { catchError } from 'rxjs/operators';
 import { Transaction } from '../../interfaces/electrs.interface';
 import { StateService } from '../state.service';
 
+// looks like they blocked us 😞
+
 const apiUrlsMainnet = [
   // the well-known electrs instance from blockstream
   // 'https://blockstream.info',
 
   // and the one and only mempool.space API
-  'https://mempool.space',           // @wiz
+  // 'https://mempool.space',           // @wiz  ❌ CORS!
 
   // self-hosted mempool.space instances
-  'https://mempool.ninja',           // @wiz and/or @softsimon ?
-  //'https://mempool.emzy.de',         // @emzy
-  //'https://mempool.bisq.services', // @devinbileck -- CORS!
-  'https://mempool.bitaroo.net',     // @BitarooExchange
-  'https://mempool.nixbitcoin.org',  // @nixbitcoinorg
+  //'https://mempool.ninja',         // @wiz and/or @softsimon ? ❌ CORS!
+  //'https://mempool.emzy.de',       // @emzy
+  //'https://mempool.bisq.services', // @devinbileck ❌ CORS!
+  'https://mempool.bitaroo.net',     // @BitarooExchange ✅ (but fewer txns)
+  'https://mempool.nixbitcoin.org',  // @nixbitcoinorg ✅ (but fewer txns)
 
    // enterprise mempool.space instances
-  'https://mutiny.mempool.space',  // @MutinyWallet
-  'https://diba.mempool.space'     // @trydiba
+   //'https://mutiny.mempool.space',  // @MutinyWallet ❌ CORS!
+   //'https://diba.mempool.space'     // @trydiba ❌ CORS!
 ];
 
 const apiUrlsTestnet = [
