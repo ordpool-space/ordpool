@@ -33,6 +33,8 @@ export interface DummyKeypairResult {
   addressP2PKH: string,
   addressP2WPKH: string,
   addressP2TR: string
+  schnorrPublicKey: Uint8Array,
+  schnorrPublicKeyHex: string
 }
 
 export interface CreateTransactionResult {

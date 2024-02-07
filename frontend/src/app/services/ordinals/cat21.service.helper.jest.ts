@@ -1,9 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { createTransaction, getDummyKeypair, getMinimumUtxoSize } from './cat21.service.helper';
+import { createInputScriptForUnisat, createTransaction, getAddressFormat, getDummyKeypair, getMinimumUtxoSize } from './cat21.service.helper';
 import { KnownOrdinalWalletType } from './wallet.service.types';
 import { sha256 } from '@noble/hashes/sha256';
 import { hex } from '@scure/base';
+import * as btc from '@scure/btc-signer';
+
 
 
 describe('getMinimumUtxoSize', () => {
@@ -27,6 +29,66 @@ describe('getMinimumUtxoSize', () => {
   it('throws an error for unsupported address types', () => {
     expect(() => getMinimumUtxoSize('0xInvalidAddress')).toThrow('Unsupported address type');
   });
+});
+
+describe('getAddressFormat', () => {
+  it('identifies P2WPKH format correctly', () => {
+    expect(getAddressFormat('bc1q...')).toEqual('P2WPKH');
+    expect(getAddressFormat('tb1q...')).toEqual('P2WPKH');
+  });
+
+  it('identifies uncertain P2SH format correctly', () => {
+    expect(getAddressFormat('3...')).toEqual('P2SH???');
+    expect(getAddressFormat('2...')).toEqual('P2SH???');
+  });
+
+  it('identifies P2TR format correctly', () => {
+    expect(getAddressFormat('bc1p...')).toEqual('P2TR');
+    expect(getAddressFormat('tb1p...')).toEqual('P2TR');
+  });
+
+  it('identifies P2PKH format correctly', () => {
+    expect(getAddressFormat('1...')).toEqual('P2PKH');
+    expect(getAddressFormat('m...')).toEqual('P2PKH');
+    expect(getAddressFormat('n...')).toEqual('P2PKH');
+  });
+
+  it('throws error for unsupported address formats', () => {
+    expect(() => getAddressFormat('x...')).toThrow('Unsupported address format.');
+  });
+});
+
+describe('createInputScriptForUnisat', () => {
+  const { dummyPublicKey, schnorrPublicKey } = getDummyKeypair();
+
+  // "Legacy" Pay-to-Public-Key-Hash
+  it('creates script for P2PKH addresses', () => {
+    const result = createInputScriptForUnisat('1...', dummyPublicKey, btc.NETWORK);
+    expect(result).toHaveProperty('script');
+    expect(result.redeemScript).toBeUndefined();
+  });
+
+  // Nested Segwit
+  it('creates script for P2SH addresses', () => {
+    const result = createInputScriptForUnisat('3...', dummyPublicKey, btc.NETWORK);
+    expect(result).toHaveProperty('script');
+    expect(result).toHaveProperty('redeemScript');
+  });
+
+  // Native Seqwit
+  it('creates script for P2WPKH addresses', () => {
+    const result = createInputScriptForUnisat('bc1q...', dummyPublicKey, btc.NETWORK);
+    expect(result).toHaveProperty('script');
+    expect(result.redeemScript).toBeUndefined();
+  });
+
+  // Taproot
+  it('creates script for P2TR addresses', () => {
+    const result = createInputScriptForUnisat('bc1p...', schnorrPublicKey, btc.NETWORK);
+    expect(result).toHaveProperty('script');
+    expect(result.redeemScript).toBeUndefined();
+  });
+
 });
 
 // prices: 1BTC == 42855 USD

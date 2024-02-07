@@ -250,6 +250,7 @@ export class WalletService {
     const unisat = (window as any).unisat;
     await unisat.requestAccounts();
 
+    // gets the address of the current account (which is only one, so it's weird that this is an array)
     const [address] = await unisat.getAccounts();
     const publicKey = await unisat.getPublicKey();
     // const balance = await unisat.getBalance();
@@ -262,9 +263,9 @@ export class WalletService {
    * Get addresses
    * see https://docs.unisat.io/dev/unisat-developer-service/unisat-wallet#requestaccounts
    *
-   * Unisat uses the same address for payments and ordinals! 😱
+   * Warning: Unisat uses the same address for payments and ordinals! 😱
    *
-   * TODO: handle accountsChanged / networkChanged
+   * TODO: handle accountsChanged / networkChanged!!
    */
   connectWalletUnisat(): Observable<WalletInfo> {
     return from(this.getBasicUnisatInfo()).pipe(
@@ -276,8 +277,8 @@ export class WalletService {
           ordinalsAddress: address,
           ordinalsPublicKey: publicKey,
 
-          paymentAddress: null,
-          paymentPublicKey: null
+          paymentAddress: address,
+          paymentPublicKey: publicKey
         };
       })
     );
