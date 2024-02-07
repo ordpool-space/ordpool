@@ -121,7 +121,10 @@ export class DigitalArtifactsFetcherService {
     this.isProcessing = true;
 
     // Fetch 3 requests in parallel
-    const requestsToProcess = this.requestQueue.splice(0, 3);
+    // const requestsToProcess = this.requestQueue.splice(0, 3);
+
+    // Fetch 2 requests in parallel
+    const requestsToProcess = this.requestQueue.splice(0, 2);
 
     merge(
       ...requestsToProcess.map(request =>
@@ -150,8 +153,8 @@ export class DigitalArtifactsFetcherService {
 
           // Process the next requests in the queue
           // but wit a tiny delay to avaoid too many HTTP 429 Too Many Requests responses
-          // window.setTimeout(() => this.processQueue(), 50);
-          this.processQueue();
+          window.setTimeout(() => this.processQueue(), 100);
+          // this.processQueue();
         } else {
           this.isProcessing = false;
         }
