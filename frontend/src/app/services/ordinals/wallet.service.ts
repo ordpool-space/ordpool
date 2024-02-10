@@ -112,25 +112,16 @@ export class WalletService {
     };
   }
 
-  /**
-   * as seen here: https://github.com/orenyomtov/openordex/blob/44581ec727c439c15178413b1d46c8f6176f253a/js/app.js#L103
-   */
   getUnisatInstalled(): boolean {
-    return !!(typeof (window as any).unisat !== 'undefined');
+    return !!((window as any).unisat);
   }
 
-  /**
-   * as seen here: https://github.com/orenyomtov/openordex/blob/44581ec727c439c15178413b1d46c8f6176f253a/js/app.js#L107
-   */
   getLeatherInstalled(): boolean {
-    return !!((window as any)?.StacksProvider?.psbtRequest);
+    return !!((window as any)?.HiroWalletProvider);
   }
 
-  /**
-   * as seen here: https://github.com/orenyomtov/openordex/blob/44581ec727c439c15178413b1d46c8f6176f253a/js/app.js#L111
-   */
   getXverseInstalled(): boolean {
-    return !!(((window as any)?.BitcoinProvider?.signTransaction?.toString()?.includes('Psbt')));
+    return !!((window as any)?.XverseProviders);
   }
 
   connectWallet(key: KnownOrdinalWalletType): Observable<WalletInfo> {
