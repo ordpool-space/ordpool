@@ -36,182 +36,169 @@
 
       <ng-container *ngIf="x.connectedWallet">
 
-        <ng-container *ngIf="x.connectedWallet.type === KnownOrdinalWalletType.unisat">
+        <!-- <ng-container *ngIf="x.connectedWallet.type === KnownOrdinalWalletType.unisat">
 
           <p class="mb-0">
-            ❌&nbsp; Unfortunately, we can't provide this feature for the Unisat wallet right now.<br>
-            To try with another account, please
-            <a href="javascript:void(0)" (click)="walletService.disconnectWallet()">disconnect your wallet</a>
-            first and then connect again.
+            ❌&nbsp; TODO? Warning or not?
           </p>
 
-        </ng-container>
-        <ng-container *ngIf="x.connectedWallet.type !== KnownOrdinalWalletType.unisat">
+        </ng-container> -->
 
-          <!-- check UTXOs here -->
-          <ng-container *ngIf="true">
-            <!-- <p>
-              ✅&nbsp;We support your wallet.<br>
-              It's time to rescue your cat now!
-            </p> -->
+        <form class="validated" [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
 
-            <form class="validated" [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
+          <div class="row mt-4">
 
-              <div class="row mt-4">
+            <!-- Content for the second column (appears first on mobile) -->
+            <div class="col-md-6 order-md-2">
+              <small class="text-muted">Select your preferred fee rate:</small><br>
+              <app-fees-box-clickable (feeClicked)="setFeeRate($event)"
+                class="d-block pt-2"></app-fees-box-clickable>
+            </div>
 
-                <!-- Content for the second column (appears first on mobile) -->
-                <div class="col-md-6 order-md-2">
-                  <small class="text-muted">Select your preferred fee rate:</small><br>
-                  <app-fees-box-clickable (feeClicked)="setFeeRate($event)"
-                    class="d-block pt-2"></app-fees-box-clickable>
+            <!-- Content for the first column (appears second on mobile) -->
+            <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
+
+              <div class="input-group input-group-lg mt-3">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">Fee rate
+                  </span>
                 </div>
-
-                <!-- Content for the first column (appears second on mobile) -->
-                <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
-
-                  <div class="input-group input-group-lg mt-3">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text">Fee rate
-                      </span>
-                    </div>
-                    <input type="number" class="form-control" [formControl]="cfeeRate">
-                    <div class="input-group-append">
-                      <span class="input-group-text">sat/vB</span>
-                    </div>
-                  </div>
-
-                  <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
-                    <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
-                    <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB!</div>
-                    <div *ngIf="cfeeRate.hasError('notFullNumber')">Enter whole numbers only!</div>
-                  </div>
-
+                <input type="number" class="form-control" [formControl]="cfeeRate">
+                <div class="input-group-append">
+                  <span class="input-group-text">sat/vB</span>
                 </div>
               </div>
 
-              <!-- TODO: recommend exact numbers -->
-              <div class="p-2 mt-4" *ngIf="!selectedPaymentOutput && !utxoLoading">
-                We are sorry, but we could not find find enough funds in your payment address! 😿<br>
-                No UTXO has enough value to execute a transaction at the set fees.
-                We recommend sending at least
-
-                <ul class="m-0">
-                  <li>
-                    <code style="color:#FF9900">200000</code> sat (<app-fiat
-                      [value]="200000"></app-fiat>)&nbsp;<app-clipboard [button]="true" [text]="'200000'"
-                      [class]="'btn btn-sm p-0'"></app-clipboard>
-
-                  </li>
-                  <li>to your address <code
-                      style="color:#FF9900">{{ x.connectedWallet.paymentAddress }}</code>&nbsp;<app-clipboard
-                      [button]="true" [text]="x.connectedWallet.paymentAddress"
-                      [class]="'btn btn-sm p-0'"></app-clipboard>
-                  </li>
-                </ul>
-
-                This should be enough to mint <strong style="color:#FF9900">multiple</strong> CAT-21 ordinals. 😻😻😻
+              <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+                <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
+                <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB!</div>
+                <div *ngIf="cfeeRate.hasError('notFullNumber')">Enter whole numbers only!</div>
               </div>
 
-              <div *ngIf="!utxoLoading && !utxoError">
+            </div>
+          </div>
 
-                <details>
-                  <summary>Show Expert Settings</summary>
+          <!-- TODO: recommend exact numbers -->
+          <div class="p-2 mt-4" *ngIf="!selectedPaymentOutput && !utxoLoading">
+            We are sorry, but we could not find find enough funds in your payment address! 😿<br>
+            No UTXO has enough value to execute a transaction at the set fees.
+            We recommend sending at least
 
-                  <p class="mt-2">
-                    For each UTXO, our algorithm crafts a Bitcoin transaction with two goals.
-                    The first output mints the CAT-21 ordinal.
-                    A second output is created for the change that goes back to your payment address, but only if it's
-                    above the dust limit.
-                    If the change is too small and falls below the dust limit, we add it to the miner's fee instead.
-                    We automatically select your largest UTXO, but feel free to select a different one if you like:
-                  </p>
+            <ul class="m-0">
+              <li>
+                <code style="color:#FF9900">200000</code> sat (<app-fiat
+                  [value]="200000"></app-fiat>)&nbsp;<app-clipboard [button]="true" [text]="'200000'"
+                  [class]="'btn btn-sm p-0'"></app-clipboard>
 
-                  <div class="mt-4 pl-2 pr-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$| async"
-                    [ngClass]="{ selected: x === this.selectedPaymentOutput }">
+              </li>
+              <li>to your address <code
+                  style="color:#FF9900">{{ x.connectedWallet.paymentAddress }}</code>&nbsp;<app-clipboard
+                  [button]="true" [text]="x.connectedWallet.paymentAddress"
+                  [class]="'btn btn-sm p-0'"></app-clipboard>
+              </li>
+            </ul>
 
-                    <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-right text-white mt-2"
-                      (click)="selectedPaymentOutput = x" type="button">
-                      Use this UTXO
-                    </button>
+            This should be enough to mint <strong style="color:#FF9900">multiple</strong> CAT-21 ordinals. 😻😻😻
+          </div>
 
-                    UTXO {{ x.paymentOutput.txid }}:{{ x.paymentOutput.vout }}
+          <div *ngIf="!utxoLoading && !utxoError">
 
-                    <span *ngIf="x.paymentOutput.status.confirmed" type="button"
-                      class="bg-success no-cursor pr-1 pl-1">Confirmed</span>
-                    <span *ngIf="!x.paymentOutput.status.confirmed" type="button"
-                      class="bg-danger no-cursor pr-1 pl-1">Unconfirmed</span>
-                    <br>
+            <details>
+              <summary>Show Expert Settings</summary>
 
-                    {{ x.paymentOutput.value | number }}
-                    <span class="symbol" i18n="shared.sat|sat">sat</span>
-                    <app-fiat [value]="x.paymentOutput.value"></app-fiat>
-                    Available Value
-                    <br>
+              <p class="mt-2">
+                For each UTXO, our algorithm crafts a Bitcoin transaction with two goals.
+                The first output mints the CAT-21 ordinal.
+                A second output is created for the change that goes back to your payment address, but only if it's
+                above the dust limit.
+                If the change is too small and falls below the dust limit, we add it to the miner's fee instead.
+                We automatically select your largest UTXO, but feel free to select a different one if you like:
+              </p>
 
-                    - {{ toNumber(x.simulation.finalTransactionFee) | number }}
-                    <span class="symbol" i18n="shared.sat|sat">sat</span>
-                    <app-fiat [value]="toNumber(x.simulation.finalTransactionFee)"></app-fiat>
-                    Miner Fees<br>
+              <div class="mt-4 pl-2 pr-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$| async"
+                [ngClass]="{ selected: x === this.selectedPaymentOutput }">
 
-                    - {{ toNumber(x.simulation.amountToRecipient) | number }}
-                    <span class="symbol" i18n="shared.sat|sat">sat</span>
-                    <app-fiat [value]="toNumber(x.simulation.amountToRecipient)"></app-fiat>
-                    CAT-21 Ordinal (1st Output)
-                    <br>
+                <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-right text-white mt-2"
+                  (click)="selectedPaymentOutput = x" type="button">
+                  Use this UTXO
+                </button>
 
-                    = {{ toNumber(x.simulation.changeAmount) | number }}
-                    <span class="symbol" i18n="shared.sat|sat">sat</span>
-                    <app-fiat [value]="toNumber(x.simulation.changeAmount)"></app-fiat>
-                    Change Amount ({{toNumber(x.simulation.changeAmount) === 0 ? 'no ' : '' }}2nd output)
-                    <br>
+                UTXO {{ x.paymentOutput.txid }}:{{ x.paymentOutput.vout }}
+
+                <span *ngIf="x.paymentOutput.status.confirmed" type="button"
+                  class="bg-success no-cursor pr-1 pl-1">Confirmed</span>
+                <span *ngIf="!x.paymentOutput.status.confirmed" type="button"
+                  class="bg-danger no-cursor pr-1 pl-1">Unconfirmed</span>
+                <br>
+
+                {{ x.paymentOutput.value | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="x.paymentOutput.value"></app-fiat>
+                Available Value
+                <br>
+
+                - {{ toNumber(x.simulation.finalTransactionFee) | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="toNumber(x.simulation.finalTransactionFee)"></app-fiat>
+                Miner Fees<br>
+
+                - {{ toNumber(x.simulation.amountToRecipient) | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="toNumber(x.simulation.amountToRecipient)"></app-fiat>
+                CAT-21 Ordinal (1st Output)
+                <br>
+
+                = {{ toNumber(x.simulation.changeAmount) | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="toNumber(x.simulation.changeAmount)"></app-fiat>
+                Change Amount ({{toNumber(x.simulation.changeAmount) === 0 ? 'no ' : '' }}2nd output)
+                <br>
 
 
 
-                  </div>
-
-                </details>
               </div>
-              <div class="text-center mt-4">
 
-                <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
-                  class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
-                  <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
-                    title="Mint a CAT-21 ordinal" height="30"> Mint my cat
-                </button>
+            </details>
+          </div>
+          <div class="text-center mt-4">
 
-                <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
-                  <i class="spinner-border spinner-border-sm text-light"></i>
-                  Minting your cat
-                </button>
+            <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
+              class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
+              <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
+                title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+            </button>
 
-                <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading">
-                  <i class="spinner-border spinner-border-sm text-light"></i>
-                  Scanning your payments address
-                </button>
+            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
+              <i class="spinner-border spinner-border-sm text-light"></i>
+              Minting your cat
+            </button>
 
-              </div>
-            </form>
+            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading">
+              <i class="spinner-border spinner-border-sm text-light"></i>
+              Scanning your payments address
+            </button>
 
-            <div class="alert alert-success" *ngIf="mintCat21Success">
-              ✅&nbsp; Your CAT-21 transaction has now been submitted to the mempool.<br>
-              <ng-container *ngIf="mintCat21Success?.txId">
-                You can track the progress
-                <a class="alert-link text-decoration-underline"
-                  [routerLink]="['/tx/' | relativeUrl, mintCat21Success.txId]">here</a>.
-              </ng-container>
-            </div>
+          </div>
+        </form>
 
-            <div class="alert alert-danger" *ngIf="mintCat21Error">
-              ❌&nbsp; {{ mintCat21Error }}
-            </div>
-
-            <div class="alert alert-danger" *ngIf="utxoError">
-              ❌&nbsp; {{ utxoError }}
-            </div>
-
-
+        <div class="alert alert-success" *ngIf="mintCat21Success">
+          ✅&nbsp; Your CAT-21 transaction has now been submitted to the mempool.<br>
+          <ng-container *ngIf="mintCat21Success?.txId">
+            You can track the progress
+            <a class="alert-link text-decoration-underline"
+              [routerLink]="['/tx/' | relativeUrl, mintCat21Success.txId]">here</a>.
           </ng-container>
-        </ng-container>
+        </div>
+
+        <div class="alert alert-danger" *ngIf="mintCat21Error">
+          ❌&nbsp; {{ mintCat21Error }}
+        </div>
+
+        <div class="alert alert-danger" *ngIf="utxoError">
+          ❌&nbsp; {{ utxoError }}
+        </div>
+
+
 
       </ng-container>
 
