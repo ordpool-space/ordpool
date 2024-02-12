@@ -9,9 +9,10 @@ import {
   DummyKeypairResult,
   LeatherPSBTBroadcastResponse,
   LeatherSignPsbtRequestParams,
-  TxnOutput,
+  TxnOutput
 } from './cat21.service.types';
 import { KnownOrdinalWalletType } from './wallet.service.types';
+import { P2Ret, RawTx } from '@scure/btc-signer';
 
 /**
  * Determines the minimum UTXO size based on the Bitcoin address type.
@@ -124,6 +125,7 @@ export function createInputScriptForXverse(paymentPublicKey: Uint8Array, network
   return {
     script: p2sh.script,
     redeemScript: p2sh.redeemScript,
+    isSegWit: true
   };
 }
 
@@ -137,7 +139,8 @@ export function createInputScriptForLeather(paymentPublicKey: Uint8Array, networ
   const p2wpkh = btc.p2wpkh(paymentPublicKey, network);
   return {
     script: p2wpkh.script,
-    redeemScript: undefined // Not needed for P2WPKH
+    redeemScript: undefined, // Not needed for P2WPKH
+    isSegWit: true
   };
 }
 
@@ -157,44 +160,51 @@ export function createInputScriptForLeather(paymentPublicKey: Uint8Array, networ
  */
 export function createInputScriptForUnisat(paymentAddress: string, paymentPublicKey: Uint8Array, network: typeof btc.NETWORK) {
   const addressFormat = getAddressFormat(paymentAddress);
+  let scriptData: P2Ret;
 
   switch (addressFormat) {
       // "Legacy" Pay-to-Public-Key-Hash
       case 'P2PKH': {
-      const p2pkh = btc.p2pkh(paymentPublicKey, network);
-      return {
-        script: p2pkh.script,
-        redeemScript: undefined // Not needed for P2PKH
-      };
+        // Legacy addresses do not use witness data
+        scriptData = btc.p2pkh(paymentPublicKey, network);
+        break;
     }
-    // Nested Segwit
+    // P2SH could be anything, but for Unisat we know that it is Nested Segwit
     case 'P2SH???': {
       const p2wpkhForP2sh = btc.p2wpkh(paymentPublicKey, network);
-      const p2sh = btc.p2sh(p2wpkhForP2sh, network);
-      return {
-        script: p2sh.script,
-        redeemScript: p2sh.redeemScript
-      };
+      scriptData = btc.p2sh(p2wpkhForP2sh, network);
+      break;
     }
     // Native Seqwit
     case 'P2WPKH': {
-      const p2wpkh = btc.p2wpkh(paymentPublicKey, network);
-      return {
-        script: p2wpkh.script,
-        redeemScript: undefined // Not needed for P2WPKH
-      };
+      scriptData = btc.p2wpkh(paymentPublicKey, network);
+      break;
     }
     // Taproot
     case 'P2TR': {
-      const p2tr = btc.p2tr(paymentPublicKey, undefined, network);
-      return {
-        script: p2tr.script,
-        redeemScript: undefined // Taproot uses witness program directly
-      };
+      scriptData = btc.p2tr(paymentPublicKey, undefined, network);
+      break;
     }
     default:
       throw new Error('Unexpected address format encountered.');
   }
+
+  return {
+    script: scriptData.script,
+    redeemScript: scriptData.redeemScript, // Undefined for P2PKH and P2WPKH
+    isSegWit: isSegWit(paymentAddress)
+  };
+}
+
+/**
+ * Determines whether a given Bitcoin address is a Segregated Witness (SegWit) address.
+ *
+ * The determination of P2SH addresses as SegWit is based on the assumption that P2SH addresses
+ * are being used for SegWit purposes, which may not always be the case.
+ */
+export function isSegWit(paymentAddress: string) {
+  const addressFormat = getAddressFormat(paymentAddress);
+  return addressFormat !== 'P2PKH';
 }
 
 /**
@@ -204,24 +214,34 @@ export function createInput(walletType: KnownOrdinalWalletType,
   paymentOutput: TxnOutput,
   paymentPublicKey: Uint8Array,
   paymentAddress: string,
-  network: typeof btc.NETWORK) {
+  isSimulation: boolean,
+  network: typeof btc.NETWORK): btc.TransactionInputUpdate {
 
   let scriptInfo: {
     script: Uint8Array;
-    redeemScript: Uint8Array | undefined
+    redeemScript: Uint8Array | undefined,
+    isSegWit: boolean
   };
+
+  let paymentPublicKeyToUse = paymentPublicKey;
+
+  // in a simulation we use our well-known dummy key instead, so that we can do the fake signing
+  if (isSimulation) {
+    const { dummyPublicKey } = getDummyKeypair();
+    paymentPublicKeyToUse = dummyPublicKey;
+  }
 
   switch (walletType) {
     case KnownOrdinalWalletType.leather:
-      scriptInfo = createInputScriptForLeather(paymentPublicKey, network);
+      scriptInfo = createInputScriptForLeather(paymentPublicKeyToUse, network);
       break;
 
     case KnownOrdinalWalletType.xverse:
-      scriptInfo = createInputScriptForXverse(paymentPublicKey, network);
+      scriptInfo = createInputScriptForXverse(paymentPublicKeyToUse, network);
       break;
 
     case KnownOrdinalWalletType.unisat:
-      scriptInfo = createInputScriptForUnisat(paymentAddress, paymentPublicKey, network);
+      scriptInfo = createInputScriptForUnisat(paymentAddress, paymentPublicKeyToUse, network);
       break;
 
     default:
@@ -229,19 +249,45 @@ export function createInput(walletType: KnownOrdinalWalletType,
       throw new Error('Unknown wallet');
   }
 
-  const { script, redeemScript } = scriptInfo;
+  const { script, redeemScript, isSegWit } = scriptInfo;
 
-  const input = {
+  const input: btc.TransactionInputUpdate = {
     txid: paymentOutput.txid,
     index: paymentOutput.vout,
-    witnessUtxo: {
-      script: script,
-      amount: BigInt(paymentOutput.value),
-    },
     redeemScript: redeemScript,
     sequence: 0xfffffffd, // enables RBF
     sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
   };
+
+  if (isSegWit) {
+    input.witnessUtxo = {
+      script,
+      amount: BigInt(paymentOutput.value),
+    };
+  } else {
+    // For non-SegWit (legacy P2PKH), we have to use nonWitnessUtxo instead --> with the full transaction provided
+    // see https://github.com/paulmillr/scure-btc-signer/blob/2d5388ac6c4b94364d65330cdc84a653a6a5281f/README.md?plain=1#L831
+    if (paymentOutput.transactionHex) {
+
+      const paymentPublicKeyHex: string = hex.encode(paymentPublicKey);
+      const { dummyPublicKeyHex }  = getDummyKeypair();
+      const nonWitnessUtxo = hex.decode(paymentOutput.transactionHex);
+
+
+      const inputTx = btc.Transaction.fromRaw(nonWitnessUtxo, {
+        allowUnknownOutputs: true,
+        disableScriptCheck: true,
+        allowUnknownInputs: true,
+    });
+
+      // now we replace the real public key with our well-known dummy key so that the fake signing will work
+      const transactionHexReplaced = paymentOutput.transactionHex.replace(paymentPublicKeyHex, dummyPublicKeyHex);
+      input.nonWitnessUtxo = hex.decode(transactionHexReplaced);
+
+    } else {
+      throw new Error('Missing transaction hex for legacy UTXO input');
+    }
+  }
 
   return input;
 }
@@ -261,6 +307,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
  * @param paymentPublicKeyHex - The public key of the sender, in hexadecimal.
  * @param paymentAddress - The sender's address, to which change will be returned.
  * @param transactionFee - The miner fee in satoshis.
+ * @param isSimulation - Flag indicating whether the transaction should be prepared for a simulation
  * @param isMainnet - Flag indicating whether the transaction is for mainnet or testnet
  * @returns The constructed transaction.
  */
@@ -272,17 +319,21 @@ export function createTransaction(
   paymentPublicKeyHex: string,
   paymentAddress: string,
   transactionFee: bigint,
-  isMainnet: boolean
+  isSimulation: boolean,
+  isMainnet: boolean,
 ): CreateTransactionResult {
 
   const network: typeof btc.NETWORK = isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
   const paymentPublicKey: Uint8Array = hex.decode(paymentPublicKeyHex);
 
-
   const lockTime = 21; // THIS is the most important part 😺
-  const tx = new btc.Transaction({ lockTime });
+  const tx = new btc.Transaction({
+    lockTime,
+    allowLegacyWitnessUtxo: true, // for Unisat Legacy address
+    disableScriptCheck: true
+  });
 
-  const input = createInput(walletType, paymentOutput, paymentPublicKey, paymentAddress, network);
+  const input = createInput(walletType, paymentOutput, paymentPublicKey, paymentAddress, isSimulation, network);
   tx.addInput(input);
 
   // 546 is the best amount, it makes later transfers between different
