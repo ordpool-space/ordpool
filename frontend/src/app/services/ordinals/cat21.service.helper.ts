@@ -254,7 +254,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
   const input: btc.TransactionInputUpdate = {
     txid: paymentOutput.txid,
     index: paymentOutput.vout,
-    redeemScript: redeemScript,
+    redeemScript,
     sequence: 0xfffffffd, // enables RBF
     sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
   };
@@ -271,6 +271,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
 
       if (isSimulation) {
         const dummyTx = getDummyLegacyTransaction(paymentOutput, network);
+        input.txid = dummyTx.id;
         input.nonWitnessUtxo = hex.decode(dummyTx.hex);
       } else {
         input.nonWitnessUtxo = hex.decode(paymentOutput.transactionHex);
