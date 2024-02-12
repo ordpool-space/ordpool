@@ -6,6 +6,9 @@ export interface TxnOutput {
   vout: number;
   status: Status;
   value: number;
+
+  // add the hex for legacy inputs only!
+  transactionHex?: string;
 }
 
 // see https://github.com/leather-wallet/extension/blob/8dbfefe8fcf5de687c2a137bce5eb2ff7a94b794/src/shared/rpc/methods/sign-psbt.ts#L49

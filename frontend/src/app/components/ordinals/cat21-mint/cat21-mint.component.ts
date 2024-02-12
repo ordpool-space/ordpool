@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, catchError, combineLatest, map, of, retry, switchMap, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, map, of, switchMap, take, tap } from 'rxjs';
 
 import { Cat21Service } from '../../../services/ordinals/cat21.service';
 import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
@@ -53,7 +53,7 @@ export class Cat21MintComponent implements OnInit {
         this.utxoLoading = true;
         this.utxoError = '';
       }),
-      retry({ count: 3, delay: 500 }),
+      // retry({ count: 3, delay: 500 }), // Ordpool has a global interceptor for this, otherwise add this line
       map(paymentOutputs => ({
         paymentOutputs,
         wallet,
@@ -100,6 +100,7 @@ export class Cat21MintComponent implements OnInit {
 
               paymentOutput,
               wallet.paymentAddress,
+              wallet.paymentPublicKey,
               BigInt(0)
             );
 
@@ -112,6 +113,7 @@ export class Cat21MintComponent implements OnInit {
 
               paymentOutput,
               wallet.paymentAddress,
+              wallet.paymentPublicKey,
               transactionFee
             );
 
