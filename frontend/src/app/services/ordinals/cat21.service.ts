@@ -135,7 +135,7 @@ export class Cat21Service {
     transactionFee: bigint
   ): SimulateTransactionResult {
 
-    const { dummyPrivateKey, dummyPublicKeyHex } = getDummyKeypair();
+    const { dummyPrivateKey } = getDummyKeypair(this.isMainnet ? btc.NETWORK : btc.TEST_NETWORK);
 
     const result = createTransaction(
       walletType,

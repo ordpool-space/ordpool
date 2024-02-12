@@ -1,10 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { createInputScriptForUnisat, createTransaction, getAddressFormat, getDummyKeypair, getMinimumUtxoSize } from './cat21.service.helper';
+import { createInputScriptForUnisat, createTransaction, getAddressFormat, getDummyKeypair, getMinimumUtxoSize, getDummyLegacyTransaction } from './cat21.service.helper';
 import { KnownOrdinalWalletType } from './wallet.service.types';
 import { sha256 } from '@noble/hashes/sha256';
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
+import { TxnOutput } from './cat21.service.types';
 
 
 
@@ -59,7 +60,7 @@ describe('getAddressFormat', () => {
 });
 
 describe('createInputScriptForUnisat', () => {
-  const { dummyPublicKey, schnorrPublicKey } = getDummyKeypair();
+  const { dummyPublicKey, schnorrPublicKey } = getDummyKeypair(btc.NETWORK);
 
   // "Legacy" Pay-to-Public-Key-Hash
   it('creates script for P2PKH addresses', () => {
@@ -91,6 +92,37 @@ describe('createInputScriptForUnisat', () => {
 
 });
 
+describe('getDummyLegacyTransaction', () => {
+  it('creates a dummy transaction with the specified number of outputs for mainnet', () => {
+
+    const txnOutput: TxnOutput = {
+      txid: '', // not used
+      vout: 2, // Expecting 3 outputs, including the one specified and two placeholders
+      status: {} as any, // not used
+      value: 1000
+    };
+
+    const transaction = getDummyLegacyTransaction(txnOutput, btc.NETWORK);
+    expect(transaction.outputsLength).toBe(3);
+    expect(transaction.hex).toBeTruthy();
+  });
+
+  it('creates a dummy transaction with the specified number of outputs for testnet', () => {
+
+    const txnOutput: TxnOutput = {
+      txid: '', // not used
+      vout: 2, // Expecting 3 outputs, including the one specified and two placeholders
+      status: {} as any, // not used
+      value: 1000
+    };
+
+    const transaction = getDummyLegacyTransaction(txnOutput, btc.TEST_NETWORK);
+    expect(transaction.outputsLength).toBe(3);
+    expect(transaction.hex).toBeTruthy();
+  });
+});
+
+
 // prices: 1BTC == 42855 USD
 describe('createTransaction', () => {
   const paymentUtxo = {
@@ -100,7 +132,7 @@ describe('createTransaction', () => {
     status: { } as any,
   };
 
-  const { dummyPublicKeyHex, addressP2PKH, addressP2TR } = getDummyKeypair();
+  const { dummyPublicKeyHex, addressP2PKH, addressP2TR } = getDummyKeypair(btc.NETWORK);
 
   it('creates only one output if change would be below dust limit, miner gets some more fees', () => {
 
@@ -111,6 +143,7 @@ describe('createTransaction', () => {
       dummyPublicKeyHex,
       addressP2PKH,
       BigInt(9000), // High fee to ensure change of 454 sats ($0.19) is below dust limit of 546 sats ($0.23)
+      false,
       true
     );
 
@@ -131,6 +164,7 @@ describe('createTransaction', () => {
       dummyPublicKeyHex,
       addressP2PKH,
       BigInt(5000), // Lower fee to ensure change of 4.454 sats ($1.91) is above dust limit of 546 sats ($0.23)
+      false,
       true
     );
 
@@ -152,6 +186,7 @@ describe('createTransaction', () => {
       dummyPublicKeyHex,
       addressP2PKH,
       BigInt(9000 + 1000), // now we are out of money, change would be negative
+      false,
       true
     )).toThrowError(new Error('Insufficient funds for transaction'));
   });

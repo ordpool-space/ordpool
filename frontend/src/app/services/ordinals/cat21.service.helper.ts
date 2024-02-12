@@ -227,7 +227,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
 
   // in a simulation we use our well-known dummy key instead, so that we can do the fake signing
   if (isSimulation) {
-    const { dummyPublicKey } = getDummyKeypair();
+    const { dummyPublicKey } = getDummyKeypair(network);
     paymentPublicKeyToUse = dummyPublicKey;
   }
 
@@ -269,20 +269,12 @@ export function createInput(walletType: KnownOrdinalWalletType,
     // see https://github.com/paulmillr/scure-btc-signer/blob/2d5388ac6c4b94364d65330cdc84a653a6a5281f/README.md?plain=1#L831
     if (paymentOutput.transactionHex) {
 
-      const paymentPublicKeyHex: string = hex.encode(paymentPublicKey);
-      const { dummyPublicKeyHex }  = getDummyKeypair();
-      const nonWitnessUtxo = hex.decode(paymentOutput.transactionHex);
-
-
-      const inputTx = btc.Transaction.fromRaw(nonWitnessUtxo, {
-        allowUnknownOutputs: true,
-        disableScriptCheck: true,
-        allowUnknownInputs: true,
-    });
-
-      // now we replace the real public key with our well-known dummy key so that the fake signing will work
-      const transactionHexReplaced = paymentOutput.transactionHex.replace(paymentPublicKeyHex, dummyPublicKeyHex);
-      input.nonWitnessUtxo = hex.decode(transactionHexReplaced);
+      if (isSimulation) {
+        const dummyTx = getDummyLegacyTransaction(paymentOutput, network);
+        input.nonWitnessUtxo = hex.decode(dummyTx.hex);
+      } else {
+        input.nonWitnessUtxo = hex.decode(paymentOutput.transactionHex);
+      }
 
     } else {
       throw new Error('Missing transaction hex for legacy UTXO input');
@@ -361,7 +353,7 @@ export function createTransaction(
     // Absorb change into the transactionFee if below dust limit and only add recipient output
     transactionFee = transactionFee + changeAmount;
     changeAmount = BigInt(0);
-    tx.addOutputAddress(recipientAddress, singleInputAmount - transactionFee);
+    tx.addOutputAddress(recipientAddress, singleInputAmount - transactionFee, network);
   }
 
   // all remaining sats that the miner will get
@@ -380,7 +372,7 @@ export function createTransaction(
 }
 
 
-let getDummyKeypairResult: DummyKeypairResult | undefined = undefined;
+const getDummyKeypairResult: { [key: string]: DummyKeypairResult } = {};
 
 /**
  * Generates a dummy keypair for simulation or testing purposes.
@@ -398,23 +390,23 @@ let getDummyKeypairResult: DummyKeypairResult | undefined = undefined;
  *
  * The results is cached.
  */
-export function getDummyKeypair(): DummyKeypairResult {
+export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult {
 
-  if (!getDummyKeypairResult) {
+  if (!getDummyKeypairResult[network.bech32]) {
 
     const dummyPrivateKey: Uint8Array = hex.decode('0101010101010101010101010101010101010101010101010101010101010101');
     const dummyPublicKey: Uint8Array = secp256k1.getPublicKey(dummyPrivateKey, true);
     const dummyPublicKeyHex: string = hex.encode(dummyPublicKey);
 
-    const addressP2PKH = btc.getAddress('pkh', dummyPrivateKey);   // 1C6Rc3w25VHud3dLDamutaqfKWqhrLRTaD // P2PKH (legacy address)
-    const addressP2WPKH = btc.getAddress('wpkh', dummyPrivateKey); // bc1q0xcqpzrky6eff2g52qdye53xkk9jxkvrh6yhyw // SegWit V0 address
-    const addressP2TR = btc.getAddress('tr', dummyPrivateKey);     // bc1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8syx4e5t // TapRoot KeyPathSpend
+    const addressP2PKH = btc.getAddress('pkh', dummyPrivateKey, network);   // 1C6Rc3w25VHud3dLDamutaqfKWqhrLRTaD // P2PKH (legacy address)
+    const addressP2WPKH = btc.getAddress('wpkh', dummyPrivateKey, network); // bc1q0xcqpzrky6eff2g52qdye53xkk9jxkvrh6yhyw // SegWit V0 address
+    const addressP2TR = btc.getAddress('tr', dummyPrivateKey, network);     // bc1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8syx4e5t // TapRoot KeyPathSpend
 
     // see https://stackoverflow.com/a/72411600
     const schnorrPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
     const schnorrPublicKeyHex: string = hex.encode(schnorrPublicKey);
 
-    getDummyKeypairResult = {
+    getDummyKeypairResult[network.bech32] = {
       dummyPrivateKey,
       dummyPublicKey,
       dummyPublicKeyHex,
@@ -426,7 +418,43 @@ export function getDummyKeypair(): DummyKeypairResult {
     };
   }
 
-  return getDummyKeypairResult;
+  return getDummyKeypairResult[network.bech32];
+}
+
+/**
+ * Generates a dummy legacy (P2PKH) transaction for simulation.
+ * The transaction includes a number of outputs equal to the `vout` value of the provided `TxnOutput`,
+ * with each output having the same value as in the provided `TxnOutput`.
+ *
+ * @param txnOutput A transaction output object to base the dummy transaction on.
+ * @returns The dummy transaction.
+ */
+export function getDummyLegacyTransaction(txnOutput: TxnOutput, network: typeof btc.NETWORK): btc.Transaction {
+
+    const { dummyPrivateKey, dummyPublicKey, addressP2PKH } = getDummyKeypair(network);
+    const tx = new btc.Transaction();
+
+    // P2WPKH requires no damn nonWitnessUtxo which gives us a signable transaction
+    const input: btc.TransactionInputUpdate = {
+      txid: '0000000000000000000000000000000000000000000000000000000000000000',
+      index: 0,
+      witnessUtxo: {
+        script: btc.p2wpkh(dummyPublicKey, network).script,
+        amount: BigInt(txnOutput.value * (txnOutput.vout+1))
+      }
+    };
+    tx.addInput(input);
+
+    // Add outputs based on txnOutput.vout, each output having the same value
+    for (let i = 0; i <= txnOutput.vout; i++) {
+      tx.addOutputAddress(addressP2PKH, BigInt(txnOutput.value), network);
+    }
+
+    // Sign the input with the dummy private key
+    tx.signIdx(dummyPrivateKey, 0);
+    tx.finalize();
+
+    return tx;
 }
 
 export async function signTransactionLeather(psbtBytes: Uint8Array, isMainnet: boolean): Promise<LeatherPSBTBroadcastResponse> {
