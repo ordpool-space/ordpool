@@ -122,6 +122,33 @@ describe('getDummyLegacyTransaction', () => {
   });
 });
 
+describe('proof that we can create+sign a taproot input + output with dummy data', () => {
+
+  // will first throw an exception (Invalid checksum!), but the second try should pass
+  it('should execute flawlessly', () => {
+
+    const { dummyPrivateKey, schnorrPublicKey } = getDummyKeypair(btc.TEST_NETWORK);
+    const tx = new btc.Transaction();
+    const scriptP2tr: btc.P2TROut = btc.p2tr(schnorrPublicKey, undefined, btc.TEST_NETWORK, true);
+
+    // Add the Taproot input
+    tx.addInput({
+      txid: '0000000000000000000000000000000000000000000000000000000000000000',
+      index: 0,
+      witnessUtxo: {
+        script: scriptP2tr.script,
+        amount: BigInt(1000),
+      },
+      ...scriptP2tr // P2TROut has some extra properties that we all just merge into the intput
+    });
+    tx.addOutputAddress('tb1pz8ylmfpyl78mmqrvjnlwewec2apmvd3hydtnwxykr497qv89etrqksf3qc', BigInt(1000), btc.TEST_NETWORK);
+
+    // Sign the input with the dummy private key
+    tx.signIdx(dummyPrivateKey, 0);
+    tx.finalize();
+  });
+});
+
 
 // prices: 1BTC == 42855 USD
 describe('createTransaction', () => {
@@ -129,10 +156,10 @@ describe('createTransaction', () => {
     txid: hex.encode(sha256('text-txid')),
     vout: 0,
     value: 10000, // 10000 sats ($4.28)
-    status: { } as any,
+    status: {} as any,
   };
 
-  const { dummyPublicKeyHex, addressP2PKH, addressP2TR } = getDummyKeypair(btc.NETWORK);
+  const { dummyPublicKeyHex, addressP2SH_P2WPKH, addressP2TR } = getDummyKeypair(btc.NETWORK);
 
   it('creates only one output if change would be below dust limit, miner gets some more fees', () => {
 
@@ -141,7 +168,7 @@ describe('createTransaction', () => {
       addressP2TR,
       paymentUtxo,
       dummyPublicKeyHex,
-      addressP2PKH,
+      addressP2SH_P2WPKH,
       BigInt(9000), // High fee to ensure change of 454 sats ($0.19) is below dust limit of 546 sats ($0.23)
       false,
       true
@@ -162,7 +189,7 @@ describe('createTransaction', () => {
       addressP2TR,
       paymentUtxo,
       dummyPublicKeyHex,
-      addressP2PKH,
+      addressP2SH_P2WPKH,
       BigInt(5000), // Lower fee to ensure change of 4.454 sats ($1.91) is above dust limit of 546 sats ($0.23)
       false,
       true
@@ -184,7 +211,7 @@ describe('createTransaction', () => {
       addressP2TR,
       paymentUtxo,
       dummyPublicKeyHex,
-      addressP2PKH,
+      addressP2SH_P2WPKH,
       BigInt(9000 + 1000), // now we are out of money, change would be negative
       false,
       true

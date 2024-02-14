@@ -34,6 +34,7 @@ export interface DummyKeypairResult {
   dummyPublicKey: Uint8Array,
   dummyPublicKeyHex: string,
   addressP2PKH: string,
+  addressP2SH_P2WPKH: string,
   addressP2WPKH: string,
   addressP2TR: string
   schnorrPublicKey: Uint8Array,
