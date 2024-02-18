@@ -1,4 +1,4 @@
-/r/* https://ordinals.com/r/:splat 301
-/content/* https://ordinals.com/content/:splat 301
+/r/* https://ordin-delta.vercel.app/r/:splat 301
+/content/* https://ordin-delta.vercel.app/content/:splat 301
 /api/* https://mempool.space/api/:splat 301
 /testnet/api/* https://mempool.space/testnet/api/:splat 301
