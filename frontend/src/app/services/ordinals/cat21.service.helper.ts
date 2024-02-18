@@ -389,13 +389,17 @@ export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult
     const dummyPublicKey: Uint8Array = secp256k1.getPublicKey(dummyPrivateKey, true);
     const dummyPublicKeyHex: string = hex.encode(dummyPublicKey);
 
+    // see https://stackoverflow.com/a/72411600
+    const schnorrPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
+    const schnorrPublicKeyHex: string = hex.encode(schnorrPublicKey);
+
     // Legacy address (P2PKH)
     // 1C6Rc3w25VHud3dLDamutaqfKWqhrLRTaD for mainnet
     const addressP2PKH = btc.getAddress('pkh', dummyPrivateKey, network);
 
     // Nested Segwit (P2SH-P2WPKH)
     // 35LM1A29K95ADiQ8rJ9uEfVZCKffZE4D9i for mainnet
-    const p2ret = btc.p2sh(btc.p2wpkh(dummyPublicKey, network), network);
+    const p2ret = btc.p2sh(btc.p2wpkh(schnorrPublicKey, network), network);
     const addressP2SH_P2WPKH = p2ret.address;
 
     // Native Seqwit (P2WPKH)
@@ -406,9 +410,6 @@ export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult
     // bc1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8syx4e5t for mainnet
     const addressP2TR = btc.getAddress('tr', dummyPrivateKey, network);
 
-    // see https://stackoverflow.com/a/72411600
-    const schnorrPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
-    const schnorrPublicKeyHex: string = hex.encode(schnorrPublicKey);
 
     getDummyKeypairResult[network.bech32] = {
       dummyPrivateKey,
