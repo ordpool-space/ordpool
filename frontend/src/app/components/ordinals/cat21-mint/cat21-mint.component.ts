@@ -126,6 +126,7 @@ export class Cat21MintComponent implements OnInit {
             // Throws an Error if paymentOutput has not enough funds!
             // - 'Insufficient funds for transaction' via the createTransaction
             // - 'Outputs spends more than inputs amount' when we finalize (second safety net)
+            // .. or if we made something wrong during our simulation :-/
             return undefined;
           }
         })
