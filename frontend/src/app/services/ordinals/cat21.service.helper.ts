@@ -112,6 +112,135 @@ export function getAddressFormat(address: string): 'P2WPKH' | 'P2SH???' | 'P2TR'
 }
 
 /**
+ * Determines whether a given Bitcoin address is a Segregated Witness (SegWit) address.
+ *
+ * The determination of P2SH addresses as SegWit is based on the assumption that P2SH addresses
+ * are being used for SegWit purposes, which may not always be the case.
+ */
+export function isSegWit(address: string) {
+  const addressFormat = getAddressFormat(address);
+  return addressFormat !== 'P2PKH';
+}
+
+/**
+ * Converts a full public key (including the y-coordinate parity byte) into an x-only public key.
+ *
+ * In the context of Schnorr signatures and Taproot transactions in Bitcoin, public keys are represented
+ * as x-only coordinates. This is because Schnorr signatures utilize x-only public keys, which are 32 bytes long
+ * and consist only of the x-coordinate of the elliptic curve point. This format contributes to privacy
+ * and efficiency in Taproot transactions by not revealing unnecessary information about the public key
+ * and reducing the size of transactions.
+ *
+ * The first byte of a compressed ECDSA public key (0x02 or 0x03) indicates the y-coordinate's parity
+ * and is unnecessary for Schnorr signatures. Removing this byte aligns the public key format with the
+ * Schnorr and Taproot standards.
+ *
+ * as seen here: https://github.com/paulmillr/scure-btc-signer/discussions/77
+ *
+ * @param pubkey - The full public key, including the y-coordinate parity byte at the beginning.
+ * @returns The x-only public key, with the y-coordinate parity byte removed.
+ */
+export function toXOnly(pubkey: Uint8Array) {
+  return pubkey.subarray(1, 33);
+}
+
+const getDummyKeypairResult: { [key: string]: DummyKeypairResult } = {};
+
+/**
+ * Generates a dummy keypair for simulation or testing purposes.
+ *
+ * This function creates a deterministic dummy keypair based on a fixed private key.
+ * It is intended for use in scenarios where a predictable output is necessary,
+ * such as testing transaction signing or simulation processes. The generated public
+ * key is derived from the hardcoded private key using the SECP256k1 elliptic curve.
+ *
+ * Note: This function should never be used with real transactions,
+ * as the private key is publicly known and provides no security!!
+ *
+ * The generated 'dummyPublicKey' key does not work for taproot!
+ * Use the 'schnorrDummyPublicKey' for taproot!
+ *
+ * The results are cached.
+ */
+export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult {
+
+  if (!getDummyKeypairResult[network.bech32]) {
+
+    const dummyPrivateKey: Uint8Array = hex.decode('0101010101010101010101010101010101010101010101010101010101010101');
+    const dummyPublicKey: Uint8Array = secp256k1.getPublicKey(dummyPrivateKey, true);
+
+    // see https://stackoverflow.com/a/72411600
+    const xOnlyDummyPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
+
+    // Legacy address (P2PKH)
+    // 1C6Rc3w25VHud3dLDamutaqfKWqhrLRTaD for mainnet
+    const addressP2PKH = btc.getAddress('pkh', dummyPrivateKey, network);
+
+    // Nested Segwit (P2SH-P2WPKH)
+    // 35LM1A29K95ADiQ8rJ9uEfVZCKffZE4D9i for mainnet
+    const p2ret = btc.p2sh(btc.p2wpkh(dummyPublicKey, network), network);
+    const addressP2SH_P2WPKH = p2ret.address;
+
+    // Native Seqwit (P2WPKH)
+    // bc1q0xcqpzrky6eff2g52qdye53xkk9jxkvrh6yhyw for mainnet
+    const addressP2WPKH = btc.getAddress('wpkh', dummyPrivateKey, network);
+
+    // TapRoot KeyPathSpend
+    // bc1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8syx4e5t for mainnet
+    const addressP2TR = btc.getAddress('tr', dummyPrivateKey, network);
+
+
+    getDummyKeypairResult[network.bech32] = {
+      dummyPrivateKey,
+      dummyPublicKey,
+      xOnlyDummyPublicKey,
+      addressP2PKH,
+      addressP2SH_P2WPKH,
+      addressP2WPKH,
+      addressP2TR,
+    };
+  }
+
+  return getDummyKeypairResult[network.bech32];
+}
+
+/**
+ * Generates a dummy legacy (P2PKH) transaction for simulation.
+ * The transaction includes a number of outputs equal to the `vout` value of the provided `TxnOutput`,
+ * with each output having the same value as in the provided `TxnOutput`.
+ *
+ * @param txnOutput A transaction output object to base the dummy transaction on.
+ * @returns The dummy transaction.
+ */
+export function getDummyLegacyTransaction(txnOutput: TxnOutput, network: typeof btc.NETWORK): btc.Transaction {
+
+    const { dummyPrivateKey, dummyPublicKey, addressP2PKH } = getDummyKeypair(network);
+    const tx = new btc.Transaction();
+
+    // P2WPKH requires no damn nonWitnessUtxo which gives us a signable transaction
+    const input: btc.TransactionInputUpdate = {
+      txid: '0000000000000000000000000000000000000000000000000000000000000000',
+      index: 0,
+      witnessUtxo: {
+        script: btc.p2wpkh(dummyPublicKey, network).script,
+        amount: BigInt(txnOutput.value * (txnOutput.vout+1))
+      }
+    };
+    tx.addInput(input);
+
+    // Add outputs based on txnOutput.vout, each output having the same value
+    for (let i = 0; i <= txnOutput.vout; i++) {
+      tx.addOutputAddress(addressP2PKH, BigInt(txnOutput.value), network);
+    }
+
+    // Sign the input with the dummy private key
+    tx.signIdx(dummyPrivateKey, 0);
+    tx.finalize();
+
+    return tx;
+}
+
+/**
  * Creates an input script for the Xverse wallet
  * The payment address for Xverse is always a P2SH-P2WPKH / Nested SegWit (3...).
  *
@@ -180,38 +309,6 @@ export function createInputScriptForUnisat(paymentAddress: string, paymentPublic
   }
 }
 
-/**
- * Determines whether a given Bitcoin address is a Segregated Witness (SegWit) address.
- *
- * The determination of P2SH addresses as SegWit is based on the assumption that P2SH addresses
- * are being used for SegWit purposes, which may not always be the case.
- */
-export function isSegWit(address: string) {
-  const addressFormat = getAddressFormat(address);
-  return addressFormat !== 'P2PKH';
-}
-
-/**
- * Converts a full public key (including the y-coordinate parity byte) into an x-only public key.
- *
- * In the context of Schnorr signatures and Taproot transactions in Bitcoin, public keys are represented
- * as x-only coordinates. This is because Schnorr signatures utilize x-only public keys, which are 32 bytes long
- * and consist only of the x-coordinate of the elliptic curve point. This format contributes to privacy
- * and efficiency in Taproot transactions by not revealing unnecessary information about the public key
- * and reducing the size of transactions.
- *
- * The first byte of a compressed ECDSA public key (0x02 or 0x03) indicates the y-coordinate's parity
- * and is unnecessary for Schnorr signatures. Removing this byte aligns the public key format with the
- * Schnorr and Taproot standards.
- *
- * as seen here: https://github.com/paulmillr/scure-btc-signer/discussions/77
- *
- * @param pubkey - The full public key, including the y-coordinate parity byte at the beginning.
- * @returns The x-only public key, with the y-coordinate parity byte removed.
- */
-export function toXOnly(pubkey: Uint8Array) {
-  return pubkey.subarray(1, 33);
-}
 
 /**
  * Creates the funding input for the supported wallets
@@ -246,7 +343,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
       if (getAddressFormat(paymentAddress) === 'P2TR') {
 
         if (isSimulation) {
-          paymentPublicKeyToUse = getDummyKeypair(network).xOnlyPublicKey;
+          paymentPublicKeyToUse = getDummyKeypair(network).xOnlyDummyPublicKey;
         } else {
           paymentPublicKeyToUse = toXOnly(paymentPublicKey);
         }
@@ -387,105 +484,6 @@ export function createTransaction(
     changeAmount,
     finalTransactionFee: transactionFee
   };
-}
-
-
-const getDummyKeypairResult: { [key: string]: DummyKeypairResult } = {};
-
-/**
- * Generates a dummy keypair for simulation or testing purposes.
- *
- * This function creates a deterministic dummy keypair based on a fixed private key.
- * It is intended for use in scenarios where a predictable output is necessary,
- * such as testing transaction signing or simulation processes. The generated public
- * key is derived from the hardcoded private key using the SECP256k1 elliptic curve.
- *
- * Note: This function should never be used with real transactions,
- * as the private key is publicly known and provides no security!!
- *
- * The generated 'dummyPublicKey' key does not work for taproot!
- * Use the 'schnorrDummyPublicKey' for taproot!
- *
- * The results are cached.
- */
-export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult {
-
-  if (!getDummyKeypairResult[network.bech32]) {
-
-    const dummyPrivateKey: Uint8Array = hex.decode('0101010101010101010101010101010101010101010101010101010101010101');
-    const dummyPublicKey: Uint8Array = secp256k1.getPublicKey(dummyPrivateKey, true);
-    const dummyPublicKeyHex: string = hex.encode(dummyPublicKey);
-
-    // see https://stackoverflow.com/a/72411600
-    const xOnlyPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
-
-    // Legacy address (P2PKH)
-    // 1C6Rc3w25VHud3dLDamutaqfKWqhrLRTaD for mainnet
-    const addressP2PKH = btc.getAddress('pkh', dummyPrivateKey, network);
-
-    // Nested Segwit (P2SH-P2WPKH)
-    // 35LM1A29K95ADiQ8rJ9uEfVZCKffZE4D9i for mainnet
-    const p2ret = btc.p2sh(btc.p2wpkh(dummyPublicKey, network), network);
-    const addressP2SH_P2WPKH = p2ret.address;
-
-    // Native Seqwit (P2WPKH)
-    // bc1q0xcqpzrky6eff2g52qdye53xkk9jxkvrh6yhyw for mainnet
-    const addressP2WPKH = btc.getAddress('wpkh', dummyPrivateKey, network);
-
-    // TapRoot KeyPathSpend
-    // bc1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8syx4e5t for mainnet
-    const addressP2TR = btc.getAddress('tr', dummyPrivateKey, network);
-
-
-    getDummyKeypairResult[network.bech32] = {
-      dummyPrivateKey,
-      dummyPublicKey,
-      dummyPublicKeyHex,
-      addressP2PKH,
-      addressP2SH_P2WPKH,
-      addressP2WPKH,
-      addressP2TR,
-      xOnlyPublicKey
-    };
-  }
-
-  return getDummyKeypairResult[network.bech32];
-}
-
-/**
- * Generates a dummy legacy (P2PKH) transaction for simulation.
- * The transaction includes a number of outputs equal to the `vout` value of the provided `TxnOutput`,
- * with each output having the same value as in the provided `TxnOutput`.
- *
- * @param txnOutput A transaction output object to base the dummy transaction on.
- * @returns The dummy transaction.
- */
-export function getDummyLegacyTransaction(txnOutput: TxnOutput, network: typeof btc.NETWORK): btc.Transaction {
-
-    const { dummyPrivateKey, dummyPublicKey, addressP2PKH } = getDummyKeypair(network);
-    const tx = new btc.Transaction();
-
-    // P2WPKH requires no damn nonWitnessUtxo which gives us a signable transaction
-    const input: btc.TransactionInputUpdate = {
-      txid: '0000000000000000000000000000000000000000000000000000000000000000',
-      index: 0,
-      witnessUtxo: {
-        script: btc.p2wpkh(dummyPublicKey, network).script,
-        amount: BigInt(txnOutput.value * (txnOutput.vout+1))
-      }
-    };
-    tx.addInput(input);
-
-    // Add outputs based on txnOutput.vout, each output having the same value
-    for (let i = 0; i <= txnOutput.vout; i++) {
-      tx.addOutputAddress(addressP2PKH, BigInt(txnOutput.value), network);
-    }
-
-    // Sign the input with the dummy private key
-    tx.signIdx(dummyPrivateKey, 0);
-    tx.finalize();
-
-    return tx;
 }
 
 export async function signTransactionLeather(psbtBytes: Uint8Array, isMainnet: boolean): Promise<LeatherPSBTBroadcastResponse> {
