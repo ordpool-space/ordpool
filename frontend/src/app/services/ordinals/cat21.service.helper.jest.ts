@@ -1,11 +1,11 @@
-import { describe, expect, it, test } from '@jest/globals';
+import { describe, expect, it, afterEach } from '@jest/globals';
 
-import { createInputScriptForUnisat, createTransaction, getAddressFormat, getDummyKeypair, getMinimumUtxoSize, getDummyLegacyTransaction, toXOnly } from './cat21.service.helper';
+import { createInputScriptForUnisat, createTransaction, getAddressFormat, getDummyKeypair, getMinimumUtxoSize, getDummyLegacyTransaction, toXOnly, isSegWit } from './cat21.service.helper';
 import { KnownOrdinalWalletType } from './wallet.service.types';
 import { sha256 } from '@noble/hashes/sha256';
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import { TxnOutput } from './cat21.service.types';
+import { CreateTransactionResult, TxnOutput } from './cat21.service.types';
 
 
 describe('getMinimumUtxoSize', () => {
@@ -204,42 +204,87 @@ describe('proof that we can create+sign a taproot input + output with dummy data
 });
 
 
-const { dummyPublicKey, addressP2SH_P2WPKH, addressP2WPKH, addressP2TR } = getDummyKeypair(btc.NETWORK);
+const dummyKeypair = getDummyKeypair(btc.NETWORK);
 
 const createTransactionTestCases = [
   {
+    info: 'Xverse which always uses Nested SegWit for payments and Taproot for ordinals',
     walletType: KnownOrdinalWalletType.xverse,
-    info: 'Xverse which uses P2SH-P2WPKH / Nested SegWit for payments',
-    paymentAddress: addressP2SH_P2WPKH,
+    recipientAddress: dummyKeypair.addressP2TR,
+    paymentPublicKey: dummyKeypair.dummyPublicKey,
+    paymentAddress: dummyKeypair.addressP2SH_P2WPKH,
     feesForSingleOutput: BigInt(9000), // High fee to ensure change of 454 sats ($0.19) is below dust limit of 546 sats ($0.23)
   },
   {
+    info: 'Leather which always uses Native SegWit for payments and Taproot for ordinals',
     walletType: KnownOrdinalWalletType.leather,
-    info: 'Leather which uses P2WPKH / Native SegWit for payments',
-    paymentAddress: addressP2WPKH,
-    feesForSingleOutput: BigInt(9200), // Higher fees compared to Xverse test, because Native SegWit has a smaller dust limit
+    recipientAddress: dummyKeypair.addressP2TR,
+    paymentPublicKey: dummyKeypair.dummyPublicKey,
+    paymentAddress: dummyKeypair.addressP2WPKH,
+    feesForSingleOutput: BigInt(9000 + 200) // Higher fees compared to Xverse test, because Native SegWit has a smaller dust limit
+  },
+  {
+    info: 'Unisat with Legacy address for payments and ordinals 🙀',
+    walletType: KnownOrdinalWalletType.unisat,
+    recipientAddress: dummyKeypair.addressP2PKH,
+    paymentPublicKey: dummyKeypair.dummyPublicKey,
+    paymentAddress: dummyKeypair.addressP2PKH,
+    feesForSingleOutput: BigInt(9000)
+  },
+  {
+    info: 'Unisat with Nested Segwit address for payments and ordinals 🙀',
+    walletType: KnownOrdinalWalletType.unisat,
+    recipientAddress: dummyKeypair.addressP2SH_P2WPKH,
+    paymentPublicKey: dummyKeypair.dummyPublicKey,
+    paymentAddress: dummyKeypair.addressP2SH_P2WPKH,
+    feesForSingleOutput: BigInt(9000)
+  },
+  {
+    info: 'Unisat with Native Seqwit address for payments and ordinals 🙀',
+    walletType: KnownOrdinalWalletType.unisat,
+    recipientAddress: dummyKeypair.addressP2WPKH,
+    paymentPublicKey: dummyKeypair.dummyPublicKey,
+    paymentAddress: dummyKeypair.addressP2WPKH,
+    feesForSingleOutput: BigInt(9000 + 200) // Higher fees, because Native SegWit has a smaller dust limit
+  },
+  {
+    info: 'Unisat with Taproot for payments and ordinals 😻',
+    walletType: KnownOrdinalWalletType.unisat,
+    recipientAddress: dummyKeypair.addressP2TR,
+    paymentPublicKey: dummyKeypair.dummyPublicKey,
+    paymentAddress: dummyKeypair.addressP2TR,
+    feesForSingleOutput: BigInt(9000 + 200) // Higher fees, because Taproot has a smaller dust limit
   }
 ];
 
 // prices: 1BTC == 42855 USD
-createTransactionTestCases.forEach(({ walletType, info, paymentAddress, feesForSingleOutput }) => {
+createTransactionTestCases.forEach(({ info, walletType, recipientAddress, paymentPublicKey, paymentAddress, feesForSingleOutput }) => {
 
   describe(`createTransaction for ${info}`, () => {
 
-    const paymentUtxo = {
+    let result: CreateTransactionResult | undefined;
+
+    const paymentUtxo: TxnOutput = {
       txid: hex.encode(sha256('text-txid')),
       vout: 0,
       value: 10000, // 10000 sats ($4.28)
       status: {} as any,
+      transactionHex: undefined
     };
+
+    if (!isSegWit(paymentAddress)) {
+      const dummyTx = getDummyLegacyTransaction(paymentUtxo, btc.NETWORK);
+      paymentUtxo.txid = dummyTx.id;
+      paymentUtxo.transactionHex = dummyTx.hex;
+    }
 
     it('creates only one output if change would be below dust limit, miner gets some more fees', () => {
 
-      const result = createTransaction(
+      result = createTransaction(
         walletType,
-        addressP2TR,
+        recipientAddress,
         paymentUtxo,
-        dummyPublicKey,
+        paymentPublicKey,
         paymentAddress,
         feesForSingleOutput,
         false,
@@ -263,11 +308,11 @@ createTransactionTestCases.forEach(({ walletType, info, paymentAddress, feesForS
 
     it('creates two outputs if change is above dust limit', () => {
 
-      const result = createTransaction(
+      result = createTransaction(
         walletType,
-        addressP2TR,
+        recipientAddress,
         paymentUtxo,
-        dummyPublicKey,
+        paymentPublicKey,
         paymentAddress,
         BigInt(5000), // Lower fee to ensure change of 4.454 sats ($1.91) is above dust limit of 546 sats ($0.23)
         false,
@@ -292,11 +337,12 @@ createTransactionTestCases.forEach(({ walletType, info, paymentAddress, feesForS
 
     it('fails with an exeption if funds are too low', () => {
 
+      result = undefined;
       expect(() => createTransaction(
         walletType,
-        addressP2TR,
+        recipientAddress,
         paymentUtxo,
-        dummyPublicKey,
+        paymentPublicKey,
         paymentAddress,
         BigInt(9000 + 1000), // now we are out of money, change would be negative
         false,
@@ -304,5 +350,14 @@ createTransactionTestCases.forEach(({ walletType, info, paymentAddress, feesForS
       )).toThrowError(new Error('Insufficient funds for transaction'));
     });
 
+    // creating broken transactions is easy, but can we also sign and finalize them?
+    afterEach(() => {
+
+      if (result?.tx) {
+        result.tx.signIdx(dummyKeypair.dummyPrivateKey, 0, [btc.SigHash.SINGLE_ANYONECANPAY]);
+        result.tx.finalize();
+        expect(result.tx.vsize).toBeGreaterThan(100);
+      }
+    });
   });
 });

@@ -32,11 +32,28 @@ export interface LeatherPSBTBroadcastResponse {
 export interface DummyKeypairResult {
   dummyPrivateKey: Uint8Array
   dummyPublicKey: Uint8Array,
+
   // for taproot transactions which are using schnorr signatures
   xOnlyDummyPublicKey: Uint8Array
+
+  /**
+   * "Legacy" Pay-to-Public-Key-Hash (P2PKH)
+   */
   addressP2PKH: string,
+
+  /**
+   * Nested Segwit (P2SH-P2WPKH)
+   */
   addressP2SH_P2WPKH: string,
+
+  /**
+   * Native Seqwit (P2WPKH)
+   */
   addressP2WPKH: string,
+
+  /**
+   * TapRoot (P2TR)
+   */
   addressP2TR: string
 }
 
