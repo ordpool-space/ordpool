@@ -411,7 +411,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
  * @param walletType - The type of wallet used for the transaction.
  * @param recipientAddress - The address of the recipient.
  * @param paymentOutput - The UTXO to be used for the transaction.
- * @param paymentPublicKeyHex - The public key of the sender, in hexadecimal.
+ * @param paymentPublicKey - The public key of the sender, in hexadecimal.
  * @param paymentAddress - The sender's address, to which change will be returned.
  * @param transactionFee - The miner fee in satoshis.
  * @param isSimulation - Flag indicating whether the transaction should be prepared for a simulation
@@ -423,7 +423,7 @@ export function createTransaction(
   recipientAddress: string,
 
   paymentOutput: TxnOutput,
-  paymentPublicKeyHex: string,
+  paymentPublicKey: Uint8Array,
   paymentAddress: string,
   transactionFee: bigint,
   isSimulation: boolean,
@@ -431,7 +431,6 @@ export function createTransaction(
 ): CreateTransactionResult {
 
   const network: typeof btc.NETWORK = isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
-  const paymentPublicKey: Uint8Array = hex.decode(paymentPublicKeyHex);
 
   const lockTime = 21; // THIS is the most important part 😺
   const tx = new btc.Transaction({
