@@ -399,7 +399,7 @@ export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult
 
     // Nested Segwit (P2SH-P2WPKH)
     // 35LM1A29K95ADiQ8rJ9uEfVZCKffZE4D9i for mainnet
-    const p2ret = btc.p2sh(btc.p2wpkh(schnorrPublicKey, network), network);
+    const p2ret = btc.p2sh(btc.p2wpkh(dummyPublicKey, network), network);
     const addressP2SH_P2WPKH = p2ret.address;
 
     // Native Seqwit (P2WPKH)
