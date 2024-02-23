@@ -37,8 +37,8 @@ export interface DummyKeypairResult {
   addressP2SH_P2WPKH: string,
   addressP2WPKH: string,
   addressP2TR: string
-  schnorrPublicKey: Uint8Array,
-  schnorrPublicKeyHex: string
+  // for taproot transactions which are using schnorr signatures
+  xOnlyPublicKey: Uint8Array
 }
 
 export interface CreateTransactionResult {

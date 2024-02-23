@@ -142,7 +142,8 @@ export function createInputScriptForLeather(paymentPublicKey: Uint8Array, networ
  * - Native Seqwit (P2WPKH)
  * - Taproot (P2TR)
  *
- * ... so we take it for granted, that we deal with Nested Segwit and no other P2SH format!!
+ * see https://docs.unisat.io/unisat-wallet/address-type
+ * > UniSat Wallet supports 4 Bitcoin address formats and allows switching between them in the settings.
  *
  * @param paymentAddress - The payment address of the Unisat wallet.
  * @param paymentPublicKey - The public key associated with the payment address.
@@ -191,6 +192,28 @@ export function isSegWit(address: string) {
 }
 
 /**
+ * Converts a full public key (including the y-coordinate parity byte) into an x-only public key.
+ *
+ * In the context of Schnorr signatures and Taproot transactions in Bitcoin, public keys are represented
+ * as x-only coordinates. This is because Schnorr signatures utilize x-only public keys, which are 32 bytes long
+ * and consist only of the x-coordinate of the elliptic curve point. This format contributes to privacy
+ * and efficiency in Taproot transactions by not revealing unnecessary information about the public key
+ * and reducing the size of transactions.
+ *
+ * The first byte of a compressed ECDSA public key (0x02 or 0x03) indicates the y-coordinate's parity
+ * and is unnecessary for Schnorr signatures. Removing this byte aligns the public key format with the
+ * Schnorr and Taproot standards.
+ *
+ * as seen here: https://github.com/paulmillr/scure-btc-signer/discussions/77
+ *
+ * @param pubkey - The full public key, including the y-coordinate parity byte at the beginning.
+ * @returns The x-only public key, with the y-coordinate parity byte removed.
+ */
+export function toXOnly(pubkey: Uint8Array) {
+  return pubkey.subarray(1, 33);
+}
+
+/**
  * Creates the funding input for the supported wallets
  */
 export function createInput(walletType: KnownOrdinalWalletType,
@@ -205,8 +228,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
 
   // in a simulation we use our well-known dummy key instead, so that we can do the fake signing
   if (isSimulation) {
-    const { dummyPublicKey } = getDummyKeypair(network);
-    paymentPublicKeyToUse = dummyPublicKey;
+    paymentPublicKeyToUse = getDummyKeypair(network).dummyPublicKey;
   }
 
   switch (walletType) {
@@ -220,9 +242,14 @@ export function createInput(walletType: KnownOrdinalWalletType,
     }
     case KnownOrdinalWalletType.unisat: {
 
-      // special case for taproot
-      if (isSimulation && getAddressFormat(paymentAddress) === 'P2TR') {
-        paymentPublicKeyToUse = getDummyKeypair(network).schnorrPublicKey;
+      // special case for taproot --> x-only public key
+      if (getAddressFormat(paymentAddress) === 'P2TR') {
+
+        if (isSimulation) {
+          paymentPublicKeyToUse = getDummyKeypair(network).xOnlyPublicKey;
+        } else {
+          paymentPublicKeyToUse = toXOnly(paymentPublicKey);
+        }
       }
 
       scriptData = createInputScriptForUnisat(paymentAddress, paymentPublicKeyToUse, network);
@@ -390,8 +417,7 @@ export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult
     const dummyPublicKeyHex: string = hex.encode(dummyPublicKey);
 
     // see https://stackoverflow.com/a/72411600
-    const schnorrPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
-    const schnorrPublicKeyHex: string = hex.encode(schnorrPublicKey);
+    const xOnlyPublicKey: Uint8Array = schnorr.getPublicKey(dummyPrivateKey);
 
     // Legacy address (P2PKH)
     // 1C6Rc3w25VHud3dLDamutaqfKWqhrLRTaD for mainnet
@@ -419,8 +445,7 @@ export function getDummyKeypair(network: typeof btc.NETWORK): DummyKeypairResult
       addressP2SH_P2WPKH,
       addressP2WPKH,
       addressP2TR,
-      schnorrPublicKey,
-      schnorrPublicKeyHex
+      xOnlyPublicKey
     };
   }
 
