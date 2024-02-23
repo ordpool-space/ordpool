@@ -9,6 +9,7 @@ import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/w
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
+import { hex } from '@scure/base';
 
 
 @Component({
@@ -100,7 +101,7 @@ export class Cat21MintComponent implements OnInit {
 
               paymentOutput,
               wallet.paymentAddress,
-              wallet.paymentPublicKey,
+              hex.decode(wallet.paymentPublicKey),
               BigInt(0)
             );
 
@@ -113,7 +114,7 @@ export class Cat21MintComponent implements OnInit {
 
               paymentOutput,
               wallet.paymentAddress,
-              wallet.paymentPublicKey,
+              hex.decode(wallet.paymentPublicKey),
               transactionFee
             );
 
@@ -208,7 +209,7 @@ export class Cat21MintComponent implements OnInit {
 
       paymentOutput,
       wallet.paymentAddress,
-      wallet.paymentPublicKey,
+      hex.decode(wallet.paymentPublicKey),
       transactionFee
     ).subscribe({
       next: (result) => {

@@ -131,7 +131,7 @@ export class Cat21Service {
 
     paymentOutput: TxnOutput,
     paymentAddress: string,
-    paymentPublicKeyHex: string,
+    paymentPublicKey: Uint8Array,
     transactionFee: bigint
   ): SimulateTransactionResult {
 
@@ -141,7 +141,7 @@ export class Cat21Service {
       walletType,
       recipientAddress,
       paymentOutput,
-      paymentPublicKeyHex,
+      paymentPublicKey,
       paymentAddress,
       transactionFee,
       true, // simulation
@@ -168,7 +168,7 @@ export class Cat21Service {
 
     paymentOutput: TxnOutput,
     paymentAddress: string,
-    paymentPublicKeyHex: string,
+    paymentPublicKey: Uint8Array,
     transactionFee: bigint
   ): Observable<{ txId: string }> {
 
@@ -178,7 +178,7 @@ export class Cat21Service {
       recipientAddress,
 
       paymentOutput,
-      paymentPublicKeyHex,
+      paymentPublicKey,
       paymentAddress,
       transactionFee,
       false, // no simulation

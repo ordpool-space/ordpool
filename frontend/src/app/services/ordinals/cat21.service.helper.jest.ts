@@ -204,7 +204,7 @@ describe('proof that we can create+sign a taproot input + output with dummy data
 });
 
 // prices: 1BTC == 42855 USD
-describe('createTransaction for Xverse', () => {
+describe('createTransaction for Xverse which uses P2SH-P2WPKH / Nested SegWit for payments', () => {
   const paymentUtxo = {
     txid: hex.encode(sha256('text-txid')),
     vout: 0,
@@ -216,45 +216,59 @@ describe('createTransaction for Xverse', () => {
 
   it('creates only one output if change would be below dust limit, miner gets some more fees', () => {
 
-    const { tx } = createTransaction(
+    const result = createTransaction(
       KnownOrdinalWalletType.xverse,
       addressP2TR,
       paymentUtxo,
-      hex.encode(dummyPublicKey),
+      dummyPublicKey,
       addressP2SH_P2WPKH,
       BigInt(9000), // High fee to ensure change of 454 sats ($0.19) is below dust limit of 546 sats ($0.23)
       false,
       true
     );
 
-    if (!tx) {
+    if (!result.tx) {
       throw Error('Transaction expected');
     }
 
-    expect(tx.outputsLength).toBe(1);
-    expect(tx.getOutput(0).amount).toBe(BigInt(546));
+    expect(result.tx.outputsLength).toBe(1);
+    expect(result.tx.getOutput(0).amount).toBe(BigInt(546));
+
+    expect(result.amountToRecipient).toBe(BigInt(546));
+    expect(result.singleInputAmount).toBe(BigInt(10000));
+    expect(result.changeAmount).toBe(BigInt(0));
+    expect(result.finalTransactionFee).toBe(BigInt(9454));
+
+    expect(result.amountToRecipient + result.changeAmount + result.finalTransactionFee).toBe(result.singleInputAmount);
   });
 
   it('creates two outputs if change is above dust limit', () => {
 
-    const { tx } = createTransaction(
+    const result = createTransaction(
       KnownOrdinalWalletType.xverse,
       addressP2TR,
       paymentUtxo,
-      hex.encode(dummyPublicKey),
+      dummyPublicKey,
       addressP2SH_P2WPKH,
       BigInt(5000), // Lower fee to ensure change of 4.454 sats ($1.91) is above dust limit of 546 sats ($0.23)
       false,
       true
     );
 
-    if (!tx) {
+    if (!result.tx) {
       throw Error('Transaction expected');
     }
 
-    expect(tx.outputsLength).toBe(2);
-    expect(tx.getOutput(0).amount).toBe(BigInt(546));
-    expect(tx.getOutput(1).amount).toBe(BigInt(4454));
+    expect(result.tx.outputsLength).toBe(2);
+    expect(result.tx.getOutput(0).amount).toBe(BigInt(546));
+    expect(result.tx.getOutput(1).amount).toBe(BigInt(4454));
+
+    expect(result.amountToRecipient).toBe(BigInt(546));
+    expect(result.singleInputAmount).toBe(BigInt(10000));
+    expect(result.changeAmount).toBe(BigInt(4454));
+    expect(result.finalTransactionFee).toBe(BigInt(5000));
+
+    expect(result.amountToRecipient + result.changeAmount + result.finalTransactionFee).toBe(result.singleInputAmount);
   });
 
   it('fails with an exeption if funds are too low', () => {
@@ -263,8 +277,91 @@ describe('createTransaction for Xverse', () => {
       KnownOrdinalWalletType.xverse,
       addressP2TR,
       paymentUtxo,
-      hex.encode(dummyPublicKey),
+      dummyPublicKey,
       addressP2SH_P2WPKH,
+      BigInt(9000 + 1000), // now we are out of money, change would be negative
+      false,
+      true
+    )).toThrowError(new Error('Insufficient funds for transaction'));
+  });
+});
+
+// prices: 1BTC == 42855 USD
+describe('createTransaction for Leather which uses P2WPKH / Native SegWit for payments', () => {
+  const paymentUtxo = {
+    txid: hex.encode(sha256('text-txid')),
+    vout: 0,
+    value: 10000, // 10000 sats ($4.28)
+    status: {} as any,
+  };
+
+  const { dummyPublicKey, addressP2WPKH, addressP2TR } = getDummyKeypair(btc.NETWORK);
+
+  it('creates only one output if change would be below dust limit, miner gets some more fees', () => {
+
+    const result = createTransaction(
+      KnownOrdinalWalletType.leather,
+      addressP2TR,
+      paymentUtxo,
+      dummyPublicKey,
+      addressP2WPKH,
+      BigInt(9000), // High fee to ensure change of 454 sats ($0.19) is below dust limit of 546 sats ($0.23)
+      false,
+      true
+    );
+
+    if (!result.tx) {
+      throw Error('Transaction expected');
+    }
+
+    expect(result.tx.outputsLength).toBe(1);
+    expect(result.tx.getOutput(0).amount).toBe(BigInt(546));
+
+    expect(result.amountToRecipient).toBe(BigInt(546));
+    expect(result.singleInputAmount).toBe(BigInt(10000));
+    expect(result.changeAmount).toBe(BigInt(0));
+    expect(result.finalTransactionFee).toBe(BigInt(9454));
+
+    expect(result.amountToRecipient + result.changeAmount + result.finalTransactionFee).toBe(result.singleInputAmount);
+  });
+
+  it('creates two outputs if change is above dust limit', () => {
+
+    const result = createTransaction(
+      KnownOrdinalWalletType.xverse,
+      addressP2TR,
+      paymentUtxo,
+      dummyPublicKey,
+      addressP2WPKH,
+      BigInt(5000), // Lower fee to ensure change of 4.454 sats ($1.91) is above dust limit of 546 sats ($0.23)
+      false,
+      true
+    );
+
+    if (!result.tx) {
+      throw Error('Transaction expected');
+    }
+
+    expect(result.tx.outputsLength).toBe(2);
+    expect(result.tx.getOutput(0).amount).toBe(BigInt(546));
+    expect(result.tx.getOutput(1).amount).toBe(BigInt(4454));
+
+    expect(result.amountToRecipient).toBe(BigInt(546));
+    expect(result.singleInputAmount).toBe(BigInt(10000));
+    expect(result.changeAmount).toBe(BigInt(4454));
+    expect(result.finalTransactionFee).toBe(BigInt(5000));
+
+    expect(result.amountToRecipient + result.changeAmount + result.finalTransactionFee).toBe(result.singleInputAmount);
+  });
+
+  it('fails with an exeption if funds are too low', () => {
+
+    expect(() => createTransaction(
+      KnownOrdinalWalletType.xverse,
+      addressP2TR,
+      paymentUtxo,
+      dummyPublicKey,
+      addressP2WPKH,
       BigInt(9000 + 1000), // now we are out of money, change would be negative
       false,
       true
