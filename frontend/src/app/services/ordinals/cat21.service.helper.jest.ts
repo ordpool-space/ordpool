@@ -60,7 +60,7 @@ describe('getAddressFormat', () => {
 });
 
 describe('createInputScriptForUnisat', () => {
-  const { dummyPublicKey, schnorrPublicKey } = getDummyKeypair(btc.NETWORK);
+  const { dummyPublicKey, xOnlyPublicKey } = getDummyKeypair(btc.NETWORK);
 
   // "Legacy" Pay-to-Public-Key-Hash
   it('creates script for P2PKH addresses', () => {
@@ -85,7 +85,7 @@ describe('createInputScriptForUnisat', () => {
 
   // Taproot
   it('creates script for P2TR addresses', () => {
-    const result = createInputScriptForUnisat('bc1p...', schnorrPublicKey, btc.NETWORK);
+    const result = createInputScriptForUnisat('bc1p...', xOnlyPublicKey, btc.NETWORK);
     expect(result).toHaveProperty('script');
     expect(result.redeemScript).toBeUndefined();
   });
@@ -127,9 +127,9 @@ describe('proof that we can create+sign a taproot input + output with dummy data
   // will first throw an exception (Invalid checksum!), but the second try should pass
   it('should execute flawlessly', () => {
 
-    const { dummyPrivateKey, schnorrPublicKey } = getDummyKeypair(btc.TEST_NETWORK);
+    const { dummyPrivateKey, xOnlyPublicKey } = getDummyKeypair(btc.TEST_NETWORK);
     const tx = new btc.Transaction();
-    const scriptP2tr: btc.P2TROut = btc.p2tr(schnorrPublicKey, undefined, btc.TEST_NETWORK, true);
+    const scriptP2tr: btc.P2TROut = btc.p2tr(xOnlyPublicKey, undefined, btc.TEST_NETWORK, true);
 
     // Add the Taproot input
     tx.addInput({
