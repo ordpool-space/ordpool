@@ -33,6 +33,7 @@ export class Cat21MintComponent implements OnInit {
     paymentOutput: TxnOutput;
   } | undefined = undefined;
 
+  unisatShowWarningThreshold = 10 * 1000;
 
   form = new FormGroup({
     // TODO
