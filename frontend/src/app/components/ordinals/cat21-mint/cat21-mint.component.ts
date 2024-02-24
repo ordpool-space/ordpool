@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, catchError, combineLatest, map, of, switchMap, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, switchMap, take, tap } from 'rxjs';
 
 import { Cat21Service } from '../../../services/ordinals/cat21.service';
 import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
@@ -132,10 +132,15 @@ export class Cat21MintComponent implements OnInit {
             return undefined;
           }
         })
-        .filter(x => x); // removes payments with not enough funds
+        .filter(x => x) // removes payments with not enough funds
+        .slice(0, 10); // limit to max 10 elements
     }),
     // sets it to the largest available UTXO or to undefined
-    tap(simulateTransactions => this.selectedPaymentOutput = simulateTransactions[0])
+    tap(simulateTransactions => this.selectedPaymentOutput = simulateTransactions[0]),
+    shareReplay({
+      bufferSize: 1,
+      refCount: true
+    })
   );
 
   minRequiredFee: number = 0;

@@ -22,7 +22,6 @@ const mempoolMainnetApiUrl = 'https://mempool.space';
 const mempoolTestnetApiUrl = 'https://mempool.space/testnet';
 
 
-
 @Injectable({
   providedIn: 'root'
 })
