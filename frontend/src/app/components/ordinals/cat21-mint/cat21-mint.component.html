@@ -70,7 +70,6 @@
             </div>
           </div>
 
-          <!-- TODO: recommend exact numbers -->
           <div class="p-2 mt-4" *ngIf="!selectedPaymentOutput && !utxoLoading">
             We are sorry, but we could not find find enough funds in your payment address! 😿<br>
             No UTXO has enough value to execute a transaction at the set fees.
@@ -78,7 +77,7 @@
 
             <ul class="m-0">
               <li>
-                <code style="color:#FF9900">200000</code> sat (<app-fiat
+                <code style="color:#FF9900">{{ 200000 | number }}</code>&nbsp;<span class="symbol" i18n="shared.sat|sat">sat</span> (<app-fiat
                   [value]="200000"></app-fiat>)&nbsp;<app-clipboard [button]="true" [text]="'200000'"
                   [class]="'btn btn-sm p-0'"></app-clipboard>
 
@@ -93,7 +92,7 @@
             This should be enough to mint <strong style="color:#FF9900">multiple</strong> CAT-21 ordinals. 😻😻😻
           </div>
 
-          <div *ngIf="!utxoLoading && !utxoError">
+          <div *ngIf="!utxoLoading && !utxoError && (paymentOutputs$ | async)?.length">
 
             <details>
               <summary>Show Expert Settings</summary>
@@ -107,7 +106,7 @@
                 We automatically select your largest UTXO, but feel free to select a different one if you like:
               </p>
 
-              <div class="mt-4 pl-2 pr-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$| async"
+              <div class="mt-4 pl-2 pr-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
                 [ngClass]="{ selected: x === this.selectedPaymentOutput }">
 
                 <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-right text-white mt-2"
