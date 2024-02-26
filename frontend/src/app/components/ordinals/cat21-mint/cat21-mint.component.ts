@@ -220,8 +220,8 @@ export class Cat21MintComponent implements OnInit {
     ).subscribe({
       next: (result) => {
         this.mintCat21Loading = false;
-        this.mintCat21Success = result,
-          this.cd.detectChanges();
+        this.mintCat21Success = result;
+        this.cd.detectChanges();
       },
       error: (err: Error) => {
         this.mintCat21Loading = false;

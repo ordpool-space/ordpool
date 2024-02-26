@@ -499,8 +499,7 @@ export async function signTransactionLeather(psbtBytes: Uint8Array, isMainnet: b
   };
 
   // Sign the PSBT (and broadcast)
-  const result: LeatherPSBTBroadcastResponse = await (window as any).btc.request('signPsbt', signRequestParams);
-  return result;
+  return await (window as any).btc.request('signPsbt', signRequestParams);
 }
 
 export function signTransactionAndBroadcastXverse(psbtBytes: Uint8Array, paymentAddress: string, isMainnet: boolean): Observable<{ txId: string }> {
