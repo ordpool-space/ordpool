@@ -2,9 +2,10 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import { concatMap, from, map, mergeMap, Observable, of, switchMap, tap, timer, toArray } from 'rxjs';
+import { BehaviorSubject, concatMap, from, map, mergeMap, Observable, of, switchMap, tap, timer, toArray } from 'rxjs';
 
 import { ApiService } from '../api.service';
+import { StorageService } from '../storage.service';
 import {
   createTransaction,
   getDummyKeypair,
@@ -13,7 +14,7 @@ import {
   signTransactionLeather,
   signTransactionUnisatAndBroadcast,
 } from './cat21.service.helper';
-import { LeatherPSBTBroadcastResponse, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
+import { Cat21Mint, LeatherPSBTBroadcastResponse, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
 import { WalletService } from './wallet.service';
 import { KnownOrdinalWalletType } from './wallet.service.types';
 
@@ -21,25 +22,33 @@ import { KnownOrdinalWalletType } from './wallet.service.types';
 const mempoolMainnetApiUrl = 'https://mempool.space';
 const mempoolTestnetApiUrl = 'https://mempool.space/testnet';
 
+export const LAST_CAT21_MINTS = 'LAST_CAT21_MINTS';
+
 
 @Injectable({
   providedIn: 'root'
 })
 export class Cat21Service {
 
-  walletService = inject(WalletService);
+  mempoolApiUrl = mempoolMainnetApiUrl;
   http = inject(HttpClient);
   apiService = inject(ApiService);
+  walletService = inject(WalletService);
+  storageService = inject(StorageService);
 
   isMainnet = true;
-  mempoolApiUrl = mempoolMainnetApiUrl;
   private txHexCache: { [transactionId: string]: string } = {}; // Cache object
+
+  allMints$ = new BehaviorSubject<Cat21Mint[]>([]);
 
   constructor() {
     this.walletService.isMainnet$.subscribe(isMainnet => {
       this.isMainnet = isMainnet;
       this.mempoolApiUrl = isMainnet ? mempoolMainnetApiUrl : mempoolTestnetApiUrl;
     });
+
+    const allMint = this.getAllMints();
+    this.allMints$.next(allMint);
   }
 
   /**
@@ -187,23 +196,65 @@ export class Cat21Service {
     // PSBT as Uint8Array
     const psbtBytes = tx.toPSBT(0);
 
+    let result: Observable<{ txId: string }>;
+
     switch (walletType) {
-      case KnownOrdinalWalletType.leather:
+      case KnownOrdinalWalletType.leather: {
         return from(signTransactionLeather(psbtBytes, this.isMainnet)).pipe(
           switchMap(signedPsbt => this.broadcastTransactionLeather(signedPsbt).pipe(
             // retry({ count: 3, delay: 500 }) // Ordpool has a global interceptor for this, otherwise add this line
           ))
         );
-
-      case KnownOrdinalWalletType.xverse:
+      }
+      case KnownOrdinalWalletType.xverse: {
         return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
-
-      case KnownOrdinalWalletType.unisat:
-        return from(signTransactionUnisatAndBroadcast(psbtBytes));
-
+        break;
+      }
+      case KnownOrdinalWalletType.unisat: {
+        result = from(signTransactionUnisatAndBroadcast(psbtBytes));
+        break;
+      }
       default:
         // this case should never happen, but otherwise the code is not type-safe
         throw new Error('Unknown wallet');
     }
+
+    return result.pipe(
+      tap(({ txId }) => {
+        this.saveNewMint(txId, paymentAddress,  recipientAddress);
+      })
+    );
+  }
+
+  /**
+   * Get all mints from local storage
+   */
+  getAllMints(): Cat21Mint[] {
+
+    let lastMints: Cat21Mint[] = [];
+    const stringified = this.storageService.getValue(LAST_CAT21_MINTS);
+    if (stringified) {
+      lastMints = JSON.parse(stringified);
+    }
+
+    return lastMints;
+  }
+
+  /**
+   * Save to local storage
+   */
+  saveNewMint(txId: string, paymentAddress: string, recipientAddress: string): void {
+
+    const allMints = this.getAllMints();
+
+    allMints.push({
+      txId,
+      paymentAddress,
+      recipientAddress,
+      createdAt: (new Date()).toISOString()
+    });
+
+    this.storageService.setValue(LAST_CAT21_MINTS, JSON.stringify(allMints));
+    this.allMints$.next(allMints);
   }
 }

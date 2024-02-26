@@ -316,7 +316,7 @@ export class InscriptionAcceleratorApiService {
 
 
   /**
-   * Get all from local storage
+   * Get all accelerations from local storage
    */
   getAllAccelerations(): InscriptionAcceleration[] {
 
