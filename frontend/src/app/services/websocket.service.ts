@@ -9,6 +9,7 @@ import { take } from 'rxjs/operators';
 import { TransferState, makeStateKey } from '@angular/platform-browser';
 import { CacheService } from './cache.service';
 import { environment } from 'src/environments/environment';
+import { uncompressDeltaChange, uncompressTx } from '../shared/common.utils';
 
 const OFFLINE_RETRY_AFTER_MS = 2000;
 const OFFLINE_PING_CHECK_AFTER_MS = 30000;
@@ -379,9 +380,13 @@ export class WebsocketService {
     if (response['projected-block-transactions']) {
       if (response['projected-block-transactions'].index == this.trackingMempoolBlock) {
         if (response['projected-block-transactions'].blockTransactions) {
-          this.stateService.mempoolBlockTransactions$.next(response['projected-block-transactions'].blockTransactions);
+          // HACK: backport from latest, remove after big merge
+          // this.stateService.mempoolBlockTransactions$.next(response['projected-block-transactions'].blockTransactions);
+          this.stateService.mempoolBlockTransactions$.next(response['projected-block-transactions'].blockTransactions.map(uncompressTx));
         } else if (response['projected-block-transactions'].delta) {
-          this.stateService.mempoolBlockDelta$.next(response['projected-block-transactions'].delta);
+          // HACK: backport from latest, remove after big merge
+          // this.stateService.mempoolBlockDelta$.next(response['projected-block-transactions'].delta);
+          this.stateService.mempoolBlockDelta$.next(uncompressDeltaChange(response['projected-block-transactions'].delta));
         }
       }
     }
