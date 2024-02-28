@@ -153,3 +153,42 @@ export function seoDescriptionNetwork(network: string): string {
   }
   return '';
 }
+
+// backport from latest, replace this with the real functions after big merge
+export function uncompressTx(tx: any): any {
+
+  // old backend - nothing to do
+  if (!Array.isArray(tx)) {
+    return tx;
+  }
+
+  return {
+    txid: tx[0],
+    fee: tx[1],
+    vsize: tx[2],
+    value: tx[3],
+    rate: tx[4],
+    flags: tx[5],
+    acc: !!tx[6],
+  };
+}
+
+export function uncompressDeltaChange(delta: any): any {
+
+  // old backend - nothing to do
+  if (delta.added[0] && !Array.isArray(delta.added[0]) ||
+      delta.changed[0] && !Array.isArray(delta.changed[0])) {
+    return delta;
+  }
+
+  return {
+    added: delta.added.map(uncompressTx),
+    removed: delta.removed,
+    changed: delta.changed.map(tx => ({
+      txid: tx[0],
+      rate: tx[1],
+      flags: tx[2],
+      acc: !!tx[3],
+    }))
+  };
+}
