@@ -175,6 +175,11 @@ export function uncompressTx(tx: any): any {
 
 export function uncompressDeltaChange(delta: any): any {
 
+  // another fix, delta can be undefined, but code in state.service is not checking this
+  if (!delta.changed) {
+    delta.changed = [];
+  }
+
   // old backend - nothing to do
   if (delta.added[0] && !Array.isArray(delta.added[0]) ||
       delta.changed[0] && !Array.isArray(delta.changed[0])) {
