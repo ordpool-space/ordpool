@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChildren, QueryList } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChildren, QueryList, inject } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { ElectrsApiService } from '../../services/electrs-api.service';
@@ -16,7 +16,11 @@ import { detectWebGL } from '../../shared/graphs.utils';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { PriceService, Price } from '../../services/price.service';
 import { CacheService } from '../../services/cache.service';
-import { HiroApiService } from '../../services/ordinals/hiro-api.service';
+import { OrdApiService } from '../../services/ordinals/ord-api.service';
+import { BlockchairApiService } from '../../services/ordinals/blockchair-api.service';
+import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
+import { Cat21ParserService } from 'ordpool-parser';
+import { Cat21ApiService } from '../../services/ordinals/cat21-api.service';
 
 @Component({
   selector: 'app-block',
@@ -92,6 +96,12 @@ export class BlockComponent implements OnInit, OnDestroy {
   @ViewChildren('blockGraphProjected') blockGraphProjected: QueryList<BlockOverviewGraphComponent>;
   @ViewChildren('blockGraphActual') blockGraphActual: QueryList<BlockOverviewGraphComponent>;
 
+  private ordApiService = inject(OrdApiService);
+  private blockchairApiService = inject(BlockchairApiService);
+  private cat21ApiService = inject(Cat21ApiService);
+  private digitalArtifactsFetcherService = inject(DigitalArtifactsFetcherService);
+
+
   constructor(
     private route: ActivatedRoute,
     private location: Location,
@@ -103,8 +113,7 @@ export class BlockComponent implements OnInit, OnDestroy {
     private relativeUrlPipe: RelativeUrlPipe,
     private apiService: ApiService,
     private priceService: PriceService,
-    private cacheService: CacheService,
-    private hiroApiService: HiroApiService
+    private cacheService: CacheService
   ) {
     this.webGlEnabled = detectWebGL();
   }
@@ -335,7 +344,62 @@ export class BlockComponent implements OnInit, OnDestroy {
 
           // HACK
           tap(([transactions, blockAudit]) => {
-            this.hiroApiService.fetchAndCacheBlock(block.id, transactions);
+
+            forkJoin([
+              this.ordApiService.getBlockData(block.height).pipe(
+                map(blockData => blockData.inscriptions),
+                map(inscriptions => inscriptions.map(i => i.split('i')[0]))
+              ),
+
+              // they index faster then my little indexer
+              this.blockchairApiService.fetchAllCat21Transactions(block.height).pipe(
+                map(transactions => transactions.map(t => t.hash))
+              ),
+
+              // but i will never rate limit, so also ask my indexer additionally
+              this.cat21ApiService.getCatsByBlockId(block.id).pipe(
+                map(transactions => transactions.map(t => t.transactionId)),
+                catchError(() => of([] as string[]))
+              )
+            ]).subscribe(([inscriptionTxns, cat21MintTxns1, cat21MintTxns2]) => {
+
+              // array without duplicates
+              const cat21MintTxns: string[] = Array.from(new Set([...cat21MintTxns1, ...cat21MintTxns2]));
+
+              // no inscriptions?? (propably an error!) --> then skip chache overrides for this block!
+              if (inscriptionTxns.length) {
+                const txnsWithArtifacts = [...inscriptionTxns, ...cat21MintTxns];
+
+                // If there is NO match, we call addToCache with [],
+                // so that this txn is not any longer catched!
+                // TODO: this still ignores stamps! (they don't offer a public indexer, so it's not my fault!)
+                for (const transaction of transactions) {
+                  const matchingArtifact = txnsWithArtifacts.find(i => i === transaction.txid);
+                  if (!matchingArtifact) {
+                    this.digitalArtifactsFetcherService.addToCache(transaction.txid, []);
+                  } else {
+                    // console.log(transaction.txid, 'has an artifact')
+                  }
+                }
+              }
+
+              // Debugging hint: block 826877 has 3 cats, block 826587 has 2 cats
+              // we already have all required informations about the cats, so add them directly to the cache
+              // (this ignores the fact that inscriptions can also have cats, this will hide the inscription from the block-overwiew, YOLO!)
+              for (const cat21MintTxn of cat21MintTxns) {
+
+                const parsedCat21 = Cat21ParserService.parse({
+                  txid: cat21MintTxn,
+                  locktime: 21,
+                  status: {
+                    block_hash: block.id
+                  }
+                });
+
+                // super fast lane for cats!
+                this.digitalArtifactsFetcherService.addToCache(cat21MintTxn, [parsedCat21]);
+              }
+            });
           })
         );
       })
