@@ -17,10 +17,8 @@ import {
 import { Cat21Mint, LeatherPSBTBroadcastResponse, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
 import { WalletService } from './wallet.service';
 import { KnownOrdinalWalletType } from './wallet.service.types';
+import { environment } from '../../../environments/environment';
 
-
-const mempoolMainnetApiUrl = 'https://mempool.space';
-const mempoolTestnetApiUrl = 'https://mempool.space/testnet';
 
 export const LAST_CAT21_MINTS = 'LAST_CAT21_MINTS';
 
@@ -30,7 +28,7 @@ export const LAST_CAT21_MINTS = 'LAST_CAT21_MINTS';
 })
 export class Cat21Service {
 
-  mempoolApiUrl = mempoolMainnetApiUrl;
+  mempoolApiUrl = environment.apiBaseUrl;
   http = inject(HttpClient);
   apiService = inject(ApiService);
   walletService = inject(WalletService);
@@ -44,7 +42,7 @@ export class Cat21Service {
   constructor() {
     this.walletService.isMainnet$.subscribe(isMainnet => {
       this.isMainnet = isMainnet;
-      this.mempoolApiUrl = isMainnet ? mempoolMainnetApiUrl : mempoolTestnetApiUrl;
+      this.mempoolApiUrl = isMainnet ? environment.apiBaseUrl : environment.apiBaseUrl + '/testnet';
     });
 
     const allMint = this.getAllMints();

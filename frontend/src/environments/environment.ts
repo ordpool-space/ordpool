@@ -9,7 +9,10 @@ export const environment = {
   apiBaseUrl: 'https://mempool.space',
   websocketBaseUrl: 'wss://mempool.space',
   enableInscriptionAccelerator: true,
-  enableCat21Mint: true
+  enableCat21Mint: true,
+  ordBaseUrl: 'https://explorer.ordinalsbot.com',
+  ordBaseUrlTestnet: 'https://testnet-explorer.ordinalsbot.com',
+  cat21BaseUrl: 'https://backend.cat21.space'
 };
 
 /*

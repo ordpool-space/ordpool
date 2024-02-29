@@ -25,7 +25,9 @@ import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe
 import { AppPreloadingStrategy } from './app.preloading-strategy';
 import { DigitalArtifactsFetcherService } from './services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
-import { HiroApiService } from './services/ordinals/hiro-api.service';
+import { OrdApiService } from './services/ordinals/ord-api.service';
+import { Cat21ApiService } from './services/ordinals/cat21-api.service';
+import { BlockchairApiService } from './services/ordinals/blockchair-api.service';
 import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
 import { WalletService } from './services/ordinals/wallet.service';
 import { RollingElectrsApiService } from './services/ordinals/rolling-electrs-api.service';
@@ -52,7 +54,9 @@ const providers = [
   AppPreloadingStrategy,
   DigitalArtifactsFetcherService,
   BlockchainApiService,
-  HiroApiService,
+  OrdApiService,
+  Cat21ApiService,
+  BlockchairApiService,
   InscriptionAcceleratorApiService,
   WalletService,
   RollingElectrsApiService,
