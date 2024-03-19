@@ -54,7 +54,7 @@ export interface Env {
 }
 
 const defaultEnv: Env = {
-  'TESTNET_ENABLED': true,
+  'TESTNET_ENABLED': false,
   'SIGNET_ENABLED': false,
   'LIQUID_ENABLED': false,
   'LIQUID_TESTNET_ENABLED': false,
