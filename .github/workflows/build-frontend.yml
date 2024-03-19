@@ -2,7 +2,7 @@ name: Build Frontend (main, stage-test & stage-prod)
 
 on:
   push:
-    branches: [ main, stage-test, stage-prod ]
+    branches: [ main, stage-test, stage-prod, new-infra ]
     paths:
       - 'frontend/**'
       - '.github/workflows/build-frontend.yml'
