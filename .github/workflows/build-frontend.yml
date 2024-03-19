@@ -25,8 +25,8 @@ jobs:
     - run: npm install
     - run: npm run build
     - run: mv dist/mempool/browser/en-US/* dist/mempool/browser
-    - name: Deploy Frontend to `haushoppe/ordpool-build` repo
+    - name: Deploy Frontend to `ordpool-space/ordpool-frontend-build` repo
       if: ${{ github.ref_name != 'main' }}
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      run: npx angular-cli-ghpages --repo=https://github.com/haushoppe/ordpool-build.git --branch=$GITHUB_REF_NAME --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-notfound --no-nojekyll
+      run: npx angular-cli-ghpages --repo=https://github.com/ordpool-space/ordpool-frontend-build.git --branch=$GITHUB_REF_NAME --dir=dist/mempool/browser --name="The Buildbot" --email=noreply@haushoppe.art --no-notfound --no-nojekyll

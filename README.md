@@ -19,7 +19,7 @@ Now it's your turn! Fork it and add support for Bitcoin Stamps, Atomicals or any
 Can't wait to see what you come up with! 🚀
 
 More at: 
-* https://github.com/haushoppe/ordpool-parser
+* https://github.com/ordpool-space/ordpool-parser
 * https://www.npmjs.com/package/ordpool-parser
 
 If you want to integrate the parser into your own project, feel free to do so. The code is 100% open-source and is under the MIT License. Do whatever you want with it!
