@@ -198,14 +198,15 @@ export class Cat21Service {
 
     switch (walletType) {
       case KnownOrdinalWalletType.leather: {
-        return from(signTransactionLeather(psbtBytes, this.isMainnet)).pipe(
+        result = from(signTransactionLeather(psbtBytes, this.isMainnet)).pipe(
           switchMap(signedPsbt => this.broadcastTransactionLeather(signedPsbt).pipe(
             // retry({ count: 3, delay: 500 }) // Ordpool has a global interceptor for this, otherwise add this line
           ))
         );
+        break;
       }
       case KnownOrdinalWalletType.xverse: {
-        return signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
+        result = signTransactionAndBroadcastXverse(psbtBytes, paymentAddress, this.isMainnet);
         break;
       }
       case KnownOrdinalWalletType.unisat: {
