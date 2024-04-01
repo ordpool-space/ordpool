@@ -8,6 +8,7 @@ import { LanguageService } from '../../../services/language.service';
 import { NavigationService } from '../../../services/navigation.service';
 import { StorageService } from '../../../services/storage.service';
 import { WebsocketService } from '../../../services/websocket.service';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-global-footer',
@@ -16,6 +17,9 @@ import { WebsocketService } from '../../../services/websocket.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GlobalFooterComponent implements OnInit {
+
+  enableCat21Mint = environment.enableCat21Mint;
+
   private destroy$: Subject<any> = new Subject<any>();
   env: Env;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;

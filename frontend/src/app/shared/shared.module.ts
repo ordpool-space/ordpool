@@ -109,6 +109,7 @@ import { DigitalArtifactViewerComponent } from '../components/ordinals/digital-a
 import { InscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
 import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-viewer/src20-viewer/src20-viewer.component';
 import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
+import { CapitalizeFirstPipe } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
 import { JsonViewerComponent } from '../components/ordinals/digital-artifact-viewer/json-viewer/json-viewer.component';
 import { CodeViewerComponent } from '../components/ordinals/digital-artifact-viewer/code-viewer/code-viewer.component';
 import { PreviewViewerComponent } from '../components/ordinals/digital-artifact-viewer/preview-viewer/preview-viewer.component';
@@ -117,6 +118,7 @@ import { InscriptionAcceleratorComponent } from '../components/ordinals/inscript
 import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
 import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
 import { HighlightModule } from 'ngx-highlightjs';
+import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint.component';
 
 
 @NgModule({
@@ -220,13 +222,15 @@ import { HighlightModule } from 'ngx-highlightjs';
     InscriptionViewerComponent,
     Src20ViewerComponent,
     Cat21ViewerComponent,
+    CapitalizeFirstPipe,
     JsonViewerComponent,
     CodeViewerComponent,
     PreviewViewerComponent,
     MetadataViewerComponent,
     InscriptionAcceleratorComponent,
     FeesBoxClickableComponent,
-    WalletConnectComponent
+    WalletConnectComponent,
+    Cat21MintComponent
   ],
   imports: [
     CommonModule,

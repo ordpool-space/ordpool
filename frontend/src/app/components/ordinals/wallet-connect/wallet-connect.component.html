@@ -61,7 +61,6 @@
 
     <ng-template #popContent>
 
-
       <ul class="list-unstyled my-flex-container">
         <li title="{{ x.connectedWallet.ordinalsAddress || 'None'}}">
           <span class="label">Ordinals Address:</span>
@@ -80,6 +79,44 @@
       <button class="btn btn-secondary mb-2" (click)="disconnect(myPopover)" title="Disconnect your Wallet">
         Disconnect
       </button>
+
+      <ng-container *ngIf="enableCat21Mint">
+        <hr>
+
+        Your last CAT-21 Mints:
+        <table class="table table-borderless table-striped" *ngIf="(lastCat21Mints$ | async)?.length">
+          <tbody>
+            <tr *ngFor="let cat21Mint of lastCat21Mints$ | async">
+
+              <td>
+                {{ cat21Mint.createdAt | date:'yyyy-MM-dd' }}
+              </td>
+
+              <td>
+
+                <span class="tx-link">
+                  <span class="txid">
+                    <app-truncate
+                      [text]="cat21Mint.txId"
+                      [lastChars]="5"
+                      [link]="['/tx/' | relativeUrl, cat21Mint.txId]"
+                      [maxWidth]="220"
+                      ><app-clipboard [text]="cat21Mint.txId" />
+                    </app-truncate>
+                  </span>
+                </span>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+        <div>
+          <small class="text-muted" *ngIf="!(lastCat21Mints$ | async)?.length">
+            No CAT-21 mints have been started on this computer yet.
+            Visit the <a [routerLink]="['/cat21-mint' | relativeUrl]" (click)="myPopover.close()">minting page</a> to collect your first cat! 😻
+          </small>
+        </div>
+      </ng-container>
 
       <hr>
 
@@ -101,6 +138,7 @@
                     [lastChars]="5"
                     [link]="['/tx/' | relativeUrl, acceleration.txId]"
                     [maxWidth]="220"
+                    (click)="myPopover.close()"
                     ><app-clipboard [text]="acceleration.txId" />
                   </app-truncate>
                 </span>

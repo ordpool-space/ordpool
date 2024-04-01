@@ -5,7 +5,7 @@ import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from './sprite-ty
 import { feeLevels, mempoolFeeColors } from '../../app.constants';
 import BlockScene from './block-scene';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
-import { DigitalArtifact, ParsedInscription } from 'ordpool-parser';
+import { DigitalArtifact, DigitalArtifactType } from 'ordpool-parser';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
@@ -256,6 +256,11 @@ export default class TxView implements TransactionStripped {
     if (this.digitalArtifacts && !this.digitalArtifacts.length) {
       // return darker gray if parsedInscription is null (no inscription found)
       return { r: 0.8, g: 0.8, b: 0.8, a: 0.3 };
+    }
+
+    // we have a cat!!!
+    if (this.digitalArtifacts.length && this.digitalArtifacts.find(x => x.type === DigitalArtifactType.Cat21)) {
+      return auditColors.censored;
     }
 
 
