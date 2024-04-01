@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { EMPTY, Observable, of, timer } from 'rxjs';
 import { catchError, concatMap, expand, mergeMap, takeWhile, toArray } from 'rxjs/operators';
 import { TransactionStripped } from 'src/app/interfaces/node-api.interface';
@@ -40,17 +40,19 @@ export interface InscriptionsResponse {
   results: Inscription[];
 }
 
+// NOT used any longer, sometimes Hiro API delivers no block data for a very long time!
+// Service does not support testnet!
 @Injectable({
   providedIn: 'root'
 })
 export class HiroApiService {
 
+  private http = inject(HttpClient);
+  private inscriptionFetcherService = inject(DigitalArtifactsFetcherService);
+
   private readonly BASE_URL = 'https://api.hiro.so/ordinals/v1';
   private retryCount = 0;
   private maxRetrys = 4;
-
-  constructor(private httpClient: HttpClient,
-    private inscriptionFetcherService: DigitalArtifactsFetcherService) { }
 
   /**
    * Retrieves a list of inscriptions based on the provided filters.
@@ -62,7 +64,7 @@ export class HiroApiService {
    * @returns Observable containing the inscriptions response
    */
   getInscriptions(genesis_block: string, offset: number = 0, limit: number = 60): Observable<InscriptionsResponse> {
-    return this.httpClient.get<InscriptionsResponse>(`${this.BASE_URL}/inscriptions`, {
+    return this.http.get<InscriptionsResponse>(`${this.BASE_URL}/inscriptions`, {
       params: {
         genesis_block,
         offset,
@@ -125,7 +127,7 @@ export class HiroApiService {
       takeWhile(results => results !== null), // Continue until we get a null (end condition)
       catchError(() => of([])) // Handle potential errors and return an empty array
     ).subscribe(inscriptions => {
-      if (inscriptions.length) {
+      if (inscriptions?.length) {
 
         // If there is NO match, we call addToCache with [],
         // so that this txn is not any longer catched!

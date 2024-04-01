@@ -8,7 +8,11 @@ export const environment = {
   nativeTestAssetId: '144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49',
   apiBaseUrl: 'https://mempool.space',
   websocketBaseUrl: 'wss://mempool.space',
-  enableInscriptionAccelerator: true
+  enableInscriptionAccelerator: true,
+  enableCat21Mint: false,
+  ordBaseUrl: 'https://explorer.ordinalsbot.com',
+  ordBaseUrlTestnet: 'https://testnet-explorer.ordinalsbot.com',
+  cat21BaseUrl: 'https://backend.cat21.space'
 };
 
 /*

@@ -8,6 +8,7 @@ import { NavigationService } from '../../services/navigation.service';
 import { MenuComponent } from '../menu/menu.component';
 import { StorageService } from '../../services/storage.service';
 import { ApiService } from '../../services/api.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-master-page',
@@ -17,6 +18,8 @@ import { ApiService } from '../../services/api.service';
 export class MasterPageComponent implements OnInit {
   @Input() headerVisible = true;
   @Input() footerVisibleOverride: boolean | null = null;
+
+  enableCat21Mint = environment.enableCat21Mint;
 
   env: Env;
   network$: Observable<string>;

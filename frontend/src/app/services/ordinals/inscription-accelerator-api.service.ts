@@ -1,14 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import * as btc from '@scure/btc-signer';
+import { hexToBytes } from 'ordpool-parser';
 import { BehaviorSubject, concatMap, from, map, Observable, switchMap, tap } from 'rxjs';
 import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
 
-import { KnownOrdinalWalletType, WalletService } from './wallet.service';
 import { ApiService } from '../api.service';
-
-import * as btc from '@scure/btc-signer';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { StorageService } from '../storage.service';
+import { WalletService } from './wallet.service';
+import { KnownOrdinalWalletType } from './wallet.service.types';
 
 
 export const LAST_INSCRIPTION_ACCELERATIONS = 'LAST_INSCRIPTION_ACCELERATIONS';
@@ -201,7 +201,7 @@ export class InscriptionAcceleratorApiService {
         payload: {
           network: {
             type: this.isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet,
-            address: buyerOrdinalAddress
+            address: buyerOrdinalAddress // WTF? this param is not required!
           },
           message: 'Sign Transaction (Inscription Accelerator)',
           psbtBase64: preparedPsbt.psbt,
@@ -248,12 +248,7 @@ export class InscriptionAcceleratorApiService {
   }
 
   /**
-   * We broadcast via the mempool API to receive the txId
-   *
-   * Hint: executing this twice ends in the following error:
-   * sendrawtransaction RPC error: {"code":-26,"message":"bad-txns-spends-conflicting-tx, xxxx spends conflicting transaction yyy "}
-   *
-   * TODO: flag txn as replaceable
+   * Broadcast transaction via the mempool API
    */
   private broadcastTransactionLeather(resp: LeatherPSBTBroadcastResponse): Observable<{ txId: string }> {
 
@@ -321,7 +316,7 @@ export class InscriptionAcceleratorApiService {
 
 
   /**
-   * Get all from local storage
+   * Get all accelerations from local storage
    */
   getAllAccelerations(): InscriptionAcceleration[] {
 

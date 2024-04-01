@@ -1,88 +1,32 @@
 import { inject, Injectable } from '@angular/core';
-import { BehaviorSubject, distinctUntilChanged, filter, from, map, Observable, shareReplay, startWith, Subject, take, tap, timer } from 'rxjs';
+import { NavigationEnd, Router } from '@angular/router';
+import {
+  BehaviorSubject,
+  distinctUntilChanged,
+  filter,
+  from,
+  map,
+  Observable,
+  shareReplay,
+  startWith,
+  Subject,
+  take,
+  tap,
+  timer,
+} from 'rxjs';
 import { AddressPurpose, BitcoinNetworkType, getAddress } from 'sats-connect';
 
 import { StorageService } from '../storage.service';
-import { NavigationEnd, Router } from '@angular/router';
+import {
+  KnownOrdinalWallet,
+  KnownOrdinalWallets,
+  KnownOrdinalWalletType,
+  LeatherAddressResponse,
+  LeatherBtcAddress,
+  WalletInfo,
+  XverseAddressResponse,
+} from './wallet.service.types';
 
-export enum KnownOrdinalWalletType {
-  xverse = 'xverse',
-  leather = 'leather',
-  unisat = 'unisat'
-}
-
-export interface KnownOrdinalWallet {
-  type: KnownOrdinalWalletType;
-  label: string;
-  subLabel?: string;
-  logo: string;
-  downloadLink: string;
-}
-
-export const KnownOrdinalWallets: { [K in KnownOrdinalWalletType]: KnownOrdinalWallet } = {
-  [KnownOrdinalWalletType.xverse]: {
-    type: KnownOrdinalWalletType.xverse,
-    label: 'Xverse',
-    logo: '/resources/ordinal-wallets/btc-xverse-logo.png',
-    downloadLink: 'https://www.xverse.app/download'
-  },
-  [KnownOrdinalWalletType.leather]: {
-    type: KnownOrdinalWalletType.leather,
-    label: 'Leather',
-    logo: '/resources/ordinal-wallets/btc-leather-logo.png',
-    downloadLink: 'https://leather.io/install-extension'
-  },
-  [KnownOrdinalWalletType.unisat]: {
-    type: KnownOrdinalWalletType.unisat,
-    label: 'Unisat',
-    subLabel: '(not fully supported)',
-    logo: '/resources/ordinal-wallets/btc-unisat-logo.svg',
-    downloadLink: 'https://unisat.io/download'
-  }
-};
-
-export interface WalletInfo {
-  type: KnownOrdinalWalletType,
-
-  ordinalsAddress: string;
-  ordinalsPublicKey: string;
-
-  paymentAddress: string;
-  paymentPublicKey: string;
-}
-
-
-export interface XverseAddressResponse {
-  addresses: {
-    address: string,
-    publicKey: string,
-    purpose: AddressPurpose.Ordinals | AddressPurpose.Payment
-  }[];
-}
-
-interface LeatherAddressResponse {
-  jsonrpc: string;
-  id: string;
-  result: {
-    addresses: LeatherAddress[];
-  };
-}
-
-type LeatherAddress = LeatherBtcAddress | LeatherStxAddress;
-
-interface LeatherBtcAddress {
-  symbol: 'BTC';
-  type: string;
-  address: string;
-  publicKey: string;
-  derivationPath: string;
-  tweakedPublicKey?: string;
-}
-
-interface LeatherStxAddress {
-  symbol: 'STX';
-  address: string;
-}
 
 // CodeReview @ Leather
 // is this a correct    assumption? p2wpkh always for payments, p2tr always for ordinals?
@@ -179,7 +123,6 @@ export class WalletService {
   getXverseInstalled(): boolean {
     return !!((window as any)?.XverseProviders);
   }
-
 
   connectWallet(key: KnownOrdinalWalletType): Observable<WalletInfo> {
 
@@ -292,13 +235,13 @@ export class WalletService {
     );
   }
 
-
   // as seen here: https://github.com/unisat-wallet/unisat-web3-demo/blob/1109c79b07517ef4abe069c0c80b2d2118915e19/src/App.tsx#L18
   private async getBasicUnisatInfo(): Promise<{ address: string, publicKey: string }> {
 
     const unisat = (window as any).unisat;
     await unisat.requestAccounts();
 
+    // gets the address of the current account (which is only one, so it's weird that this is an array)
     const [address] = await unisat.getAccounts();
     const publicKey = await unisat.getPublicKey();
     // const balance = await unisat.getBalance();
@@ -307,14 +250,13 @@ export class WalletService {
     return { address, publicKey };
   }
 
-
   /**
    * Get addresses
    * see https://docs.unisat.io/dev/unisat-developer-service/unisat-wallet#requestaccounts
    *
-   * Unisat uses the same address for payments and ordinals! 😱
+   * Warning: Unisat uses the same address for payments and ordinals! 😱
    *
-   * TODO: handle accountsChanged / networkChanged
+   * TODO: handle accountsChanged / networkChanged!!
    */
   connectWalletUnisat(): Observable<WalletInfo> {
     return from(this.getBasicUnisatInfo()).pipe(
@@ -326,17 +268,10 @@ export class WalletService {
           ordinalsAddress: address,
           ordinalsPublicKey: publicKey,
 
-          paymentAddress: null,
-          paymentPublicKey: null
+          paymentAddress: address,
+          paymentPublicKey: publicKey
         };
       })
     );
   }
 }
-
-
-
-
-
-
-

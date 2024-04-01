@@ -80,14 +80,15 @@
 
           <!-- <p><a *ngIf="network.val === ''" href="https://ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a></p> -->
           <!-- <p><a *ngIf="network.val === 'testnet'" href="https://testnet.ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now! (Testnet)</a></p> -->
+          <p><a *ngIf="enableCat21Mint" [routerLink]="['/cat21-mint']">Mint a CAT-21 <img src="/resources/cat21-logo.svg" style="margin-top: -4px;" title="Mint a CAT-21 ordinal" height="30"></a></p>
           <p><a href="https://cubes.haushoppe.art/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Mint an Ordinal Cube"></fa-icon> Mint an Ordinal Cube</a></p>
           <!-- <p><a [routerLink]="['/clock/mempool/0']">Clock (Mempool)</a></p> -->
           <!-- <p><a [routerLink]="['/clock/mined/0']">Clock (Mined)</a></p> -->
           <p><a [routerLink]="['/tools/calculator']">BTC/Fiat Converter</a></p>
 
           <p *ngIf="env.TESTNET_ENABLED">
-            <a *ngIf="network.val !== ''" class="mainnet" [routerLink]="networkPaths['mainnet'] || '/'"><app-svg-images name="bitcoin" width="22" height="22" viewBox="0 0 65 65" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images> Switch to Mainnet</a>
-            <a *ngIf="network.val !== 'testnet'" class="testnet" [class.active]="network.val === 'testnet'" [routerLink]="networkPaths['testnet'] || '/testnet'"><app-svg-images name="testnet" width="22" height="22" viewBox="0 0 65 65" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images> Switch to Testnet</a>
+            <a *ngIf="network.val !== ''" class="mainnet" [routerLink]="networkPaths['mainnet'] || '/'"><!--<app-svg-images name="bitcoin" width="22" height="22" viewBox="0 0 65 65" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images>-->Switch to Mainnet</a>
+            <a *ngIf="network.val !== 'testnet'" class="testnet" [class.active]="network.val === 'testnet'" [routerLink]="networkPaths['testnet'] || '/testnet'"><!--<app-svg-images name="testnet" width="22" height="22" viewBox="0 0 65 65" style="width: 25px; height: 25px;" class="mainnet mr-1"></app-svg-images>-->Switch to Testnet</a>
           </p>
 
         </div>

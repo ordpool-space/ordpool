@@ -225,17 +225,6 @@
 
     <ng-container *ngIf="getParsedDigitalArtifacts() as digitalArtifacts">
 
-      <!-- HACK -->
-      <!--
-        Our own Inscription Accelerator
-        (which is not the same like the Transaction Accelerator)
-      -->
-      <ng-container *ngIf="tx">
-        <app-inscription-accelerator
-          [tx]="tx"
-          [digitalArtifacts]="digitalArtifacts" />
-      </ng-container>
-
       <div class="title">
         <h2>Digital Artifacts</h2>
       </div>
@@ -270,7 +259,22 @@
         </div>
       </div>
 
-    <br>
+      <br>
+
+      <!-- HACK -->
+      <!--
+        Our own Inscription Accelerator
+        (which is not the same like the Transaction Accelerator)
+      -->
+      <ng-container *ngIf="tx">
+        <app-inscription-accelerator
+          [tx]="tx"
+          [hasEffectiveFeeRate]="hasEffectiveFeeRate"
+          [digitalArtifacts]="digitalArtifacts" />
+      </ng-container>
+
+      <br>
+
     </ng-container>
 
 

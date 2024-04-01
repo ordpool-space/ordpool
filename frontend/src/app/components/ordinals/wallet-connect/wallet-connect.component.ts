@@ -1,18 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { limitArray } from './limit-array';
-
-import {
-  InscriptionAcceleration,
-  InscriptionAcceleratorApiService,
-} from '../../../services/ordinals/inscription-accelerator-api.service';
-import {
-  KnownOrdinalWallets,
-  KnownOrdinalWalletType,
-  WalletInfo,
-  WalletService,
-} from '../../../services/ordinals/wallet.service';
 import { map } from 'rxjs';
+
+import { environment } from '../../../../environments/environment';
+import { Cat21Service } from '../../../services/ordinals/cat21.service';
+import { InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
+import { WalletService } from '../../../services/ordinals/wallet.service';
+import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
+import { limitArray } from './limit-array';
 
 
 @Component({
@@ -25,18 +20,25 @@ export class WalletConnectComponent {
 
   // just for debugging
   showFakeWallet = false;
+  enableCat21Mint = environment.enableCat21Mint;
 
   connectButtonDisabled = false;
 
   modalService = inject(NgbModal);
   walletService = inject(WalletService);
   inscriptionAcceleratorApiService = inject(InscriptionAcceleratorApiService);
+  cat21Service = inject(Cat21Service);
+
 
   installedWallets$ = this.walletService.wallets$;
   connectedWallet$ = this.walletService.connectedWallet$;
   walletConnectRequested$ = this.walletService.walletConnectRequested$;
   isMainnet$ = this.walletService.isMainnet$;
+
   lastAccelerations$ = this.inscriptionAcceleratorApiService.allAccelerations$.pipe(
+    map(x => limitArray(x.reverse(), 10))
+  );
+  lastCat21Mints$ = this.cat21Service.allMints$.pipe(
     map(x => limitArray(x.reverse(), 10))
   );
 
