@@ -14,52 +14,77 @@
           <tbody>
 
             <tr>
-              <td>Origin
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
                   ngbTooltip="Genesis cat or normal cat. Genesis cats are the only white or black cats. Probability: 0.4%"
                 ></fa-icon>
+                Origin
               </td>
               <td>{{ traits.genesis ? 'Genesis cat' : 'Normal cat' }}</td>
             </tr>
 
             <tr>
-              <td>Colors
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="This includes all colors used to paint the cat, excluding the colors of the laser eyes."
+                  ngbTooltip="All colors used to paint the cat, excluding the colors of the laser eyes and other traits."
                 ></fa-icon>
+                Cat Colors
               </td>
               <td>
-                <ng-container *ngFor="let color of traits.colors; last as l">
+                <ng-container *ngFor="let color of traits.catColors; last as l">
                   <i class="colorBlock mr-2" [ngbTooltip]="color" [ngStyle]="{'background-color': color}"></i>{{ color }}<br *ngIf="!l">
                 </ng-container>
               </td>
             </tr>
 
             <tr>
-              <td>Gender
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
                   ngbTooltip="The gender (sex) of a cat. There is a 50% chance to receive a female cat."
                 ></fa-icon>
+                Gender
               </td>
-              <td>{{ traits.gender | capitalizeFirst }}</td>
+              <td>{{ traits.gender }}</td>
             </tr>
 
             <tr>
-              <td>Laser Eyes
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="The gorgeous laser eyes trait. There is a 10% chance to receive a cat with red laser eyes, 10% chance for green, 10% chance for blue. There is a 70% chance to receive no laser eyes at all."
+                  ngbTooltip="Design pose of the cat: Standing, Sleeping, Pouncing or Stalking. Same chance for all traits (25%)."
                 ></fa-icon>
+                Pose
               </td>
-              <td>{{ traits.laserEyes | capitalizeFirst }}</td>
+              <td>{{ traits.designPose }}</td>
             </tr>
 
             <tr>
-              <td>Background
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="There is a 10% chance to receive a cat with an orange background instead of a transparent background."
+                  ngbTooltip="Design expression of the cat: Smile, Grumpy, Pouting or Shy. Same chance for all traits (25%)."
                 ></fa-icon>
+                Expression
               </td>
-              <td>{{ traits.orangeBackground ? 'Orange' : 'Transparent' }}</td>
+              <td>{{ traits.designExpression }}</td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Design pattern of the cat: Solid, Striped, Eyepatch or Half/Half. Same chance for all traits (25%)."
+                ></fa-icon>
+                Pattern
+              </td>
+              <td>{{ traits.designPattern }}</td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="Design facing of the cat: Left or Right. 50% chance."
+                ></fa-icon>
+                Facing
+              </td>
+              <td>{{ traits.designFacing }}</td>
             </tr>
 
           </tbody>
@@ -70,50 +95,86 @@
           <tbody>
 
             <tr>
-              <td>Pose
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="Design pose of the cat: Standing, Sleeping, Pouncing or Stalking. Same chance for all traits (25%)."
+                  ngbTooltip="The gorgeous laser eyes trait.
+                  There is a 20% chance to receive a cat with orange laser eyes, 20% chance for red, 20% chance for green, 20% chance for blue.
+                  There is a 20% chance to receive no laser eyes at all."
                 ></fa-icon>
+                Laser Eyes
               </td>
-              <td>{{ traits.designPose }}</td>
+              <td>{{ traits.laserEyes }}</td>
             </tr>
 
             <tr>
-              <td>Expression
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="Design expression of the cat: Smile, Grumpy, Pouting or Shy. Same chance for all traits (25%)."
+                  ngbTooltip="The background trait. All images have a background.
+                  There is a 25% chance to receive a cat with a Block 9 background.
+                  There is a 25% chance to receive a cat with a cyberpunk background.
+                  There is a 25% chance to receive a cat with a background of the Bitcoin Whitepaper.
+                  There is a 25% chance to receive a cat with an orange background.
+                  The orange color is #ff9900."
                 ></fa-icon>
+                Background
               </td>
-              <td>{{ traits.designExpression }}</td>
+              <td>{{ traits.background }}</td>
             </tr>
 
             <tr>
-              <td>Pattern
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="Design pattern of the cat: Solid, Striped, Eyepatch or Half/Half. Same chance for all traits (25%)."
+                  ngbTooltip="All colors that are used to generate the background."
                 ></fa-icon>
+                Background Colors
               </td>
-              <td>{{ traits.designPattern }}</td>
+              <td>
+                <ng-container *ngFor="let color of traits.backgroundColors; last as l">
+                  <i class="colorBlock mr-2" [ngbTooltip]="color" [ngStyle]="{'background-color': color}"></i>{{ color }}<br *ngIf="!l">
+                </ng-container>
+              </td>
             </tr>
 
             <tr>
-              <td>Facing
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="Design facing of the cat: Left or Right. 50% chance."
+                  ngbTooltip="The crown trait.
+                  There is a 10% chance to receive a cat with a crown.
+                  The crown is golden when the background is not orange.
+                  The crown is made of diamonds if the background is orange."
                 ></fa-icon>
+                Crown
               </td>
-              <td>{{ traits.designFacing }}</td>
+              <td>{{ traits.crown }}</td>
             </tr>
 
             <tr>
-              <td>Crown
+              <td>
                 <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="The crown trait. There is a 10% chance to receive a cat with a crown."
+                  ngbTooltip="The glasses trait.
+                  There is a 10% chance to receive a cat with black sunglasses.
+                  There is a 10% chance to receive a cat with cool sunglasses.
+                  There is a 10% chance to receive a cat with 3D glasses - but ONLY if the cat has no laser eyes!
+                  There is a 10% chance to receive a cat with nouns glasses - but ONLY if the cat has no laser eyes!"
                 ></fa-icon>
+                Glasses
               </td>
-              <td>{{ traits.crown ? traits.orangeBackground ? 'Diamond' : 'Gold'  : 'None' }}</td>
+              <td>{{ traits.glasses }}</td>
             </tr>
 
+            <tr *ngIf="traits.glasses !== 'None'">
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="All colors that are used to paint the glasses."
+                ></fa-icon>
+                Glasses Colors
+              </td>
+              <td>
+                <ng-container *ngFor="let color of traits.glassesColors; last as l">
+                  <i class="colorBlock mr-2" [ngbTooltip]="color" [ngStyle]="{'background-color': color}"></i>{{ color }}<br *ngIf="!l">
+                </ng-container>
+              </td>
+            </tr>
 
           </tbody>
         </table>
