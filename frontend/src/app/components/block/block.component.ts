@@ -353,18 +353,32 @@ export class BlockComponent implements OnInit, OnDestroy {
 
               // they index faster then my little indexer
               this.blockchairApiService.fetchAllCat21Transactions(block.height).pipe(
-                map(transactions => transactions.map(t => t.hash))
+                map(transactions => transactions.map(t => ({
+                  transactionId: t.hash,
+                  weight: t.weight,
+                  fee: t.fee
+                })))
               ),
 
               // but i will never rate limit, so also ask my indexer additionally
               this.cat21ApiService.getCatsByBlockId(block.id).pipe(
-                map(transactions => transactions.map(t => t.transactionId)),
+                map(transactions => transactions.map(t => ({
+                  transactionId: t.transactionId,
+                  weight: t.weight,
+                  fee: t.fee
+                }))),
                 catchError(() => of([] as string[]))
               )
-            ]).subscribe(([inscriptionTxns, cat21MintTxns1, cat21MintTxns2]) => {
+            ]).subscribe(([inscriptionTxns, cat21Mints1, cat21Mints2]) => {
 
-              // array without duplicates
-              const cat21MintTxns: string[] = Array.from(new Set([...cat21MintTxns1, ...cat21MintTxns2]));
+              const allCat21Mints: { [key: string ]: { transactionId: string; weight: number; fee: number; }} = {};
+
+              // create object without duplicates
+              cat21Mints1.forEach(c => allCat21Mints[c.transactionId] = c);
+              cat21Mints2.forEach(c => allCat21Mints[c.transactionId] = c);
+              const cat21MintTxns: string[] = [];
+              Object.keys(allCat21Mints).forEach(transactionId => cat21MintTxns.push(transactionId));
+
 
               // no inscriptions?? (propably an error!) --> then skip chache overrides for this block!
               if (inscriptionTxns.length) {
@@ -386,19 +400,23 @@ export class BlockComponent implements OnInit, OnDestroy {
               // Debugging hint: block 826877 has 3 cats, block 826587 has 2 cats
               // we already have all required informations about the cats, so add them directly to the cache
               // (this ignores the fact that inscriptions can also have cats, this will hide the inscription from the block-overwiew, YOLO!)
-              for (const cat21MintTxn of cat21MintTxns) {
+              Object.keys(allCat21Mints).forEach(transactionId => {
+
+                const cat21mint = allCat21Mints[transactionId];
 
                 const parsedCat21 = Cat21ParserService.parse({
-                  txid: cat21MintTxn,
+                  txid: cat21mint.transactionId,
                   locktime: 21,
+                  weight: cat21mint.weight,
+                  fee: cat21mint.fee,
                   status: {
                     block_hash: block.id
                   }
                 });
 
                 // super fast lane for cats!
-                this.digitalArtifactsFetcherService.addToCache(cat21MintTxn, [parsedCat21]);
-              }
+                this.digitalArtifactsFetcherService.addToCache(cat21mint.transactionId, [parsedCat21]);
+              });
             });
           })
         );

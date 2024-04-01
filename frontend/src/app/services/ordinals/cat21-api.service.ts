@@ -16,6 +16,7 @@ export interface Cat21 {
   transactionId: string;
   blockId: string;
   number: number;
+  feeRate: number;
   blockHeight: number;
   blockTime: number;
   fee: number;
