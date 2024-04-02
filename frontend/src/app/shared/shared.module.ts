@@ -119,6 +119,7 @@ import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees
 import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
 import { HighlightModule } from 'ngx-highlightjs';
 import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint.component';
+import { Cat21CollabComponent } from '../components/ordinals/cat21-collab/cat21-collab.component';
 
 
 @NgModule({
@@ -230,7 +231,8 @@ import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint
     InscriptionAcceleratorComponent,
     FeesBoxClickableComponent,
     WalletConnectComponent,
-    Cat21MintComponent
+    Cat21MintComponent,
+    Cat21CollabComponent
   ],
   imports: [
     CommonModule,

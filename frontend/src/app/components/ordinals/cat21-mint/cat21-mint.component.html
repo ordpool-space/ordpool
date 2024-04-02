@@ -1,4 +1,4 @@
-<div class="container-xl pl-5 pr-5">
+<div class="container-xl pl-5 pr-5" *ngIf="enableCat21Mint">
   <div class="text-center">
 
     <img src="/resources/cat21-logo.svg" width="300" height="220" style="margin-top: -8px">
@@ -222,5 +222,14 @@
       </ng-container>
 
     </ng-container>
+  </div>
+</div>
+
+<div class="container-xl pl-5 pr-5" *ngIf="!enableCat21Mint">
+  <div class="text-center">
+
+    <img src="/resources/cat21-logo.svg" width="300" height="220" style="margin-top: -8px">
+    <h2 class="mt-2 mb-4 pr-2"> <strong style="color:#FF9900;">CAT-21</strong> – coming soon!</h2>
+
   </div>
 </div>
