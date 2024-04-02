@@ -24,6 +24,7 @@ import { AssetComponent } from './components/asset/asset.component';
 import { AssetsNavComponent } from './components/assets/assets-nav/assets-nav.component';
 import { CalculatorComponent } from './components/calculator/calculator.component';
 import { Cat21MintComponent } from './components/ordinals/cat21-mint/cat21-mint.component';
+import { Cat21CollabComponent } from './components/ordinals/cat21-collab/cat21-collab.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -59,6 +60,10 @@ let routes: Routes = [
           {
             path: 'cat21-mint',
             component: Cat21MintComponent,
+          },
+          {
+            path: 'cat21-collab',
+            component: Cat21CollabComponent,
           },
           {
             path: 'blocks',
@@ -175,6 +180,10 @@ let routes: Routes = [
             component: Cat21MintComponent,
           },
           {
+            path: 'cat21-collab',
+            component: Cat21CollabComponent,
+          },
+          {
             path: 'blocks',
             component: BlocksList,
           },
@@ -283,6 +292,10 @@ let routes: Routes = [
       {
         path: 'cat21-mint',
         component: Cat21MintComponent,
+      },
+      {
+        path: 'cat21-collab',
+        component: Cat21CollabComponent,
       },
       {
         path: 'blocks',
@@ -436,6 +449,10 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
               component: Cat21MintComponent,
             },
             {
+              path: 'cat21-collab',
+              component: Cat21CollabComponent,
+            },
+            {
               path: 'blocks',
               component: BlocksList,
             },
@@ -556,6 +573,10 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
         {
           path: 'cat21-mint',
           component: Cat21MintComponent,
+        },
+        {
+          path: 'cat21-collab',
+          component: Cat21CollabComponent,
         },
         {
           path: 'blocks',

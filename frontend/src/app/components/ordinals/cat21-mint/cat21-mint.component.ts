@@ -10,6 +10,7 @@ import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
 import { hex } from '@scure/base';
+import { environment } from '../../../../environments/environment';
 
 
 @Component({
@@ -19,6 +20,8 @@ import { hex } from '@scure/base';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Cat21MintComponent implements OnInit {
+
+  enableCat21Mint = environment.enableCat21Mint;
 
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);
