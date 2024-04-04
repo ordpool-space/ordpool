@@ -14,7 +14,7 @@ export const environment = {
   enableCat21Mint: false,
   ordBaseUrl: 'https://explorer.ordinalsbot.com',
   ordBaseUrlTestnet: 'https://testnet-explorer.ordinalsbot.com',
-  cat21BaseUrl: 'https://backend.cat21.space'
+  cat21BaseUrl: 'http://localhost:3333'
 };
 
 /*

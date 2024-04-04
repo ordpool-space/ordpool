@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
+import { hex } from '@scure/base';
 import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, switchMap, take, tap } from 'rxjs';
 
+import { environment } from '../../../../environments/environment';
+import { Cat21ApiService } from '../../../services/ordinals/cat21-api.service';
 import { Cat21Service } from '../../../services/ordinals/cat21.service';
 import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
 import { WalletService } from '../../../services/ordinals/wallet.service';
@@ -9,8 +12,6 @@ import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/w
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
-import { hex } from '@scure/base';
-import { environment } from '../../../../environments/environment';
 
 
 @Component({
@@ -25,6 +26,7 @@ export class Cat21MintComponent implements OnInit {
 
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);
+  cat21ApiService = inject(Cat21ApiService);
   cd = inject(ChangeDetectorRef);
 
   recommendedFees$ = inject(StateService).recommendedFees$;
@@ -73,6 +75,17 @@ export class Cat21MintComponent implements OnInit {
         this.utxoLoading = false;
         this.utxoError = error ? extractErrorMessage(error) : '';
       }),
+    ))
+  );
+
+  whitelistStatus$ = this.connectedWallet$.pipe(
+    switchMap(wallet => this.cat21ApiService.getWhitelistStatus(wallet.ordinalsAddress).pipe(
+      catchError(error => of({
+        walletAddress: wallet.ordinalsAddress,
+        level: 'Public',
+        mintingAllowed: false,
+        mintingAllowedAt: 
+      })),
     ))
   );
 

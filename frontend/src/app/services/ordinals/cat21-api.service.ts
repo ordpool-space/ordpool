@@ -48,7 +48,14 @@ export interface ErrorResponse {
   stack?: string;
 }
 
-// Warning: is indexing too slow!
+export interface WhitelistStatusResult {
+  walletAddress: string;
+  level: string;
+  mintingAllowed: boolean;
+  mintingAllowedAt: string;
+}
+
+
 @Injectable({
   providedIn: 'root'
 })
@@ -86,5 +93,9 @@ export class Cat21ApiService {
 
   getCatsByUtxos(body: any): Observable<Cat21[]> {
     return this.http.post<Cat21[]>(`${this.baseUrl}/api/cats/by-utxos`, body);
+  }
+
+  getWhitelistStatus(walletAddress: string): Observable<WhitelistStatusResult> {
+    return this.http.get<WhitelistStatusResult>(`${this.baseUrl}/whitelist/status/${walletAddress}`);
   }
 }
