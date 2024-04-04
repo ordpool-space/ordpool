@@ -58,7 +58,7 @@ let routes: Routes = [
             component: AboutComponent,
           },
           {
-            path: 'cat21-mint',
+            path: 'cat21-xxx-hidden-link-just-for-debugging',
             component: Cat21MintComponent,
           },
           {
@@ -176,7 +176,7 @@ let routes: Routes = [
             component: AboutComponent,
           },
           {
-            path: 'cat21-mint',
+            path: 'cat21-xxx-hidden-link-just-for-debugging',
             component: Cat21MintComponent,
           },
           {
@@ -290,7 +290,7 @@ let routes: Routes = [
         component: AboutComponent,
       },
       {
-        path: 'cat21-mint',
+        path: 'cat21-xxx-hidden-link-just-for-debugging',
         component: Cat21MintComponent,
       },
       {
@@ -445,7 +445,7 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
               component: AboutComponent,
             },
             {
-              path: 'cat21-mint',
+              path: 'cat21-xxx-hidden-link-just-for-debugging',
               component: Cat21MintComponent,
             },
             {
@@ -571,7 +571,7 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
           component: AboutComponent,
         },
         {
-          path: 'cat21-mint',
+          path: 'cat21-xxx-hidden-link-just-for-debugging',
           component: Cat21MintComponent,
         },
         {
