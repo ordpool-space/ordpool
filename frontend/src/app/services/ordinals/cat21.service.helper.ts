@@ -521,7 +521,7 @@ export function signTransactionAndBroadcastXverse(psbtBytes: Uint8Array, payment
           {
             address: paymentAddress,
             signingIndexes: [0],
-            sigHash: btc.SigHash.ALL // NEW: sign all outputs
+            sigHash: btc.SigHash.SINGLE_ANYONECANPAY // 131
           },
         ],
       },
