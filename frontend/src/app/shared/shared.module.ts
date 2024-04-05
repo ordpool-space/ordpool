@@ -120,6 +120,7 @@ import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wa
 import { HighlightModule } from 'ngx-highlightjs';
 import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint.component';
 import { Cat21CollabComponent } from '../components/ordinals/cat21-collab/cat21-collab.component';
+import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whitelist-checker/cat21-whitelist-checker.component';
 
 
 @NgModule({
@@ -232,7 +233,8 @@ import { Cat21CollabComponent } from '../components/ordinals/cat21-collab/cat21-
     FeesBoxClickableComponent,
     WalletConnectComponent,
     Cat21MintComponent,
-    Cat21CollabComponent
+    Cat21CollabComponent,
+    Cat21WhitelistCheckerComponent
   ],
   imports: [
     CommonModule,

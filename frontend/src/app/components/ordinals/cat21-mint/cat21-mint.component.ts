@@ -12,6 +12,7 @@ import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/w
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
+import { SeoService } from '../../../services/seo.service';
 
 
 @Component({
@@ -28,6 +29,8 @@ export class Cat21MintComponent implements OnInit {
   cat21Service = inject(Cat21Service);
   cat21ApiService = inject(Cat21ApiService);
   cd = inject(ChangeDetectorRef);
+
+  seoService = inject(SeoService);
 
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
@@ -55,11 +58,11 @@ export class Cat21MintComponent implements OnInit {
   cfeeRate = this.form.controls.feeRate;
 
   paymentOutputsForCurrentWallet$ = this.connectedWallet$.pipe(
+    tap(() => {
+      this.utxoLoading = true;
+      this.utxoError = '';
+    }),
     switchMap(wallet => this.cat21Service.getUtxos(wallet?.paymentAddress).pipe(
-      tap(() => {
-        this.utxoLoading = true;
-        this.utxoError = '';
-      }),
       // retry({ count: 3, delay: 500 }), // Ordpool has a global interceptor for this, otherwise add this line
       map(paymentOutputs => ({
         paymentOutputs,
@@ -74,7 +77,7 @@ export class Cat21MintComponent implements OnInit {
       tap(({ error }) => {
         this.utxoLoading = false;
         this.utxoError = error ? extractErrorMessage(error) : '';
-      }),
+      })
     ))
   );
 
@@ -84,7 +87,7 @@ export class Cat21MintComponent implements OnInit {
         walletAddress: wallet.ordinalsAddress,
         level: 'Public',
         mintingAllowed: false,
-        mintingAllowedAt: 
+        mintingAllowedAt: '2024-04-10T18:00Z'
       })),
     ))
   );

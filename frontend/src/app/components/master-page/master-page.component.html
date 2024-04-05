@@ -90,6 +90,11 @@
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">Mint a CAT-21</a>
       </li>
 
+      <li class="nav-item" routerLinkActive="active" id="btn-cat21-whitelist-checker">
+        <a class="nav-link" [routerLink]="['/cat21-whitelist-checker' | relativeUrl]" (click)="collapse()">
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21 WL Checker</a>
+      </li>
+
     </ul>
     <app-search-form class="search-form-container" location="top" (searchTriggered)="collapse()"></app-search-form>
   </div>
