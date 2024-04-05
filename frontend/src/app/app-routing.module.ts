@@ -25,6 +25,7 @@ import { AssetsNavComponent } from './components/assets/assets-nav/assets-nav.co
 import { CalculatorComponent } from './components/calculator/calculator.component';
 import { Cat21MintComponent } from './components/ordinals/cat21-mint/cat21-mint.component';
 import { Cat21CollabComponent } from './components/ordinals/cat21-collab/cat21-collab.component';
+import { Cat21WhitelistCheckerComponent } from './components/ordinals/cat21-whitelist-checker/cat21-whitelist-checker.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -64,6 +65,10 @@ let routes: Routes = [
           {
             path: 'cat21-collab',
             component: Cat21CollabComponent,
+          },
+          {
+            path: 'cat21-whitelist-checker',
+            component: Cat21WhitelistCheckerComponent,
           },
           {
             path: 'blocks',
@@ -184,6 +189,10 @@ let routes: Routes = [
             component: Cat21CollabComponent,
           },
           {
+            path: 'cat21-whitelist-checker',
+            component: Cat21WhitelistCheckerComponent,
+          },
+          {
             path: 'blocks',
             component: BlocksList,
           },
@@ -296,6 +305,10 @@ let routes: Routes = [
       {
         path: 'cat21-collab',
         component: Cat21CollabComponent,
+      },
+      {
+        path: 'cat21-whitelist-checker',
+        component: Cat21WhitelistCheckerComponent,
       },
       {
         path: 'blocks',
@@ -453,6 +466,10 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
               component: Cat21CollabComponent,
             },
             {
+              path: 'cat21-whitelist-checker',
+              component: Cat21WhitelistCheckerComponent,
+            },
+            {
               path: 'blocks',
               component: BlocksList,
             },
@@ -577,6 +594,10 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
         {
           path: 'cat21-collab',
           component: Cat21CollabComponent,
+        },
+        {
+          path: 'cat21-whitelist-checker',
+          component: Cat21WhitelistCheckerComponent,
         },
         {
           path: 'blocks',
