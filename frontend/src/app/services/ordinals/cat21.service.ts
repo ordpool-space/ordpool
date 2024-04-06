@@ -154,7 +154,7 @@ export class Cat21Service {
       this.isMainnet
     );
 
-    result.tx.signIdx(dummyPrivateKey, 0, [btc.SigHash.SINGLE_ANYONECANPAY]);
+    result.tx.signIdx(dummyPrivateKey, 0, [btc.SigHash.ALL]);
     result.tx.finalize();
     const vsize = result.tx.vsize; // 🎉
 

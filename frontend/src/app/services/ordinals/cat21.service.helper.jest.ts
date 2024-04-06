@@ -354,7 +354,7 @@ createTransactionTestCases.forEach(({ info, walletType, recipientAddress, paymen
     afterEach(() => {
 
       if (result?.tx) {
-        result.tx.signIdx(dummyKeypair.dummyPrivateKey, 0, [btc.SigHash.SINGLE_ANYONECANPAY]);
+        result.tx.signIdx(dummyKeypair.dummyPrivateKey, 0, [btc.SigHash.ALL]);
         result.tx.finalize();
         expect(result.tx.vsize).toBeGreaterThan(100);
       }
