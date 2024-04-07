@@ -16,13 +16,6 @@
         The minting process is completely free.
         So take your chance while fees are low and rescue as many cats as you can!
 
-        <!--
-        Every Bitcoin transaction with the <code style="color:#FF9900">nLockTime</code> field set to
-        <code style="color:#FF9900">21</code> is a CAT-21 mint transaction.
-        -->
-
-
-
       </p>
 
     </div>
@@ -157,11 +150,28 @@
           </div>
           <div class="text-center mt-4">
 
-            <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
-              class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
-              <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
-                title="Mint a CAT-21 ordinal" height="30"> Mint my cat
-            </button>
+
+            <ng-container *ngIf="whitelistStatus$ | async as whitelistStatus">
+              <ng-container *ngIf="whitelistStatus.mintingAllowed">
+
+
+              <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
+                class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
+                <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
+                  title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+              </button>
+
+              </ng-container>
+
+              <ng-container *ngIf="!whitelistStatus.mintingAllowed">
+
+                You can rescue some lovely cats at {{ whitelistStatus.mintingAllowedAt | date:'long' }}.
+
+
+              </ng-container>
+            </ng-container>
+
+
 
             <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
               <i class="spinner-border spinner-border-sm text-light"></i>
