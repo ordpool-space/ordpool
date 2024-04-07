@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { hex } from '@scure/base';
-import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, switchMap, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, startWith, switchMap, take, tap } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { Cat21ApiService } from '../../../services/ordinals/cat21-api.service';
@@ -41,6 +41,7 @@ export class Cat21MintComponent implements OnInit {
     simulation: SimulateTransactionResult;
     paymentOutput: TxnOutput;
   } | undefined = undefined;
+  utxosScanned = false;
 
   unisatShowWarningThreshold = 10 * 1000;
 
@@ -62,6 +63,7 @@ export class Cat21MintComponent implements OnInit {
     tap(() => {
       this.utxoLoading = true;
       this.utxoError = '';
+      this.cd.detectChanges();
     }),
     switchMap(wallet => this.cat21Service.getUtxos(wallet?.paymentAddress).pipe(
       // retry({ count: 3, delay: 500 }), // Ordpool has a global interceptor for this, otherwise add this line
@@ -78,6 +80,7 @@ export class Cat21MintComponent implements OnInit {
       tap(({ error }) => {
         this.utxoLoading = false;
         this.utxoError = error ? extractErrorMessage(error) : '';
+        this.cd.detectChanges();
       })
     ))
   );
@@ -89,19 +92,23 @@ export class Cat21MintComponent implements OnInit {
   of({
     mintingAllowed : true,
     mintingAllowedAt: new Date().toISOString(),
+    level: 'Public'
   }) : this.connectedWallet$.pipe(
     tap(() => {
       this.checkerLoading = true;
       this.checkerError = '';
+      this.cd.detectChanges();
     }),
     switchMap(wallet => this.cat21ApiService.getWhitelistStatus(wallet.ordinalsAddress).pipe(
       tap(() => {
         this.checkerLoading = false;
         this.checkerError = '';
+        this.cd.detectChanges();
       }),
       catchError(error => {
         this.checkerLoading = false;
         this.checkerError = error ? extractErrorMessage(error) : '';
+        this.cd.detectChanges();
         return of(undefined);
       })
     )));
@@ -169,7 +176,10 @@ export class Cat21MintComponent implements OnInit {
         .slice(0, 10); // limit to max 10 elements
     }),
     // sets it to the largest available UTXO or to undefined
-    tap(simulateTransactions => this.selectedPaymentOutput = simulateTransactions[0]),
+    tap(simulateTransactions => {
+      this.selectedPaymentOutput = simulateTransactions[0];
+      this.cd.detectChanges();
+    }),
     shareReplay({
       bufferSize: 1,
       refCount: true

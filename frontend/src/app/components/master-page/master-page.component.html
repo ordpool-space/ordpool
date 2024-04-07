@@ -90,7 +90,7 @@
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">Mint a CAT-21</a>
       </li>
 
-      <li class="nav-item" routerLinkActive="active" id="btn-cat21-whitelist-checker">
+      <li *ngIf="!enableCat21Mint" class="nav-item" routerLinkActive="active" id="btn-cat21-whitelist-checker">
         <a class="nav-link" [routerLink]="['/cat21-whitelist-checker' | relativeUrl]" (click)="collapse()">
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21 WL Checker</a>
       </li>
