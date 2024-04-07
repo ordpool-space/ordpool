@@ -432,7 +432,7 @@ export function createTransaction(
 
   const network: typeof btc.NETWORK = isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
 
-  const lockTime = 21; // THIS is the most important part 😺
+  const lockTime = 21;
   const tx = new btc.Transaction({
     lockTime,
     allowLegacyWitnessUtxo: true, // for Unisat Legacy address

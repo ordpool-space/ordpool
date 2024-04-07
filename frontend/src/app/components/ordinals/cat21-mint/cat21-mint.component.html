@@ -32,10 +32,11 @@
       </p>
 
       <ng-container *ngIf="x.connectedWallet">
+      <ng-container *ngIf="whitelistStatus$ | async as whitelistStatus">
 
         <form class="validated" [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
 
-          <div class="row mt-4">
+          <div class="row mt-4"  *ngIf="whitelistStatus.mintingAllowed">
 
             <!-- Content for the second column (appears first on mobile) -->
             <div class="col-md-6 order-md-2">
@@ -67,9 +68,9 @@
             </div>
           </div>
 
-          <div class="p-2 mt-4" *ngIf="!selectedPaymentOutput && !utxoLoading">
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading">
             We are sorry, but we could not find find enough funds in your payment address! 😿<br>
-            No UTXO has enough value to execute a transaction at the set fees.
+            No UTXO has enough value to execute a transaction at the current fees.
             We recommend sending at least
 
             <ul class="m-0">
@@ -91,7 +92,7 @@
 
           <div *ngIf="!utxoLoading && !utxoError && (paymentOutputs$ | async)?.length">
 
-            <details>
+            <details  *ngIf="whitelistStatus.mintingAllowed">
               <summary>Show Expert Settings</summary>
 
               <p class="mt-2">
@@ -150,13 +151,8 @@
           </div>
           <div class="text-center mt-4">
 
-            {{ whitelistStatus$ | async | json }}
 
-            <ng-container *ngIf="whitelistStatus$ | async as whitelistStatus">
-
-
-              <ng-container *ngIf="whitelistStatus.mintingAllowed">
-
+            <ng-container *ngIf="whitelistStatus.mintingAllowed">
 
               <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
                 class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
@@ -164,27 +160,24 @@
                   title="Mint a CAT-21 ordinal" height="30"> Mint my cat
               </button>
 
-              </ng-container>
-
-              <ng-container *ngIf="!whitelistStatus.mintingAllowed">
-
-                You can rescue some lovely cats at {{ whitelistStatus.mintingAllowedAt | date:'long' }}.
-
-
-              </ng-container>
             </ng-container>
 
+            <p *ngIf="!whitelistStatus.mintingAllowed">
+              <app-countdown-timer [targetDate]="whitelistStatus.mintingAllowedAt" />
+              You can rescue some lovely cats at {{ whitelistStatus.mintingAllowedAt | date:'long' }} ({{ whitelistStatus.level }}).
+            </p>
 
+            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading">
+              <i class="spinner-border spinner-border-sm text-light"></i>
+              Scanning your payments address
+            </button>
 
             <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
               <i class="spinner-border spinner-border-sm text-light"></i>
               Minting your cat
             </button>
 
-            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading">
-              <i class="spinner-border spinner-border-sm text-light"></i>
-              Scanning your payments address
-            </button>
+
 
           </div>
         </form>
@@ -236,6 +229,7 @@
 
         </ng-container>
 
+      </ng-container>
       </ng-container>
 
     </ng-container>
