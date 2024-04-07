@@ -1,11 +1,12 @@
 import { inject, Injectable } from '@angular/core';
-import { DigitalArtifact, DigitalArtifactsParserService } from 'ordpool-parser';
+import { DigitalArtifact, DigitalArtifactsParserService, DigitalArtifactType } from 'ordpool-parser';
 import { catchError, map, merge, Observable, of, Subject, throwError } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { BlockchainApiService } from './blockchain-api.service';
 import { RollingElectrsApiService } from './rolling-electrs-api.service';
 import { WalletService } from './wallet.service';
+import { environment } from 'src/environments/environment';
 
 
 interface FetchRequest {
@@ -166,22 +167,26 @@ export class DigitalArtifactsFetcherService {
    * Adds a transaction to the cache (no fetching required).
    *
    * @param txid - The transaction ID.
-   * @param inscriptions - The parsed inscriptions or an empty array.
+   * @param artifacts - The parsed inscriptions or an empty array.
    */
-  public addToCache(txid: string, inscriptions: DigitalArtifact[]): void {
+  public addToCache(txid: string, artifacts: DigitalArtifact[]): void {
+
+    if (!environment.enableCat21Mint) {
+      artifacts = artifacts.filter(x => x.type !== DigitalArtifactType.Cat21);
+    }
 
     // If the cache size has reached its limit, delete the oldest entry
     if (this.cachedArtifactsTxns.size >= this.maxCacheSize) {
       const firstKey = this.cachedArtifactsTxns.keys().next().value;
       this.cachedArtifactsTxns.delete(firstKey);
-      console.log('Cache limit reached!');
+      // console.log('Cache limit reached!');
     }
 
     // Add the new entry to the cache
-    this.cachedArtifactsTxns.set(txid, inscriptions);
+    this.cachedArtifactsTxns.set(txid, artifacts);
 
     // Check and resolve any matching pending request
-    this.resolveMatchingRequest(txid, inscriptions);
+    this.resolveMatchingRequest(txid, artifacts);
   }
 
   /**

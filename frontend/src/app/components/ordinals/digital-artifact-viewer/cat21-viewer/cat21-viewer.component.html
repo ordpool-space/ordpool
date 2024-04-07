@@ -1,4 +1,4 @@
-<ng-container *ngIf="svg">
+<ng-container *ngIf="svg && enableCat21Mint">
 
   <strong>CAT-21 Ordinal</strong><br>
   <br *ngIf="showDetails">
@@ -191,5 +191,15 @@
 
       (The block hash contributes to the seed.)
   </div>
+
+</ng-container>
+
+
+
+<ng-container *ngIf="svg && !enableCat21Mint">
+
+  <img src="/resources/dead-cat.png" width="100%">
+
+  <h2 class="text-center">Nice try, but this is now a dead cat!</h2>
 
 </ng-container>
