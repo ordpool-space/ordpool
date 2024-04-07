@@ -269,11 +269,12 @@ export default class TxView implements TransactionStripped {
     const feeLevelColor = feeColors[feeLevelIndex] || feeColors[mempoolFeeColors.length - 1];
     // Normal mode
     if (!this.scene?.highlightingEnabled) {
-      if (this.acc) {
-        return auditColors.accelerated;
-      } else {
-        return feeLevelColor;
-      }
+      // HACK - don't show accelleration
+      // if (this.acc) {
+      //   return auditColors.accelerated;
+      // } else {
+      //   return feeLevelColor;
+      // }
       return feeLevelColor;
     }
     // Block audit
