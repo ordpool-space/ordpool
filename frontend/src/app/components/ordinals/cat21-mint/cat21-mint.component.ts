@@ -24,6 +24,7 @@ import { SeoService } from '../../../services/seo.service';
 export class Cat21MintComponent implements OnInit {
 
   enableCat21Mint = environment.enableCat21Mint;
+  unleashCat21 = environment.unleashCat21;
 
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);
@@ -84,7 +85,11 @@ export class Cat21MintComponent implements OnInit {
   checkerLoading = false;
   checkerError = '';
 
-  whitelistStatus$ = this.connectedWallet$.pipe(
+  whitelistStatus$ = this.unleashCat21 ?
+  of({
+    mintingAllowed : true,
+    mintingAllowedAt: new Date().toISOString(),
+  }) : this.connectedWallet$.pipe(
     tap(() => {
       this.checkerLoading = true;
       this.checkerError = '';

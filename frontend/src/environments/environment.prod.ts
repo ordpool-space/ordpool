@@ -8,6 +8,7 @@ export const environment = {
   websocketBaseUrl: 'wss://mempool.nixbitcoin.org',
   enableInscriptionAccelerator: true,
   enableCat21Mint: false,
+  unleashCat21: false,
   ordBaseUrl: 'https://explorer.ordinalsbot.com',
   ordBaseUrlTestnet: 'https://testnet-explorer.ordinalsbot.com',
   cat21BaseUrl: 'https://backend.cat21.space'
