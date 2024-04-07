@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CatTraits, ParsedCat21 } from 'ordpool-parser';
+import { environment } from 'src/environments/environment';
 
 /**
  * Test cases:
@@ -28,6 +29,8 @@ import { CatTraits, ParsedCat21 } from 'ordpool-parser';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Cat21ViewerComponent {
+
+  enableCat21Mint = environment.enableCat21Mint;
 
   private _parsedCat21: ParsedCat21 | undefined;
   svg: string | undefined = undefined;
