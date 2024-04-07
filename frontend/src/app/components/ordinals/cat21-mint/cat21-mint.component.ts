@@ -99,7 +99,7 @@ export class Cat21MintComponent implements OnInit {
       this.checkerError = '';
       this.cd.detectChanges();
     }),
-    switchMap(wallet => this.cat21ApiService.getWhitelistStatus(wallet.ordinalsAddress).pipe(
+    switchMap(wallet => this.cat21ApiService.getWhitelistStatusPolled(wallet.ordinalsAddress).pipe(
       tap(() => {
         this.checkerLoading = false;
         this.checkerError = '';
