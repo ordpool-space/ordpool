@@ -20,7 +20,7 @@ const apiUrlsMainnet = [
   //'https://mempool.emzy.de',       // @emzy
   //'https://mempool.bisq.services', // @devinbileck ❌ CORS!
   'https://mempool.bitaroo.net',     // @BitarooExchange ✅ (but fewer txns)
-  'https://mempool.nixbitcoin.org',  // @nixbitcoinorg ✅ (but fewer txns)
+  'https://mempool.nixbitcoin.org',  // @nixbitcoinorg ✅ (but fewer txns) - no UTXO endpoint
 
    // enterprise mempool.space instances
    //'https://mutiny.mempool.space',  // @MutinyWallet ❌ CORS!
