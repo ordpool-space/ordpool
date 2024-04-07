@@ -81,16 +81,25 @@ export class Cat21MintComponent implements OnInit {
     ))
   );
 
+  checkerLoading = false;
+  checkerError = '';
+
   whitelistStatus$ = this.connectedWallet$.pipe(
+    tap(() => {
+      this.checkerLoading = true;
+      this.checkerError = '';
+    }),
     switchMap(wallet => this.cat21ApiService.getWhitelistStatus(wallet.ordinalsAddress).pipe(
-      catchError(error => of({
-        walletAddress: wallet.ordinalsAddress,
-        level: 'Public',
-        mintingAllowed: false,
-        mintingAllowedAt: '2024-04-10T18:00Z'
-      })),
-    ))
-  );
+      tap(() => {
+        this.checkerLoading = false;
+        this.checkerError = '';
+      }),
+      catchError(error => {
+        this.checkerLoading = false;
+        this.checkerError = error ? extractErrorMessage(error) : '';
+        return of(undefined);
+      })
+    )));
 
   paymentOutputs$ = combineLatest([
     this.paymentOutputsForCurrentWallet$,

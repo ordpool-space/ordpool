@@ -30,16 +30,15 @@ export class Cat21WhitelistCheckerComponent implements OnInit {
   seoService = inject(SeoService);
   connectedWallet$ = this.walletService.connectedWallet$;
 
+  checkerLoading = false;
+  checkerError = '';
+
   whitelistStatus$ = this.connectedWallet$.pipe(
     tap(() => {
       this.checkerLoading = true;
       this.checkerError = '';
     }),
     switchMap(wallet => this.cat21ApiService.getWhitelistStatus(wallet.ordinalsAddress).pipe(
-      retry({
-        delay: 250,
-        count: 2
-      }),
       tap(() => {
         this.checkerLoading = false;
         this.checkerError = '';
@@ -50,9 +49,6 @@ export class Cat21WhitelistCheckerComponent implements OnInit {
         return of(undefined);
       })
     )));
-
-  checkerLoading = false;
-  checkerError = '';
 
   KnownOrdinalWalletType = KnownOrdinalWalletType;
 
