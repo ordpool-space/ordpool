@@ -199,7 +199,14 @@ export class Cat21Service {
     paymentAddress: string,
     paymentPublicKey: Uint8Array,
     transactionFee: bigint
-  ): Observable<{ txId: string }> {
+  ): Observable<{
+      txId: string,
+      network: string;
+      transactionHex: string;
+      paymentAddress: string;
+      recipientAddress: string;
+      createdAt: string;
+    }> {
 
     // create the real transaction
     const { tx } = createTransaction(
@@ -217,7 +224,9 @@ export class Cat21Service {
     // PSBT as Uint8Array
     const psbtBytes = tx.toPSBT(0);
 
-    let result: Observable<{ txId: string }>;
+    let result: Observable<{
+      txId: string
+    }>;
 
     switch (walletType) {
       case KnownOrdinalWalletType.leather: {
@@ -244,7 +253,15 @@ export class Cat21Service {
     return result.pipe(
       tap(({ txId }) => {
         this.saveNewMint(txId, paymentAddress,  recipientAddress);
-      })
+      }),
+      map(({ txId }) => ({
+        txId,
+        network: this.isMainnet ? 'mainnet' : 'testnet',
+        transactionHex: 'TODO',
+        paymentAddress,
+        recipientAddress,
+        createdAt: (new Date()).toISOString()
+      }))
     );
   }
 
