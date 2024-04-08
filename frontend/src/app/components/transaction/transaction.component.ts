@@ -125,8 +125,6 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
 
   digitalArtifactsPage = 1;
   getParsedDigitalArtifacts(): DigitalArtifact[] {
-    // just debugging: fake cat for every txn
-    // this.tx.locktime = 21;
     return DigitalArtifactsParserService.parse(this.tx);
   }
 

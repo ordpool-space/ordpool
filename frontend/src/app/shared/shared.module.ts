@@ -119,6 +119,7 @@ import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees
 import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
 import { HighlightModule } from 'ngx-highlightjs';
 import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint.component';
+import { CountdownTimerComponent } from '../components/ordinals/cat21-mint/countdown-timer-component';
 import { Cat21CollabComponent } from '../components/ordinals/cat21-collab/cat21-collab.component';
 import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whitelist-checker/cat21-whitelist-checker.component';
 
@@ -233,6 +234,7 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     FeesBoxClickableComponent,
     WalletConnectComponent,
     Cat21MintComponent,
+    CountdownTimerComponent,
     Cat21CollabComponent,
     Cat21WhitelistCheckerComponent
   ],

@@ -17,20 +17,23 @@ import {
 import { Cat21Mint, LeatherPSBTBroadcastResponse, SimulateTransactionResult, TxnOutput } from './cat21.service.types';
 import { WalletService } from './wallet.service';
 import { KnownOrdinalWalletType } from './wallet.service.types';
-import { environment } from '../../../environments/environment';
 
 
 export const LAST_CAT21_MINTS = 'LAST_CAT21_MINTS';
 
+const workaroundMempoolBackend = 'https://blockstream.info';
 
 @Injectable({
   providedIn: 'root'
 })
 export class Cat21Service {
 
-  mempoolApiUrl = environment.apiBaseUrl;
+  // mempoolApiUrl = environment.apiBaseUrl;
+  mempoolApiUrl = workaroundMempoolBackend;
+
+
   http = inject(HttpClient);
-  apiService = inject(ApiService);
+  // apiService = inject(ApiService);
   walletService = inject(WalletService);
   storageService = inject(StorageService);
 
@@ -42,7 +45,8 @@ export class Cat21Service {
   constructor() {
     this.walletService.isMainnet$.subscribe(isMainnet => {
       this.isMainnet = isMainnet;
-      this.mempoolApiUrl = isMainnet ? environment.apiBaseUrl : environment.apiBaseUrl + '/testnet';
+      // this.mempoolApiUrl = isMainnet ? environment.apiBaseUrl : environment.apiBaseUrl + '/testnet';
+      this.mempoolApiUrl = isMainnet ? workaroundMempoolBackend : workaroundMempoolBackend + '/testnet';
     });
 
     const allMint = this.getAllMints();
@@ -58,6 +62,7 @@ export class Cat21Service {
    *
    * @param address The Bitcoin address to query.
    * @returns An Observable of UTXO array.
+   * @see https://github.com/Blockstream/esplora/blob/master/API.md#get-addressaddressutxo
    */
   public getUtxos(address: string): Observable<TxnOutput[]> {
 
@@ -90,6 +95,7 @@ export class Cat21Service {
    * Returns a transaction serialized as hex (cached).
    * @param transactionId The Bitcoin transaction ID.
    * @returns An Observable of the transaction serialized as a hex string.
+   * @see https://github.com/Blockstream/esplora/blob/master/API.md#get-txtxidhex
    */
   public getTransactionHex(transactionId: string): Observable<string> {
 
@@ -108,7 +114,18 @@ export class Cat21Service {
   }
 
   /**
-   * Broadcast a transaction via the mempool API
+   * POST /tx
+   * Broadcast a raw transaction to the network.
+   * @param hexPayload The transaction should be provided as hex in the request body.
+   * @returns The txid will be returned on success.
+   * @see https://github.com/Blockstream/esplora/blob/master/API.md#post-tx
+   */
+  postTransaction(hexPayload: string): Observable<string> {
+    return this.http.post<string>(`${this.mempoolApiUrl}/api/tx`, hexPayload, { responseType: 'text' as 'json'});
+  }
+
+  /**
+   * Broadcast a transaction
    */
   private broadcastTransactionLeather(resp: LeatherPSBTBroadcastResponse): Observable<{ txId: string }> {
 
@@ -118,8 +135,14 @@ export class Cat21Service {
     const tx = btc.Transaction.fromPSBT(psbt);
     tx.finalize();
 
-    return this.apiService.postTransaction$(tx.hex).pipe(
-      map(txId => ({ txId })),
+    // this would use the Mempool Backend
+    // return this.apiService.postTransaction$(tx.hex).pipe(
+    //   map(txId => ({ txId })),
+    // );
+
+    // this directly uses the Blockstream esplora
+    return this.postTransaction(tx.hex).pipe(
+      map(txId => ({ txId }))
     );
   }
 
@@ -154,7 +177,7 @@ export class Cat21Service {
       this.isMainnet
     );
 
-    result.tx.signIdx(dummyPrivateKey, 0, [btc.SigHash.SINGLE_ANYONECANPAY]);
+    result.tx.signIdx(dummyPrivateKey, 0, [btc.SigHash.ALL]);
     result.tx.finalize();
     const vsize = result.tx.vsize; // 🎉
 
@@ -176,7 +199,14 @@ export class Cat21Service {
     paymentAddress: string,
     paymentPublicKey: Uint8Array,
     transactionFee: bigint
-  ): Observable<{ txId: string }> {
+  ): Observable<{
+      txId: string,
+      network: string;
+      transactionHex: string;
+      paymentAddress: string;
+      recipientAddress: string;
+      createdAt: string;
+    }> {
 
     // create the real transaction
     const { tx } = createTransaction(
@@ -194,7 +224,9 @@ export class Cat21Service {
     // PSBT as Uint8Array
     const psbtBytes = tx.toPSBT(0);
 
-    let result: Observable<{ txId: string }>;
+    let result: Observable<{
+      txId: string
+    }>;
 
     switch (walletType) {
       case KnownOrdinalWalletType.leather: {
@@ -221,7 +253,15 @@ export class Cat21Service {
     return result.pipe(
       tap(({ txId }) => {
         this.saveNewMint(txId, paymentAddress,  recipientAddress);
-      })
+      }),
+      map(({ txId }) => ({
+        txId,
+        network: this.isMainnet ? 'mainnet' : 'testnet',
+        transactionHex: 'TODO',
+        paymentAddress,
+        recipientAddress,
+        createdAt: (new Date()).toISOString()
+      }))
     );
   }
 

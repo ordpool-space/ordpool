@@ -1,0 +1,13 @@
+<ng-container *ngIf="this.countdown$ | async as countdown">
+  <div class="countdown" *ngIf="countdown != 'GO'">
+
+    <h4>CCC (Colossal Cat Countdown)</h4>
+    <h1>{{ countdown }}</h1>
+
+
+    <img src="/resources/cat21-placholder.svg" width="200"><br>
+    <br>
+    <strong>Don't sleep on the cats!</strong><br>
+
+  </div>
+</ng-container>

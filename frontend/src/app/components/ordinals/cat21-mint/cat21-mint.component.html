@@ -16,13 +16,6 @@
         The minting process is completely free.
         So take your chance while fees are low and rescue as many cats as you can!
 
-        <!--
-        Every Bitcoin transaction with the <code style="color:#FF9900">nLockTime</code> field set to
-        <code style="color:#FF9900">21</code> is a CAT-21 mint transaction.
-        -->
-
-
-
       </p>
 
     </div>
@@ -34,15 +27,16 @@
 
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
-        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
-        first.
+        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>.
+        We support Xverse, Leather and Unisat.
       </p>
 
       <ng-container *ngIf="x.connectedWallet">
+      <ng-container *ngIf="whitelistStatus$ | async as whitelistStatus">
 
         <form class="validated" [formGroup]="form" (ngSubmit)="mintCat21(x.connectedWallet)">
 
-          <div class="row mt-4">
+          <div class="row mt-4"  *ngIf="whitelistStatus.mintingAllowed">
 
             <!-- Content for the second column (appears first on mobile) -->
             <div class="col-md-6 order-md-2">
@@ -74,9 +68,9 @@
             </div>
           </div>
 
-          <div class="p-2 mt-4" *ngIf="!selectedPaymentOutput && !utxoLoading">
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading">
             We are sorry, but we could not find find enough funds in your payment address! 😿<br>
-            No UTXO has enough value to execute a transaction at the set fees.
+            No UTXO has enough value to execute a transaction at the current fees.
             We recommend sending at least
 
             <ul class="m-0">
@@ -98,7 +92,7 @@
 
           <div *ngIf="!utxoLoading && !utxoError && (paymentOutputs$ | async)?.length">
 
-            <details>
+            <details  *ngIf="whitelistStatus.mintingAllowed">
               <summary>Show Expert Settings</summary>
 
               <p class="mt-2">
@@ -157,16 +151,34 @@
           </div>
           <div class="text-center mt-4">
 
-            <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
-              class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
-              <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
-                title="Mint a CAT-21 ordinal" height="30"> Mint my cat
-            </button>
 
-            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
-              <i class="spinner-border spinner-border-sm text-light"></i>
-              Minting your cat
-            </button>
+            <ng-container *ngIf="whitelistStatus.mintingAllowed">
+
+              <button type="submit" *ngIf="!utxoLoading && !mintCat21Success" [disabled]="form.invalid || !selectedPaymentOutput"
+                class="btn btn-primary mt-4 mb-4 text-white">
+
+                <ng-container  *ngIf="!mintCat21Loading">
+                  <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
+                    title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+                </ng-container>
+
+                <ng-container  *ngIf="mintCat21Loading">
+                  <i class="spinner-border spinner-border-sm text-light"></i> Minting your cat
+                </ng-container>
+
+
+              </button>
+
+              <a href="javascript:location.reload()" *ngIf="mintCat21Success" class="btn btn-primary mt-4 mb-4 text-white">
+                <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint onther cat!
+              </a>
+
+            </ng-container>
+
+            <p *ngIf="!whitelistStatus.mintingAllowed">
+              <app-countdown-timer [targetDate]="whitelistStatus.mintingAllowedAt" />
+              You can rescue some lovely cats at {{ whitelistStatus.mintingAllowedAt | date:'long' }} ({{ whitelistStatus.level }}).
+            </p>
 
             <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading">
               <i class="spinner-border spinner-border-sm text-light"></i>
@@ -191,6 +203,10 @@
 
         <div class="alert alert-danger" *ngIf="utxoError">
           ❌&nbsp; {{ utxoError }}
+        </div>
+
+        <div class="alert alert-danger" *ngIf="checkerError">
+          ❌&nbsp; {{ checkerError }}
         </div>
 
 
@@ -219,6 +235,7 @@
 
         </ng-container>
 
+      </ng-container>
       </ng-container>
 
     </ng-container>
