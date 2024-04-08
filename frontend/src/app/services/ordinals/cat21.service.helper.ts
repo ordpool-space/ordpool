@@ -364,7 +364,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
     index: paymentOutput.vout,
     redeemScript,
     sequence: 0xfffffffd, // enables RBF
-    sighashType: btc.SigHash.SINGLE_ANYONECANPAY // 131
+    sighashType: btc.SigHash.ALL
   };
 
   if (isSegWit(paymentAddress)) {
@@ -432,7 +432,7 @@ export function createTransaction(
 
   const network: typeof btc.NETWORK = isMainnet ? btc.NETWORK : btc.TEST_NETWORK;
 
-  const lockTime = 21; // THIS is the most important part 😺
+  const lockTime = 21;
   const tx = new btc.Transaction({
     lockTime,
     allowLegacyWitnessUtxo: true, // for Unisat Legacy address
@@ -492,7 +492,7 @@ export async function signTransactionLeather(psbtBytes: Uint8Array, isMainnet: b
 
   const signRequestParams: LeatherSignPsbtRequestParams = {
     hex: psbtHex,
-    allowedSighash: [btc.SigHash.SINGLE_ANYONECANPAY],
+    allowedSighash: [btc.SigHash.ALL],
     signAtIndex: 0,
     network,
     broadcast: false // we will broadcast it via the Mempool API
@@ -521,7 +521,7 @@ export function signTransactionAndBroadcastXverse(psbtBytes: Uint8Array, payment
           {
             address: paymentAddress,
             signingIndexes: [0],
-            sigHash: btc.SigHash.SINGLE_ANYONECANPAY // 131
+            sigHash: btc.SigHash.ALL
           },
         ],
       },

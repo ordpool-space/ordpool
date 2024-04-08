@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { hex } from '@scure/base';
-import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, switchMap, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, startWith, switchMap, take, tap } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { Cat21ApiService } from '../../../services/ordinals/cat21-api.service';
@@ -24,6 +24,7 @@ import { SeoService } from '../../../services/seo.service';
 export class Cat21MintComponent implements OnInit {
 
   enableCat21Mint = environment.enableCat21Mint;
+  unleashCat21 = environment.unleashCat21;
 
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);
@@ -40,6 +41,7 @@ export class Cat21MintComponent implements OnInit {
     simulation: SimulateTransactionResult;
     paymentOutput: TxnOutput;
   } | undefined = undefined;
+  utxosScanned = false;
 
   unisatShowWarningThreshold = 10 * 1000;
 
@@ -61,6 +63,7 @@ export class Cat21MintComponent implements OnInit {
     tap(() => {
       this.utxoLoading = true;
       this.utxoError = '';
+      this.cd.detectChanges();
     }),
     switchMap(wallet => this.cat21Service.getUtxos(wallet?.paymentAddress).pipe(
       // retry({ count: 3, delay: 500 }), // Ordpool has a global interceptor for this, otherwise add this line
@@ -77,20 +80,38 @@ export class Cat21MintComponent implements OnInit {
       tap(({ error }) => {
         this.utxoLoading = false;
         this.utxoError = error ? extractErrorMessage(error) : '';
+        this.cd.detectChanges();
       })
     ))
   );
 
-  whitelistStatus$ = this.connectedWallet$.pipe(
-    switchMap(wallet => this.cat21ApiService.getWhitelistStatus(wallet.ordinalsAddress).pipe(
-      catchError(error => of({
-        walletAddress: wallet.ordinalsAddress,
-        level: 'Public',
-        mintingAllowed: false,
-        mintingAllowedAt: '2024-04-10T18:00Z'
-      })),
-    ))
-  );
+  checkerLoading = false;
+  checkerError = '';
+
+  whitelistStatus$ = this.unleashCat21 ?
+  of({
+    mintingAllowed : true,
+    mintingAllowedAt: new Date().toISOString(),
+    level: 'Public'
+  }) : this.connectedWallet$.pipe(
+    tap(() => {
+      this.checkerLoading = true;
+      this.checkerError = '';
+      this.cd.detectChanges();
+    }),
+    switchMap(wallet => this.cat21ApiService.getWhitelistStatusPolled(wallet.ordinalsAddress).pipe(
+      tap(() => {
+        this.checkerLoading = false;
+        this.checkerError = '';
+        this.cd.detectChanges();
+      }),
+      catchError(error => {
+        this.checkerLoading = false;
+        this.checkerError = error ? extractErrorMessage(error) : '';
+        this.cd.detectChanges();
+        return of(undefined);
+      })
+    )));
 
   paymentOutputs$ = combineLatest([
     this.paymentOutputsForCurrentWallet$,
@@ -155,7 +176,10 @@ export class Cat21MintComponent implements OnInit {
         .slice(0, 10); // limit to max 10 elements
     }),
     // sets it to the largest available UTXO or to undefined
-    tap(simulateTransactions => this.selectedPaymentOutput = simulateTransactions[0]),
+    tap(simulateTransactions => {
+      this.selectedPaymentOutput = simulateTransactions[0];
+      this.cd.detectChanges();
+    }),
     shareReplay({
       bufferSize: 1,
       refCount: true
@@ -241,6 +265,13 @@ export class Cat21MintComponent implements OnInit {
         this.mintCat21Loading = false;
         this.mintCat21Success = result;
         this.cd.detectChanges();
+
+        // announce mint very late, and not synchronized with the main pipe
+        // if this breaks, then it breaks - YOLO
+        this.cat21ApiService.announceMintTransaction({
+          transactionId: result.txId,
+          ...result
+        }).subscribe();
       },
       error: (err: Error) => {
         this.mintCat21Loading = false;

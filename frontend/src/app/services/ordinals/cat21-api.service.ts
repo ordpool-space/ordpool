@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, interval, startWith, switchMap, takeWhile } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { WalletService } from './wallet.service';
@@ -55,6 +55,17 @@ export interface WhitelistStatusResult {
   mintingAllowedAt: string;
 }
 
+export interface MintTransaction {
+  transactionId: string;
+  network: string;
+  transactionHex: string;
+  paymentAddress: string;
+  recipientAddress: string;
+  createdAt: string;
+}
+
+
+
 
 @Injectable({
   providedIn: 'root'
@@ -97,5 +108,18 @@ export class Cat21ApiService {
 
   getWhitelistStatus(walletAddress: string): Observable<WhitelistStatusResult> {
     return this.http.get<WhitelistStatusResult>(`${this.baseUrl}/whitelist/status/${walletAddress}`);
+  }
+
+  getWhitelistStatusPolled(walletAddress: string): Observable<WhitelistStatusResult> {
+    return interval(10000).pipe(
+      startWith(0),
+      switchMap(() => this.http.get<WhitelistStatusResult>(`${this.baseUrl}/whitelist/status/${walletAddress}`)),
+      // Stop polling when mintingAllowed is true!
+      takeWhile((result: WhitelistStatusResult) => !result.mintingAllowed, true)
+    );
+  }
+
+  announceMintTransaction(mintTransaction: MintTransaction) {
+    return this.http.post<any>(`${this.baseUrl}/whitelist/announceMintTransaction`, mintTransaction);
   }
 }
