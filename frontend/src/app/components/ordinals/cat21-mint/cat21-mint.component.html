@@ -154,11 +154,24 @@
 
             <ng-container *ngIf="whitelistStatus.mintingAllowed">
 
-              <button type="submit" [disabled]="mintCat21Success || form.invalid || !selectedPaymentOutput"
-                class="btn btn-primary mt-4 mb-4 text-white" *ngIf="!mintCat21Loading && !utxoLoading">
-                <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
-                  title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+              <button type="submit" *ngIf="!utxoLoading && !mintCat21Success" [disabled]="form.invalid || !selectedPaymentOutput"
+                class="btn btn-primary mt-4 mb-4 text-white">
+
+                <ng-container  *ngIf="!mintCat21Loading">
+                  <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
+                    title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+                </ng-container>
+
+                <ng-container  *ngIf="mintCat21Loading">
+                  <i class="spinner-border spinner-border-sm text-light"></i> Minting your cat
+                </ng-container>
+
+
               </button>
+
+              <a href="javascript:location.reload()" *ngIf="mintCat21Success" class="btn btn-primary mt-4 mb-4 text-white">
+                <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint onther cat!
+              </a>
 
             </ng-container>
 
@@ -171,13 +184,6 @@
               <i class="spinner-border spinner-border-sm text-light"></i>
               Scanning your payments address
             </button>
-
-            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="mintCat21Loading">
-              <i class="spinner-border spinner-border-sm text-light"></i>
-              Minting your cat
-            </button>
-
-
 
           </div>
         </form>

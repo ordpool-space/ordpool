@@ -55,6 +55,17 @@ export interface WhitelistStatusResult {
   mintingAllowedAt: string;
 }
 
+export interface MintTransaction {
+  transactionId: string;
+  network: string;
+  transactionHex: string;
+  paymentAddress: string;
+  recipientAddress: string;
+  createdAt: string;
+}
+
+
+
 
 @Injectable({
   providedIn: 'root'
@@ -106,5 +117,9 @@ export class Cat21ApiService {
       // Stop polling when mintingAllowed is true!
       takeWhile((result: WhitelistStatusResult) => !result.mintingAllowed, true)
     );
+  }
+
+  announceMintTransaction(mintTransaction: MintTransaction) {
+    return this.http.post<any>(`${this.baseUrl}/whitelist/announceMintTransaction`, mintTransaction);
   }
 }

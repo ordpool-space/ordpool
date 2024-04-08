@@ -265,6 +265,13 @@ export class Cat21MintComponent implements OnInit {
         this.mintCat21Loading = false;
         this.mintCat21Success = result;
         this.cd.detectChanges();
+
+        // announce mint very late, and not synchronized with the main pipe
+        // if this breaks, then it breaks - YOLO
+        this.cat21ApiService.announceMintTransaction({
+          transactionId: result.txId,
+          ...result
+        }).subscribe();
       },
       error: (err: Error) => {
         this.mintCat21Loading = false;
