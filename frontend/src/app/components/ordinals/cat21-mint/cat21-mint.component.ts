@@ -217,7 +217,7 @@ export class Cat21MintComponent implements OnInit {
     this.cfeeRate.valueChanges.subscribe(this.selectedFeeRate$);
   }
 
-  private updateMinRequiredFee(hourFee: number) {
+  public updateMinRequiredFee(hourFee: number) {
 
     this.minRequiredFee = hourFee;
 

@@ -61,7 +61,7 @@
 
               <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
-                <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB!</div>
+                <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB! If you are really sure that you want a fee rate that is lower than the recommended rate, switch to Expert mode and deactivate the check.</div>
                 <div *ngIf="cfeeRate.hasError('notFullNumber')">Enter whole numbers only!</div>
               </div>
 
@@ -103,6 +103,8 @@
                 If the change is too small and falls below the dust limit, we add it to the miner's fee instead.
                 We automatically select your largest UTXO, but feel free to select a different one if you like:
               </p>
+
+              <a *ngIf="minRequiredFee != 1" href="javascript:void(0)" (click)="updateMinRequiredFee(1)">⚠️ Click here to disable the required fee rate check (do you know what you are doing!?)</a>
 
               <div class="mt-4 pl-2 pr-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
                 [ngClass]="{ selected: x === this.selectedPaymentOutput }">
