@@ -36,10 +36,10 @@ export class WalletConnectComponent {
   isMainnet$ = this.walletService.isMainnet$;
 
   lastAccelerations$ = this.inscriptionAcceleratorApiService.allAccelerations$.pipe(
-    map(x => limitArray(x.reverse(), 10))
+    map(x => limitArray(x.reverse(), 100))
   );
   lastCat21Mints$ = this.cat21Service.allMints$.pipe(
-    map(x => limitArray(x.reverse(), 10))
+    map(x => limitArray(x.reverse(), 100))
   );
 
   knownOrdinalWallets = KnownOrdinalWallets;
