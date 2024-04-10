@@ -83,7 +83,9 @@
       <ng-container *ngIf="enableCat21Mint">
         <hr>
 
-        Your last CAT-21 Mints:
+        <strong style="color: orange">Your last CAT-21 Mints:</strong><br>
+        <small style="color: orange">(scroll down in this orange box for more)</small>
+        <div  style="border: 1px solid orange; height: 200px; overflow: scroll">
         <table class="table table-borderless table-striped" *ngIf="(lastCat21Mints$ | async)?.length">
           <tbody>
             <tr *ngFor="let cat21Mint of lastCat21Mints$ | async">
@@ -110,6 +112,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
         <div>
           <small class="text-muted" *ngIf="!(lastCat21Mints$ | async)?.length">
             No CAT-21 mints have been started on this computer yet.
@@ -120,8 +123,9 @@
 
       <hr>
 
+      <!--
       Your last Inscription Accelerations:
-      <table class="table table-borderless table-striped" *ngIf="(lastAccelerations$ | async)?.length">
+      <table class="table table-borderless table-striped" *ngIf="(lastAccelerations$ | async)?.length"  style="height: 200px; overflow: hidden">
         <tbody>
           <tr *ngFor="let acceleration of lastAccelerations$ | async">
 
@@ -155,6 +159,7 @@
           first select the transaction and try out our new service!
         </small>
       </div>
+      -->
 
     </ng-template>
   </ng-container>
