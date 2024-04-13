@@ -369,10 +369,10 @@
                 <td i18n="transaction.version">Version</td>
                 <td [innerHTML]="'&lrm;' + (tx.version | number)"></td>
               </tr>
-              <!-- <tr>
+              <tr>
                 <td i18n="transaction.locktime">Locktime</td>
                 <td [innerHTML]="'&lrm;' + (tx.locktime | number)"></td>
-              </tr> -->
+              </tr>
               <tr *ngIf="cpfpInfo && cpfpInfo.adjustedVsize && cpfpInfo.adjustedVsize > (tx.weight / 4)">
                 <td i18n="transaction.sigops|Transaction Sigops">Sigops</td>
                 <td [innerHTML]="'&lrm;' + (cpfpInfo.sigops | number)"></td>
