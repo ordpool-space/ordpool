@@ -363,7 +363,7 @@ export function createInput(walletType: KnownOrdinalWalletType,
     txid: paymentOutput.txid,
     index: paymentOutput.vout,
     redeemScript,
-    sequence: 0xfffffffd, // enables RBF
+    // sequence: 0xfffffffd, // DISABLES RBF!! (the cat killer 🙀)
     sighashType: btc.SigHash.ALL
   };
 
