@@ -4,6 +4,7 @@
   <div *ngIf="!transactionPage" class="header-bg box tx-page-container">
     <a class="tx-link" [routerLink]="['/tx/' | relativeUrl, tx.txid]">
       <app-truncate [text]="tx.txid"></app-truncate>
+      <span *ngIf="tx.locktime === 21" class="text-white">😸 This transaction mints a CAT-21 ordinal! Click here to see it.</span>
     </a>
     <div>
       <ng-template [ngIf]="tx.status.confirmed">&lrm;{{ tx.status.block_time * 1000 | date:'yyyy-MM-dd HH:mm' }}</ng-template>
@@ -190,6 +191,8 @@
                   <a class="address" *ngIf="vout.scriptpubkey_address; else pubkey_type" [routerLink]="['/address/' | relativeUrl, vout.scriptpubkey_address]" title="{{ vout.scriptpubkey_address }}">
                     <app-truncate [text]="vout.scriptpubkey_address" [lastChars]="8"></app-truncate>
                   </a>
+                  <ng-container *ngIf="tx.locktime === 21 && vindex === 0">😸 This address gets a CAT-21 ordinal!</ng-container>
+
                   <ng-template #pubkey_type>
                     <ng-container *ngIf="vout.scriptpubkey_type === 'p2pk'; else scriptpubkey_type">
                       P2PK <a class="address p2pk-address" [routerLink]="['/address/' | relativeUrl, vout.scriptpubkey.slice(2, -2)]" title="{{ vout.scriptpubkey.slice(2, -2) }}">
