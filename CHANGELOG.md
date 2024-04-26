@@ -1,7 +1,21 @@
-# v0.0.5 – ?
+# v0.0.5 – CAT-21 Ordinals
+
+![cats](https://github.com/ordpool-space/ordpool/assets/108269257/0fb9fad1-0cbd-4c77-b007-5206a1349c8a)
+
+Announcement: https://twitter.com/HausHoppe/status/1781222510303785339
+
+**What a wild ride. We unleached the cats!! Thank you everyone for being part of the creation of a new protocol on Bitcoin.** We started a movement! 
+
+CAT-21 is a novel protocol that utilizes Bitcoin transactions and the Ordinals Theory to mint unique digital collectibles – CAT-21 ordinals. Each CAT-21 ordinal is linked to a unique pixelated cat image with various traits, offering a fresh and playful perspective on Bitcoin transactions and the Ordinals theory. Why? Because it's fun and complely free! And free means free! The minting process is completely free. **Price: FREE, no strings attached.** 😺
+
+
+Read more about the **CAT-21 protocol** [in the whitepaper](https://github.com/ordpool-space/cat-21) and [on the official website](https://cat21.space/).
+
+**More Features:**
 
 * Basic support for delegate inscriptions → [Example](https://ordpool.space/tx/6b6f65ba4bc2cbb8cec1e1ca5e1d426e442a05729cdbac6009cca185f7d95bab)
-* TODO: gzip content-encoding!
+* Various small improvements for the Inscription Accelerator
+
 
 # v0.0.4 – Parsing everything
 
