@@ -1,12 +1,11 @@
-import { Inject, Injectable, Injector, forwardRef } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable, Injector } from '@angular/core';
 import { Observable, from, of, switchMap, tap } from 'rxjs';
-import { Transaction, Address, Outspend, Recent, Asset, ScriptHash } from '../interfaces/electrs.interface';
-import { StateService } from './state.service';
-import { BlockExtended } from '../interfaces/node-api.interface';
 import { calcScriptHash$ } from '../bitcoin.utils';
-import { environment } from 'src/environments/environment';
+import { Address, Asset, Outspend, Recent, ScriptHash, Transaction } from '../interfaces/electrs.interface';
+import { BlockExtended } from '../interfaces/node-api.interface';
 import { DigitalArtifactsFetcherService } from './ordinals/digital-artifacts-fetcher.service';
+import { StateService } from './state.service';
 
 @Injectable({
   providedIn: 'root'
@@ -19,9 +18,7 @@ export class ElectrsApiService {
     private httpClient: HttpClient,
     private stateService: StateService,
     private injector: Injector) {
-    // HACK
-    // this.apiBaseUrl = ''; // use relative URL by default
-    this.apiBaseUrl = environment.apiBaseUrl;
+    this.apiBaseUrl = ''; // use relative URL by default
 
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
