@@ -1,9 +1,9 @@
-import config from '../../config';
 import axios, { AxiosResponse } from 'axios';
 import http from 'http';
+import config from '../../config';
+import logger from '../../logger';
 import { AbstractBitcoinApi } from './bitcoin-api-abstract-factory';
 import { IEsploraApi } from './esplora-api.interface';
-import logger from '../../logger';
 
 interface FailoverHost {
   host: string,
@@ -214,11 +214,11 @@ class ElectrsApi implements AbstractBitcoinApi {
   }
 
   async $getMempoolTransactions(txids: string[]): Promise<IEsploraApi.Transaction[]> {
-    return this.failoverRouter.$post<IEsploraApi.Transaction[]>('/mempool/txs', txids, 'json');
+    return this.failoverRouter.$post<IEsploraApi.Transaction[]>('/internal/mempool/txs', txids, 'json');
   }
 
   async $getAllMempoolTransactions(lastSeenTxid?: string): Promise<IEsploraApi.Transaction[]> {
-    return this.failoverRouter.$get<IEsploraApi.Transaction[]>('/mempool/txs' + (lastSeenTxid ? '/' + lastSeenTxid : ''));
+    return this.failoverRouter.$get<IEsploraApi.Transaction[]>('/internal/mempool/txs' + (lastSeenTxid ? '/' + lastSeenTxid : ''));
   }
 
   $getTransactionHex(txId: string): Promise<string> {
