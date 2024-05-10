@@ -4,7 +4,7 @@ import { catchError, map, merge, Observable, of, Subject, throwError } from 'rxj
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { BlockchainApiService } from './blockchain-api.service';
-import { RollingElectrsApiService } from './rolling-electrs-api.service';
+import { ElectrsApiService } from '../electrs-api.service';
 import { WalletService } from './wallet.service';
 import { environment } from 'src/environments/environment';
 
@@ -45,7 +45,7 @@ export class DigitalArtifactsFetcherService {
    * @param rolling - A service to interact with an Esplora Electrs APIs.
    */
   constructor(
-    private rollingElectrsApiService: RollingElectrsApiService,
+    private electrsApiService: ElectrsApiService,
     private blockchainApiService: BlockchainApiService) {
 
     // reset everything on network change!
@@ -243,7 +243,7 @@ export class DigitalArtifactsFetcherService {
    * @returns Observable of the transaction data.
    */
   fetchTransaction(txid: string): Observable<Transaction> {
-    return this.rollingElectrsApiService.getTransaction$(txid).pipe(
+    return this.electrsApiService.getTransaction$(txid).pipe(
       catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
       catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
     );

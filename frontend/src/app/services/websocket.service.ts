@@ -1,15 +1,14 @@
 import { Injectable } from '@angular/core';
-import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { WebsocketResponse } from '../interfaces/websocket.interface';
-import { StateService } from './state.service';
-import { Transaction } from '../interfaces/electrs.interface';
+import { makeStateKey, TransferState } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
-import { ApiService } from './api.service';
 import { take } from 'rxjs/operators';
-import { TransferState, makeStateKey } from '@angular/platform-browser';
-import { CacheService } from './cache.service';
-import { environment } from 'src/environments/environment';
+import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
+import { Transaction } from '../interfaces/electrs.interface';
+import { WebsocketResponse } from '../interfaces/websocket.interface';
 import { uncompressDeltaChange, uncompressTx } from '../shared/common.utils';
+import { ApiService } from './api.service';
+import { CacheService } from './cache.service';
+import { StateService } from './state.service';
 
 const OFFLINE_RETRY_AFTER_MS = 2000;
 const OFFLINE_PING_CHECK_AFTER_MS = 30000;
@@ -21,13 +20,8 @@ const initData = makeStateKey('/api/v1/init-data');
   providedIn: 'root'
 })
 export class WebsocketService {
-
-  // HACK
-  // private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
-
-  // HACK
-  // private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
-  private webSocketUrl = environment.websocketBaseUrl + ':' + '443' + '{network}/api/v1/ws';
+  private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
+  private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
 
   private websocketSubject: WebSocketSubject<WebsocketResponse>;
   private goneOffline = false;
