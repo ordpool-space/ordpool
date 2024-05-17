@@ -9,6 +9,7 @@ import { take } from 'rxjs/operators';
 import { TransferState, makeStateKey } from '@angular/core';
 import { CacheService } from './cache.service';
 import { uncompressDeltaChange, uncompressTx } from '../shared/common.utils';
+import { environment } from '../../environments/environment';
 
 const OFFLINE_RETRY_AFTER_MS = 2000;
 const OFFLINE_PING_CHECK_AFTER_MS = 30000;

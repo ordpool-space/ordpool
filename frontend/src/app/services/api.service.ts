@@ -8,6 +8,7 @@ import { Transaction } from '../interfaces/electrs.interface';
 import { Conversion } from './price.service';
 import { StorageService } from './storage.service';
 import { WebsocketResponse } from '../interfaces/websocket.interface';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'

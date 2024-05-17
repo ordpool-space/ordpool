@@ -154,7 +154,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     private enterpriseService: EnterpriseService,
     private cd: ChangeDetectorRef,
     @Inject(ZONE_SERVICE) private zoneService: any,
-  ) {}
+  ) {
 
     // HACK, redirect to the correct URL if someone accidently insert a inscription ID
     const id = this.route.snapshot.paramMap.get('id');

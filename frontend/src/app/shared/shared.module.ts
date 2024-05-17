@@ -404,6 +404,9 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
 
     OnlyVsizeDirective,
     OnlyWeightDirective,
+
+    DigitalArtifactViewerComponent,
+    InscriptionAcceleratorComponent
   ]
 })
 export class SharedModule {

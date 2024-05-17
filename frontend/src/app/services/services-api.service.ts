@@ -8,6 +8,7 @@ import { Observable, of, ReplaySubject, tap, catchError, share, filter, switchMa
 import { IBackendInfo } from '../interfaces/websocket.interface';
 import { Acceleration, AccelerationHistoryParams } from '../interfaces/node-api.interface';
 import { AccelerationStats } from '../components/acceleration/acceleration-stats/acceleration-stats.component';
+import { environment } from '../../environments/environment';
 
 export type ProductType = 'enterprise' | 'community' | 'mining_pool' | 'custom';
 export interface IUser {
@@ -46,7 +47,10 @@ export class ServicesApiServices {
   ) {
     this.currentAuth = localStorage.getItem('auth');
 
-    this.apiBaseUrl = ''; // use relative URL by default
+    // HACK
+    // this.apiBaseUrl = ''; // use relative URL by default
+    this.apiBaseUrl = environment.apiBaseUrl;
+
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }
