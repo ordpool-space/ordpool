@@ -2,7 +2,7 @@
 
 These instructions are mostly intended for developers. 
 
-If you choose to use these instructions for a production setup, be aware that you will still probably need to do additional configuration for your specific OS, environment, use-case, etc. We do our best here to provide a good starting point, but only proceed if you know what you're doing. Mempool only provides support for custom setups to [enterprise sponsors](https://mempool.space/enterprise).
+If you choose to use these instructions for a production setup, be aware that you will still probably need to do additional configuration for your specific OS, environment, use-case, etc. We do our best here to provide a good starting point, but only proceed if you know what you're doing. Mempool only provides support for custom setups to project sponsors through [Mempool Enterprise®](https://mempool.space/enterprise).
 
 See other ways to set up Mempool on [the main README](/../../#installation-methods).
 
@@ -103,7 +103,7 @@ In particular, make sure:
 - the correct Bitcoin Core RPC credentials are specified in `CORE_RPC`
 - the correct `BACKEND` is specified in `MEMPOOL`:
   - "electrum" if you're using [romanz/electrs](https://github.com/romanz/electrs) or [cculianu/Fulcrum](https://github.com/cculianu/Fulcrum)
-  - "esplora" if you're using [Blockstream/electrs](https://github.com/Blockstream/electrs)
+  - "esplora" if you're using [mempool/electrs](https://github.com/mempool/electrs)
   - "none" if you're not using any Electrum Server
 
 ### 6. Run Mempool Backend

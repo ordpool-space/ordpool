@@ -18,7 +18,7 @@
 
   <br>
 
-  <ngb-pagination [collectionSize]="assets.length" [rotate]="true" [pageSize]="itemsPerPage" [(page)]="page" (pageChange)="pageChange(page)" [maxSize]="paginationMaxSize" [boundaryLinks]="true" [ellipses]="ellipses"></ngb-pagination>
+  <ngb-pagination class="pagination-container" [collectionSize]="assets.length" [rotate]="true" [pageSize]="itemsPerPage" [(page)]="page" (pageChange)="pageChange(page)" [maxSize]="paginationMaxSize" [boundaryLinks]="true" [ellipses]="ellipses"></ngb-pagination>
 
   <div class="clearfix"></div>
   <br>
@@ -46,9 +46,7 @@
 </ng-template>
 
 <ng-template [ngIf]="error">
-  <div class="text-center">
-    <ng-container i18n="Asset data load error">Error loading assets data.</ng-container>
-    <br>
-    <i>{{ error.error }}</i>
-  </div>
+  <app-http-error [error]="error">
+    <span i18n="Asset data load error">Error loading assets data.</span>
+  </app-http-error>
 </ng-template>

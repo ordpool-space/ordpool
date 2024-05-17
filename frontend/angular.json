@@ -166,11 +166,27 @@
               "src/resources",
               "src/robots.txt",
               "src/config.js",
+              "src/customize.js",
               "src/config.template.js",
               "src/_redirects"
             ],
             "styles": [
               "src/styles.scss",
+              {
+                "input": "src/theme-contrast.scss",
+                "bundleName": "contrast",
+                "inject": false
+              },
+              {
+                "input": "src/theme-wiz.scss",
+                "bundleName": "wiz",
+                "inject": false
+              },
+              {
+                "input": "src/theme-bukele.scss",
+                "bundleName": "bukele",
+                "inject": false
+              },
               "node_modules/@fortawesome/fontawesome-svg-core/styles.css"
             ],
             "vendorChunk": true,
@@ -225,11 +241,11 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "mempool:build"
+            "buildTarget": "mempool:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "mempool:build:production"
+              "buildTarget": "mempool:build:production"
             },
             "local": {
               "proxyConfig": "proxy.conf.local.js",
@@ -266,7 +282,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "mempool:build"
+            "buildTarget": "mempool:build"
           }
         },
         "e2e": {
@@ -280,6 +296,56 @@
             "production": {
               "devServerTarget": "mempool:serve:production"
             }
+          }
+        },
+        "server": {
+          "builder": "@angular-devkit/build-angular:server",
+          "options": {
+            "outputPath": "dist/mempool/server",
+            "main": "server.ts",
+            "tsConfig": "tsconfig.server.json"
+          },
+          "configurations": {
+            "production": {
+              "outputHashing": "media",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.prod.ts"
+                }
+              ],
+              "sourceMap": false,
+              "localize": true,
+              "optimization": false
+            }
+          }
+        },
+        "serve-ssr": {
+          "builder": "@angular-devkit/build-angular:ssr-dev-server",
+          "options": {
+            "browserTarget": "mempool:build",
+            "serverTarget": "mempool:server"
+          },
+          "configurations": {
+            "production": {
+              "browserTarget": "mempool:build:production",
+              "serverTarget": "mempool:server:production",
+              "optimization": false,
+              "sourceMap": true
+            }
+          }
+        },
+        "prerender": {
+          "builder": "@angular-devkit/build-angular:prerender",
+          "options": {
+            "browserTarget": "mempool:build:production",
+            "serverTarget": "mempool:server:production",
+            "routes": [
+              "/"
+            ]
+          },
+          "configurations": {
+            "production": {}
           }
         },
         "cypress-run": {

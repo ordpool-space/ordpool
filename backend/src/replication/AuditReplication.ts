@@ -105,7 +105,8 @@ class AuditReplication {
       template: {
         id: blockHash,
         transactions: auditSummary.template || []
-      }
+      },
+      version: 1,
     });
     await blocksAuditsRepository.$saveAudit({
       hash: blockHash,
@@ -113,6 +114,7 @@ class AuditReplication {
       time: auditSummary.timestamp || auditSummary.time,
       missingTxs: auditSummary.missingTxs || [],
       addedTxs: auditSummary.addedTxs || [],
+      prioritizedTxs: auditSummary.prioritizedTxs || [],
       freshTxs: auditSummary.freshTxs || [],
       sigopTxs: auditSummary.sigopTxs || [],
       fullrbfTxs: auditSummary.fullrbfTxs || [],

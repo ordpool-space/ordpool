@@ -13,15 +13,15 @@
 	}
 }
 .green {
-  color:#28a745;
+  color: var(--green);
 }
 
 .red {
-  color:#dc3545;
+  color: var(--red);
 }
 
 .grey {
-  color:#6c757d;
+  color: var(--grey);
 }
 
 .mobile-bottomcol {
@@ -46,7 +46,16 @@
 }
 
 td.amount {
-	width: 32.5%;
+	width: 36%;
+	@media (max-width: 576px) {
+		width: 50%;
+	}
+}
+td.amount.large {
+	width: 45%;
+	@media (max-width: 576px) {
+		width: 60%;
+	}
 }
 
 .extra-info {
@@ -60,7 +69,7 @@ td.amount {
 		text-align: right;
 	}
 	.sats {
-		color: #ffffff66;
+		color: var(--transparent-fg);
 		font-size: 11px;
 	}
 }
@@ -94,7 +103,8 @@ td.amount {
 	margin-top: 10px;
 }
 .assetBox {
-	background-color: #e68a0090;
+	background: color-mix(in srgb, var(--tertiary) 56%, transparent);
+
 }
 
 .details-container {
@@ -103,7 +113,7 @@ td.amount {
 		padding: 0.75rem;
 		font-size: 12px;
 		&:first-child {
-			color: #ffffff66;
+			color: var(--transparent-fg);
 			white-space: pre-wrap;
 			width: 150px;
 		}
@@ -129,7 +139,7 @@ h2 {
 }
 
 .highlight {
-	background-color: #181b2d;
+	background-color: var(--stat-box-bg);
 }
 
 .summary {
@@ -150,7 +160,7 @@ h2 {
 }
 
 .grey-info-text {
-	color:#6c757d;
+	color: var(--grey);
 	font-style: italic;
 	font-size: 12px;
 }

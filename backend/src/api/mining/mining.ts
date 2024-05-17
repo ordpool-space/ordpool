@@ -15,6 +15,13 @@ import bitcoinApi from '../bitcoin/bitcoin-api-factory';
 import { IEsploraApi } from '../bitcoin/esplora-api.interface';
 import database from '../../database';
 
+interface DifficultyBlock {
+  timestamp: number,
+  height: number,
+  bits: number,
+  difficulty: number,
+}
+
 class Mining {
   private blocksPriceIndexingRunning = false;
   public lastHashrateIndexingDate: number | null = null;
@@ -38,11 +45,22 @@ class Mining {
    */
   public async $getHistoricalBlockFees(interval: string | null = null): Promise<any> {
     return await BlocksRepository.$getHistoricalBlockFees(
-      this.getTimeRange(interval, 5),
+      this.getTimeRange(interval),
       Common.getSqlInterval(interval)
     );
   }
 
+  /**
+   * Get timespan block total fees
+   */
+  public async $getBlockFeesTimespan(from: number, to: number): Promise<number> {
+    return await BlocksRepository.$getHistoricalBlockFees(
+      this.getTimeRangeFromTimespan(from, to),
+      null,
+      {from, to}
+    );
+  }
+  
   /**
    * Get historical block rewards
    */
@@ -135,7 +153,7 @@ class Mining {
   public async $getPoolStat(slug: string): Promise<object> {
     const pool = await PoolsRepository.$getPool(slug);
     if (!pool) {
-      throw new Error('This mining pool does not exist ' + escape(slug));
+      throw new Error('This mining pool does not exist');
     }
 
     const blockCount: number = await BlocksRepository.$blockCount(pool.id);
@@ -421,6 +439,7 @@ class Mining {
       indexedHeights[height] = true;
     }
 
+    // gets {time, height, difficulty, bits} of blocks in ascending order of height
     const blocks: any = await BlocksRepository.$getBlocksDifficulty();
     const genesisBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(await bitcoinApi.$getBlockHash(0));
     let currentDifficulty = genesisBlock.difficulty;
@@ -436,41 +455,45 @@ class Mining {
       });
     }
 
-    const oldestConsecutiveBlock = await BlocksRepository.$getOldestConsecutiveBlock();
-    if (config.MEMPOOL.INDEXING_BLOCKS_AMOUNT !== -1) {
-      currentBits = oldestConsecutiveBlock.bits;
-      currentDifficulty = oldestConsecutiveBlock.difficulty;
+    if (!blocks?.length) {
+      // no blocks in database yet
+      return;
     }
+
+    const oldestConsecutiveBlock = this.getOldestConsecutiveBlock(blocks);
+
+    currentBits = oldestConsecutiveBlock.bits;
+    currentDifficulty = oldestConsecutiveBlock.difficulty;
 
     let totalBlockChecked = 0;
     let timer = new Date().getTime() / 1000;
 
     for (const block of blocks) {
+      // skip until the first block after the oldest consecutive block
+      if (block.height <= oldestConsecutiveBlock.height) {
+        continue;
+      }
+
+      // difficulty has changed between two consecutive blocks!
       if (block.bits !== currentBits) {
-        if (indexedHeights[block.height] === true) { // Already indexed
-          if (block.height >= oldestConsecutiveBlock.height) {
-            currentDifficulty = block.difficulty;
-            currentBits = block.bits;
-          }
-          continue;          
+        // skip if already indexed
+        if (indexedHeights[block.height] !== true) {
+          let adjustment = block.difficulty / currentDifficulty;
+          adjustment = Math.round(adjustment * 1000000) / 1000000; // Remove float point noise
+
+          await DifficultyAdjustmentsRepository.$saveAdjustments({
+            time: block.time,
+            height: block.height,
+            difficulty: block.difficulty,
+            adjustment: adjustment,
+          });
+
+          totalIndexed++;
         }
-
-        let adjustment = block.difficulty / currentDifficulty;
-        adjustment = Math.round(adjustment * 1000000) / 1000000; // Remove float point noise
-
-        await DifficultyAdjustmentsRepository.$saveAdjustments({
-          time: block.time,
-          height: block.height,
-          difficulty: block.difficulty,
-          adjustment: adjustment,
-        });
-
-        totalIndexed++;
-        if (block.height >= oldestConsecutiveBlock.height) {
-          currentDifficulty = block.difficulty;
-          currentBits = block.bits;
-        }
-    }
+        // update the current difficulty
+        currentDifficulty = block.difficulty;
+        currentBits = block.bits;
+      }
 
       totalBlockChecked++;
       const elapsedSeconds = Math.max(1, Math.round((new Date().getTime() / 1000) - timer));
@@ -632,6 +655,35 @@ class Mining {
       case '24h': return 1 * scale;
       default: return 86400 * scale;
     }
+  }
+
+  private getTimeRangeFromTimespan(from: number, to: number, scale = 1): number {
+    const timespan = to - from;
+    switch (true) {
+      case timespan > 3600 * 24 * 365 * 4: return 86400 * scale; // 24h
+      case timespan > 3600 * 24 * 365 * 3: return 43200 * scale; // 12h
+      case timespan > 3600 * 24 * 365 * 2: return 43200 * scale; // 12h
+      case timespan > 3600 * 24 * 365: return 28800 * scale; // 8h
+      case timespan > 3600 * 24 * 30 * 6: return 28800 * scale; // 8h
+      case timespan > 3600 * 24 * 30 * 3: return 10800 * scale; // 3h
+      case timespan > 3600 * 24 * 30: return 7200 * scale; // 2h
+      case timespan > 3600 * 24 * 7: return 1800 * scale; // 30min
+      case timespan > 3600 * 24 * 3: return 300 * scale; // 5min
+      case timespan > 3600 * 24: return 1 * scale;
+      default: return 1 * scale;
+    }
+  }
+  
+
+  // Finds the oldest block in a consecutive chain back from the tip
+  // assumes `blocks` is sorted in ascending height order
+  private getOldestConsecutiveBlock(blocks: DifficultyBlock[]): DifficultyBlock {
+    for (let i = blocks.length - 1; i > 0; i--) {
+      if ((blocks[i].height - blocks[i - 1].height) > 1) {
+        return blocks[i];
+      }
+    }
+    return blocks[0];
   }
 }
 

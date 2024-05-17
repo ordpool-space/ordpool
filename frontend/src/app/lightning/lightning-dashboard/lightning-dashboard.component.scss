@@ -10,7 +10,7 @@
 }
 
 .card {
-  background-color: #1d1f31;
+  background-color: var(--bg);
 }
 
 .graph-card {
@@ -20,12 +20,25 @@
   }
 }
 
+.fixed-mempool-graph {
+  height: 330px;
+}
+
+.mempool-graph, .fixed-mempool-graph {
+  @media (min-width: 768px) {
+    height: 345px;
+  }
+  @media (min-width: 992px) {
+    height: 439px;
+  }
+}
+
 .card-title {
   font-size: 1rem;
-  color: #e68a00;
+  color: var(--title-fg);
 }
 .card-title > a {
-  color: #e68a00;
+  color: var(--title-fg);
 }
 
 .card-body.pool-ranking {
@@ -53,7 +66,8 @@
 
 .main-title {
   position: relative;
-  color: #ffffff91;
+  color: var(--fg);
+  opacity: var(--opacity);
   margin-top: -13px;
   font-size: 10px;
   text-transform: uppercase;

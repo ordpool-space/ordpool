@@ -35,6 +35,7 @@ class Logger {
   public tags = {
     mining: 'Mining',
     ln: 'Lightning',
+    goggles: 'Goggles',
   };  
 
   // @ts-ignore
@@ -84,9 +85,6 @@ class Logger {
   private getNetwork(): string {
     if (config.LIGHTNING.ENABLED) {
       return config.MEMPOOL.NETWORK === 'mainnet' ? 'lightning' : `${config.MEMPOOL.NETWORK}-lightning`; 
-    }
-    if (config.BISQ.ENABLED) {
-      return 'bisq';
     }
     if (config.MEMPOOL.NETWORK && config.MEMPOOL.NETWORK !== 'mainnet') {
       return config.MEMPOOL.NETWORK;
@@ -156,5 +154,7 @@ class Logger {
     return months[month] + ' ' + day + ' ' + hours + ':' + minutes + ':' + seconds;
   }
 }
+
+export type LogLevel = 'emerg' | 'alert' | 'crit' | 'err' | 'warn' | 'notice' | 'info' | 'debug';
 
 export default new Logger();
