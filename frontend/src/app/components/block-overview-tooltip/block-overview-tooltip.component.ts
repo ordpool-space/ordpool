@@ -1,7 +1,9 @@
-import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy } from '@angular/core';
-import { TransactionStripped } from '../../interfaces/websocket.interface';
+import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
+import { TransactionStripped } from '../../interfaces/node-api.interface.js';
+import { Filter, FilterMode, TransactionFlags, toFilters } from '../../shared/filters.utils';
+import { Block } from '../../interfaces/electrs.interface.js';
 import { DigitalArtifact } from 'ordpool-parser';
 import { Observable, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
@@ -13,26 +15,38 @@ import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-
 })
 export class BlockOverviewTooltipComponent implements OnChanges {
   @Input() tx: TransactionStripped | void;
+  @Input() relativeTime?: number;
   @Input() cursorPosition: Position;
   @Input() clickable: boolean;
   @Input() auditEnabled: boolean = false;
   @Input() blockConversion: Price;
+  @Input() filterFlags: bigint | null = null;
+  @Input() filterMode: FilterMode = 'and';
 
   digitalArtifacts$: Observable<DigitalArtifact[]> = of(null);
 
   txid = '';
+  time: number = 0;
   fee = 0;
   value = 0;
   vsize = 1;
   feeRate = 0;
   effectiveRate;
   acceleration;
+  hasEffectiveRate: boolean = false;
+  timeMode: 'mempool' | 'mined' | 'missed' | 'after' = 'mempool';
+  filters: Filter[] = [];
+  activeFilters: { [key: string]: boolean } = {};
 
   tooltipPosition: Position = { x: 0, y: 0 };
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
 
-  constructor(private digitalArtifactsFetcher: DigitalArtifactsFetcherService) { }
+  private digitalArtifactsFetcher = inject(DigitalArtifactsFetcherService);
+
+  constructor(
+    private cd: ChangeDetectorRef,
+  ) {}
 
   ngOnChanges(changes): void {
     if (changes.cursorPosition && changes.cursorPosition.currentValue) {
@@ -51,15 +65,43 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       this.tooltipPosition = { x, y };
     }
 
-    if (changes.tx) {
-      const tx = changes.tx.currentValue || {};
-      this.txid = tx.txid || '';
-      this.fee = tx.fee || 0;
-      this.value = tx.value || 0;
-      this.vsize = tx.vsize || 1;
+    if (this.tx && (changes.tx || changes.filterFlags || changes.filterMode)) {
+      this.txid = this.tx.txid || '';
+      this.time = this.tx.time || 0;
+      this.fee = this.tx.fee || 0;
+      this.value = this.tx.value || 0;
+      this.vsize = this.tx.vsize || 1;
       this.feeRate = this.fee / this.vsize;
-      this.effectiveRate = tx.rate;
-      this.acceleration = tx.acc;
+      this.effectiveRate = this.tx.rate;
+      const txFlags = BigInt(this.tx.flags) || 0n;
+      this.acceleration = this.tx.acc || (txFlags & TransactionFlags.acceleration);
+      this.hasEffectiveRate = this.tx.acc || Math.abs((this.fee / this.vsize) - this.effectiveRate) > 0.05
+        || (txFlags && (txFlags & (TransactionFlags.cpfp_child | TransactionFlags.cpfp_parent)) > 0n);
+      this.filters = this.tx.flags ? toFilters(txFlags).filter(f => f.tooltip) : [];
+      this.activeFilters = {}
+      for (const filter of this.filters) {
+        if (this.filterFlags && (this.filterFlags & BigInt(filter.flag))) {
+          this.activeFilters[filter.key] = true;
+        }
+      }
+
+      if (!this.relativeTime) {
+        this.timeMode = 'mempool';
+      } else {
+        if (this.tx?.context === 'actual' || this.tx?.status === 'found') {
+          this.timeMode = 'mined';
+        } else {
+          const time = this.relativeTime || Date.now();
+          if (this.time <= time) {
+            this.timeMode = 'missed';
+          } else {
+            this.timeMode = 'after';
+          }
+        }
+      }
+
+      this.cd.markForCheck();
+
 
       // HACK
       if (this.txid) {
@@ -72,5 +114,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
     }
   }
 
-
+  getTooltipLeftPosition(): string {
+    return window.innerWidth < 392 ? '-50px' : this.tooltipPosition.x + 'px';
+  }
 }

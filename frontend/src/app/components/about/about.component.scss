@@ -129,8 +129,9 @@
       position: relative;
       width: 300px;
     }
-    .bisq {
-      top: 3px;
+    .sv {
+      height: 85px;
+      width: auto;
       position: relative;
     }
   }
@@ -175,6 +176,10 @@
       width: 72px;
       height: 72px;
     }
+  }
+
+  #project-members a.project-member-avatar img {
+    margin: 40px 20px 10px;
   }
 
   .copyright {

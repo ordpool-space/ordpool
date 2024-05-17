@@ -8,6 +8,7 @@ import { ApiService } from '../../services/api.service';
 import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
 import { AssetsService } from '../../services/assets.service';
 import { environment } from '../../../environments/environment';
+import { ElectrsApiService } from '../../services/electrs-api.service';
 
 interface SvgLine {
   path: string;
@@ -33,6 +34,7 @@ interface Xput {
   pegout?: string;
   confidential?: boolean;
   timestamp?: number;
+  blockHeight?: number;
   asset?: string;
 }
 
@@ -82,25 +84,25 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
   refreshOutspends$: ReplaySubject<string> = new ReplaySubject();
 
   gradientColors = {
-    '': ['#9339f4', '#105fb0', '#9339f400'],
-    bisq: ['#9339f4', '#105fb0', '#9339f400'],
+    '': ['var(--mainnet-alt)', 'var(--primary)', 'color-mix(in srgb, var(--mainnet-alt) 1%, transparent)'],
     // liquid: ['#116761', '#183550'],
     liquid: ['#09a197', '#0f62af', '#09a19700'],
     // 'liquidtestnet': ['#494a4a', '#272e46'],
     'liquidtestnet': ['#d2d2d2', '#979797', '#d2d2d200'],
     // testnet: ['#1d486f', '#183550'],
     testnet: ['#4edf77', '#10a0af', '#4edf7700'],
+    testnet4: ['#4edf77', '#10a0af', '#4edf7700'],
     // signet: ['#6f1d5d', '#471850'],
     signet: ['#d24fc8', '#a84fd2', '#d24fc800'],
   };
 
-  gradient: string[] = ['#105fb0', '#105fb0'];
+  gradient: string[] = ['var(--primary)', 'var(--primary)'];
 
   constructor(
     private router: Router,
     private relativeUrlPipe: RelativeUrlPipe,
-    private stateService: StateService,
-    private apiService: ApiService,
+    public stateService: StateService,
+    private electrsApiService: ElectrsApiService,
     private assetsService: AssetsService,
     @Inject(LOCALE_ID) private locale: string,
   ) {
@@ -123,7 +125,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
         .pipe(
           switchMap((txid) => {
             if (!this.cached) {
-              return this.apiService.getOutspendsBatched$([txid]);
+              return this.electrsApiService.cachedRequest(this.electrsApiService.getOutspendsBatched$, 250, [txid]);
             } else {
               return of(null);
             }
@@ -177,6 +179,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
         pegout: v?.pegout?.scriptpubkey_address,
         confidential: (this.isLiquid && v?.value === undefined),
         timestamp: this.tx.status.block_time,
+        blockHeight: this.tx.status.block_height,
         asset: v?.asset,
       } as Xput;
     });
@@ -199,6 +202,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
         pegin: v?.is_pegin,
         confidential: (this.isLiquid && v?.prevout?.value === undefined),
         timestamp: this.tx.status.block_time,
+        blockHeight: this.tx.status.block_height,
         asset: v?.prevout?.asset,
       } as Xput;
     });

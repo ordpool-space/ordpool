@@ -3,37 +3,34 @@ import { RouterModule, Routes } from '@angular/router';
 import { BlockHealthGraphComponent } from '../components/block-health-graph/block-health-graph.component';
 import { BlockFeeRatesGraphComponent } from '../components/block-fee-rates-graph/block-fee-rates-graph.component';
 import { BlockFeesGraphComponent } from '../components/block-fees-graph/block-fees-graph.component';
+import { BlockFeesSubsidyGraphComponent } from '../components/block-fees-subsidy-graph/block-fees-subsidy-graph.component';
 import { BlockRewardsGraphComponent } from '../components/block-rewards-graph/block-rewards-graph.component';
 import { BlockSizesWeightsGraphComponent } from '../components/block-sizes-weights-graph/block-sizes-weights-graph.component';
 import { GraphsComponent } from '../components/graphs/graphs.component';
 import { HashrateChartComponent } from '../components/hashrate-chart/hashrate-chart.component';
 import { HashrateChartPoolsComponent } from '../components/hashrates-chart-pools/hashrate-chart-pools.component';
-import { LiquidMasterPageComponent } from '../components/liquid-master-page/liquid-master-page.component';
-import { MasterPageComponent } from '../components/master-page/master-page.component';
 import { MempoolBlockComponent } from '../components/mempool-block/mempool-block.component';
 import { MiningDashboardComponent } from '../components/mining-dashboard/mining-dashboard.component';
+import { AcceleratorDashboardComponent } from '../components/acceleration/accelerator-dashboard/accelerator-dashboard.component';
 import { PoolRankingComponent } from '../components/pool-ranking/pool-ranking.component';
 import { PoolComponent } from '../components/pool/pool.component';
 import { StartComponent } from '../components/start/start.component';
 import { StatisticsComponent } from '../components/statistics/statistics.component';
 import { TelevisionComponent } from '../components/television/television.component';
 import { DashboardComponent } from '../dashboard/dashboard.component';
-import { NodesNetworksChartComponent } from '../lightning/nodes-networks-chart/nodes-networks-chart.component';
-import { LightningStatisticsChartComponent } from '../lightning/statistics-chart/lightning-statistics-chart.component';
-import { NodesPerISPChartComponent } from '../lightning/nodes-per-isp-chart/nodes-per-isp-chart.component';
-import { NodesPerCountryChartComponent } from '../lightning/nodes-per-country-chart/nodes-per-country-chart.component';
-import { NodesMap } from '../lightning/nodes-map/nodes-map.component';
-import { NodesChannelsMap } from '../lightning/nodes-channels-map/nodes-channels-map.component';
+import { CustomDashboardComponent } from '../components/custom-dashboard/custom-dashboard.component';
+import { AccelerationFeesGraphComponent } from '../components/acceleration/acceleration-fees-graph/acceleration-fees-graph.component';
+import { AccelerationsListComponent } from '../components/acceleration/accelerations-list/accelerations-list.component';
+import { AddressComponent } from '../components/address/address.component';
 
 const browserWindow = window || {};
 // @ts-ignore
 const browserWindowEnv = browserWindow.__env || {};
-const isLiquid = browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid';
+const isCustomized = browserWindowEnv?.customize;
 
 const routes: Routes = [
   {
     path: '',
-    component: isLiquid ? LiquidMasterPageComponent : MasterPageComponent,
     children: [
       {
         path: 'mining/pool/:slug',
@@ -52,6 +49,22 @@ const routes: Routes = [
         ]
       },
       {
+        path: 'acceleration',
+        data: { networks: ['bitcoin'] },
+        component: StartComponent,
+        children: [
+          {
+            path: '',
+            component: AcceleratorDashboardComponent,
+          }
+        ]
+      },
+      {
+        path: 'acceleration/list',
+        data: { networks: ['bitcoin'] },
+        component: AccelerationsListComponent,
+      },
+      {
         path: 'mempool-block/:id',
         data: { networks: ['bitcoin', 'liquid'] },
         component: StartComponent,
@@ -61,6 +74,15 @@ const routes: Routes = [
             component: MempoolBlockComponent,
           },
         ]
+      },
+      {
+        path: 'address/:id',
+        children: [],
+        component: AddressComponent,
+        data: {
+          ogImage: true,
+          networkSpecific: true,
+        }
       },
       {
         path: 'graphs',
@@ -93,6 +115,11 @@ const routes: Routes = [
             component: BlockFeesGraphComponent,
           },
           {
+            path: 'mining/block-fees-subsidy',
+            data: { networks: ['bitcoin'] },
+            component: BlockFeesSubsidyGraphComponent,
+          },
+          {
             path: 'mining/block-rewards',
             data: { networks: ['bitcoin'] },
             component: BlockRewardsGraphComponent,
@@ -108,34 +135,14 @@ const routes: Routes = [
             component: BlockSizesWeightsGraphComponent,
           },
           {
-            path: 'lightning/nodes-networks',
+            path: 'acceleration/fees',
             data: { networks: ['bitcoin'] },
-            component: NodesNetworksChartComponent,
+            component: AccelerationFeesGraphComponent,
           },
           {
-            path: 'lightning/capacity',
-            data: { networks: ['bitcoin'] },
-            component: LightningStatisticsChartComponent,
-          },
-          {
-            path: 'lightning/nodes-per-isp',
-            data: { networks: ['bitcoin'] },
-            component: NodesPerISPChartComponent,
-          },
-          {
-            path: 'lightning/nodes-per-country',
-            data: { networks: ['bitcoin'] },
-            component: NodesPerCountryChartComponent,
-          },
-          {
-            path: 'lightning/nodes-map',
-            data: { networks: ['bitcoin'] },
-            component: NodesMap,
-          },
-          {
-            path: 'lightning/nodes-channels-map',
-            data: { networks: ['bitcoin'] },
-            component: NodesChannelsMap,
+            path: 'lightning',
+            data: { preload: true, networks: ['bitcoin'] },
+            loadChildren: () => import ('./lightning-graphs.module').then(m => m.LightningGraphsModule),
           },
           {
             path: '',
@@ -154,7 +161,7 @@ const routes: Routes = [
         component: StartComponent,
         children: [{
           path: '',
-          component: DashboardComponent,
+          component: isCustomized ? CustomDashboardComponent : DashboardComponent,
         }]
       },
     ]

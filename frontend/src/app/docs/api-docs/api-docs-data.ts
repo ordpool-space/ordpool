@@ -1,5 +1,6 @@
-const bitcoinNetworks = ["", "testnet", "signet"];
+const bitcoinNetworks = ["", "testnet", "testnet4", "signet"];
 const liquidNetworks = ["liquid", "liquidtestnet"];
+const lightningNetworks = ["", "testnet", "signet"];
 const miningTimeIntervals = "<code>24h</code>, <code>3d</code>, <code>1w</code>, <code>1m</code>, <code>3m</code>, <code>6m</code>, <code>1y</code>, <code>2y</code>, <code>3y</code>";
 
 const emptyCodeSample = {
@@ -9,8 +10,8 @@ const emptyCodeSample = {
   response: ``
 };
 
-const showJsExamplesDefault = { "": true, "testnet": true, "signet": true, "liquid": true, "liquidtestnet": false, "bisq": true };
-const showJsExamplesDefaultFalse = { "": false, "testnet": false, "signet": false, "liquid": false, "liquidtestnet": false, "bisq": false };
+const showJsExamplesDefault = { "": true, "testnet": true, "signet": true, "liquid": true, "liquidtestnet": false };
+const showJsExamplesDefaultFalse = { "": false, "testnet": false, "signet": false, "liquid": false, "liquidtestnet": false };
 
 export const wsApiDocsData = {
   showJsExamples: showJsExamplesDefault,
@@ -101,7 +102,6 @@ if __name__ == "__main__":
   codeSampleTestnet: emptyCodeSample,
   codeSampleSignet: emptyCodeSample,
   codeSampleLiquid: emptyCodeSample,
-  codeSampleBisq: emptyCodeSample,
 };
 
 export const restApiDocsData = [
@@ -110,7 +110,7 @@ export const restApiDocsData = [
     category: "general",
     fragment: "general",
     title: "General",
-    showConditions: bitcoinNetworks.concat(["bisq"])
+    showConditions: bitcoinNetworks,
   },
   {
     type: "endpoint",
@@ -155,6 +155,7 @@ export const restApiDocsData = [
   previousRetarget: -4.807005268478962,
   nextRetargetHeight: 741888,
   timeAvg: 302328,
+  adjustedTimeAvg: 302328,
   timeOffset: 0
 }`
         },
@@ -171,6 +172,7 @@ export const restApiDocsData = [
   previousRetarget: -4.807005268478962,
   nextRetargetHeight: 741888,
   timeAvg: 302328,
+  adjustedTimeAvg: 302328,
   timeOffset: 0
 }`
         },
@@ -187,6 +189,7 @@ export const restApiDocsData = [
   previousRetarget: -4.807005268478962,
   nextRetargetHeight: 741888,
   timeAvg: 302328,
+  adjustedTimeAvg: 302328,
   timeOffset: 0
 }`
         },
@@ -203,6 +206,7 @@ export const restApiDocsData = [
   previousRetarget: -4.807005268478962,
   nextRetargetHeight: 741888,
   timeAvg: 302328,
+  adjustedTimeAvg: 302328,
   timeOffset: 0
 }`
         }
@@ -213,522 +217,89 @@ export const restApiDocsData = [
     type: "endpoint",
     category: "general",
     httpRequestMethod: "GET",
-    fragment: "get-stats",
-    title: "GET Stats",
+    fragment: "get-price",
+    title: "GET Price",
     description: {
-      default: "Returns statistics about all Bisq transactions."
+      default: "Returns bitcoin latest price denominated in main currencies."
     },
-    urlString: "/stats",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
+    urlString: "/v1/prices",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
         codeTemplate: {
-          commonJS: `
-        const { %{0}: { statistics } } = mempoolJS();
-
-        const stats = await statistics.getStats();
-
-        document.getElementById("result").textContent = JSON.stringify(stats, undefined, 2);
-          `,
-          esModule: `
-  const { %{0}: { statistics } } = mempoolJS();
-
-  const stats = await statistics.getStats();
-  console.log(stats);
-          `,
-          curl: `/api/stats`,
+          commonJS: ``,
+          esModule: ``,
+          curl: `/api/v1/prices`,
         },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
+        codeSampleMainnet: {
           esModule: [],
           commonJS: [],
           curl: [],
           response: `{
-  addresses: 213825,
-  minted: 6148323.75,
-  burnt: 1830262.66,
-  spent_txos: 215705,
-  unspent_txos: 2572
+  time: 1703252411,
+  USD: 43753,
+  EUR: 40545,
+  GBP: 37528,
+  CAD: 58123,
+  CHF: 37438,
+  AUD: 64499,
+  JPY: 6218915
 }`
         },
+        codeSampleTestnet: emptyCodeSample,
+        codeSampleSignet: emptyCodeSample,
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
   {
-    type: "category",
-    category: "markets",
-    fragment: "markets",
-    title: "Markets",
-    showConditions: ["bisq"]
-  },
-  {
     type: "endpoint",
-    category: "markets",
+    category: "general",
     httpRequestMethod: "GET",
-    fragment: "get-market-currencies",
-    title: "GET Market Currencies",
+    fragment: "get-historical-price",
+    title: "GET Historical Price",
     description: {
-      default: "Provides list of available currencies for a given base currency."
+      default: "Returns bitcoin historical price denominated in main currencies. Available query parameters: <code>currency</code>, <code>timestamp</code>. If no parameter is provided, the full price history for all currencies is returned."
     },
-    urlString: "/currencies",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
+    urlString: "/v1/historical-price?currency=EUR&timestamp=1500000000",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
         codeTemplate: {
-          curl: `/api/currencies`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const currencies = await markets.getCurrencies();
-
-        document.getElementById("result").textContent = JSON.stringify(currencies, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const currencies = await markets.getCurrencies();
-  console.log(currencies);
-          `,
+          commonJS: ``,
+          esModule: ``,
+          curl: `/api/v1/historical-price?currency=EUR&timestamp=1500000000`,
         },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
+        codeSampleMainnet: {
           esModule: [],
           commonJS: [],
           curl: [],
           response: `{
-  BTC: {
-    code: 'BTC',
-    name: 'Bitcoin',
-    precision: 8,
-    _type: 'crypto'
+  prices: [
+    {
+      "time": 1499904000,
+      "EUR": 1964,
+      "USD": 2254.9
+    }
+  ],
+  exchangeRates: {
+    "USDEUR": 0.92,
+    "USDGBP": 0.78,
+    "USDCAD": 1.36,
+    "USDCHF": 0.89,
+    "USDAUD": 1.53,
+    "USDJPY": 149.48
   }
-  ...
-}`,
+}
+`
         },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-market-depth",
-    title: "GET Market Depth",
-    description: {
-      default: "Provides list of open offer prices for a single market."
-    },
-    urlString: "/depth?market=[:market]",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/depth?market=%{1}`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const market = "%{1}";
-
-        const depth = await markets.getDepth({ market });
-
-        document.getElementById("result").textContent = JSON.stringify(depth, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const market = "%{1}";
-
-  const depth = await markets.getDepth({ market });
-  console.log(depth);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
         codeSampleTestnet: emptyCodeSample,
         codeSampleSignet: emptyCodeSample,
         codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD'],
-          commonJS: ['BTC_USD'],
-          curl: ['BTC_USD'],
-          response: `{
-  btc_usd: {
-    buys: [
-      '4.56941560',
-      ...
-    ],
-    sells: [
-      '4.54668218',
-      ...
-    ]
-  }
-}`,
-        },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-market-hloc",
-    title: "GET Market HLOC",
-    description: {
-      default: "Provides hi/low/open/close data for a given market. This can be used to generate a candlestick chart."
-    },
-    urlString: "/hloc?market=[:market]",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/hloc?market=%{1}`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const market = "%{1}";
-
-        const hloc = await markets.getHloc({ market });
-
-        document.getElementById("result").textContent = JSON.stringify(hloc, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const market = "%{1}";
-
-  const hloc = await markets.getHloc({ market });
-  console.log(hloc);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD'],
-          commonJS: ['BTC_USD'],
-          curl: ['BTC_USD'],
-          response: `[
-  {
-    period_start: 1609459200,
-    open: '30448.18510000',
-    close: '45717.81750000',
-    high: '77700.00000000',
-    low: '27500.00000000',
-    avg: '44613.01158471',
-    volume_right: '4923536.57150000',
-    volume_left: '110.36100000'
-  }
-  ...
-]`,
-        },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-markets",
-    title: "GET Markets",
-    description: {
-      default: "Provides list of available markets."
-    },
-    urlString: "/markets",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/markets`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const allMarkets = await markets.getMarkets();
-
-        document.getElementById("result").textContent = JSON.stringify(allMarkets, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const allMarkets = await markets.getMarkets();
-  console.log(allMarkets);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD'],
-          commonJS: ['BTC_USD'],
-          curl: ['BTC_USD'],
-          response: `{
-    btc_brl: {
-      pair: 'btc_brl',
-      lname: 'Bitcoin',
-      rname: 'Brazilian Real',
-      lsymbol: 'BTC',
-      rsymbol: 'BRL',
-      lprecision: 8,
-      rprecision: 2,
-      ltype: 'crypto',
-      rtype: 'fiat',
-      name: 'Bitcoin/Brazilian Real'
-    },
-    ...
-}`,
-        },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-market-offers",
-    title: "GET Market Offers",
-    description: {
-      default: "Provides list of open offer details for a single market."
-    },
-    urlString: "/offers?market=[:market]",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/offers?market=%{1}`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const market = "%{1}";
-
-        const offers = await markets.getOffers({ market });
-
-        document.getElementById("result").textContent = JSON.stringify(offers, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const market = "%{1}";
-
-  const offers = await markets.getOffers({ market });
-  console.log(offers);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD'],
-          commonJS: ['BTC_USD'],
-          curl: ['BTC_USD'],
-          response: `{
-  btc_usd: {
-    buys: [
-      {
-        offer_id: "ORHL1BE-0c193d04-be60-4657-ba42-cc172bb4ae5d-172",
-        offer_date: 1630207815462,
-        direction: "BUY",
-        min_amount: "0.00500000",
-        amount: "0.01500000",
-        price: "50030.24770000",
-        volume: "750.45370000",
-        payment_method: "AMAZON_GIFT_CARD",
-        offer_fee_txid: null
-        },
-        ...
-    ],
-    sells: [
-      {
-        offer_id: "nswiwkre-7676d5e6-e808-4c47-9c51-d5708e465ad5-172",
-        offer_date: 1630320354509,
-        direction: "SELL",
-        min_amount: "0.04170000",
-        amount: "0.04170000",
-        price: "49534.89880000",
-        volume: "2065.60520000",
-        payment_method: "CASH_DEPOSIT",
-        offer_fee_txid: null
-        },
-        ...
-    ]
-  }
-}`,
-        },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-market-ticker",
-    title: "GET Market Ticker",
-    description: {
-      default: "Provides 24-hour price ticker for single market or all markets."
-    },
-    urlString: "/ticker?market=[:market]",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/ticker?market=%{1}`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const market = "%{1}";
-
-        const ticker = await markets.getTicker({ market });
-
-        document.getElementById("result").textContent = JSON.stringify(ticker, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const market = "%{1}";
-
-  const ticker = await markets.getTicker({ market });
-  console.log(ticker);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD'],
-          commonJS: ['BTC_USD'],
-          curl: ['BTC_USD'],
-          response: `{
-  last: "53923.20570000",
-  high: "53923.20570000",
-  low: "48137.67410000",
-  volume_left: "0.27160000",
-  volume_right: "13593.92070000",
-  buy: "48118.52400000",
-  sell: "49555.63750000"
-}`,
-        },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-market-trades",
-    title: "GET Market Trades",
-    description: {
-      default: "Provides list of completed trades for a single market."
-    },
-    urlString: "/trades?market=[:market]&limit=[:limit]",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/trades?market=%{1}&limit=%{2}`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const market = "%{1}";
-
-        const trades = await markets.getTrades({ market, limit: %{2} });
-
-        document.getElementById("result").textContent = JSON.stringify(trades, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const market = "%{1}";
-
-  const trades = await markets.getTrades({ market, limit: %{2} });
-  console.log(trades);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD', '1'],
-          commonJS: ['BTC_USD', '1'],
-          curl: ['BTC_USD', '1'],
-          response: `[
-  {
-    price: "53923.20570000",
-    amount: "0.00500000",
-    volume: "269.61600000",
-    payment_method: "CLEAR_X_CHANGE",
-    trade_date: 1630646161647
-  }
-]`,
-        },
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "markets",
-    httpRequestMethod: "GET",
-    fragment: "get-market-volumes",
-    title: "GET Market Volumes",
-    description: {
-      default: "Provides periodic volume data in terms of base currency for one or all markets."
-    },
-    urlString: "/volumes?basecurrency=[:basecurrency]",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/volumes?markets=%{1}`,
-          commonJS: `
-        const { %{0}: { markets } } = mempoolJS();
-
-        const market = "%{1}";
-
-        const volumes = await markets.getVolumes({ market });
-
-        document.getElementById("result").textContent = JSON.stringify(volumes, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { markets } } = mempoolJS();
-
-  const market = "%{1}";
-
-  const volumes = await markets.getVolumes({ market });
-  console.log(volumes);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['BTC_USD', 'BTC'],
-          commonJS: ['BTC_USD', 'BTC'],
-          curl: ['BTC_USD', 'BTC'],
-          response: `[
-  {
-    period_start: 1451606400,
-    num_trades: 1923,
-    volume: "1095.22050000"
-  },
-  ...
-]`,
-        },
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -737,7 +308,7 @@ export const restApiDocsData = [
     category: "addresses",
     fragment: "addresses",
     title: "Addresses",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"])
+    showConditions: bitcoinNetworks.concat(liquidNetworks)
   },
   {
     type: "endpoint",
@@ -749,7 +320,7 @@ export const restApiDocsData = [
       default: "Returns details about an address. Available fields: <code>address</code>, <code>chain_stats</code>, and <code>mempool_stats</code>. <code>chain_stats</code> and <code>mempool_stats</code> each contain an object with <code>tx_count</code>, <code>funded_txo_count</code>, <code>funded_txo_sum</code>, <code>spent_txo_count</code>, and <code>spent_txo_sum</code>."
     },
     urlString: "/address/:address",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"]),
+    showConditions: bitcoinNetworks.concat(liquidNetworks),
     showJsExamples: showJsExamplesDefault,
     codeExample: {
       default: {
@@ -873,28 +444,6 @@ export const restApiDocsData = [
   }
 }`
         },
-        codeSampleBisq: {
-          esModule: [`B1DgwRN92rdQ9xpEVCdXRfgeqGw9X4YtrZz`],
-          commonJS: [`B1DgwRN92rdQ9xpEVCdXRfgeqGw9X4YtrZz`],
-          curl: [`B1DgwRN92rdQ9xpEVCdXRfgeqGw9X4YtrZz`],
-          response: `[
-  {
-    "txVersion": "1",
-    "id": "d6f0a6fd191ac907ff88fc51af91cae8d50e596a846952ffa0ad0cea84eedc9a",
-    "blockHeight": 679129,
-    "blockHash": "00000000000000000001328850b0482312325f7f4abd5457e45d37cad664675d",
-    "time": 1618369311000,
-    "inputs": [ ... ],
-    "outputs": [ ... ],
-    "txType": "PAY_TRADE_FEE",
-    "txTypeDisplayString": "Pay trade fee",
-    "burntFee": 6,
-    "invalidatedBsq": 0,
-    "unlockBlockHeight": 0
-  },
-  ...
-]`
-        },
       }
     }
   },
@@ -905,7 +454,7 @@ export const restApiDocsData = [
     fragment: "get-address-transactions",
     title: "GET Address Transactions",
     description: {
-      default: "Get transaction history for the specified address/scripthash, sorted with newest first. Returns up to 50 mempool transactions plus the first 25 confirmed transactions. You can request more confirmed transactions using <code>:last_seen_txid</code> (see below)."
+      default: "Get transaction history for the specified address/scripthash, sorted with newest first. Returns up to 50 mempool transactions plus the first 25 confirmed transactions. You can request more confirmed transactions using an <code>after_txid</code> query parameter."
     },
     urlString: "/address/:address/txs",
     showConditions: bitcoinNetworks.concat(liquidNetworks),
@@ -1048,7 +597,6 @@ export const restApiDocsData = [
   ...
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -1202,12 +750,6 @@ export const restApiDocsData = [
   ...
 ]`
         },
-        codeSampleBisq: {
-          esModule: [],
-          commonJS: [],
-          curl: [],
-          response: ''
-        },
       }
     }
   },
@@ -1333,7 +875,6 @@ export const restApiDocsData = [
   }
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -1409,20 +950,20 @@ export const restApiDocsData = [
 ]`
         },
         codeSampleSignet: {
-          esModule: [`1wiz18xYmhRX6xStj2b9t1rwWX4GKUgpv`],
-          commonJS: [`1wiz18xYmhRX6xStj2b9t1rwWX4GKUgpv`],
-          curl: [`1wiz18xYmhRX6xStj2b9t1rwWX4GKUgpv`],
+          esModule: [`tb1pu8ysre22dcl6qy5m5w7mjwutw73w4u24slcdh4myq06uhr6q29dqwc3ckt`],
+          commonJS: [`tb1pu8ysre22dcl6qy5m5w7mjwutw73w4u24slcdh4myq06uhr6q29dqwc3ckt`],
+          curl: [`tb1pu8ysre22dcl6qy5m5w7mjwutw73w4u24slcdh4myq06uhr6q29dqwc3ckt`],
           response: `[
   {
-    txid: "e58b47f657b496a083ad9a4fb10c744d5e993028efd9cfba149885334d98bdf5",
+    txid: "c56a054302df8f8f80c5ac6b86b24ed52bf41d64de640659837c56bc33d10c9e",
     vout: 0,
     status: {
       confirmed: true,
-      block_height: 698571,
-      block_hash: "00000000000000000007536c0a664a7d2a01c31569623183eba0768d9a0c163d",
-      block_time: 1630520708
+      block_height: 174923,
+      block_hash: "000000750e335ff355be2e3754fdada30d107d7d916aef07e2f5d014bec845e5",
+      block_time: 1703321003
     },
-    value: 642070789
+    value: 546
   },
   ...
 ]`
@@ -1466,7 +1007,64 @@ export const restApiDocsData = [
   }
 ]`,
         },
-        codeSampleBisq: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "addresses",
+    httpRequestMethod: "GET",
+    fragment: "get-address-validate",
+    title: "GET Address Validation",
+    description: {
+      default: "Returns whether an address is valid or not. Available fields: <code>isvalid</code> (boolean), <code>address</code> (string), <code>scriptPubKey</code> (string), <code>isscript</code> (boolean), <code>iswitness</code> (boolean), <code>witness_version</code> (numeric, optional), and <code>witness_program</code> (string, optional).",
+    },
+    urlString: "/v1/validate-address/:address",
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/validate-address/%{1}`,
+          commonJS: ``,
+          esModule: ``,
+        },
+        codeSampleMainnet: {
+          curl: [`1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY`],
+          response: `{
+  isvalid: true,
+  address: "1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY",
+  scriptPubKey: "76a914c825a1ecf2a6830c4401620c3a16f1995057c2ab88ac",
+  isscript: false,
+  iswitness: false
+}`
+        },
+        codeSampleTestnet: {
+          curl: [`tb1q4kgratttzjvkxfmgd95z54qcq7y6hekdm3w56u`],
+          response: `{
+  isvalid: true,
+  address: "tb1q4kgratttzjvkxfmgd95z54qcq7y6hekdm3w56u",
+  scriptPubKey: "0014ad903ead6b149963276869682a54180789abe6cd",
+  isscript: false,
+  iswitness: true,
+  witness_version: 0,
+  witness_program: "ad903ead6b149963276869682a54180789abe6cd"
+}`
+        },
+        codeSampleSignet: {
+          curl: [`tb1pu8ysre22dcl6qy5m5w7mjwutw73w4u24slcdh4myq06uhr6q29dqwc3ckt`],
+          response: `{
+  isvalid: true,
+  address: "tb1pu8ysre22dcl6qy5m5w7mjwutw73w4u24slcdh4myq06uhr6q29dqwc3ckt",
+  scriptPubKey: "5120e1c901e54a6e3fa0129ba3bdb93b8b77a2eaf15587f0dbd76403f5cb8f40515a",
+  isscript: true,
+  iswitness: true,
+  witness_version: 1,
+  witness_program: "e1c901e54a6e3fa0129ba3bdb93b8b77a2eaf15587f0dbd76403f5cb8f40515a"
+}`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -1574,7 +1172,6 @@ export const restApiDocsData = [
   "ticker": "LCAD"
 }`,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -1661,7 +1258,6 @@ export const restApiDocsData = [
   ...
 ]`,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -1712,7 +1308,6 @@ export const restApiDocsData = [
           curl: [`05aa9f02a06da37f2a0a572c49ac381499a16a643ad7c70c51ac94560778c92e`],
           response: `1000`,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -1796,7 +1391,7 @@ export const restApiDocsData = [
     category: "blocks",
     fragment: "blocks",
     title: "Blocks",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"])
+    showConditions: bitcoinNetworks.concat(liquidNetworks)
   },
   {
     type: "endpoint",
@@ -1809,7 +1404,7 @@ export const restApiDocsData = [
       liquid: "Returns details about a block. Available fields: <code>id</code>, <code>height</code>, <code>version</code>, <code>timestamp</code>, <code>bits</code>, <code>nonce</code>, <code>merkle_root</code>, <code>tx_count</code>, <code>size</code>, <code>weight</code>,<code>proof</code>, and <code>previousblockhash</code>."
     },
     urlString: "/block/:hash",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"]),
+    showConditions: bitcoinNetworks.concat(liquidNetworks),
     showJsExamples: showJsExamplesDefault,
     codeExample: {
       default: {
@@ -1965,18 +1560,6 @@ export const restApiDocsData = [
   ext: {...}
 }`,
         },
-        codeSampleBisq: {
-          esModule: ['0000000000000000000b24f70ed27da8b282b050f38e20831923211a1f7266d5'],
-          commonJS: ['0000000000000000000b24f70ed27da8b282b050f38e20831923211a1f7266d5'],
-          curl: ['0000000000000000000b24f70ed27da8b282b050f38e20831923211a1f7266d5'],
-          response: `{
-  height: 698746,
-  time: 1630621494000,
-  hash: "0000000000000000000b24f70ed27da8b282b050f38e20831923211a1f7266d5",
-  previousBlockHash: "000000000000000000039cd226a99c125ee3004e9d585b04e2ccceccddef7547",
-  txs: []
-}`
-        },
       }
     }
   },
@@ -2042,7 +1625,6 @@ export const restApiDocsData = [
           curl: [`8f7cb70f32e2069724212c986f34462fc40180eabf189b44486faf6989824f9a`],
           response: `000000a0263542a60466e252dbc301001f2f87cdd232106344209d6c252bbda572fd4527b4b9a8412c0ecaca405241beaa6779e74d505a481941a873be74b0b34511cce7d806d261515c020001220020e9e4117540f7f23b3edd7c2cad660a17fb33c7959b8c37cf61d92b189133929a96000000fbee9cea00d8efdc49cfbec328537e0d7032194de6ebf3cf42e5c05bb89a08b10003004730440220303a6fc365e016422bd5d714e403db237964c9e53c244310a4a03f432583290202206951e82c2ffa028f88d64d9bb4ec7789ced137046bb38a02816617b554efd42b012551210217e403ddb181872c32a0cd468c710040b2f53d8cac69f18dad07985ee37e9a7151ae`,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2105,7 +1687,60 @@ export const restApiDocsData = [
           curl: [`150000`],
           response: `67d5eb1aee63c6c2058a088985503ff0626fd3f7f8022bdc74fab36a359164db`,
         },
-        codeSampleBisq: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "blocks",
+    httpRequestMethod: "GET",
+    fragment: "get-block-timestamp",
+    title: "GET Block Timestamp",
+    description: {
+      default: "Returns the height and the hash of the block closest to the given <code>:timestamp</code>."
+    },
+    urlString: "/v1/mining/blocks/timestamp/:timestamp",
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/mining/blocks/timestamp/%{1}`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: ['1672531200'],
+          response: `{
+  height: 769786,
+  hash: "000000000000000000017f6405c2382de84944eb21be9cec0379a735813f137b",
+  timestamp: "2022-12-31T23:30:31.000Z"
+}`
+        },
+        codeSampleTestnet: {
+          esModule: [],
+          commonJS: [],
+          curl: ['1672531200'],
+          response: `{
+  height: 2413838,
+  hash: "00000000000000082888e2353ea4baaea04d2e0e88f2ee054ad2bbcc1d6a5469",
+  timestamp: "2022-12-31T23:57:26.000Z"
+}`
+        },
+        codeSampleSignet: {
+          esModule: [],
+          commonJS: [],
+          curl: ['1672531200'],
+          response: `{
+  height: 123713,
+  hash: "0000010c6df8ffe1684ab9d7cfac69836a4538c057fab4571b809120fe486c96",
+  timestamp: "2022-12-31T23:55:56.000Z"
+}`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -2171,7 +1806,6 @@ export const restApiDocsData = [
           curl: [`67d5eb1aee63c6c2058a088985503ff0626fd3f7f8022bdc74fab36a359164db`],
           response: '',
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2257,7 +1891,6 @@ export const restApiDocsData = [
   next_best: "2f24f3d94c006971b86fe2c9cdc92a7ed0aa7ec3b0643a836b8d8b5a54103bab"
 }`,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2271,7 +1904,7 @@ export const restApiDocsData = [
       default: "Returns the height of the last block."
     },
     urlString: "/blocks/tip/height",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"]),
+    showConditions: bitcoinNetworks.concat(liquidNetworks),
     showJsExamples: showJsExamplesDefault,
     codeExample: {
       default: {
@@ -2320,12 +1953,6 @@ export const restApiDocsData = [
           commonJS: [''],
           curl: [''],
           response: `162495`,
-        },
-        codeSampleBisq: {
-          esModule: [''],
-          commonJS: [''],
-          curl: [''],
-          response: `698765`
         },
       }
     }
@@ -2390,7 +2017,6 @@ export const restApiDocsData = [
           curl: [''],
           response: `ff643a1e102b555103d8feb20b296ee5cf3b4a202fa284e5d6ce82945b738ae7`,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2456,7 +2082,6 @@ export const restApiDocsData = [
           curl: ['b6b4aeefa220c6a17da116bda666e869b3146967d2479656448a8bce1e799b8f', '1'],
           response: `41493aa0eec8b6d359c2defc90e2fafb42fb5b8633456648553467a4d3a16c4a`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2551,7 +2176,6 @@ export const restApiDocsData = [
   "fa6b8dda9037f8284a659627005ad32dbb81e22b102c1d3d8a9bab0893ce2ab7"
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2707,7 +2331,6 @@ export const restApiDocsData = [
   ...
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2911,7 +2534,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -2922,7 +2544,7 @@ export const restApiDocsData = [
     fragment: "get-blocks-bulk",
     title: "GET Blocks (Bulk)",
     description: {
-      default: "<p>Returns details on the range of blocks between <code>:minHeight</code> and <code>:maxHeight</code>, inclusive, up to 10 blocks. If <code>:maxHeight</code> is not specified, it defaults to the current tip.</p><p>To return data for more than 10 blocks, consider becoming an <a href='/enterprise'>enterprise sponsor</a>.</p>"
+      default: "<p>Returns details on the range of blocks between <code>:minHeight</code> and <code>:maxHeight</code>, inclusive, up to 10 blocks. If <code>:maxHeight</code> is not specified, it defaults to the current tip.</p><p>To return data for more than 10 blocks, consider becoming an <a href='https://mempool.space/enterprise'>enterprise sponsor</a>.</p>"
     },
     urlString: "/v1/blocks-bulk/:minHeight[/:maxHeight]",
     showConditions: bitcoinNetworks,
@@ -3124,7 +2746,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -3199,87 +2820,6 @@ export const restApiDocsData = [
     mediantime: 1640871614
   },
   ...
-]`
-        },
-        codeSampleBisq: emptyCodeSample,
-      }
-    }
-  },
-  {
-    type: "endpoint",
-    category: "blocks",
-    httpRequestMethod: "GET",
-    fragment: "get-blocks",
-    title: "GET Blocks",
-    description: {
-      default: "<p>Returns the past <code>n</code> blocks with BSQ transactions starting <code>m</code> blocks ago.</p><p>Assume a block height of 700,000. Query <code>/blocks/0/10</code> for the past 10 blocks before 700,000 with BSQ transactions. Query <code>/blocks/1000/10</code> for the past 10 blocks before 699,000 with BSQ transactions."
-    },
-    urlString: "/blocks/:m/:n",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
-    codeExample: {
-      default: {
-        codeTemplate: {
-          curl: `/api/blocks/%{1}/%{2}`,
-          commonJS: `
-        const { %{0}: { blocks } } = mempoolJS();
-
-        const getBlocks = await blocks.getBlocks({ index: %{1}, length: %{2} });
-
-        document.getElementById("result").textContent = JSON.stringify(getBlocks, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { blocks } } = mempoolJS();
-
-  const getBlocks = await blocks.getBlocks({ index: %{1}, length: %{2} });
-  console.log(getBlocks);
-          `,
-        },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: ['0', '5'],
-          commonJS: ['0', '5'],
-          curl: ['0', '5'],
-          response: `[
-  {
-    "height": 739030,
-    "time": 1654203258000,
-    "hash": "000000000000000000036bc04416ddeec264cbb977a9cd9e454897acb547b601",
-    "previousBlockHash": "00000000000000000000f49261617b589d76e5e70529ea1d4c16f3e19ddcb8ef",
-    "txs": [ ... ],
-  },
-  {
-    "height": 739029,
-    "time": 1654203236000,
-    "hash": "00000000000000000000f49261617b589d76e5e70529ea1d4c16f3e19ddcb8ef",
-    "previousBlockHash": "00000000000000000008dd87e9486cd0d71c5d84e452432bab33c2a0cbaa31ce",
-    "txs": [ ... ],
-  },
-  {
-    "height": 739025,
-    "time": 1654199569000,
-    "hash": "000000000000000000021e9ce82dec208af75807f92a9b1d9dae91f2b4d40e24",
-    "previousBlockHash": "00000000000000000002db644c025a76464b466d25900402452b07213b30c40b",
-    "txs": [ ... ]
-  },
-  {
-    "height": 739023,
-    "time": 1654198597000,
-    "hash": "0000000000000000000702ce10250a46bea4155ca7acb869f3ea92c1e3a68bc5",
-    "previousBlockHash": "00000000000000000002b3d6c1adc5676262ded84181982f88dbd357b9f9d1ec",
-    "txs": [ ... ]
-  },
-  {
-    "height": 739020,
-    "time": 1654197263000,
-    "hash": "000000000000000000046eb46ad941028381d3534c35658f9c80de0641dbbb31",
-    "previousBlockHash": "000000000000000000073f1c49b4c4895f3fa6b866d1e21ab8b22f3f9318b42f",
-    "txs": [ ... ]
-  }
 ]`
         },
       }
@@ -3387,7 +2927,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -3480,7 +3019,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -3587,7 +3125,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -3708,7 +3245,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -3918,7 +3454,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4038,7 +3573,100 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mining",
+    httpRequestMethod: "GET",
+    fragment: "get-difficulty-adjustments",
+    title: "GET Difficulty Adjustments",
+    description: {
+      default: "<p>Returns the record of difficulty adjustments over the specified trailing <code>:interval</code>:</p><ul><li>Block timestamp</li><li>Block height</li><li>Difficulty</li><li>Difficulty change</li></ul><p>If no time interval is specified, all available data is returned."
+    },
+    urlString: "/v1/mining/difficulty-adjustments/[:interval]",
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/mining/difficulty-adjustments/1m`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          response: `[
+  [
+    1703311464,
+    822528,
+    72006146478567.1,
+    1.06983
+  ],
+  [
+    1702180644,
+    820512,
+    67305906902031.39,
+    0.990408
+  ],
+  [
+    1700957763,
+    818496,
+    67957790298897.88,
+    1.0507
+  ]
+]`
+        },
+        codeSampleTestnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          response: `[
+  [
+    1703429523,
+    2544008,
+    105074715.9955905,
+    105075000
+  ],
+  [
+    1703426009,
+    2544005,
+    1,
+    0
+  ],
+  [
+    1703422944,
+    2544000,
+    105074715.9955905,
+    105075000
+  ],
+  ...
+]`
+        },
+        codeSampleSignet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          response: `[
+  [
+    1702402252,
+    173376,
+    0.002967416960321784,
+    1.01893
+  ],
+  [
+    1701214807,
+    171360,
+    0.002912289751655253,
+    0.9652
+  ]
+]`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -4099,7 +3727,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4198,7 +3825,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4292,7 +3918,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4419,7 +4044,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4563,7 +4187,403 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mining",
+    httpRequestMethod: "GET",
+    fragment: "get-block-predictions",
+    title: "GET Block Predictions",
+    description: {
+      default: "<p>Returns average block health in the specified <code>:timePeriod</code>, ordered oldest to newest. <code>:timePeriod</code> can be any of the following: " + miningTimeIntervals + ".</p><p>For <code>24h</code> and <code>3d</code> time periods, every block is included and figures are exact (not averages). For the <code>1w</code> time period, figures may be averages depending on how fast blocks were found around a particular timestamp. For other time periods, figures are averages.</p>"
+    },
+    urlString: ["/v1/mining/blocks/predictions/:timePeriod"],
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/mining/blocks/predictions/%{1}`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`3y`],
+          response: `[
+  [
+    1687247274,
+    777625,
+    100
+  ],
+  [
+    1687066238,
+    788621,
+    99.85
+  ],
+  [
+    1687263518,
+    795182,
+    99.46
+  ],
+  [
+    1687312271,
+    795260,
+    100
+  ],
+  ...
+]`
+        },
+        codeSampleTestnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`3y`],
+          response: `[
+  [
+    1687246773,
+    2429248,
+    100
+  ],
+  [
+    1687285500,
+    2438380,
+    100
+  ],
+  [
+    1687342820,
+    2438467,
+    100
+  ],
+  [
+    1687372143,
+    2438522,
+    100
+  ],
+  ...
+]`
+        },
+        codeSampleSignet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`3y`],
+          response: `[
+  [
+    1687246696,
+    129639,
+    0
+  ],
+  [
+    1687303289,
+    148191,
+    0
+  ],
+  [
+    1687315093,
+    148218,
+    0
+  ],
+  [
+    1687368211,
+    148312,
+    0
+  ],
+  ...
+]`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mining",
+    httpRequestMethod: "GET",
+    fragment: "get-block-audit-score",
+    title: "GET Block Audit Score",
+    description: {
+      default: "Returns the block audit score for the specified <code>:blockHash</code>. Available fields: <code>hash</code>, <code>matchRate</code>, <code>expectedFees</code>, and <code>expectedWeight</code>."
+    },
+    urlString: ["/v1/mining/blocks/audit/score/:blockHash"],
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/mining/blocks/audit/score/%{1}`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`000000000000000000032535698c5b0c48283b792cf86c1c6e36ff84464de785`],
+          response: `{
+  hash: "000000000000000000032535698c5b0c48283b792cf86c1c6e36ff84464de785",
+  matchRate: 99.66,
+  expectedFees: 12090955,
+  expectedWeight: 3991988
+}`
+        },
+        codeSampleTestnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`000000000000025a66f30a181e438b9f65ef33cec3014b7a4ff4c7578289cd6e`],
+          response: `{
+  hash: "000000000000025a66f30a181e438b9f65ef33cec3014b7a4ff4c7578289cd6e",
+  matchRate: 100,
+  expectedFees: 579169,
+  expectedWeight: 12997
+}`
+        },
+        codeSampleSignet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`000000c1491d7d4229d4bf07e0dcaa7e396767b45be388e1174c7439a9490121`],
+          response: `{
+  hash: "000000c1491d7d4229d4bf07e0dcaa7e396767b45be388e1174c7439a9490121",
+  matchRate: 100,
+  expectedFees: 80520,
+  expectedWeight: 16487
+}`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mining",
+    httpRequestMethod: "GET",
+    fragment: "get-blocks-audit-scores",
+    title: "GET Blocks Audit Scores",
+    description: {
+      default: "Returns blocks audit score for the past 16 blocks. If <code>:startHeight</code> is specified, the past 15 blocks before (and including) <code>:startHeight</code> are returned. Available fields: <code>hash</code>, <code>matchRate</code>, <code>expectedFees</code>, and <code>expectedWeight</code>."
+    },
+    urlString: ["/v1/mining/blocks/audit/scores/:startHeight"],
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/mining/blocks/audit/scores/%{1}`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`820000`],
+          response: `[
+  {
+    hash: "000000000000000000034cd3689507da0386d3d1790dd56f2e6945e650e02c74",
+    matchRate: 100,
+    expectedFees: 225828975,
+    expectedWeight: 3991756
+  },
+  {
+    hash: "00000000000000000000b3ad97907e99c54e6b9145a8f77842e59d9c0c8377cf",
+    matchRate: 100,
+    expectedFees: 295107022,
+    expectedWeight: 3991752
+  },
+  ...
+]`
+        },
+        codeSampleTestnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`2566570`],
+          response: `[
+  {
+    hash: "00000000000002e7e96e7b5ee04a5fbb3ef9575a9f4a99effb32a8a89d9d2f19",
+    matchRate: 100,
+    expectedFees: 964677,
+    expectedWeight: 24959
+  },
+  {
+    hash: "00000000000003bd3962806d0e06d9982eb2e06aeba912687b2bac3668db32aa",
+    matchRate: 100,
+    expectedFees: 631200,
+    expectedWeight: 15516
+  },
+  ...
+]`
+        },
+        codeSampleSignet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`175504`],
+          response: `[
+  {
+    hash: "00000012d54289925efc151f2e111e0775e80c3b6bb4b0dcd3ff01dec4bbc5d0",
+    matchRate: 100,
+    expectedFees: 4767,
+    expectedWeight: 2524
+  },
+  {
+    hash: "00000031e269cf0b567260b01ae11453175f4598fdb4f1908c5e2f4265b9d93a",
+    matchRate: 100,
+    expectedFees: 9090,
+    expectedWeight: 1851
+  },
+  ...
+]`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mining",
+    httpRequestMethod: "GET",
+    fragment: "get-block-audit-summary",
+    title: "GET Block Audit Summary",
+    description: {
+      default: "Returns the block audit summary for the specified <code>:blockHash</code>. Available fields: <code>height</code>, <code>id</code>, <code>timestamp</code>, <code>template</code>, <code>missingTxs</code>, <code>addedTxs</code>, <code>freshTxs</code>, <code>sigopTxs</code>, <code>fullrbfTxs</code>, <code>acceleratedTxs</code>, <code>matchRate</code>, <code>expectedFees</code>, and <code>expectedWeight</code>."
+    },
+    urlString: ["/v1/block/:blockHash/audit-summary"],
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/block/%{1}/audit-summary`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`00000000000000000000f218ceda7a5d9c289040b9c3f05ef9f7c2f4930e0123`],
+          response: `{
+  height: 822418,
+  id: "00000000000000000000f218ceda7a5d9c289040b9c3f05ef9f7c2f4930e0123",
+  timestamp: 1703262962,
+  template: [
+    {
+      txid: "1de119e4fe0fb92378de74a59fec337c39d505bbc0d04d20d151cc3fb7a91bf0",
+      fee: 92000,
+      vsize: 140.25,
+      value: 354245800,
+      rate: 655.9714795008913,
+      flags: 1099511631881
+    },
+    ...
+  ],
+  missingTxs: [],
+  addedTxs: [
+    "3036565d1af6c5b14876a255cdf06214aa350e62154d1ce8619c8e933d0526f8",
+    "aaa9d8e8f1de712574182a618b4d608f96f39bfc55e296d2e5904561cdef2e77",
+    ...
+  ],
+  freshTxs: [
+    "8ede292d8f0319cbe79fff9fd47564cd7f78fad74d7c506d2b157399ff41d904"
+  ],
+  sigopTxs: [],
+  fullrbfTxs: [
+    "271e7792910a4ea134c02c03c9d7477b32a8531a5dd92fbc4dbf3ca70614fcce",
+    "634a5b2de393f0f5b4eeb335bee75c1779b1f2308a07e86cafb95894aa4734d0",
+    ...
+  ],
+  acceleratedTxs: [],
+  matchRate: 100,
+  expectedFees: 169464627,
+  expectedWeight: 3991702
+}`
+        },
+        codeSampleTestnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`000000000000007cfba94e051326b3546c968a188a7e12e340a78cefc586bfe3`],
+          response: `{
+  height: 2566708,
+  id: "000000000000007cfba94e051326b3546c968a188a7e12e340a78cefc586bfe3",
+  timestamp: 1703684826,
+  template: [
+    {
+      txid: "6556caa3c6bff537f04837a6f7182dd7a253f31a46de4f21dec9584720156d35",
+      fee: 109707,
+      vsize: 264.75,
+      value: 456855,
+      rate: 414.37960339943345,
+      flags: 9895621445642
+    },
+    {
+      txid: "53b7743b8cfa0108dbcdc7c2f5e661b9d8f56216845a439449d7f9dfc466b147",
+      fee: 74640,
+      vsize: 215.5,
+      value: 19063915,
+      rate: 348.5338491295938,
+      flags: 1099528491017
+    },
+    ...
+  ],
+  missingTxs: [
+    "8f2eae756119e43054ce1014a06e81d612113794d8b519e6ff393d7e0023396a",
+    "012b44b0fc0fddc549a056c85850f03a83446c843504c588cd5829873b30f5a9",
+    ...
+  ],
+  addedTxs: [],
+  freshTxs: [
+    "af36a8b88f6c19f997614dfc8a41395190eaf496a49e8db393dacb770999abd5",
+    "fdfa272c8fe069573b964ddad605d748d8c737e94dfcd09bddaae0ee0a2445df",
+    ...
+  ],
+  sigopTxs: [],
+  fullrbfTxs: [],
+  acceleratedTxs: [],
+  matchRate: 86.96,
+  expectedFees: 1541639,
+  expectedWeight: 26425
+}`
+        },
+        codeSampleSignet: {
+          esModule: [],
+          commonJS: [],
+          curl: [`0000008acf5177d07f1d648f4d54f26095936a5d29a0a6145dd75a0415e63c0f`],
+          response: `{
+  height: 175519,
+  id: "0000008acf5177d07f1d648f4d54f26095936a5d29a0a6145dd75a0415e63c0f",
+  timestamp: 1703682844,
+  template: [
+    {
+      txid: "f95b38742c483b81dc4ff49a803bae7625f1596ec5756c944d7586dfe8b38250",
+      fee: 3766,
+      vsize: 172.25,
+      value: 115117171776,
+      rate: 21.86357039187228,
+      flags: 1099528425481
+    },
+    {
+      txid: "8665c4d05732c930c2037bc0220e4ab9b1b64ce3302363ff7d118827c7347b52",
+      fee: 3766,
+      vsize: 172.25,
+      value: 115116509429,
+      rate: 21.86357039187228,
+      flags: 1099528425481
+    },
+    ...
+  ],
+  missingTxs: [],
+  addedTxs: [],
+  freshTxs: [],
+  sigopTxs: [],
+  fullrbfTxs: [],
+  acceleratedTxs: [],
+  matchRate: 100,
+  expectedFees: 10494,
+  expectedWeight: 6582
+}`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -4724,7 +4744,6 @@ export const restApiDocsData = [
   }
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4818,7 +4837,6 @@ export const restApiDocsData = [
   minimumFee: 0.1
 }`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -4929,7 +4947,6 @@ export const restApiDocsData = [
   ]
 }`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -5016,7 +5033,6 @@ export const restApiDocsData = [
   "dfbe66e6e71e775c9529a822c14286de0ee1066c2760a53552615d05e17006f3"
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -5123,7 +5139,265 @@ export const restApiDocsData = [
   ...
 ]`
         },
-        codeSampleBisq: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mempool",
+    httpRequestMethod: "GET",
+    fragment: "get-mempool-rbf",
+    title: "GET Mempool RBF Transactions",
+    description: {
+      default: "Returns the list of mempool transactions that are part of a RBF chain."
+    },
+    urlString: "/v1/replacements",
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/replacements`,
+          commonJS: ``,
+          esModule: ``,
+        },
+        codeSampleMainnet: {
+          curl: [],
+          response: `[
+  {
+    tx: {
+      txid: "1ca4b22006e57b1b13f5cc89a41cf7c9e99fe225aabf407251e4fe0268f22d93",
+      fee: 14983,
+      vsize: 141.5,
+      value: 343934,
+      rate: 105.886925795053,
+      rbf: true,
+      fullRbf: false
+    },
+    time: 1703331467,
+    fullRbf: false,
+    replaces: [
+      {
+        tx: {
+          txid: "9f8e30674af641bb153a35254d539468e1d847b16bbdc13ce23b5a970b0b11cf",
+          fee: 13664,
+          vsize: 141.25,
+          value: 345253,
+          rate: 96.7362831858407,
+          rbf: true
+        },
+        time: 1703331398,
+        interval: 69,
+        fullRbf: false,
+        replaces: []
+      }
+    ]
+  },
+  ...
+]`
+        },
+        codeSampleTestnet: {
+          curl: [],
+          response: `[
+  {
+    tx: {
+      txid: "7766e3f008011b776905f96fcad9d4a7b75d1b368d1e77db2901254f1fa8357d",
+      fee: 9101,
+      vsize: 317,
+      value: 147706698,
+      rate: 28.709779179810724,
+      rbf: true,
+      fullRbf: false
+    },
+    time: 1703331325,
+    fullRbf: false,
+    replaces: [
+      {
+        tx: {
+          txid: "43055f6e5750c6aa0c2214e59e99f367398d96bde935e7666c3e648d249a4e40",
+          fee: 7000,
+          vsize: 317,
+          value: 147708799,
+          rate: 22.082018927444796,
+          rbf: true
+        },
+        time: 1703331154,
+        interval: 171,
+        fullRbf: false,
+        replaces: []
+      }
+    ]
+  },
+  ...
+]`
+        },
+        codeSampleSignet: {
+          curl: [],
+          response: `[
+  {
+    tx: {
+      txid: "13985a5717a1ea54ce720cd6b70421b1667061be491a6799acf6dea01c551248",
+      fee: 5040,
+      vsize: 215.5,
+      value: 762745,
+      rate: 23.387470997679813,
+      rbf: true,
+      fullRbf: false,
+      mined: true
+    },
+    time: 1703316271,
+    fullRbf: false,
+    replaces: [
+      {
+        tx: {
+          txid: "eac5ec8487414c955f4a5d3b2e516c351aec5299f1335f9019a00907962386ce",
+          fee: 4560,
+          vsize: 215.25,
+          value: 763225,
+          rate: 21.18466898954704,
+          rbf: true
+        },
+        time: 1703316270,
+        interval: 1,
+        fullRbf: false,
+        replaces: []
+      }
+    ],
+    mined: true
+  }
+]`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "mempool",
+    httpRequestMethod: "GET",
+    fragment: "get-mempool-fullrbf",
+    title: "GET Mempool Full RBF Transactions",
+    description: {
+      default: "Returns the list of mempool transactions that are part of a Full-RBF chain."
+    },
+    urlString: "/v1/fullrbf/replacements",
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/fullrbf/replacements`,
+          commonJS: ``,
+          esModule: ``,
+        },
+        codeSampleMainnet: {
+          curl: [],
+          response: `[
+  {
+    tx: {
+      txid: "25e2bfaf0e0821e5cb71f11e460b2f71e1d5a3755015de42544afa5fbad6d443",
+      fee: 24436,
+      vsize: 297.75,
+      value: 273418,
+      rate: 82.0688497061293,
+      rbf: false,
+      fullRbf: true
+    },
+    time: 1703409882,
+    fullRbf: true,
+    replaces: [
+      {
+        tx: {
+          txid: "07d501e8ad4a25f07f3ced0a6102741720f710765e6fdb2eb966ba0df657997a",
+          fee: 24138,
+          vsize: 297.75,
+          value: 273716,
+          rate: 81.06801007556675,
+          rbf: false
+        },
+        time: 1703409853,
+        interval: 29,
+        fullRbf: true,
+        replaces: []
+      }
+    ]
+  },
+  ...
+]`
+        },
+        codeSampleTestnet: {
+          curl: [],
+          response: `[
+  {
+    tx: {
+      txid: "25e2bfaf0e0821e5cb71f11e460b2f71e1d5a3755015de42544afa5fbad6d443",
+      fee: 24436,
+      vsize: 297.75,
+      value: 273418,
+      rate: 82.0688497061293,
+      rbf: false,
+      fullRbf: true
+    },
+    time: 1703409882,
+    fullRbf: true,
+    replaces: [
+      {
+        tx: {
+          txid: "07d501e8ad4a25f07f3ced0a6102741720f710765e6fdb2eb966ba0df657997a",
+          fee: 24138,
+          vsize: 297.75,
+          value: 273716,
+          rate: 81.06801007556675,
+          rbf: false
+        },
+        time: 1703409853,
+        interval: 29,
+        fullRbf: true,
+        replaces: []
+      }
+    ]
+  },
+  ...
+]`
+        },
+        codeSampleSignet: {
+          curl: [],
+          response: `[
+  {
+    tx: {
+      txid: "25e2bfaf0e0821e5cb71f11e460b2f71e1d5a3755015de42544afa5fbad6d443",
+      fee: 24436,
+      vsize: 297.75,
+      value: 273418,
+      rate: 82.0688497061293,
+      rbf: false,
+      fullRbf: true
+    },
+    time: 1703409882,
+    fullRbf: true,
+    replaces: [
+      {
+        tx: {
+          txid: "07d501e8ad4a25f07f3ced0a6102741720f710765e6fdb2eb966ba0df657997a",
+          fee: 24138,
+          vsize: 297.75,
+          value: 273716,
+          rate: 81.06801007556675,
+          rbf: false
+        },
+        time: 1703409853,
+        interval: 29,
+        fullRbf: true,
+        replaces: []
+      }
+    ]
+  },
+  ...
+]`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -5132,7 +5406,7 @@ export const restApiDocsData = [
     category: "transactions",
     fragment: "transactions",
     title: "Transactions",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"])
+    showConditions: bitcoinNetworks.concat(liquidNetworks)
   },
   {
     type: "endpoint",
@@ -5143,7 +5417,7 @@ export const restApiDocsData = [
     description: {
       default: "Returns the ancestors and the best descendant fees for a transaction."
     },
-    urlString: "/v1/fees/cpfp",
+    urlString: "/v1/cpfp",
     showConditions: bitcoinNetworks.concat(liquidNetworks),
     showJsExamples: showJsExamplesDefault,
     codeExample: {
@@ -5196,7 +5470,6 @@ export const restApiDocsData = [
           curl: ['txid'],
           response: ``
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -5210,7 +5483,7 @@ export const restApiDocsData = [
       default: "Returns details about a transaction. Available fields: <code>txid</code>, <code>version</code>, <code>locktime</code>, <code>size</code>, <code>weight</code>, <code>fee</code>, <code>vin</code>, <code>vout</code>, and <code>status</code>."
     },
     urlString: "/tx/:txid",
-    showConditions: bitcoinNetworks.concat(liquidNetworks).concat(["bisq"]),
+    showConditions: bitcoinNetworks.concat(liquidNetworks),
     showJsExamples: showJsExamplesDefault,
     codeExample: {
       default: {
@@ -5337,27 +5610,6 @@ export const restApiDocsData = [
   }
 }`,
         },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: `{
-  txid: "98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e",
-  version: 1,
-  locktime: 0,
-  vin: [],
-  vout: [],
-  size: 402,
-  weight: 957,
-  fee: 2390,
-  status: {
-    confirmed: true,
-    block_height: 698788,
-    block_hash: "00000000000000000005bfe17b41395bed53565022e0c98965b15ec1d00b1f31",
-    block_time: 1630645738
-  }
-}`,
-        },
       }
     }
   },
@@ -5423,12 +5675,6 @@ export const restApiDocsData = [
           curl: [`59dd7a0bce4f3310272ff352402291bc555f141149812d8f573f62e7fdc19cc4`],
           response: `020000000102fa567669f73a314138aa6dbe74e3935612895df273d20ccbbedbecd44a04d3ce0000000000fdffffff8412fed07b8316dd4304df90af6f20292d3b2950133711c0ee43eb94fe12cc4f0100000000fdffffff040b801035010192095b8d9316f28450e98a85c915994c3f80ecc493adf505d73e9609a51e48bc0f35e34f88c482654d659fa779dcbf0457dc71053f3edcf76bd3667f03821ffcc4fc4ae5c2668685fec678e4...`,
         },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: `0100000000010222ae3642a9300262f6e730e8bfb7979b15852c8836f3835beef9cd58c464e5f70000000000ffffffff22ae3642a9300262f6e730e8bfb7979b15852c8836f3835beef9cd58c464e5f70200000000ffffffff03de0900000000000016001490f9ee145d7b1c9352b793350741da97f3e4d795aca80500000000001600144168859b4b74a09277969fb8152115aea9d33a159c960600000000001600146534b1859209d8ae8f1a8...`,
-        },
       }
     },
   },
@@ -5484,12 +5730,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: `04000020e05c5f176bdb7966b44388ca223bef6e548fb390a9f202000000000000000000f10d5017f8e98200ea6e9d9a90d48e8078a49f2ee1da2cae9f80f48a0badfdaaeaad3161a0fa0f174d163a5daa0400000c77d2b87749e72de52feacaab57134c40172ae247c9de1f8f180736a8ef64a024542ab6b22b2c1fc961eae3d7d7d6c5f...`,
-        },
       }
     }
   },
@@ -5605,28 +5845,6 @@ export const restApiDocsData = [
     "1dbe7041197b78f73c0d4a3810c47080c252bc928f041b787acaad3fa76ba7a0"
   ],
   pos: 1
-}`,
-        },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: `{
-  block_height: 698788,
-  merkle: [
-    "455eb8942edf5444f0130194353185705e891fb328b47fd5c43c0f5260de8121",
-    "98d18cb3470a3ee27a1d083e8f7baf76eaed19b5c972af33a335acdb3374dc75",
-    "1bf53a838bef7d64c2f7207bdb054df7dcc58e335ba9bd43803d00a24b4aec1b",
-    "19033925798e6e09f385dd7b5afbd76136f910b21b75ca03a2692ee804e0860e",
-    "5b4bd0b3cbbd5b73ae36d00bd144ee8db0966ff1f78c4483a4a8d601dc0b2ded",
-    "485a0c2af1687efe5433d4621c5dd222f6c5d6d7d7e3ea61c91f2c2bb2b62a54",
-    "1af9cbc4539b66e44c9bd6d07c5720301ba4694088e06b7f5978686b7a94aa62",
-    "b7a27d5a849f30cdf82c19b3d84902a146a0723a0798e46f91028f412af0d14d",
-    "b3925e68565674c54b3f0beb9f5f3820f4cd35cd15683b119cd232f52024a997",
-    "24a064efa83607188f1fdec947e22a17404c1357abcaea2fe52de74977b8d277",
-    "bd818bb2791a0d536097163c0d4dfb4dc3657cbd169617ca286dcc828ddf444d"
-  ],
-  pos: 546
 }`,
         },
       }
@@ -5747,22 +5965,6 @@ export const restApiDocsData = [
     block_height: 168793,
     block_hash: "3b10cdce761c4a2ec3e1239648c7d034922b34608a66f894e2f707307dae6b18",
     block_time: 1642002136
-  }
-}`,
-        },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`, '1'],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`, '1'],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`, '1'],
-          response: `{
-  spent: true,
-  txid: "455eb8942edf5444f0130194353185705e891fb328b47fd5c43c0f5260de8121",
-  vin: 0,
-  status: {
-    confirmed: true,
-    block_height: 698788,
-    block_hash: "00000000000000000005bfe17b41395bed53565022e0c98965b15ec1d00b1f31",
-    block_time: 1630645738
   }
 }`,
         },
@@ -5902,30 +6104,6 @@ export const restApiDocsData = [
   }
 ]`,
         },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: `[
-  {
-    spent: false
-  },
-  {
-    spent: true,
-    txid: "455eb8942edf5444f0130194353185705e891fb328b47fd5c43c0f5260de8121",
-    vin: 0,
-    status: {
-      confirmed: true,
-      block_height: 698788,
-      block_hash: "00000000000000000005bfe17b41395bed53565022e0c98965b15ec1d00b1f31",
-      block_time: 1630645738
-    }
-  },
-  {
-    spent: false
-  }
-]`,
-        },
       }
     }
   },
@@ -5991,12 +6169,147 @@ export const restApiDocsData = [
           curl: ['59dd7a0bce4f3310272ff352402291bc555f141149812d8f573f62e7fdc19cc4'],
           response: ``,
         },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: ``,
+      }
+    }
+  },
+  {
+    type: "endpoint",
+    category: "transactions",
+    httpRequestMethod: "GET",
+    fragment: "get-transaction-rbf-history",
+    title: "GET Transaction RBF History",
+    description: {
+      default: "Returns the RBF tree history of a transaction."
+    },
+    urlString: "v1/tx/:txId/rbf",
+    showConditions: bitcoinNetworks,
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/tx/%{1}/rbf`,
+          commonJS: ``,
+          esModule: ``,
         },
+        codeSampleMainnet: {
+          curl: [`2e95ff9094df9f3650e3f2abc189250760162be89a88f9f2f23301c7cb14b8b4`],
+          response: `{
+  replacements: {
+    tx: {
+      txid: "2e95ff9094df9f3650e3f2abc189250760162be89a88f9f2f23301c7cb14b8b4",
+      fee: 1668,
+      vsize: 276.75,
+      value: 14849,
+      rate: 4.824207492795389,
+      rbf: false,
+      fullRbf: true
+    },
+    time: 1703240261,
+    fullRbf: true,
+    replaces: [
+      {
+        tx: {
+          txid: "3f4670463daadffed07d7a1060071b07f7e81a2566eca21d78bb513cbf21c82a",
+          fee: 420,
+          vsize: 208.25,
+          value: 4856,
+          rate: 2.0168067226890756,
+          rbf: false
+        },
+        time: 1702870898,
+        interval: 369363,
+        fullRbf: true,
+        replaces: []
+      }
+      ...
+    ]
+  },
+  replaces: [
+    "3f4670463daadffed07d7a1060071b07f7e81a2566eca21d78bb513cbf21c82a",
+    "92f9b4f719d0ffc9035d3a9767d80c940cecbc656df2243bafd33f52b583ee92"
+  ]
+}`
+        },
+        codeSampleTestnet: {
+          curl: [`5faaa30530bee55de8cc896bdf48f803c2274a94bffc2842386bec2a8bf7a813`],
+          response: `{
+  replacements: {
+    tx: {
+      txid: "5faaa30530bee55de8cc896bdf48f803c2274a94bffc2842386bec2a8bf7a813",
+      fee: 9101,
+      vsize: 318,
+      value: 148022607,
+      rate: 28.61949685534591,
+      rbf: true,
+      fullRbf: false,
+      mined: true
+    },
+    time: 1703322610,
+    fullRbf: false,
+    replaces: [
+      {
+        tx: {
+          txid: "06e69641fa889fe9148669ac2904929004e7140087bedaec8c8e4e05aabded52",
+          fee: 7000,
+          vsize: 318,
+          value: 148024708,
+          rate: 22.0125786163522,
+          rbf: true
+        },
+        time: 1703322602,
+        interval: 8,
+        fullRbf: false,
+        replaces: []
+      }
+    ],
+    mined: true
+  },
+  replaces: [
+    "06e69641fa889fe9148669ac2904929004e7140087bedaec8c8e4e05aabded52"
+  ]
+}`
+        },
+        codeSampleSignet: {
+          curl: [`13985a5717a1ea54ce720cd6b70421b1667061be491a6799acf6dea01c551248`],
+          response: `{
+  replacements: {
+    tx: {
+      txid: "13985a5717a1ea54ce720cd6b70421b1667061be491a6799acf6dea01c551248",
+      fee: 5040,
+      vsize: 215.5,
+      value: 762745,
+      rate: 23.387470997679813,
+      rbf: true,
+      fullRbf: false,
+      mined: true
+    },
+    time: 1703316272,
+    fullRbf: false,
+    replaces: [
+      {
+        tx: {
+          txid: "eac5ec8487414c955f4a5d3b2e516c351aec5299f1335f9019a00907962386ce",
+          fee: 4560,
+          vsize: 215.25,
+          value: 763225,
+          rate: 21.18466898954704,
+          rbf: true
+        },
+        time: 1703316270,
+        interval: 2,
+        fullRbf: false,
+        replaces: []
+      }
+    ],
+    mined: true
+  },
+  replaces: [
+    "eac5ec8487414c955f4a5d3b2e516c351aec5299f1335f9019a00907962386ce"
+  ]
+}`
+        },
+        codeSampleLiquid: emptyCodeSample,
+        codeSampleLiquidTestnet: emptyCodeSample,
       }
     }
   },
@@ -6084,17 +6397,6 @@ export const restApiDocsData = [
   block_time: 1642000444
 }`,
         },
-        codeSampleBisq: {
-          esModule: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          commonJS: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          curl: [`98a598aeea121ea061dc713d1547363358974191c257d3b563bbf2a1706ff44e`],
-          response: `{
-  confirmed: true,
-  block_height: 698788,
-  block_hash: "00000000000000000005bfe17b41395bed53565022e0c98965b15ec1d00b1f31",
-  block_time: 1630645738
-}`,
-        },
       }
     }
   },
@@ -6102,56 +6404,40 @@ export const restApiDocsData = [
     type: "endpoint",
     category: "transactions",
     httpRequestMethod: "GET",
-    fragment: "get-transactions",
-    title: "GET Transactions",
+    fragment: "get-transaction-times",
+    title: "GET Transaction Times",
     description: {
-      default: "Returns :length of latest Bisq transactions, starting from :index."
+      default: "Returns the timestamps when a list of unconfirmed transactions was initially observed in the mempool. If a transaction is not found in the mempool or has been mined, the timestamp will be <code>0</code>."
     },
-    urlString: "/txs/:index/:length",
-    showConditions: ["bisq"],
-    showJsExamples: showJsExamplesDefault,
+    urlString: "/v1/transaction-times",
+    showConditions: bitcoinNetworks.concat(liquidNetworks),
+    showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
         codeTemplate: {
-          curl: `/api/txs/%{1}/%{2}`,
-          commonJS: `
-        const { %{0}: { transactions } } = mempoolJS();
-
-        const txs = await transactions.getTxs({ index: %{1}, length: %{2} });
-
-        document.getElementById("result").textContent = JSON.stringify(txs, undefined, 2);
-        `,
-          esModule: `
-  const { %{0}: { transactions } } = mempoolJS();
-
-  const txs = await transactions.getTxs({ index: %{1}, length: %{2} });
-  console.log(txStatus);
-          `,
+          curl: `/api/v1/transaction-times?txId[]=%{1}&txId[]=%{2}`,
+          commonJS: ``,
+          esModule: ``,
         },
-        codeSampleMainnet: emptyCodeSample,
-        codeSampleTestnet: emptyCodeSample,
-        codeSampleSignet: emptyCodeSample,
-        codeSampleLiquid: emptyCodeSample,
-        codeSampleBisq: {
-          esModule: [`0`, '1'],
-          commonJS: [`0`, '1'],
-          curl: [`0`, '1'],
-          response: `[
-  {
-    txVersion: "1",
-    id: "be1b2932155c012bec79bbd0f7cf7db32a4a35859dcb7b70f5d35fea581ac30a",
-    blockHeight: 698808,
-    blockHash: "0000000000000000000bf9461e8e0b8e077bcc0e8fe0f55483a7fd5d0860336c",
-    time: 1630658066000,
-    inputs: [],
-    outputs: [],
-    txType: "PAY_TRADE_FEE",
-    txTypeDisplayString: "Pay trade fee",
-    burntFee: 609,
-    invalidatedBsq: 0,
-    unlockBlockHeight: 0
-  }
-]`,
+        codeSampleMainnet: {
+          curl: ['51545ef0ec7f09196e60693b59369a134870985c8a90e5d42655b191de06285e', '6086089bd1c56a9c42a39d470cdfa7c12d4b52bf209608b390dfc4943f2d3851'],
+          response: `[1703082129,1702325558]`
+        },
+        codeSampleTestnet: {
+          curl: ['25e7a95ebf10ed192ee91741653d8d970ac88f8e0cd6fb14cc6c7145116d3964', '1e158327e52acae35de94962e60e53fc70f6b175b0cfc3e2058bed4b895203b4'],
+          response: `[1703267563,1703267322]`
+        },
+        codeSampleSignet: {
+          curl: ['8af0c5199acd89621244f2f61107fe5a9c7c7aad54928e8400651d03ca949aeb', '08f840f7b0c33c5b0fdadf1666e8a8c206836993d95fc1eeeef39b5ef9de03d0'],
+          response: `[1703267652,1703267696]`
+        },
+        codeSampleLiquid: {
+          curl: ['6091498f06a3054f82a0c3e5be0a23030185c658dc3568684b0bccc4e759be11', '631212a073aa4ca392e3aeb469d1366ec2ee288988b106e4a6fc8dae8c4d7a9a'],
+          response: `[1703267652,1703267696]`,
+        },
+        codeSampleLiquidTestnet: {
+          curl: ['fa8d43e47b2c4bbee12fd8bc1c7440028be2da6ac0f1df6ac77c983938c503fb', '26b12cd450f8fa8b6a527578db218bf212a60b2d5eb65c168f8eb3be6f5fd991'],
+          response: `[1703268185,1703268209]`,
         },
       }
     }
@@ -6220,7 +6506,6 @@ export const restApiDocsData = [
           curl: [`0200000001fd5b5fcd1cb066c27cfc9fda5428b9be850b81ac440ea51f1ddba2f987189ac1010000008a4730440220686a40e9d2dbffeab4ca1ff66341d06a17806767f12a1fc4f55740a7af24c6b5022049dd3c9a85ac6c51fecd5f4baff7782a518781bbdd94453c8383755e24ba755c01410436d554adf4a3eb03a317c77aa4020a7bba62999df633bba0ea8f83f48b9e01b0861d3b3c796840f982ee6b14c3c4b7ad04fcfcc3774f81bff9aaf52a15751fedfdffffff02416c00000000000017a914bc791b2afdfe1e1b5650864a9297b20d74c61f4787d71d0000000000001976a9140a59837ccd4df25adc31cdad39be6a8d97557ed688ac00000000`],
           response: ``,
         },
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -6229,7 +6514,7 @@ export const restApiDocsData = [
     category: "lightning",
     fragment: "lightning",
     title: "Lightning",
-    showConditions: bitcoinNetworks
+    showConditions: lightningNetworks
   },
   {
     type: "endpoint",
@@ -6241,7 +6526,7 @@ export const restApiDocsData = [
       default: "<p>Returns network-wide stats such as total number of channels and nodes, total capacity, and average/median fee figures.</p><p>Pass one of the following for <code>:interval</code>: <code>latest</code>, <code>24h</code>, <code>3d</code>, <code>1w</code>, <code>1m</code>, <code>3m</code>, <code>6m</code>, <code>1y</code>, <code>2y</code>, <code>3y</code>.</p>"
     },
     urlString: "/v1/lightning/statistics/:interval",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -6324,7 +6609,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -6338,7 +6622,7 @@ export const restApiDocsData = [
       default: "<p>Returns Lightning nodes and channels that match a full-text, case-insensitive search <code>:query</code> across node aliases, node pubkeys, channel IDs, and short channel IDs.</p>"
     },
     urlString: "/v1/lightning/search?searchText=:query",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -6410,7 +6694,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -6424,7 +6707,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of Lightning nodes running on clearnet in the requested <code>:country</code>, where <code>:country</code> is an ISO Alpha-2 country code.</p>"
     },
     urlString: "/v1/lightning/nodes/country/:country",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -6633,7 +6916,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -6647,7 +6929,7 @@ export const restApiDocsData = [
       default: "<p>Returns aggregate capacity and number of clearnet nodes per country. Capacity figures are in satoshis.</p>"
     },
     urlString: "/v1/lightning/nodes/countries",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -6778,7 +7060,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -6792,7 +7073,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of nodes hosted by a specified <code>:isp</code>, where <code>:isp</code> is an ISP's ASN.</p>"
     },
     urlString: "/v1/lightning/nodes/isp/:isp",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -6898,7 +7179,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -6912,7 +7192,7 @@ export const restApiDocsData = [
       default: "<p>Returns aggregate capacity, number of nodes, and number of channels per ISP. Capacity figures are in satoshis.</p>"
     },
     urlString: "/v1/lightning/nodes/isp-ranking",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7011,7 +7291,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7025,7 +7304,7 @@ export const restApiDocsData = [
       default: "<p>Returns two lists of the top 100 nodes: one ordered by liquidity (aggregate channel capacity) and the other ordered by connectivity (number of open channels).</p>"
     },
     urlString: "/v1/lightning/nodes/rankings",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7135,7 +7414,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7149,7 +7427,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of the top 100 nodes by liquidity (aggregate channel capacity).</p>"
     },
     urlString: "/v1/lightning/nodes/rankings/liquidity",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7333,7 +7611,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7347,7 +7624,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of the top 100 nodes by connectivity (number of open channels).</p>"
     },
     urlString: "/v1/lightning/nodes/rankings/connectivity",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7530,7 +7807,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7544,7 +7820,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of the top 100 oldest nodes.</p>"
     },
     urlString: "/v1/lightning/nodes/rankings/age",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7718,7 +7994,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7732,7 +8007,7 @@ export const restApiDocsData = [
       default: "<p>Returns details about a node with the given <code>:pubKey</code>.</p>"
     },
     urlString: "/v1/lightning/nodes/:pubKey",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7883,7 +8158,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7897,7 +8171,7 @@ export const restApiDocsData = [
       default: "<p>Returns historical stats for a node with the given <code>:pubKey</code>.</p>"
     },
     urlString: "/v1/lightning/nodes/:pubKey/statistics",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -7982,7 +8256,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -7996,7 +8269,7 @@ export const restApiDocsData = [
       default: "<p>Returns info about a Lightning channel with the given <code>:channelId</code>.</p>"
     },
     urlString: "/v1/lightning/channels/:channelId",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -8148,7 +8421,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -8162,7 +8434,7 @@ export const restApiDocsData = [
       default: "<p>Returns channels that correspond to the given <code>:txid</code> (multiple transaction IDs can be specified).</p>"
     },
     urlString: "/v1/lightning/channels/txids?txId[]=:txid",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -8350,7 +8622,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -8364,7 +8635,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of a node's channels given its <code>:pubKey</code>. Ten channels are returned at a time. Use <code>:index</code> for paging. <code>:channelStatus</code> can be <code>open</code>, <code>active</code>, or <code>closed</code>.</p>"
     },
     urlString: "/v1/lightning/channels?public_key=:pubKey&status=:channelStatus",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -8487,7 +8758,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -8501,7 +8771,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of channels with corresponding node geodata.</p>"
     },
     urlString: "/v1/lightning/channels-geo",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -8596,7 +8866,6 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
   },
@@ -8610,7 +8879,7 @@ export const restApiDocsData = [
       default: "<p>Returns a list of channels with corresponding geodata for a node with the given <code>:pubKey</code>.</p>"
     },
     urlString: "/v1/lightning/channels-geo/:pubKey",
-    showConditions: bitcoinNetworks,
+    showConditions: lightningNetworks,
     showJsExamples: showJsExamplesDefaultFalse,
     codeExample: {
       default: {
@@ -8705,10 +8974,407 @@ export const restApiDocsData = [
         },
         codeSampleLiquid: emptyCodeSample,
         codeSampleLiquidTestnet: emptyCodeSample,
-        codeSampleBisq: emptyCodeSample,
       }
     }
+  },
+  {
+    type: "category",
+    category: "accelerator-public",
+    fragment: "accelerator-public",
+    title: "Accelerator (Public)",
+    showConditions: [""],
+    options: { officialOnly: true },
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-public",
+    httpRequestMethod: "POST",
+    fragment: "accelerator-estimate",
+    title: "POST Calculate Estimated Costs",
+    description: {
+      default: "<p>Returns estimated costs to accelerate a transaction. Optionally set the <code>api_key</code> header to get customized estimation.</p>"
+    },
+    urlString: "/v1/services/accelerator/estimate",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `%{1}" "[[hostname]][[baseNetworkUrl]]/api/v1/services/accelerator/estimate`, //custom interpolation technique handled in replaceCurlPlaceholder()
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: ["txInput=ee13ebb99632377c15c94980357f674d285ac413452050031ea6dcd3e9b2dc29"],
+          headers: "api_key: stacksats",
+          response: `{
+  "txSummary": {
+    "txid": "ee13ebb99632377c15c94980357f674d285ac413452050031ea6dcd3e9b2dc29",
+    "effectiveVsize": 154,
+    "effectiveFee": 154,
+    "ancestorCount": 1
+  },
+  "cost": 3850,
+  "targetFeeRate": 26,
+  "nextBlockFee": 4004,
+  "userBalance": 99900000,
+  "mempoolBaseFee": 40000,
+  "vsizeFee": 50000,
+  "hasAccess": true
+}`,
+        },
+      }
+    }
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-public",
+    httpRequestMethod: "GET",
+    fragment: "accelerator-pending",
+    title: "GET Pending Accelerations",
+    description: {
+      default: "<p>Returns all transactions currently being accelerated.</p>"
+    },
+    urlString: "/v1/services/accelerator/accelerations",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/services/accelerator/accelerations`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          headers: '',
+          response: `[
+  {
+    "txid": "8a183c8ae929a2afb857e7f2acd440aaefdf2797f8f7eab1c5f95ff8602abc81",
+    "added": 1707558316,
+    "feeDelta": 3500,
+    "effectiveVsize": 111,
+    "effectiveFee": 1671,
+    "pools": [
+      111
+    ]
+  },
+  {
+    "txid": "6097f295e21bdd8d725bd8d9ad4dd72b05bd795dc648bfef52150a9b2b7f7a45",
+    "added": 1707560464,
+    "feeDelta": 60000,
+    "effectiveVsize": 812,
+    "effectiveFee": 7790,
+    "pools": [
+      111
+    ]
   }
+]`,
+        },
+      }
+    }
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-public",
+    httpRequestMethod: "GET",
+    fragment: "accelerator-public-history",
+    title: "GET Acceleration History",
+    description: {
+      default: `<p>Returns all past accelerated transactions.
+      Filters can be applied:<ul>
+      <li><code>status</code>: <code>all</code>, <code>requested</code>, <code>accelerating</code>, <code>mined</code>, <code>completed</code>, <code>failed</code></li>
+      <li><code>timeframe</code>: <code>24h</code>, <code>3d</code>, <code>1w</code>, <code>1m</code>, <code>3m</code>, <code>6m</code>, <code>1y</code>, <code>2y</code>, <code>3y</code>, <code>4y</code>, <code>all</code></li>
+      <li><code>poolUniqueId</code>: any id from <a target="_blank" href="https://github.com/mempool/mining-pools/blob/master/pools-v2.json">https://github.com/mempool/mining-pools/blob/master/pools-v2.json</a>. <i>Note: This will return all acceleration requests accepted by the pool but the the listed transactions may have been mined by another pool.</i>
+      <li><code>blockHash</code>: a block hash</a>
+      <li><code>blockHeight</code>: a block height</a>
+      <li><code>page</code>: the requested page number if using pagination <i>(min: 1)</i></a>
+      <li><code>pageLength</code>: the page lenght if using pagination <i>(min: 1, max: 50)</i></a>
+      </ul></p>`
+    },
+    urlString: "/v1/services/accelerator/accelerations/history",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/services/accelerator/accelerations/history?blockHash=00000000000000000000482f0746d62141694b9210a813b97eb8445780a32003`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          headers: '',
+          response: `[
+  {
+    "txid": "d7e1796d8eb4a09d4e6c174e36cfd852f1e6e6c9f7df4496339933cd32cbdd1d",
+    "status": "completed",
+    "added": 1707421053,
+    "lastUpdated": 1707422952,
+    "effectiveFee": 146,
+    "effectiveVsize": 141,
+    "feeDelta": 14000,
+    "blockHash": "00000000000000000000482f0746d62141694b9210a813b97eb8445780a32003",
+    "blockHeight": 829559,
+    "bidBoost": 6102,
+    "pools": [
+      {
+        "pool_unique_id": 111
+      }
+    ]
+  }
+]`,
+        },
+      }
+    }
+  },
+  {
+    type: "category",
+    category: "accelerator-private",
+    fragment: "accelerator-private",
+    title: "Accelerator (Authenticated)",
+    showConditions: [""],
+    options: { officialOnly: true },
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-private",
+    httpRequestMethod: "GET",
+    fragment: "accelerator-top-up-history",
+    title: "GET Top Up History",
+    description: {
+      default: "<p>Returns a list of top ups the user has made as prepayment for the accelerator service.</p>"
+    },
+    urlString: "/v1/services/accelerator/top-up-history",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/services/accelerator/top-up-history`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          headers: "api_key: stacksats",
+          response: `[
+  {
+    "type": "Bitcoin",
+    "invoiceId": "CCunucVyNw7jUiUz64mmHz",
+    "amount": 10311031,
+    "status": "pending",
+    "date": 1706372653000,
+    "link": "/payment/bitcoin/CCunucVyNw7jUiUz64mmHz"
+  },
+  {
+    "type": "Bitcoin",
+    "invoiceId": "SG1U27R9PdWi3gH3jB9tm9",
+    "amount": 21000000,
+    "status": "paid",
+    "date": 1706372582000,
+    "link": null
+  },
+  ...
+]`,
+        },
+      }
+    }
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-private",
+    httpRequestMethod: "GET",
+    fragment: "accelerator-balance",
+    title: "GET Available Balance",
+    description: {
+      default: "<p>Returns the user's currently available balance, currently locked funds, and total fees paid so far.</p>"
+    },
+    urlString: "/v1/services/accelerator/balance",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/services/accelerator/balance`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          headers: "api_key: stacksats",
+          response: `{
+  "balance": 99900000,
+  "hold": 101829,
+  "feesPaid": 133721
+}`,
+        },
+      }
+    }
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-private",
+    httpRequestMethod: "POST",
+    fragment: "accelerator-accelerate",
+    title: "POST Accelerate A Transaction",
+    description: {
+      default: "<p>Sends a request to accelerate a transaction.</p>"
+    },
+    urlString: "/v1/services/accelerator/accelerate",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `%{1}" "[[hostname]][[baseNetworkUrl]]/api/v1/services/accelerator/accelerate`, //custom interpolation technique handled in replaceCurlPlaceholder()
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: ["txInput=ee13ebb99632377c15c94980357f674d285ac413452050031ea6dcd3e9b2dc29&userBid=21000000"],
+          headers: "api_key: stacksats",
+          response: `HTTP/1.1 200 OK`,
+        },
+      }
+    }
+  },
+  {
+    options: { officialOnly: true },
+    type: "endpoint",
+    category: "accelerator-private",
+    httpRequestMethod: "GET",
+    fragment: "accelerator-history",
+    title: "GET Acceleration History",
+    description: {
+      default: "<p>Returns the user's past acceleration requests.</p><p>Pass one of the following for <code>:status</code>: <code>all</code>, <code>requested</code>, <code>accelerating</code>, <code>mined</code>, <code>completed</code>, <code>failed</code>. Pass <code>true</code> in <code>:details</code> to get a detailed <code>history</code> of the acceleration request.</p>"
+    },
+    urlString: "/v1/services/accelerator/history?status=:status&details=:details",
+    showConditions: [""],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `/api/v1/services/accelerator/history?status=all&details=true`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: [],
+          headers: "api_key: stacksats",
+          response: `[
+  {
+    "id": 89,
+    "user_id": 1,
+    "txid": "ae2639469ec000ed1d14e2550cbb01794e1cd288a00cdc7cce18398ba3cc2ffe",
+    "status": "failed"
+    "fee_paid": 0,
+    "added": 1706378712,
+    "last_updated": 1706378712,
+    "confirmations": 4,
+    "base_fee": 0,
+    "vsize_fee": 0,
+    "max_bid": 7000,
+    "effective_vsize": 135,
+    "effective_fee": 3128,
+    "history": [
+      {
+        "event": "user-requested-acceleration",
+        "timestamp": 1706378712
+      },
+      {
+        "event": "accepted_test-api-key",
+        "timestamp": 1706378712
+      },
+      {
+        "event": "failed-at-block-827672",
+        "timestamp": 1706380261
+      }
+    ]
+  },
+  {
+    "id": 88,
+    "user_id": 1,
+    "txid": "c5840e89173331760e959a190b24e2a289121277ed7f8a095fe289b37cee9fde",
+    "status": "completed"
+    "fee_paid": 140019,
+    "added": 1706378704,
+    "last_updated": 1706380231,
+    "confirmations": 6,
+    "base_fee": 40000,
+    "vsize_fee": 100000,
+    "max_bid": 14000,
+    "effective_vsize": 135,
+    "effective_fee": 3152,
+    "history": [
+      {
+        "event": "user-requested-acceleration",
+        "timestamp": 1706378704
+      },
+      {
+        "event": "accepted_test-api-key",
+        "timestamp": 1706378704
+      },
+      {
+        "event": "complete-at-block-827670",
+        "timestamp": 1706380231
+      }
+    ]
+  },
+  {
+    "id": 87,
+    "user_id": 1,
+    "txid": "178b5b9b310f0d667d7ea563a2cdcc17bc8cd15261b58b1653860a724ca83458",
+    "status": "completed"
+    "fee_paid": 90062,
+    "added": 1706378684,
+    "last_updated": 1706380231,
+    "confirmations": 6,
+    "base_fee": 40000,
+    "vsize_fee": 50000,
+    "max_bid": 14000,
+    "effective_vsize": 135,
+    "effective_fee": 3260,
+    "history": [
+      {
+        "event": "user-requested-acceleration",
+        "timestamp": 1706378684
+      },
+      {
+        "event": "accepted_test-api-key",
+        "timestamp": 1706378684
+      },
+      {
+        "event": "complete-at-block-827670",
+        "timestamp": 1706380231
+      }
+    ]
+  }
+]`,
+        },
+      }
+    }
+  },
 ];
 
 export const faqData = [
@@ -8910,6 +9576,34 @@ export const faqData = [
     options: { auditOnly: true },
     fragment: "what-is-block-health",
     title: "What is block health?",
+  },
+  {
+    type: "endpoint",
+    category: "advanced",
+    showConditions: bitcoinNetworks,
+    fragment: "how-do-mempool-goggles-work",
+    title: "How do Mempool Goggles™ work?",
+  },
+  {
+    type: "endpoint",
+    category: "advanced",
+    showConditions: bitcoinNetworks,
+    fragment: "what-are-sigops",
+    title: "What are sigops?",
+  },
+  {
+    type: "endpoint",
+    category: "advanced",
+    showConditions: bitcoinNetworks,
+    fragment: "what-is-adjusted-vsize",
+    title: "What is adjusted vsize?",
+  },
+  {
+    type: "endpoint",
+    category: "advanced",
+    showConditions: bitcoinNetworks,
+    fragment: "why-do-the-projected-block-fee-ranges-overlap",
+    title: "Why do the projected block fee ranges overlap?",
   },
   {
     type: "category",

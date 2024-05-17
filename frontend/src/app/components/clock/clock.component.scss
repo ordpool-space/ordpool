@@ -63,6 +63,7 @@
     .label {
       font-size: calc(0.04 * var(--clock-width));
       line-height: calc(0.05 * var(--clock-width));
+      text-transform: lowercase;
     }
 
     &.top {
@@ -160,7 +161,7 @@
     }
 
     .side.bottom {
-      background: #105fb0;
+      background: var(--primary);
       transform: rotateX(-90deg); 
       margin-top: var(--half-side);
     }

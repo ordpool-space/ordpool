@@ -1,4 +1,4 @@
-export const mempoolFeeColors = [
+export const defaultMempoolFeeColors = [
   '557d00',
   '5d7d01',
   '637d02',
@@ -38,6 +38,47 @@ export const mempoolFeeColors = [
   'b00259',
   'ae005b',
 ];
+
+export const contrastMempoolFeeColors = [
+  '0082e6',
+  '0984df',
+  '1285d9',
+  '1a87d2',
+  '2388cb',
+  '2c8ac5',
+  '358bbe',
+  '3e8db7',
+  '468eb0',
+  '4f90aa',
+  '5892a3',
+  '61939c',
+  '6a9596',
+  '72968f',
+  '7b9888',
+  '849982',
+  '8d9b7b',
+  '959c74',
+  '9e9e6e',
+  'a79f67',
+  'b0a160',
+  'b9a35a',
+  'c1a453',
+  'caa64c',
+  'd3a745',
+  'dca93f',
+  'e5aa38',
+  'edac31',
+  'f6ad2b',
+  'ffaf24',
+  'ffb01e',
+  'ffb118',
+  'ffb212',
+  'ffb30c',
+  'ffb406',
+  'ffb500',
+  'ffb600',
+  'ffb700',
+ ];
 
 export const chartColors = [
   "#D81B60",
@@ -148,22 +189,22 @@ export const specialBlocks = {
   '0': {
     labelEvent: 'Genesis',
     labelEventCompleted: 'The Genesis of Bitcoin',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '210000': {
     labelEvent: 'Bitcoin\'s 1st Halving',
     labelEventCompleted: 'Block Subsidy has halved to 25 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '420000': {
     labelEvent: 'Bitcoin\'s 2nd Halving',
     labelEventCompleted: 'Block Subsidy has halved to 12.5 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '630000': {
     labelEvent: 'Bitcoin\'s 3rd Halving',
     labelEventCompleted: 'Block Subsidy has halved to 6.25 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '709632': {
     labelEvent: 'Taproot 🌱 activation',
@@ -173,62 +214,62 @@ export const specialBlocks = {
   '840000': {
     labelEvent: 'Bitcoin\'s 4th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 3.125 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '1050000': {
     labelEvent: 'Bitcoin\'s 5th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 1.5625 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '1260000': {
     labelEvent: 'Bitcoin\'s 6th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.78125 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '1470000': {
     labelEvent: 'Bitcoin\'s 7th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.390625 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '1680000': {
     labelEvent: 'Bitcoin\'s 8th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.1953125 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '1890000': {
     labelEvent: 'Bitcoin\'s 9th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.09765625 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '2100000': {
     labelEvent: 'Bitcoin\'s 10th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.04882812 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '2310000': {
     labelEvent: 'Bitcoin\'s 11th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.02441406 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '2520000': {
     labelEvent: 'Bitcoin\'s 12th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.01220703 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '2730000': {
     labelEvent: 'Bitcoin\'s 13th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.00610351 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '2940000': {
     labelEvent: 'Bitcoin\'s 14th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.00305175 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   },
   '3150000': {
     labelEvent: 'Bitcoin\'s 15th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.00152587 BTC per block',
-    networks: ['mainnet', 'testnet'],
+    networks: ['mainnet', 'testnet', 'testnet4'],
   }
 };
 
@@ -266,6 +307,136 @@ export const fiatCurrencies = {
   USD: {
     name: 'US Dollar',
     code: 'USD',
+    indexed: true,
+  },
+  BGN: {
+    name: 'Bulgarian Lev',
+    code: 'BGN',
+    indexed: true,
+  },
+  BRL: {
+    name: 'Brazilian Real',
+    code: 'BRL',
+    indexed: true,
+  },
+  CNY: {
+    name: 'Chinese Yuan',
+    code: 'CNY',
+    indexed: true,
+  },
+  CZK: {
+    name: 'Czech Koruna',
+    code: 'CZK',
+    indexed: true,
+  },
+  DKK: {
+    name: 'Danish Krone',
+    code: 'DKK',
+    indexed: true,
+  },
+  HKD: {
+    name: 'Hong Kong Dollar',
+    code: 'HKD',
+    indexed: true,
+  },
+  HRK: {
+    name: 'Croatian Kuna',
+    code: 'HRK',
+    indexed: true,
+  },
+  HUF: {
+    name: 'Hungarian Forint',
+    code: 'HUF',
+    indexed: true,
+  },
+  IDR: {
+    name: 'Indonesian Rupiah',
+    code: 'IDR',
+    indexed: true,
+  },
+  ILS: {
+    name: 'Israeli Shekel',
+    code: 'ILS',
+    indexed: true,
+  },
+  INR: {
+    name: 'Indian Rupee',
+    code: 'INR',
+    indexed: true,
+  },
+  ISK: {
+    name: 'Icelandic Krona',
+    code: 'ISK',
+    indexed: true,
+  },
+  KRW: {
+    name: 'South Korean Won',
+    code: 'KRW',
+    indexed: true,
+  },
+  MXN: {
+    name: 'Mexican Peso',
+    code: 'MXN',
+    indexed: true,
+  },
+  MYR: {
+    name: 'Malaysian Ringgit',
+    code: 'MYR',
+    indexed: true,
+  },
+  NOK: {
+    name: 'Norwegian Krone',
+    code: 'NOK',
+    indexed: true,
+  },
+  NZD: {
+    name: 'New Zealand Dollar',
+    code: 'NZD',
+    indexed: true,
+  },
+  PHP: {
+    name: 'Philippine Peso',
+    code: 'PHP',
+    indexed: true,
+  },
+  PLN: {
+    name: 'Polish Zloty',
+    code: 'PLN',
+    indexed: true,
+  },
+  RON: {
+    name: 'Romanian Leu',
+    code: 'RON',
+    indexed: true,
+  },
+  RUB: {
+    name: 'Russian Ruble',
+    code: 'RUB',
+    indexed: true,
+  },
+  SEK: {
+    name: 'Swedish Krona',
+    code: 'SEK',
+    indexed: true,
+  },
+  SGD: {
+    name: 'Singapore Dollar',
+    code: 'SGD',
+    indexed: true,
+  },
+  THB: {
+    name: 'Thai Baht',
+    code: 'THB',
+    indexed: true,
+  },
+  TRY: {
+    name: 'Turkish Lira',
+    code: 'TRY',
+    indexed: true,
+  },
+  ZAR: {
+    name: 'South African Rand',
+    code: 'ZAR',
     indexed: true,
   },
 };

@@ -14,10 +14,13 @@ describe('Mempool Backend Config', () => {
 
       expect(config.MEMPOOL).toStrictEqual({
         ENABLED: true,
+        OFFICIAL: false,
         NETWORK: 'mainnet',
         BACKEND: 'none',
         BLOCKS_SUMMARIES_INDEXING: false,
+        GOGGLES_INDEXING: false,
         HTTP_PORT: 8999,
+        UNIX_SOCKET_PATH: '',
         SPAWN_CLUSTER_PROCS: 0,
         API_URL_PREFIX: '/api/v1/',
         AUTOMATIC_BLOCK_REINDEXING: false,
@@ -39,15 +42,15 @@ describe('Mempool Backend Config', () => {
         POOLS_JSON_TREE_URL: 'https://api.github.com/repos/mempool/mining-pools/git/trees/master',
         POOLS_JSON_URL: 'https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json',
         AUDIT: false,
-        ADVANCED_GBT_AUDIT: false,
-        ADVANCED_GBT_MEMPOOL: false,
         RUST_GBT: false,
+        LIMIT_GBT: false,
         CPFP_INDEXING: false,
         MAX_BLOCKS_BULK_QUERY: 0,
         DISK_CACHE_BLOCK_INTERVAL: 6,
         MAX_PUSH_TX_SIZE_WEIGHT: 400000,
         ALLOW_UNREACHABLE: true,
         PRICE_UPDATES_PER_HOUR: 1,
+        MAX_TRACKED_ADDRESSES: 1,
       });
 
       expect(config.ELECTRUM).toStrictEqual({ HOST: '127.0.0.1', PORT: 3306, TLS_ENABLED: true });
@@ -55,7 +58,10 @@ describe('Mempool Backend Config', () => {
       expect(config.ESPLORA).toStrictEqual({
         REST_API_URL: 'http://127.0.0.1:3000',
         UNIX_SOCKET_PATH: null,
+        BATCH_QUERY_BASE_SIZE: 1000,
         RETRY_UNIX_SOCKET_AFTER: 30000,
+        REQUEST_TIMEOUT: 10000,
+        FALLBACK_TIMEOUT: 5000,
         FALLBACK: [],
        });
 
@@ -64,7 +70,9 @@ describe('Mempool Backend Config', () => {
         PORT: 8332,
         USERNAME: 'mempool',
         PASSWORD: 'mempool',
-        TIMEOUT: 60000
+        TIMEOUT: 60000,
+        COOKIE: false,
+        COOKIE_PATH: '/bitcoin/.cookie'
       });
 
       expect(config.SECOND_CORE_RPC).toStrictEqual({
@@ -72,7 +80,9 @@ describe('Mempool Backend Config', () => {
         PORT: 8332,
         USERNAME: 'mempool',
         PASSWORD: 'mempool',
-        TIMEOUT: 60000
+        TIMEOUT: 60000,
+        COOKIE: false,
+        COOKIE_PATH: '/bitcoin/.cookie'
       });
 
       expect(config.DATABASE).toStrictEqual({
@@ -84,6 +94,8 @@ describe('Mempool Backend Config', () => {
         USERNAME: 'mempool',
         PASSWORD: 'mempool',
         TIMEOUT: 180000,
+        PID_DIR: '',
+        POOL_SIZE: 100,
       });
 
       expect(config.SYSLOG).toStrictEqual({
@@ -95,8 +107,6 @@ describe('Mempool Backend Config', () => {
       });
 
       expect(config.STATISTICS).toStrictEqual({ ENABLED: true, TX_PER_SECOND_SAMPLE_PERIOD: 150 });
-
-      expect(config.BISQ).toStrictEqual({ ENABLED: false, DATA_PATH: '/bisq/statsnode-data/btc_mainnet/db' });
 
       expect(config.SOCKS5PROXY).toStrictEqual({
         ENABLED: false,
@@ -111,9 +121,7 @@ describe('Mempool Backend Config', () => {
         MEMPOOL_API: 'https://mempool.space/api/v1',
         MEMPOOL_ONION: 'http://mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion/api/v1',
         LIQUID_API: 'https://liquid.network/api/v1',
-        LIQUID_ONION: 'http://liquidmom47f6s3m53ebfxn47p76a6tlnxib3wp6deux7wuzotdr6cyd.onion/api/v1',
-        BISQ_URL: 'https://bisq.markets/api',
-        BISQ_ONION: 'http://bisqmktse2cabavbr2xjq7xw3h6g5ottemo5rolfcwt6aly6tp5fdryd.onion/api'
+        LIQUID_ONION: 'http://liquidmom47f6s3m53ebfxn47p76a6tlnxib3wp6deux7wuzotdr6cyd.onion/api/v1'
       });
 
       expect(config.MAXMIND).toStrictEqual({
@@ -137,7 +145,14 @@ describe('Mempool Backend Config', () => {
 
       expect(config.REDIS).toStrictEqual({
         ENABLED: false,
-        UNIX_SOCKET_PATH: ''
+        UNIX_SOCKET_PATH: '',
+        BATCH_QUERY_BASE_SIZE: 5000,
+      });
+
+      expect(config.FIAT_PRICE).toStrictEqual({
+        ENABLED: true,
+        PAID: false,
+        API_KEY: '',
       });
     });
   });
@@ -164,8 +179,6 @@ describe('Mempool Backend Config', () => {
       expect(config.SYSLOG).toStrictEqual(fixture.SYSLOG);
 
       expect(config.STATISTICS).toStrictEqual(fixture.STATISTICS);
-
-      expect(config.BISQ).toStrictEqual(fixture.BISQ);
 
       expect(config.SOCKS5PROXY).toStrictEqual(fixture.SOCKS5PROXY);
 

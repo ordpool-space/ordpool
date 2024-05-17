@@ -1,9 +1,11 @@
-import { Component, OnInit, Input, OnDestroy, OnChanges, SimpleChanges, HostListener } from '@angular/core';
-import { ApiService } from '../../services/api.service';
+import { Component, OnInit, Input, OnDestroy, OnChanges, SimpleChanges, HostListener, ChangeDetectorRef } from '@angular/core';
 import { Subscription, catchError, of, tap } from 'rxjs';
 import { StorageService } from '../../services/storage.service';
 import { Transaction } from '../../interfaces/electrs.interface';
 import { nextRoundNumber } from '../../shared/common.utils';
+import { ServicesApiServices } from '../../services/services-api.service';
+import { AudioService } from '../../services/audio.service';
+import { StateService } from '../../services/state.service';
 
 export type AccelerationEstimate = {
   txSummary: TxSummary;
@@ -54,16 +56,21 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
   defaultBid = 0;
   maxCost = 0;
   userBid = 0;
+  accelerationUUID: string;
   selectFeeRateIndex = 1;
-  showTable: 'estimated' | 'maximum' = 'maximum';
   isMobile: boolean = window.innerWidth <= 767.98;
+  user: any = undefined;
 
   maxRateOptions: RateOption[] = [];
 
   constructor(
-    private apiService: ApiService,
-    private storageService: StorageService
-  ) { }
+    public stateService: StateService,
+    private servicesApiService: ServicesApiServices,
+    private storageService: StorageService,
+    private audioService: AudioService,
+    private cd: ChangeDetectorRef
+  ) {
+  }
 
   ngOnDestroy(): void {
     if (this.estimateSubscription) {
@@ -71,14 +78,20 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
     }
   }
 
+  ngOnInit() {
+    this.accelerationUUID = window.crypto.randomUUID();
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.scrollEvent) {
-      this.scrollToPreview('acceleratePreviewAnchor', 'center');
+      this.scrollToPreview('acceleratePreviewAnchor', 'start');
     }
   }
 
-  ngOnInit() {
-    this.estimateSubscription = this.apiService.estimate$(this.tx.txid).pipe(
+  ngAfterViewInit() {
+    this.user = this.storageService.getAuth()?.user ?? null;
+
+    this.estimateSubscription = this.servicesApiService.estimate$(this.tx.txid).pipe(
       tap((response) => {
         if (response.status === 204) {
           this.estimate = undefined;
@@ -93,7 +106,7 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
             this.estimateSubscription.unsubscribe();
           }
 
-          if (this.estimate.userBalance <= 0) {
+          if (this.estimate.hasAccess === true && this.estimate.userBalance <= 0) {
             if (this.isLoggedIn()) {
               this.error = `not_enough_balance`;
               this.scrollToPreviewWithTimeout('mempoolError', 'center');
@@ -126,7 +139,11 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
           this.maxCost = this.userBid + this.estimate.mempoolBaseFee + this.estimate.vsizeFee;
 
           if (!this.error) {
-            this.scrollToPreview('acceleratePreviewAnchor', 'center');
+            this.scrollToPreview('acceleratePreviewAnchor', 'start');
+
+            setTimeout(() => {
+              this.onScroll();
+            }, 100);
           }
         }
       }),
@@ -162,13 +179,14 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
   scrollToPreview(id: string, position: ScrollLogicalPosition) {
     const acceleratePreviewAnchor = document.getElementById(id);
     if (acceleratePreviewAnchor) {
+      this.cd.markForCheck();
       acceleratePreviewAnchor.scrollIntoView({
         behavior: 'smooth',
         inline: position,
         block: position,
       });
     }
-}
+  }
 
   /**
    * Send acceleration request
@@ -177,17 +195,23 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
     if (this.accelerationSubscription) {
       this.accelerationSubscription.unsubscribe();
     }
-    this.accelerationSubscription = this.apiService.accelerate$(
+    this.accelerationSubscription = this.servicesApiService.accelerate$(
       this.tx.txid,
-      this.userBid
+      this.userBid,
+      this.accelerationUUID
     ).subscribe({
       next: () => {
+        this.audioService.playSound('ascend-chime-cartoon');
         this.showSuccess = true;
         this.scrollToPreviewWithTimeout('successAlert', 'center');
         this.estimateSubscription.unsubscribe();
       },
       error: (response) => {
-        this.error = response.error;
+        if (response.status === 403 && response.error === 'not_available') {
+          this.error = 'waitlisted';
+        } else {
+          this.error = response.error;
+        }
         this.scrollToPreviewWithTimeout('mempoolError', 'center');
       }
     });
@@ -201,5 +225,16 @@ export class AcceleratePreviewComponent implements OnInit, OnDestroy, OnChanges 
   @HostListener('window:resize', ['$event'])
   onResize(): void {
     this.isMobile = window.innerWidth <= 767.98;
+  }
+
+
+  @HostListener('window:scroll', ['$event']) // for window scroll events
+  onScroll() {
+    if (this.estimate) {
+      setTimeout(() => {
+        this.onScroll();
+      }, 200);
+      return;
+    }
   }
 }

@@ -225,7 +225,7 @@ const witnessSize = (vin: Vin) => vin.witness ? vin.witness.reduce((S, w) => S +
 const scriptSigSize = (vin: Vin) => vin.scriptsig ? vin.scriptsig.length / 2 : 0;
 
 // Power of ten wrapper
-export function selectPowerOfTen(val: number): { divider: number, unit: string } {
+export function selectPowerOfTen(val: number, multiplier = 1): { divider: number, unit: string } {
   const powerOfTen = {
     exa: Math.pow(10, 18),
     peta: Math.pow(10, 15),
@@ -236,17 +236,17 @@ export function selectPowerOfTen(val: number): { divider: number, unit: string }
   };
 
   let selectedPowerOfTen: { divider: number, unit: string };
-  if (val < powerOfTen.kilo) {
+  if (val < powerOfTen.kilo * multiplier) {
     selectedPowerOfTen = { divider: 1, unit: '' }; // no scaling
-  } else if (val < powerOfTen.mega) {
+  } else if (val < powerOfTen.mega * multiplier) {
     selectedPowerOfTen = { divider: powerOfTen.kilo, unit: 'k' };
-  } else if (val < powerOfTen.giga) {
+  } else if (val < powerOfTen.giga * multiplier) {
     selectedPowerOfTen = { divider: powerOfTen.mega, unit: 'M' };
-  } else if (val < powerOfTen.tera) {
+  } else if (val < powerOfTen.tera * multiplier) {
     selectedPowerOfTen = { divider: powerOfTen.giga, unit: 'G' };
-  } else if (val < powerOfTen.peta) {
+  } else if (val < powerOfTen.peta * multiplier) {
     selectedPowerOfTen = { divider: powerOfTen.tera, unit: 'T' };
-  } else if (val < powerOfTen.exa) {
+  } else if (val < powerOfTen.exa * multiplier) {
     selectedPowerOfTen = { divider: powerOfTen.peta, unit: 'P' };
   } else {
     selectedPowerOfTen = { divider: powerOfTen.exa, unit: 'E' };
@@ -265,6 +265,11 @@ const featureActivation = {
     rbf: 720255,
     segwit: 872730,
     taproot: 2032291,
+  },
+  testnet4: {
+    rbf: 0,
+    segwit: 0,
+    taproot: 0,
   },
   signet: {
     rbf: 0,

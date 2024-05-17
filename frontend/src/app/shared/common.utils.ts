@@ -1,3 +1,6 @@
+import { MempoolBlockDelta, MempoolBlockDeltaCompressed, MempoolDeltaChange, TransactionCompressed } from "../interfaces/websocket.interface";
+import { TransactionStripped } from "../interfaces/node-api.interface";
+
 export function isMobile(): boolean {
   return (window.innerWidth <= 767.98);
 }
@@ -148,20 +151,13 @@ export function nextRoundNumber(num: number): number {
 export function seoDescriptionNetwork(network: string): string {
   if( network === 'liquidtestnet' || network === 'testnet' ) {
     return ' Testnet';
-  } else if( network === 'signet' || network === 'testnet' ) {
+  } else if( network === 'signet' || network === 'testnet' || network === 'testnet4') {
     return ' ' + network.charAt(0).toUpperCase() + network.slice(1);
   }
   return '';
 }
 
-// backport from latest, replace this with the real functions after big merge
-export function uncompressTx(tx: any): any {
-
-  // old backend - nothing to do
-  if (!Array.isArray(tx)) {
-    return tx;
-  }
-
+export function uncompressTx(tx: TransactionCompressed): TransactionStripped {
   return {
     txid: tx[0],
     fee: tx[1],
@@ -169,23 +165,12 @@ export function uncompressTx(tx: any): any {
     value: tx[3],
     rate: tx[4],
     flags: tx[5],
-    acc: !!tx[6],
+    time: tx[6],
+    acc: !!tx[7],
   };
 }
 
-export function uncompressDeltaChange(delta: any): any {
-
-  // another fix, delta can be undefined, but code in state.service is not checking this
-  if (!delta.changed) {
-    delta.changed = [];
-  }
-
-  // old backend - nothing to do
-  if (delta.added[0] && !Array.isArray(delta.added[0]) ||
-      delta.changed[0] && !Array.isArray(delta.changed[0])) {
-    return delta;
-  }
-
+export function uncompressDeltaChange(delta: MempoolBlockDeltaCompressed): MempoolBlockDelta {
   return {
     added: delta.added.map(uncompressTx),
     removed: delta.removed,

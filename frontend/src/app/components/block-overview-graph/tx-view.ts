@@ -1,26 +1,15 @@
 import TxSprite from './tx-sprite';
 import { FastVertexArray } from './fast-vertex-array';
-import { TransactionStripped } from '../../interfaces/websocket.interface';
 import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from './sprite-types';
-import { feeLevels, mempoolFeeColors } from '../../app.constants';
+import { hexToColor } from './utils';
 import BlockScene from './block-scene';
-import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
-import { DigitalArtifact, DigitalArtifactType } from 'ordpool-parser';
+import { TransactionStripped } from '../../interfaces/node-api.interface';
+import { TransactionFlags } from '../../shared/filters.utils';
+import { DigitalArtifact } from 'ordpool-parser';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
 const defaultHighlightColor = hexToColor('800080');
-
-const feeColors = mempoolFeeColors.map(hexToColor);
-const auditFeeColors = feeColors.map((color) => darken(desaturate(color, 0.3), 0.9));
-const marginalFeeColors = feeColors.map((color) => darken(desaturate(color, 0.8), 1.1));
-const auditColors = {
-  censored: hexToColor('f344df'),
-  missing: darken(desaturate(hexToColor('f344df'), 0.3), 0.7),
-  added: hexToColor('0099ff'),
-  selected: darken(desaturate(hexToColor('0099ff'), 0.3), 0.7),
-  accelerated: hexToColor('8F5FF6'),
-};
 
 // convert from this class's update format to TxSprite's update format
 function toSpriteUpdate(params: ViewUpdateParams): SpriteUpdateParams {
@@ -42,7 +31,10 @@ export default class TxView implements TransactionStripped {
   feerate: number;
   acc?: boolean;
   rate?: number;
-  status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'censored' | 'selected' | 'rbf' | 'accelerated';
+  flags: number;
+  bigintFlags?: bigint | null = 0b00000100_00000000_00000000_00000000n;
+  time?: number;
+  status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'prioritized' | 'censored' | 'selected' | 'rbf' | 'accelerated';
   context?: 'projected' | 'actual';
   scene?: BlockScene;
 
@@ -67,6 +59,7 @@ export default class TxView implements TransactionStripped {
     this.scene = scene;
     this.context = tx.context;
     this.txid = tx.txid;
+    this.time = tx.time || 0;
     this.fee = tx.fee;
     this.vsize = tx.vsize;
     this.value = tx.value;
@@ -74,6 +67,8 @@ export default class TxView implements TransactionStripped {
     this.acc = tx.acc;
     this.rate = tx.rate;
     this.status = tx.status;
+    this.flags = tx.flags || 0;
+    this.bigintFlags = tx.flags ? (BigInt(tx.flags) | (this.acc ? TransactionFlags.acceleration : 0n)): 0n;
     this.initialised = false;
     this.vertexArray = scene.vertexArray;
 
@@ -83,8 +78,7 @@ export default class TxView implements TransactionStripped {
 
     this.dirty = true;
 
-    // HACK: forward from BlockScene > TxView
-    this.digitalArtifactsFetcher = this.scene.digitalArtifactsFetcher;
+    // HACK
     this.fetchInscription();
   }
 
@@ -101,38 +95,11 @@ export default class TxView implements TransactionStripped {
 
   private fetchInscription(): void {
     this.digitalArtifactsFetcher.fetchArtifacts(this.txid).subscribe({
-      next: (artifacts) => this.updateArtifacts(artifacts),
+      next: (artifacts) => console.log('TODO - color blocks again'),
       error: error => {
         // console.error('TxView: Failed to fetch inscription:', error);
       }
     });
-  }
-
-  private updateArtifacts(digitalArtifacts: DigitalArtifact[]): void {
-
-    this.digitalArtifacts = digitalArtifacts;
-
-    // Mark the view as dirty to trigger re-rendering
-    this.dirty = true;
-
-    // i have absolutely no clue what I'm doing here, but when I call both functions, then it works...
-    setTimeout(() => {
-
-      // this can happen when we change pages but still proccess this code
-      if (!this.sprite) {
-        return;
-      }
-
-      this.sprite.update({
-        ...this.getColor()
-      });
-
-      this.scene.applyTxUpdate(this, {
-        display: {
-          color: this.getColor()
-        }
-      });
-    }, 0);
   }
 
   applyGridPosition(position: Square): void {
@@ -243,97 +210,5 @@ export default class TxView implements TransactionStripped {
     }
     this.dirty = false;
     return performance.now() + hoverTransitionTime;
-  }
-
-  getColor(): Color {
-
-    // HACK
-    if (this.digitalArtifacts === undefined) {
-      // return light gray if parsedInscription is undefined (initial state)
-      return { r: 0.8, g: 0.8, b: 0.8, a: 0.7 };
-    }
-
-    if (this.digitalArtifacts && !this.digitalArtifacts.length) {
-      // return darker gray if parsedInscription is null (no inscription found)
-      return { r: 0.8, g: 0.8, b: 0.8, a: 0.3 };
-    }
-
-    // we have a cat!!!
-    if (this.digitalArtifacts.length && this.digitalArtifacts.find(x => x.type === DigitalArtifactType.Cat21)) {
-      return auditColors.censored;
-    }
-
-
-    const rate = this.fee / this.vsize; // color by simple single-tx fee rate
-    const feeLevelIndex = feeLevels.findIndex((feeLvl) => Math.max(1, rate) < feeLvl) - 1;
-    const feeLevelColor = feeColors[feeLevelIndex] || feeColors[mempoolFeeColors.length - 1];
-    // Normal mode
-    if (!this.scene?.highlightingEnabled) {
-      // HACK - don't show accelleration
-      // if (this.acc) {
-      //   return auditColors.accelerated;
-      // } else {
-      //   return feeLevelColor;
-      // }
-      return feeLevelColor;
-    }
-    // Block audit
-    switch(this.status) {
-      case 'censored':
-        return auditColors.censored;
-      case 'missing':
-      case 'sigop':
-      case 'rbf':
-        return marginalFeeColors[feeLevelIndex] || marginalFeeColors[mempoolFeeColors.length - 1];
-      case 'fresh':
-      case 'freshcpfp':
-        return auditColors.missing;
-      case 'added':
-        return auditColors.added;
-      case 'selected':
-        return marginalFeeColors[feeLevelIndex] || marginalFeeColors[mempoolFeeColors.length - 1];
-      case 'accelerated':
-        return auditColors.accelerated;
-      case 'found':
-        if (this.context === 'projected') {
-          return auditFeeColors[feeLevelIndex] || auditFeeColors[mempoolFeeColors.length - 1];
-        } else {
-          return feeLevelColor;
-        }
-      default:
-        if (this.acc) {
-          return auditColors.accelerated;
-        } else {
-          return feeLevelColor;
-        }
-    }
-  }
-}
-
-function hexToColor(hex: string): Color {
-  return {
-    r: parseInt(hex.slice(0, 2), 16) / 255,
-    g: parseInt(hex.slice(2, 4), 16) / 255,
-    b: parseInt(hex.slice(4, 6), 16) / 255,
-    a: 1
-  };
-}
-
-function desaturate(color: Color, amount: number): Color {
-  const gray = (color.r + color.g + color.b) / 6;
-  return {
-    r: color.r + ((gray - color.r) * amount),
-    g: color.g + ((gray - color.g) * amount),
-    b: color.b + ((gray - color.b) * amount),
-    a: color.a,
-  };
-}
-
-function darken(color: Color, amount: number): Color {
-  return {
-    r: color.r * amount,
-    g: color.g * amount,
-    b: color.b * amount,
-    a: color.a,
   }
 }

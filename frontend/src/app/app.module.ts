@@ -2,6 +2,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { ModuleWithProviders, NgModule } from '@angular/core';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { ZONE_SERVICE } from './injection-tokens';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './components/app/app.component';
 import { ElectrsApiService } from './services/electrs-api.service';
@@ -13,16 +14,19 @@ import { WebsocketService } from './services/websocket.service';
 import { AudioService } from './services/audio.service';
 import { SeoService } from './services/seo.service';
 import { OpenGraphService } from './services/opengraph.service';
+import { ZoneService } from './services/zone-shim.service';
 import { SharedModule } from './shared/shared.module';
 import { StorageService } from './services/storage.service';
 import { HttpCacheInterceptor } from './services/http-cache.interceptor';
 import { HttpRetryInterceptor } from './services/http-retry.interceptor';
 import { LanguageService } from './services/language.service';
+import { ThemeService } from './services/theme.service';
 import { FiatShortenerPipe } from './shared/pipes/fiat-shortener.pipe';
 import { FiatCurrencyPipe } from './shared/pipes/fiat-currency.pipe';
 import { ShortenStringPipe } from './shared/pipes/shorten-string-pipe/shorten-string.pipe';
 import { CapAddressPipe } from './shared/pipes/cap-address-pipe/cap-address-pipe';
 import { AppPreloadingStrategy } from './app.preloading-strategy';
+import { ServicesApiServices } from './services/services-api.service';
 import { DigitalArtifactsFetcherService } from './services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
 import { OrdApiService } from './services/ordinals/ord-api.service';
@@ -47,11 +51,15 @@ const providers = [
   StorageService,
   EnterpriseService,
   LanguageService,
+  ThemeService,
   ShortenStringPipe,
   FiatShortenerPipe,
   FiatCurrencyPipe,
   CapAddressPipe,
   AppPreloadingStrategy,
+  ServicesApiServices,
+  { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
+  { provide: ZONE_SERVICE, useClass: ZoneService },
   DigitalArtifactsFetcherService,
   BlockchainApiService,
   OrdApiService,
@@ -62,7 +70,6 @@ const providers = [
   RollingElectrsApiService,
   Cat21Service,
   // HACK
-  { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
   { provide: HIGHLIGHT_OPTIONS,
     useValue: {
