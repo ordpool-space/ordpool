@@ -12,7 +12,6 @@ import { Subscription } from 'rxjs';
 import { defaultColorFunction, setOpacity, defaultAuditColors, defaultColors, ageColorFunction, contrastColorFunction, contrastAuditColors, contrastColors } from './utils';
 import { ActiveFilter, FilterMode, toFlags } from '../../shared/filters.utils';
 import { detectWebGL } from '../../shared/graphs.utils';
-import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 
 const unmatchedOpacity = 0.2;
 const unmatchedAuditColors = {
@@ -108,7 +107,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     readonly ngZone: NgZone,
     readonly elRef: ElementRef,
     public stateService: StateService,
-    private themeService: ThemeService
+    private themeService: ThemeService,
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
     this.vertexArray = new FastVertexArray(512, TxSprite.dataSize);

@@ -271,8 +271,7 @@ export default class BlockScene {
     this.dirty = true;
   }
 
-  // HACK: changed from private to public
-  public applyTxUpdate(tx: TxView, update: ViewUpdateParams): void {
+  private applyTxUpdate(tx: TxView, update: ViewUpdateParams): void {
     this.animateUntil = Math.max(this.animateUntil, tx.update(update));
   }
 

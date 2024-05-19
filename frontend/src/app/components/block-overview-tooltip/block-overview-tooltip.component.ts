@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
 import { TransactionStripped } from '../../interfaces/node-api.interface.js';
@@ -7,6 +7,7 @@ import { Block } from '../../interfaces/electrs.interface.js';
 import { DigitalArtifact } from 'ordpool-parser';
 import { Observable, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
+import { inject } from '@angular/core';
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -23,6 +24,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   @Input() filterFlags: bigint | null = null;
   @Input() filterMode: FilterMode = 'and';
 
+  private digitalArtifactsFetcher = inject(DigitalArtifactsFetcherService);
   digitalArtifacts$: Observable<DigitalArtifact[]> = of(null);
 
   txid = '';
@@ -41,8 +43,6 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   tooltipPosition: Position = { x: 0, y: 0 };
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
-
-  private digitalArtifactsFetcher = inject(DigitalArtifactsFetcherService);
 
   constructor(
     private cd: ChangeDetectorRef,

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChildren, QueryList, Inject, PLATFORM_ID, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChildren, QueryList, Inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { ElectrsApiService } from '../../services/electrs-api.service';
@@ -22,6 +22,7 @@ import { BlockchairApiService } from '../../services/ordinals/blockchair-api.ser
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 import { Cat21ParserService } from 'ordpool-parser';
 import { Cat21ApiService } from '../../services/ordinals/cat21-api.service';
+import { inject } from '@angular/core';
 
 @Component({
   selector: 'app-block',

@@ -7,7 +7,6 @@ import { EnterpriseService } from '../../services/enterprise.service';
 import { NavigationService } from '../../services/navigation.service';
 import { MenuComponent } from '../menu/menu.component';
 import { StorageService } from '../../services/storage.service';
-import { ApiService } from '../../services/api.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
