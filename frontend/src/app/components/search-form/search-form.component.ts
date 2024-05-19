@@ -184,8 +184,8 @@ export class SearchFormComponent implements OnInit {
           // HACK
           if (this.regexInscription.test(searchText)) {
             searchText = searchText.split('i')[0];
-          
           }
+
           // Do not show date and timestamp results for liquid
           const isNetworkBitcoin = this.network === '' || this.network === 'testnet' || this.network === 'testnet4' || this.network === 'signet';
 
