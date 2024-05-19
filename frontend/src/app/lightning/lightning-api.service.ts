@@ -3,7 +3,6 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { BehaviorSubject, Observable, catchError, filter, of, shareReplay, take, tap } from 'rxjs';
 import { StateService } from '../services/state.service';
 import { IChannel, INodesRanking, IOldestNodes, ITopNodesPerCapacity, ITopNodesPerChannels } from '../interfaces/node-api.interface';
-import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -11,20 +10,17 @@ import { environment } from 'src/environments/environment';
 export class LightningApiService {
   private apiBaseUrl: string; // base URL is protocol, hostname, and port
   private apiBasePath = ''; // network path is /testnet, etc. or '' for mainnet
-
+  
   private requestCache = new Map<string, { subject: BehaviorSubject<any>, expiry: number }>;
 
   constructor(
     private httpClient: HttpClient,
     private stateService: StateService,
   ) {
-    // HACK
-    // this.apiBaseUrl = ''; // use relative URL by default
-    this.apiBaseUrl = environment.apiBaseUrl;
-
-    // if (!stateService.isBrowser) { // except when inside AU SSR process
-    //   this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
-    // }
+    this.apiBaseUrl = ''; // use relative URL by default
+    if (!stateService.isBrowser) { // except when inside AU SSR process
+      this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
+    }
     this.apiBasePath = ''; // assume mainnet by default
     this.stateService.networkChanged$.subscribe((network) => {
       this.apiBasePath = network ? '/' + network : '';
