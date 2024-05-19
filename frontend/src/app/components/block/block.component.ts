@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChildren, QueryList, Inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChildren, QueryList, Inject, PLATFORM_ID, ChangeDetectorRef, inject } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { ElectrsApiService } from '../../services/electrs-api.service';
@@ -355,10 +355,16 @@ export class BlockComponent implements OnInit, OnDestroy {
                 this.overviewError = err;
                 return of(null);
               })
-            )
+            ),
+          this.stateService.env.ACCELERATOR === true && block.height > 819500
+     	       ? this.servicesApiService.getAccelerationHistory$({ blockHeight: block.height })
+              .pipe(catchError(() => {
+                return of([]);
+              }))
+            : of([])
         ]).pipe(
 
-          // HACK
+          // HACK - query indexer
           tap(([transactions, blockAudit]) => {
 
             forkJoin([
@@ -435,15 +441,8 @@ export class BlockComponent implements OnInit, OnDestroy {
               });
             });
           })
+
         );
-            ),
-          this.stateService.env.ACCELERATOR === true && block.height > 819500
-            ? this.servicesApiService.getAccelerationHistory$({ blockHeight: block.height })
-              .pipe(catchError(() => {
-                return of([]);
-              }))
-            : of([])
-        ]);
       })
     )
     .subscribe(([transactions, blockAudit, accelerations]) => {

@@ -6,6 +6,8 @@ import BlockScene from './block-scene';
 import { TransactionStripped } from '../../interfaces/node-api.interface';
 import { TransactionFlags } from '../../shared/filters.utils';
 import { DigitalArtifact } from 'ordpool-parser';
+import { inject } from '@angular/core';
+import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 
 const hoverTransitionTime = 300;
 const defaultHoverColor = hexToColor('1bd8f4');
@@ -53,7 +55,7 @@ export default class TxView implements TransactionStripped {
 
   // HACK
   digitalArtifacts: DigitalArtifact[] | undefined;
-  digitalArtifactsFetcher: DigitalArtifactsFetcherService;
+  digitalArtifactsFetcher = inject(DigitalArtifactsFetcherService);
 
   constructor(tx: TransactionStripped, scene: BlockScene, ) {
     this.scene = scene;
