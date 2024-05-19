@@ -107,7 +107,7 @@
         <a class="nav-link" href="https://ordinalsbot.com?ref=ordpool" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" title="Inscribe Now! (with OrdinalsBot)"></fa-icon> Inscribe Now!</a>
       </li> -->
 
-      <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint">
+      <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint" *ngIf="enableCat21Mint">
         <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()">
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">Mint a CAT-21</a>
       </li>

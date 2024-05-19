@@ -11,6 +11,7 @@ import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
 import { BlockchainApiService } from '../../services/ordinals/blockchain-api.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject } from '@angular/core';
 
 @Component({
   selector: 'app-mempool-block',
@@ -27,6 +28,8 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   previewTx: TransactionStripped | void;
   webGlEnabled: boolean;
 
+  private blockchainApiService = inject(BlockchainApiService);
+
   constructor(
     private route: ActivatedRoute,
     public stateService: StateService,
@@ -34,7 +37,6 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
     private websocketService: WebsocketService,
     private cd: ChangeDetectorRef,
     @Inject(PLATFORM_ID) private platformId: Object,
-    private blockchainApiService: BlockchainApiService
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
 
