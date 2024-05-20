@@ -265,7 +265,7 @@ export class ApiService {
         return response;
       })
     );
-  }
+  }  
 
   getPoolStats$(slug: string): Observable<PoolStat> {
     return this.httpClient.get<PoolStat>(this.apiBaseUrl + this.apiBasePath + `/api/v1/mining/pool/${slug}`)
