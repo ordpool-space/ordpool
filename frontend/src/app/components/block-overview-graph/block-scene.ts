@@ -4,7 +4,6 @@ import { TransactionStripped } from '../../interfaces/node-api.interface';
 import { Color, Position, Square, ViewUpdateParams } from './sprite-types';
 import { defaultColorFunction, contrastColorFunction } from './utils';
 import { ThemeService } from '../../services/theme.service';
-import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};
