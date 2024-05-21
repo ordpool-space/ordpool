@@ -10,6 +10,21 @@ So you know in advance what will be inscribed next.
 * Production: https://ordpool.space/ (`stage-prod` branch)
 * Test Stage: https://test.ordpool.space/ (`stage-test` branch)
 
+
+## 🟧 Quick Setup for Frontend Development
+
+Read the [/frontend/README.md](/frontend/README.md) first.
+The key difference to the original setup is the following new command:
+
+
+```shell
+cd frontend
+npm run config:defaults:ordpool
+```
+
+This generates the required file `/resources/config.js` with the correct settings for Ordpool.
+
+
 ---
 
 ## ordpool-parser

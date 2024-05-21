@@ -92,7 +92,7 @@ const defaultEnv: Env = {
   'MEMPOOL_BLOCKS_AMOUNT': 8,
   'GIT_COMMIT_HASH': '',
   'PACKAGE_JSON_VERSION': '',
-  'MEMPOOL_WEBSITE_URL': 'https://ordpool.space',
+  'MEMPOOL_WEBSITE_URL': 'https://mempool.space',
   'LIQUID_WEBSITE_URL': 'https://liquid.network',
   'MINING_DASHBOARD': true,
   'LIGHTNING': false,
@@ -199,6 +199,8 @@ export class StateService {
     if (defaultEnv.BASE_MODULE !== 'mempool') {
       this.env.MINING_DASHBOARD = false;
     }
+
+    console.log(this.env);
 
     if (this.isBrowser) {
       this.setNetworkBasedonUrl(window.location.pathname);

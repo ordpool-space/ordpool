@@ -5,7 +5,6 @@ import { Transaction, Address, Outspend, Recent, Asset, ScriptHash, AddressTxSum
 import { StateService } from './state.service';
 import { BlockExtended } from '../interfaces/node-api.interface';
 import { calcScriptHash$ } from '../bitcoin.utils';
-import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -19,11 +18,8 @@ export class ElectrsApiService {
   constructor(
     private httpClient: HttpClient,
     private stateService: StateService,
-   ) {
-    // HACK
-    // this.apiBaseUrl = ''; // use relative URL by default
-    this.apiBaseUrl = environment.apiBaseUrl;
-
+  ) {
+    this.apiBaseUrl = ''; // use relative URL by default
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }
