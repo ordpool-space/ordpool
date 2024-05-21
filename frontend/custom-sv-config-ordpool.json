@@ -1,0 +1,12 @@
+{
+  "theme": "ordpool",
+  "x--enterprise": "ordpool",
+  "branding": {
+    "name": "ordpool",
+    "title": "🟧 ordpool.space - Inscpriptions Explorer",
+    "site_id": 19,
+    "x--header_img": "/resources/onbtclogo.svg",
+    "x--footer_img": "/resources/onbtclogo.svg",
+    "rounded_corner": false
+  }
+}
