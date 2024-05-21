@@ -31,6 +31,14 @@ $ npm run config:defaults:mempool
 $ npm run config:defaults:liquid
 ```
 
+🟧 NEW for ordpool 🟧
+
+```shell
+npm run config:defaults:ordpool
+```
+
+
+
 ### 3. Run the Frontend
 
 _Make sure to use Node.js 16.10 and npm 7._

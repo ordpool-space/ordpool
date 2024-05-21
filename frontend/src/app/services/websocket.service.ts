@@ -9,7 +9,6 @@ import { take } from 'rxjs/operators';
 import { TransferState, makeStateKey } from '@angular/core';
 import { CacheService } from './cache.service';
 import { uncompressDeltaChange, uncompressTx } from '../shared/common.utils';
-import { environment } from '../../environments/environment';
 
 const OFFLINE_RETRY_AFTER_MS = 2000;
 const OFFLINE_PING_CHECK_AFTER_MS = 30000;
@@ -21,13 +20,8 @@ const initData = makeStateKey('/api/v1/init-data');
   providedIn: 'root'
 })
 export class WebsocketService {
-
-  // HACK
-  // private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
-
-  // HACK
-  // private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
-  private webSocketUrl = environment.websocketBaseUrl + ':' + '443' + '{network}/api/v1/ws';
+  private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
+  private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
 
   private websocketSubject: WebSocketSubject<WebsocketResponse>;
   private goneOffline = false;

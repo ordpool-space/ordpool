@@ -8,7 +8,6 @@ import { Transaction } from '../interfaces/electrs.interface';
 import { Conversion } from './price.service';
 import { StorageService } from './storage.service';
 import { WebsocketResponse } from '../interfaces/websocket.interface';
-import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -24,10 +23,7 @@ export class ApiService {
     private stateService: StateService,
     private storageService: StorageService
   ) {
-    // HACK
-    // this.apiBaseUrl = ''; // use relative URL by default
-    this.apiBaseUrl = environment.apiBaseUrl;
-
+    this.apiBaseUrl = ''; // use relative URL by default
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }
