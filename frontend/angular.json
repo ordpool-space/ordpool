@@ -187,6 +187,11 @@
                 "bundleName": "bukele",
                 "inject": false
               },
+              {
+                "input": "src/theme-ordpool.scss",
+                "bundleName": "ordpool",
+                "inject": false
+              },
               "node_modules/@fortawesome/fontawesome-svg-core/styles.css"
             ],
             "vendorChunk": true,
