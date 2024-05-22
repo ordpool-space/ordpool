@@ -199,9 +199,7 @@ export class StateService {
     if (defaultEnv.BASE_MODULE !== 'mempool') {
       this.env.MINING_DASHBOARD = false;
     }
-
-    console.log(this.env);
-
+    
     if (this.isBrowser) {
       this.setNetworkBasedonUrl(window.location.pathname);
       this.setLightningBasedonUrl(window.location.pathname);

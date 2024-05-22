@@ -18,11 +18,15 @@ const browserWindow = window || {};
 // @ts-ignore
 const browserWindowEnv = browserWindow.__env || {};
 
+import { extraOrdpoolRoutes } from './master-page.module.ordpool';
+
+
 const routes: Routes = [
   {
     path: '',
     component: MasterPageComponent,
     children: [
+      ...extraOrdpoolRoutes,
       {
         path: 'mining/blocks',
         redirectTo: 'blocks',
