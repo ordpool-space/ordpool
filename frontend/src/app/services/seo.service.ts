@@ -11,8 +11,9 @@ export class SeoService {
   network = '';
   baseTitle = '🟧 ordpool.space';
   baseDescription = 'See what\'s inscribed next with 🟧 ordpool.space.';
+  baseDomain = 'ordpool.space';
 
-  canonicalLink: HTMLElement = document.getElementById('canonical');
+  canonicalLink: HTMLLinkElement = document.getElementById('canonical') as HTMLLinkElement;
 
   constructor(
     private titleService: Title,
@@ -21,6 +22,16 @@ export class SeoService {
     private router: Router,
     private activatedRoute: ActivatedRoute,
   ) {
+    // save original meta tags
+    this.baseDescription = metaService.getTag('name=\'description\'')?.content || this.baseDescription;
+    this.baseTitle = titleService.getTitle()?.split(' - ')?.[0] || this.baseTitle;
+    try {
+      const canonicalUrl = new URL(this.canonicalLink?.href || '');
+      this.baseDomain = canonicalUrl?.host;
+    } catch (e) {
+      // leave as default
+    }
+
     this.stateService.networkChanged$.subscribe((network) => this.network = network);
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd),
@@ -39,19 +50,23 @@ export class SeoService {
   setTitle(newTitle: string): void {
     this.titleService.setTitle(newTitle + ' - ' + this.getTitle());
     this.metaService.updateTag({ property: 'og:title', content: newTitle});
-    this.metaService.updateTag({ property: 'twitter:title', content: newTitle});
+    this.metaService.updateTag({ name: 'twitter:title', content: newTitle});
     this.metaService.updateTag({ property: 'og:meta:ready', content: 'ready'});
   }
 
   resetTitle(): void {
     this.titleService.setTitle(this.getTitle());
     this.metaService.updateTag({ property: 'og:title', content: this.getTitle()});
-    this.metaService.updateTag({ property: 'twitter:title', content: this.getTitle()});
+    this.metaService.updateTag({ name: 'twitter:title', content: this.getTitle()});
     this.metaService.updateTag({ property: 'og:meta:ready', content: 'ready'});
   }
 
-  setEnterpriseTitle(title: string) {
-    this.baseTitle = title + ' - ' + this.baseTitle;
+  setEnterpriseTitle(title: string, override: boolean = false) {
+    if (override) {
+      this.baseTitle = title;
+    } else {
+      this.baseTitle = title + ' - ' + this.baseTitle;
+    }
     this.resetTitle();
   }
 
@@ -68,37 +83,25 @@ export class SeoService {
   }
 
   updateCanonical(path) {
-    let domain = 'ordpool.space';
-    // if (this.stateService.env.BASE_MODULE === 'liquid') {
-    //   domain = 'liquid.network';
-    // } else if (this.stateService.env.BASE_MODULE === 'bisq') {
-    //   domain = 'bisq.markets';
-    // }
-    this.canonicalLink.setAttribute('href', 'https://' + domain + path);
+    this.canonicalLink.setAttribute('href', 'https://' + this.baseDomain + path);
   }
 
   getTitle(): string {
-    // if (this.network === 'testnet')
-    //   return this.baseTitle + ' - Bitcoin Testnet';
-    // if (this.network === 'signet')
-    //   return this.baseTitle + ' - Bitcoin Signet';
-    // if (this.network === 'liquid')
-    //   return this.baseTitle + ' - Liquid Network';
-    // if (this.network === 'liquidtestnet')
-    //   return this.baseTitle + ' - Liquid Testnet';
-    // if (this.network === 'bisq')
-    //   return this.baseTitle + ' - Bisq Markets';
-    // return this.baseTitle + ' - ' + (this.network ? this.ucfirst(this.network) : 'Bitcoin') + ' Explorer';
-    return this.baseTitle + ' - Inscpriptions Explorer';
+    if (this.network === 'testnet')
+      return this.baseTitle + ' - Bitcoin Testnet3';
+    if (this.network === 'testnet4')
+      return this.baseTitle + ' - Bitcoin Testnet4';
+    if (this.network === 'signet')
+      return this.baseTitle + ' - Bitcoin Signet';
+    if (this.network === 'liquid')
+      return this.baseTitle + ' - Liquid Network';
+    if (this.network === 'liquidtestnet')
+      return this.baseTitle + ' - Liquid Testnet';
+    return this.baseTitle + ' - ' + (this.network ? this.ucfirst(this.network) : 'Bitcoin') + ' Explorer';
   }
 
   getDescription(): string {
-    // if ( (this.network === 'testnet') || (this.network === 'signet') || (this.network === '') || (this.network == 'mainnet') )
-      return this.baseDescription + ' This service shows you pending ordinal inscriptions in the mempool.';
-    // if ( (this.network === 'liquid') || (this.network === 'liquidtestnet') )
-    //   return this.baseDescription + ' See Liquid transactions & assets, get network info, and more.';
-    // if (this.network === 'bisq')
-    //   return this.baseDescription + ' See Bisq market prices, trading activity, and more.';
+    return this.baseDescription;
   }
 
   ucfirst(str: string) {

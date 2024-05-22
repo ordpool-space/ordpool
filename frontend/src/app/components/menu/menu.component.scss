@@ -1,25 +1,48 @@
 .sidenav {
-  z-index: 1;
+  z-index: 10;
   background-color: transparent;
   width: 225px;
   height: calc(100vh - 65px);
-  position: sticky;
+  position: absolute;
   top: 65px;
   transition: 0.25s;
-  margin-left: -250px;
   box-shadow: 5px 0px 30px 0px #000;
   padding-bottom: 20px;
+  @media (max-width: 613px) {
+    top: 105px;
+  }
+}
+
+:host-context(.ltr-layout) .sidenav {
+  left: -250px;
+}
+
+:host-context(.rtl-layout) .sidenav {
+  right: -250px;
+}
+
+.ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scrollable {
   overflow-x: hidden;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 .sidenav.open {
-  margin-left: 0px;
-  left: 0px;
   display: block;
+  background-color: var(--bg);
+}
+
+:host-context(.ltr-layout) .sidenav.open {
+  left: 0;
+}
+
+:host-context(.rtl-layout) .sidenav.open {
+  right: 0;
 }
 
 .sidenav a, button{
@@ -33,7 +56,7 @@
 .sidenav nav {
   width: 100%;
   height: calc(100vh - 65px);
-  background-color: #1d1f31;
+  background-color: var(--bg);
   padding-left: 20px;
   padding-right: 20px;
   padding-top: 20px;
@@ -45,4 +68,36 @@
 
 @media screen and (max-height: 450px) {
   .sidenav a {font-size: 18px;}
+}
+
+.badge-default {
+  background-color: black;
+}
+
+.badge-og {
+  background-color: var(--title-fg);
+}
+
+.badge-pleb {
+  background-color: #3ccbe3;
+}
+
+.badge-chad {
+  background-color: #957d0b;
+}
+
+.badge-whale {
+  background-color: var(--tertiary);
+}
+
+.badge-silver {
+  background-color: #95a5a6;
+}
+
+.badge-gold {
+  background-color: #f1c40f;
+}
+
+.badge-platinum {
+  background-color: var(--tertiary);
 }

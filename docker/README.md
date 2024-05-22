@@ -109,8 +109,6 @@ Below we list all settings from `mempool-config.json` and the corresponding over
     "AUTOMATIC_BLOCK_REINDEXING": false,
     "POOLS_JSON_URL": "https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json",
     "POOLS_JSON_TREE_URL": "https://api.github.com/repos/mempool/mining-pools/git/trees/master",
-    "ADVANCED_GBT_AUDIT": false,
-    "ADVANCED_GBT_MEMPOOL": false,
     "CPFP_INDEXING": false,
     "MAX_BLOCKS_BULK_QUERY": 0,
     "DISK_CACHE_BLOCK_INTERVAL": 6,
@@ -124,7 +122,7 @@ Corresponding `docker-compose.yml` overrides:
     environment:
       MEMPOOL_NETWORK: ""
       MEMPOOL_BACKEND: ""
-      MEMPOOL_HTTP_PORT: ""
+      BACKEND_HTTP_PORT: ""
       MEMPOOL_SPAWN_CLUSTER_PROCS: ""
       MEMPOOL_API_URL_PREFIX: ""
       MEMPOOL_POLL_RATE_MS: ""
@@ -142,16 +140,12 @@ Corresponding `docker-compose.yml` overrides:
       MEMPOOL_AUTOMATIC_BLOCK_REINDEXING: ""
       MEMPOOL_POOLS_JSON_URL: ""
       MEMPOOL_POOLS_JSON_TREE_URL: ""
-      MEMPOOL_ADVANCED_GBT_AUDIT: ""
-      MEMPOOL_ADVANCED_GBT_MEMPOOL: ""
       MEMPOOL_CPFP_INDEXING: ""
       MEMPOOL_MAX_BLOCKS_BULK_QUERY: ""
       MEMPOOL_DISK_CACHE_BLOCK_INTERVAL: ""
       MEMPOOL_PRICE_UPDATES_PER_HOUR: ""
       ...
 ```
-
-`ADVANCED_GBT_AUDIT` AND `ADVANCED_GBT_MEMPOOL` enable a more accurate (but slower) block prediction algorithm for the block audit feature and the projected mempool-blocks respectively.
 
 `CPFP_INDEXING` enables indexing CPFP (Child Pays For Parent) information for the last `INDEXING_BLOCKS_AMOUNT` blocks.
 
@@ -164,7 +158,9 @@ Corresponding `docker-compose.yml` overrides:
     "PORT": 8332,
     "USERNAME": "mempool",
     "PASSWORD": "mempool",
-    "TIMEOUT": 60000
+    "TIMEOUT": 60000,
+    "COOKIE": false,
+    "COOKIE_PATH": ""
   },
 ```
 
@@ -177,6 +173,8 @@ Corresponding `docker-compose.yml` overrides:
       CORE_RPC_USERNAME: ""
       CORE_RPC_PASSWORD: ""
       CORE_RPC_TIMEOUT: 60000
+      CORE_RPC_COOKIE: false
+      CORE_RPC_COOKIE_PATH: ""
       ...
 ```
 
@@ -231,7 +229,9 @@ Corresponding `docker-compose.yml` overrides:
     "PORT": 8332,
     "USERNAME": "mempool",
     "PASSWORD": "mempool",
-    "TIMEOUT": 60000
+    "TIMEOUT": 60000,
+    "COOKIE": false,
+    "COOKIE_PATH": ""
   },
 ```
 
@@ -244,6 +244,8 @@ Corresponding `docker-compose.yml` overrides:
       SECOND_CORE_RPC_USERNAME: ""
       SECOND_CORE_RPC_PASSWORD: ""
       SECOND_CORE_RPC_TIMEOUT: ""
+      SECOND_CORE_RPC_COOKIE: false
+      SECOND_CORE_RPC_COOKIE_PATH: ""
       ...
 ```
 
@@ -316,25 +318,6 @@ Corresponding `docker-compose.yml` overrides:
     environment:
       STATISTICS_ENABLED: ""
       STATISTICS_TX_PER_SECOND_SAMPLE_PERIOD: ""
-      ...
-```
-
-<br/>
-
-`mempool-config.json`:
-```json
-  "BISQ": {
-    "ENABLED": false,
-    "DATA_PATH": "/bisq/statsnode-data/btc_mainnet/db"
-  }
-```
-
-Corresponding `docker-compose.yml` overrides:
-```yaml
-  api:
-    environment:
-      BISQ_ENABLED: ""
-      BISQ_DATA_PATH: ""
       ...
 ```
 

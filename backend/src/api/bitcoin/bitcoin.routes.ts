@@ -19,12 +19,12 @@ import bitcoinClient from './bitcoin-client';
 import difficultyAdjustment from '../difficulty-adjustment';
 import transactionRepository from '../../repositories/TransactionRepository';
 import rbfCache from '../rbf-cache';
+import { calculateCpfp } from '../cpfp';
 
 class BitcoinRoutes {
   public initRoutes(app: Application) {
     app
       .get(config.MEMPOOL.API_URL_PREFIX + 'transaction-times', this.getTransactionTimes)
-      .get(config.MEMPOOL.API_URL_PREFIX + 'outspends', this.$getBatchedOutspends)
       .get(config.MEMPOOL.API_URL_PREFIX + 'cpfp/:txId', this.$getCpfpInfo)
       .get(config.MEMPOOL.API_URL_PREFIX + 'difficulty-adjustment', this.getDifficultyChange)
       .get(config.MEMPOOL.API_URL_PREFIX + 'fees/recommended', this.getRecommendedFees)
@@ -37,60 +37,6 @@ class BitcoinRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'replacements', this.getRbfReplacements)
       .get(config.MEMPOOL.API_URL_PREFIX + 'fullrbf/replacements', this.getFullRbfReplacements)
       .post(config.MEMPOOL.API_URL_PREFIX + 'tx/push', this.$postTransactionForm)
-      .get(config.MEMPOOL.API_URL_PREFIX + 'donations', async (req, res) => {
-        try {
-          const response = await axios.get(`${config.EXTERNAL_DATA_SERVER.MEMPOOL_API}/donations`, { responseType: 'stream', timeout: 10000 });
-          response.data.pipe(res);
-        } catch (e) {
-          res.status(500).end();
-        }
-      })
-      .get(config.MEMPOOL.API_URL_PREFIX + 'donations/images/:id', async (req, res) => {
-        try {
-          const response = await axios.get(`${config.EXTERNAL_DATA_SERVER.MEMPOOL_API}/donations/images/${req.params.id}`, {
-            responseType: 'stream', timeout: 10000
-          });
-          response.data.pipe(res);
-        } catch (e) {
-          res.status(500).end();
-        }
-      })
-      .get(config.MEMPOOL.API_URL_PREFIX + 'contributors', async (req, res) => {
-        try {
-          const response = await axios.get(`${config.EXTERNAL_DATA_SERVER.MEMPOOL_API}/contributors`, { responseType: 'stream', timeout: 10000 });
-          response.data.pipe(res);
-        } catch (e) {
-          res.status(500).end();
-        }
-      })
-      .get(config.MEMPOOL.API_URL_PREFIX + 'contributors/images/:id', async (req, res) => {
-        try {
-          const response = await axios.get(`${config.EXTERNAL_DATA_SERVER.MEMPOOL_API}/contributors/images/${req.params.id}`, {
-            responseType: 'stream', timeout: 10000
-          });
-          response.data.pipe(res);
-        } catch (e) {
-          res.status(500).end();
-        }
-      })
-      .get(config.MEMPOOL.API_URL_PREFIX + 'translators', async (req, res) => {
-        try {
-          const response = await axios.get(`${config.EXTERNAL_DATA_SERVER.MEMPOOL_API}/translators`, { responseType: 'stream', timeout: 10000 });
-          response.data.pipe(res);
-        } catch (e) {
-          res.status(500).end();
-        }
-      })
-      .get(config.MEMPOOL.API_URL_PREFIX + 'translators/images/:id', async (req, res) => {
-        try {
-          const response = await axios.get(`${config.EXTERNAL_DATA_SERVER.MEMPOOL_API}/translators/images/${req.params.id}`, {
-            responseType: 'stream', timeout: 10000
-          });
-          response.data.pipe(res);
-        } catch (e) {
-          res.status(500).end();
-        }
-      })
       .get(config.MEMPOOL.API_URL_PREFIX + 'blocks', this.getBlocks.bind(this))
       .get(config.MEMPOOL.API_URL_PREFIX + 'blocks/:height', this.getBlocks.bind(this))
       .get(config.MEMPOOL.API_URL_PREFIX + 'block/:hash', this.getBlock)
@@ -109,9 +55,11 @@ class BitcoinRoutes {
           .get(config.MEMPOOL.API_URL_PREFIX + 'mempool/recent', this.getRecentMempoolTransactions)
           .get(config.MEMPOOL.API_URL_PREFIX + 'tx/:txId', this.getTransaction)
           .post(config.MEMPOOL.API_URL_PREFIX + 'tx', this.$postTransaction)
+          .post(config.MEMPOOL.API_URL_PREFIX + 'txs/test', this.$testTransactions)
           .get(config.MEMPOOL.API_URL_PREFIX + 'tx/:txId/hex', this.getRawTransaction)
           .get(config.MEMPOOL.API_URL_PREFIX + 'tx/:txId/status', this.getTransactionStatus)
           .get(config.MEMPOOL.API_URL_PREFIX + 'tx/:txId/outspends', this.getTransactionOutspends)
+          .get(config.MEMPOOL.API_URL_PREFIX + 'txs/outspends', this.$getBatchedOutspends)
           .get(config.MEMPOOL.API_URL_PREFIX + 'block/:hash/header', this.getBlockHeader)
           .get(config.MEMPOOL.API_URL_PREFIX + 'blocks/tip/hash', this.getBlockTipHash)
           .get(config.MEMPOOL.API_URL_PREFIX + 'block/:hash/raw', this.getRawBlock)
@@ -121,8 +69,10 @@ class BitcoinRoutes {
           .get(config.MEMPOOL.API_URL_PREFIX + 'block-height/:height', this.getBlockHeight)
           .get(config.MEMPOOL.API_URL_PREFIX + 'address/:address', this.getAddress)
           .get(config.MEMPOOL.API_URL_PREFIX + 'address/:address/txs', this.getAddressTransactions)
+          .get(config.MEMPOOL.API_URL_PREFIX + 'address/:address/txs/summary', this.getAddressTransactionSummary)
           .get(config.MEMPOOL.API_URL_PREFIX + 'scripthash/:scripthash', this.getScriptHash)
           .get(config.MEMPOOL.API_URL_PREFIX + 'scripthash/:scripthash/txs', this.getScriptHashTransactions)
+          .get(config.MEMPOOL.API_URL_PREFIX + 'scripthash/:scripthash/txs/summary', this.getScriptHashTransactionSummary)
           .get(config.MEMPOOL.API_URL_PREFIX + 'address-prefix/:prefix', this.getAddressPrefix)
           ;
       }
@@ -174,24 +124,20 @@ class BitcoinRoutes {
     res.json(times);
   }
 
-  private async $getBatchedOutspends(req: Request, res: Response) {
-    if (!Array.isArray(req.query.txId)) {
-      res.status(500).send('Not an array');
+  private async $getBatchedOutspends(req: Request, res: Response): Promise<IEsploraApi.Outspend[][] | void> {
+    const txids_csv = req.query.txids;
+    if (!txids_csv || typeof txids_csv !== 'string') {
+      res.status(500).send('Invalid txids format');
       return;
     }
-    if (req.query.txId.length > 50) {
+    const txids = txids_csv.split(',');
+    if (txids.length > 50) {
       res.status(400).send('Too many txids requested');
       return;
     }
-    const txIds: string[] = [];
-    for (const _txId in req.query.txId) {
-      if (typeof req.query.txId[_txId] === 'string') {
-        txIds.push(req.query.txId[_txId].toString());
-      }
-    }
 
     try {
-      const batchedOutspends = await bitcoinApi.$getBatchedOutspends(txIds);
+      const batchedOutspends = await bitcoinApi.$getBatchedOutspends(txids);
       res.json(batchedOutspends);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -219,7 +165,7 @@ class BitcoinRoutes {
         return;
       }
 
-      const cpfpInfo = Common.setRelativesAndGetCpfpInfo(tx, mempool.getMempool());
+      const cpfpInfo = calculateCpfp(tx, mempool.getMempool());
 
       res.json(cpfpInfo);
       return;
@@ -251,7 +197,7 @@ class BitcoinRoutes {
 
   private async getTransaction(req: Request, res: Response) {
     try {
-      const transaction = await transactionUtils.$getTransactionExtended(req.params.txId, true);
+      const transaction = await transactionUtils.$getTransactionExtended(req.params.txId, true, false, false, true);
       res.json(transaction);
     } catch (e) {
       let statusCode = 500;
@@ -419,7 +365,7 @@ class BitcoinRoutes {
         const height = req.params.height === undefined ? undefined : parseInt(req.params.height, 10);
         res.setHeader('Expires', new Date(Date.now() + 1000 * 60).toUTCString());
         res.json(await blocks.$getBlocks(height, 15));
-      } else { // Liquid, Bisq
+      } else { // Liquid
         return await this.getLegacyBlocks(req, res);
       }
     } catch (e) {
@@ -429,7 +375,7 @@ class BitcoinRoutes {
 
   private async getBlocksByBulk(req: Request, res: Response) {
     try {
-      if (['mainnet', 'testnet', 'signet'].includes(config.MEMPOOL.NETWORK) === false) { // Liquid, Bisq - Not implemented
+      if (['mainnet', 'testnet', 'signet'].includes(config.MEMPOOL.NETWORK) === false) { // Liquid - Not implemented
         return res.status(404).send(`This API is only available for Bitcoin networks`);
       }
       if (config.MEMPOOL.MAX_BLOCKS_BULK_QUERY <= 0) {
@@ -478,7 +424,7 @@ class BitcoinRoutes {
       }
 
       let nextHash = startFromHash;
-      for (let i = 0; i < 10 && nextHash; i++) {
+      for (let i = 0; i < 15 && nextHash; i++) {
         const localBlock = blocks.getBlocks().find((b) => b.id === nextHash);
         if (localBlock) {
           returnBlocks.push(localBlock);
@@ -570,6 +516,13 @@ class BitcoinRoutes {
     }
   }
 
+  private async getAddressTransactionSummary(req: Request, res: Response): Promise<void> {
+    if (config.MEMPOOL.BACKEND !== 'esplora') {
+      res.status(405).send('Address summary lookups require mempool/electrs backend.');
+      return;
+    }
+  }
+
   private async getScriptHash(req: Request, res: Response) {
     if (config.MEMPOOL.BACKEND === 'none') {
       res.status(405).send('Address lookups cannot be used with bitcoind as backend.');
@@ -577,7 +530,9 @@ class BitcoinRoutes {
     }
 
     try {
-      const addressData = await bitcoinApi.$getScriptHash(req.params.scripthash);
+      // electrum expects scripthashes in little-endian
+      const electrumScripthash = req.params.scripthash.match(/../g)?.reverse().join('') ?? '';
+      const addressData = await bitcoinApi.$getScriptHash(electrumScripthash);
       res.json(addressData);
     } catch (e) {
       if (e instanceof Error && e.message && (e.message.indexOf('too long') > 0 || e.message.indexOf('confirmed status') > 0)) {
@@ -594,11 +549,13 @@ class BitcoinRoutes {
     }
 
     try {
+      // electrum expects scripthashes in little-endian
+      const electrumScripthash = req.params.scripthash.match(/../g)?.reverse().join('') ?? '';
       let lastTxId: string = '';
       if (req.query.after_txid && typeof req.query.after_txid === 'string') {
         lastTxId = req.query.after_txid;
       }
-      const transactions = await bitcoinApi.$getScriptHashTransactions(req.params.scripthash, lastTxId);
+      const transactions = await bitcoinApi.$getScriptHashTransactions(electrumScripthash, lastTxId);
       res.json(transactions);
     } catch (e) {
       if (e instanceof Error && e.message && (e.message.indexOf('too long') > 0 || e.message.indexOf('confirmed status') > 0)) {
@@ -606,6 +563,13 @@ class BitcoinRoutes {
         return;
       }
       res.status(500).send(e instanceof Error ? e.message : e);
+    }
+  }
+
+  private async getScriptHashTransactionSummary(req: Request, res: Response): Promise<void> {
+    if (config.MEMPOOL.BACKEND !== 'esplora') {
+      res.status(405).send('Scripthash summary lookups require mempool/electrs backend.');
+      return;
     }
   }
 
@@ -782,6 +746,19 @@ class BitcoinRoutes {
       res.send(txIdResult);
     } catch (e: any) {
       res.status(400).send(e.message && e.code ? 'sendrawtransaction RPC error: ' + JSON.stringify({ code: e.code, message: e.message })
+        : (e.message || 'Error'));
+    }
+  }
+
+  private async $testTransactions(req: Request, res: Response) {
+    try {
+      const rawTxs = Common.getTransactionsFromRequest(req);
+      const maxfeerate = parseFloat(req.query.maxfeerate as string);
+      const result = await bitcoinApi.$testMempoolAccept(rawTxs, maxfeerate);
+      res.send(result);
+    } catch (e: any) {
+      res.setHeader('content-type', 'text/plain');
+      res.status(400).send(e.message && e.code ? 'testmempoolaccept RPC error: ' + JSON.stringify({ code: e.code, message: e.message })
         : (e.message || 'Error'));
     }
   }
