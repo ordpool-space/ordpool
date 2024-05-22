@@ -9,9 +9,6 @@ import { StatusViewComponent } from './components/status-view/status-view.compon
 import { AddressGroupComponent } from './components/address-group/address-group.component';
 import { TrackerComponent } from './components/tracker/tracker.component';
 import { AccelerateCheckout } from './components/accelerate-checkout/accelerate-checkout.component';
-import { Cat21MintComponent } from './components/ordinals/cat21-mint/cat21-mint.component';
-import { Cat21CollabComponent } from './components/ordinals/cat21-collab/cat21-collab.component';
-import { Cat21WhitelistCheckerComponent } from './components/ordinals/cat21-whitelist-checker/cat21-whitelist-checker.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -120,18 +117,6 @@ let routes: Routes = [
         data: {
           networkSpecific: true,
         }
-      },
-      {
-        path: 'cat21-mint',
-        component: Cat21MintComponent,
-      },
-      {
-        path: 'cat21-collab',
-        component: Cat21CollabComponent,
-      },
-      {
-        path: 'cat21-whitelist-checker',
-        component: Cat21WhitelistCheckerComponent,
       },
       {
         path: 'status',

@@ -1,7 +1,7 @@
 <ng-container *ngIf="{ val: network$ | async } as network">
 <header *ngIf="headerVisible" class="sticky-header">
 
-  <nav class="navbar navbar-expand-md navbar-dark">
+  <nav class="navbar navbar-expand-md navbar-dark ">
   <!-- Hamburger -->
   <ng-container *ngIf="servicesEnabled">
     <div *ngIf="user" class="profile_image_container" [class]="{'anon': !user.imageMd5}" (click)="hamburgerClick($event)">
@@ -18,7 +18,10 @@
   <!-- Large screen -->
   <a class="navbar-brand d-none d-md-flex" [ngClass]="{'dual-logos': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
     <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
+      
+      <!-- ORDPOOL LOGO!! -->
       <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space</span></h4>
+      
       <div class="connection-badge">
         <div class="badge badge-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>
         <div class="badge badge-warning" *ngIf="connectionState.val === 1" i18n="master-page.reconnecting">Reconnecting...</div>
@@ -27,6 +30,19 @@
   </a>
   <!-- Mobile -->
   <a class="navbar-brand d-flex d-md-none justify-content-center" [ngClass]="{'dual-logos': subdomain, 'mr-0': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
+
+      <!-- ORDPOOL LOGO!! -->
+      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space</span></h4>
+      
+      <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
+
+      <div class="connection-badge mobile">
+        <div class="badge badge-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>
+        <div class="badge badge-warning" *ngIf="connectionState.val === 1" i18n="master-page.reconnecting">Reconnecting...</div>
+      </div>
+      </ng-container>
+
+    <!--
     @if (enterpriseInfo?.header_img) {
       <img [src]="enterpriseInfo?.header_img" alt="enterpriseInfo.title" height="42px">
     } @else {
@@ -49,6 +65,7 @@
         </div>
       </ng-container>
     }
+    -->
   </a>
 
   <!--
