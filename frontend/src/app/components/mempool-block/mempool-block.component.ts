@@ -1,14 +1,17 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, Inject, PLATFORM_ID, ChangeDetectorRef } from '@angular/core';
+import { detectWebGL } from '../../shared/graphs.utils';
 import { StateService } from '../../services/state.service';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { switchMap, map, tap, filter } from 'rxjs/operators';
-import { MempoolBlock, TransactionStripped } from '../../interfaces/websocket.interface';
+import { MempoolBlock } from '../../interfaces/websocket.interface';
+import { TransactionStripped } from '../../interfaces/node-api.interface';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { SeoService } from '../../services/seo.service';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
 import { BlockchainApiService } from '../../services/ordinals/blockchain-api.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject } from '@angular/core';
 
 @Component({
   selector: 'app-mempool-block',
@@ -25,15 +28,19 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   previewTx: TransactionStripped | void;
   webGlEnabled: boolean;
 
+  private blockchainApiService = inject(BlockchainApiService);
+
   constructor(
     private route: ActivatedRoute,
     public stateService: StateService,
     private seoService: SeoService,
     private websocketService: WebsocketService,
-    private blockchainApiService: BlockchainApiService
+    private cd: ChangeDetectorRef,
+    @Inject(PLATFORM_ID) private platformId: Object,
   ) {
-    this.webGlEnabled = detectWebGL();
+    this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
 
+    // HACK
     // boost our inscriptions chache with data from blockchain.info
     // to speed things up! 🚀
     this.route.paramMap.pipe(
@@ -76,6 +83,7 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
         }),
         tap(() => {
           this.stateService.markBlock$.next({ mempoolBlockIndex: this.mempoolBlockIndex });
+          this.websocketService.startTrackMempoolBlock(this.mempoolBlockIndex);
         })
       );
 
@@ -86,6 +94,7 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stateService.markBlock$.next({});
+    this.websocketService.stopTrackMempoolBlock();
   }
 
   getOrdinal(mempoolBlock: MempoolBlock): string {
@@ -102,10 +111,4 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   setTxPreview(event: TransactionStripped | void): void {
     this.previewTx = event;
   }
-}
-
-function detectWebGL() {
-  const canvas = document.createElement('canvas');
-  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-  return (gl && gl instanceof WebGLRenderingContext);
 }

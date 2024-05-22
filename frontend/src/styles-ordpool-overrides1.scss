@@ -1,0 +1,91 @@
+$bitcoin: #FF9900;
+
+$dark: #282828;
+$light: #f8f9fa;
+$primary: $bitcoin;
+$secondary: #6c757d;
+$tertiary: $bitcoin;
+$success: #28a745;
+$info: $bitcoin;
+$warning: #ffc107;
+$danger: #dc3545;
+$light-gray: #e9ecef;
+$dark-gray: #6c757d;
+
+$enable-rounded: false;
+$input-disabled-bg: $dark;
+
+
+/* Theme */
+$bg: #1d1f31;
+$active-bg: #11131f;
+$hover-bg: #12131e;
+$fg: $light;
+$nav-bg: $bg;
+$title-fg: $bitcoin;
+
+
+// HACK: more colors for ng-bootstrap modals + popover
+$modal-content-color: $light;
+$modal-content-bg: $body-bg;
+$popover-body-color: $light;
+$popover-bg: $body-bg;
+$popover-border-color: $gray-800;
+
+body {
+  min-width: 375px;
+}
+
+.pagination-container {
+ background: none !important;
+}
+
+.btn-purple {
+  box-shadow: none !important;
+}
+
+.form-control {
+  background-color: #2d3348 !important; 
+}
+
+.form-control:focus {
+  background-color: #2d3348 !important;
+}
+
+.navbar {
+  background-color: black !important;
+}
+
+// "offline" connection badge
+.connection-badge {
+  position: fixed !important;
+  width: inherit !important;
+  padding-top: 42px;
+
+}
+
+.connection-badge ::before {
+  content: "⚠️ ";
+}
+.connection-badge.mobile{
+  right: 12pt;
+  padding-top: 0;
+}
+
+// Workaround for https://github.com/ng-bootstrap/ng-bootstrap/issues/2686
+// (modal not clickable)
+ngb-modal-backdrop {
+  z-index: 1050 !important;
+}
+
+// nicer colors for ng-bootstrap modals + popover
+$modal-content-color: $light;
+$modal-content-bg:  #1f1f1f;
+$popover-body-color: $light;
+$popover-bg: red;
+$popover-border-color: purple;
+
+// this is a Bootstrap 5 class, let's already use the future one
+.btn-close {
+  @extend .close
+}

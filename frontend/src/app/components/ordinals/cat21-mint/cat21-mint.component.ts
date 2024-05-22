@@ -24,7 +24,6 @@ import { SeoService } from '../../../services/seo.service';
 export class Cat21MintComponent implements OnInit {
 
   enableCat21Mint = environment.enableCat21Mint;
-  unleashCat21 = environment.unleashCat21;
 
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);
@@ -87,31 +86,6 @@ export class Cat21MintComponent implements OnInit {
 
   checkerLoading = false;
   checkerError = '';
-
-  whitelistStatus$ = this.unleashCat21 ?
-  of({
-    mintingAllowed : true,
-    mintingAllowedAt: new Date().toISOString(),
-    level: 'Public'
-  }) : this.connectedWallet$.pipe(
-    tap(() => {
-      this.checkerLoading = true;
-      this.checkerError = '';
-      this.cd.detectChanges();
-    }),
-    switchMap(wallet => this.cat21ApiService.getWhitelistStatusPolled(wallet.ordinalsAddress).pipe(
-      tap(() => {
-        this.checkerLoading = false;
-        this.checkerError = '';
-        this.cd.detectChanges();
-      }),
-      catchError(error => {
-        this.checkerLoading = false;
-        this.checkerError = error ? extractErrorMessage(error) : '';
-        this.cd.detectChanges();
-        return of(undefined);
-      })
-    )));
 
   paymentOutputs$ = combineLatest([
     this.paymentOutputsForCurrentWallet$,

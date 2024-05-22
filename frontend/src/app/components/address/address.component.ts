@@ -28,14 +28,18 @@ export class AddressComponent implements OnInit, OnDestroy {
   retryLoadMore = false;
   error: any;
   mainSubscription: Subscription;
+  mempoolTxSubscription: Subscription;
+  mempoolRemovedTxSubscription: Subscription;
+  blockTxSubscription: Subscription;
   addressLoadingStatus$: Observable<number>;
   addressInfo: null | AddressInformation = null;
 
-  totalConfirmedTxCount = 0;
-  loadedConfirmedTxCount = 0;
+  fullyLoaded = false;
   txCount = 0;
   received = 0;
   sent = 0;
+  now = Date.now() / 1000;
+  balancePeriod: 'all' | '1m' = 'all';
 
   private tempTransactions: Transaction[];
   private timeTxIndexes: number[];
@@ -45,7 +49,7 @@ export class AddressComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private electrsApiService: ElectrsApiService,
     private websocketService: WebsocketService,
-    private stateService: StateService,
+    public stateService: StateService,
     private audioService: AudioService,
     private apiService: ApiService,
     private seoService: SeoService,
@@ -66,7 +70,7 @@ export class AddressComponent implements OnInit, OnDestroy {
         switchMap((params: ParamMap) => {
           this.error = undefined;
           this.isLoadingAddress = true;
-          this.loadedConfirmedTxCount = 0;
+          this.fullyLoaded = false;
           this.address = null;
           this.isLoadingTransactions = true;
           this.transactions = null;
@@ -105,7 +109,7 @@ export class AddressComponent implements OnInit, OnDestroy {
       .pipe(
         filter((address) => !!address),
         tap((address: Address) => {
-          if ((this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') && /^([m-zA-HJ-NP-Z1-9]{26,35}|[a-z]{2,5}1[ac-hj-np-z02-9]{8,100}|[a-km-zA-HJ-NP-Z1-9]{80})$/.test(address.address)) {
+          if ((this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') && /^([a-zA-HJ-NP-Z1-9]{26,35}|[a-z]{2,5}1[ac-hj-np-z02-9]{8,100}|[a-km-zA-HJ-NP-Z1-9]{80})$/.test(address.address)) {
             this.apiService.validateAddress$(address.address)
               .subscribe((addressInfo) => {
                 this.addressInfo = addressInfo;
@@ -128,7 +132,6 @@ export class AddressComponent implements OnInit, OnDestroy {
           this.tempTransactions = transactions;
           if (transactions.length) {
             this.lastTransactionTxId = transactions[transactions.length - 1].txid;
-            this.loadedConfirmedTxCount += transactions.filter((tx) => tx.status.confirmed).length;
           }
 
           const fetchTxs: string[] = [];
@@ -142,10 +145,22 @@ export class AddressComponent implements OnInit, OnDestroy {
           if (!fetchTxs.length) {
             return of([]);
           }
-          return this.apiService.getTransactionTimes$(fetchTxs);
+          return this.apiService.getTransactionTimes$(fetchTxs).pipe(
+            catchError((err) => {
+              this.isLoadingAddress = false;
+              this.isLoadingTransactions = false;
+              this.error = err;
+              this.seoService.logSoft404();
+              console.log(err);
+              return of([]);
+            })
+          );
         })
       )
-      .subscribe((times: number[]) => {
+      .subscribe((times: number[] | null) => {
+        if (!times) {
+          return;
+        }
         times.forEach((time, index) => {
           this.tempTransactions[this.timeTxIndexes[index]].firstSeen = time;
         });
@@ -160,7 +175,14 @@ export class AddressComponent implements OnInit, OnDestroy {
         });
 
         this.transactions = this.tempTransactions;
+        if (this.transactions.length === this.txCount) {
+          this.fullyLoaded = true;
+        }
         this.isLoadingTransactions = false;
+
+        if (!this.showBalancePeriod()) {
+          this.setBalancePeriod('all');
+        }
       },
       (error) => {
         console.log(error);
@@ -169,17 +191,17 @@ export class AddressComponent implements OnInit, OnDestroy {
         this.isLoadingAddress = false;
       });
 
-    this.stateService.mempoolTransactions$
+    this.mempoolTxSubscription = this.stateService.mempoolTransactions$
       .subscribe(tx => {
         this.addTransaction(tx);
       });
 
-    this.stateService.mempoolRemovedTransactions$
+    this.mempoolRemovedTxSubscription = this.stateService.mempoolRemovedTransactions$
       .subscribe(tx => {
         this.removeTransaction(tx);
       });
 
-    this.stateService.blockTransactions$
+    this.blockTxSubscription = this.stateService.blockTransactions$
       .subscribe((transaction) => {
         const tx = this.transactions.find((t) => t.txid === transaction.txid);
         if (tx) {
@@ -191,8 +213,6 @@ export class AddressComponent implements OnInit, OnDestroy {
             this.audioService.playSound('magic');
           }
         }
-        this.totalConfirmedTxCount++;
-        this.loadedConfirmedTxCount++;
       });
   }
 
@@ -252,16 +272,21 @@ export class AddressComponent implements OnInit, OnDestroy {
   }
 
   loadMore() {
-    if (this.isLoadingTransactions || !this.totalConfirmedTxCount || this.loadedConfirmedTxCount >= this.totalConfirmedTxCount) {
+    if (this.isLoadingTransactions || this.fullyLoaded) {
       return;
     }
     this.isLoadingTransactions = true;
     this.retryLoadMore = false;
-    this.electrsApiService.getAddressTransactions$(this.address.address, this.lastTransactionTxId)
+    (this.address.is_pubkey
+    ? this.electrsApiService.getScriptHashTransactions$((this.address.address.length === 66 ? '21' : '41') + this.address.address + 'ac', this.lastTransactionTxId)
+    : this.electrsApiService.getAddressTransactions$(this.address.address, this.lastTransactionTxId))
       .subscribe((transactions: Transaction[]) => {
-        this.lastTransactionTxId = transactions[transactions.length - 1].txid;
-        this.loadedConfirmedTxCount += transactions.length;
-        this.transactions = this.transactions.concat(transactions);
+        if (transactions && transactions.length) {
+          this.lastTransactionTxId = transactions[transactions.length - 1].txid;
+          this.transactions = this.transactions.concat(transactions);
+        } else {
+          this.fullyLoaded = true;
+        }
         this.isLoadingTransactions = false;
       },
       (error) => {
@@ -278,11 +303,25 @@ export class AddressComponent implements OnInit, OnDestroy {
     this.received = this.address.chain_stats.funded_txo_sum + this.address.mempool_stats.funded_txo_sum;
     this.sent = this.address.chain_stats.spent_txo_sum + this.address.mempool_stats.spent_txo_sum;
     this.txCount = this.address.chain_stats.tx_count + this.address.mempool_stats.tx_count;
-    this.totalConfirmedTxCount = this.address.chain_stats.tx_count;
+  }
+
+  setBalancePeriod(period: 'all' | '1m'): boolean {
+    this.balancePeriod = period;
+    return false;
+  }
+
+  showBalancePeriod(): boolean {
+    return this.transactions?.length && (
+      !this.transactions[0].status?.confirmed
+      || this.transactions[0].status.block_time > (this.now - (60 * 60 * 24 * 30))
+    );
   }
 
   ngOnDestroy() {
     this.mainSubscription.unsubscribe();
+    this.mempoolTxSubscription.unsubscribe();
+    this.mempoolRemovedTxSubscription.unsubscribe();
+    this.blockTxSubscription.unsubscribe();
     this.websocketService.stopTrackingAddress();
   }
 }

@@ -1,7 +1,7 @@
 .card-title {
-  color: #e68a00;
+  color: var(--title-fg);
   font-size: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 4px;  
   font-size: 1rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -26,31 +26,31 @@
   justify-content: space-between;
   @media (min-width: 376px) {
     flex-direction: row;
-  }
+  }  
   .item {
     max-width: 150px;
     margin: 0;
     width: -webkit-fill-available;
     @media (min-width: 376px) {
       margin: 0 auto 0px;
-    }
+    }    
     &:first-child{
       display: none;
       @media (min-width: 485px) {
         display: block;
-      }
+      }    
       @media (min-width: 768px) {
         display: none;
-      }
+      }    
       @media (min-width: 992px) {
         display: block;
-      }
+      }    
     }
     &:last-child {
       margin-bottom: 0;
     }
     .card-text span {
-      color: #ffffff66;
+      color: var(--transparent-fg);
       font-size: 12px;
       top: 0px;
     }

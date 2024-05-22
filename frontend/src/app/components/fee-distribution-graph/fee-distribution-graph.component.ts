@@ -1,6 +1,6 @@
-import { OnChanges, OnDestroy } from '@angular/core';
+import { HostListener, OnChanges, OnDestroy } from '@angular/core';
 import { Component, Input, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { TransactionStripped } from '../../interfaces/websocket.interface';
+import { TransactionStripped } from '../../interfaces/node-api.interface';
 import { StateService } from '../../services/state.service';
 import { VbytesPipe } from '../../shared/pipes/bytes-pipe/vbytes.pipe';
 import { selectPowerOfTen } from '../../bitcoin.utils';
@@ -9,6 +9,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-fee-distribution-graph',
   templateUrl: './fee-distribution-graph.component.html',
+  styleUrls: ['./fee-distribution-graph.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestroy {
@@ -25,6 +26,7 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
   simple: boolean = false;
   data: number[][];
   labelInterval: number = 50;
+  smallScreen: boolean = window.innerWidth < 450;
 
   rateUnitSub: Subscription;
   weightMode: boolean = false;
@@ -34,7 +36,7 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
   };
 
   constructor(
-    private stateService: StateService,
+    public stateService: StateService,
     private vbytesPipe: VbytesPipe,
   ) { }
 
@@ -64,7 +66,7 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
       return;
     }
     const samples = [];
-    const txs = this.transactions.filter(tx => !tx.acc).map(tx => { return { vsize: tx.vsize, rate: tx.rate || (tx.fee / tx.vsize) }; }).sort((a, b) => { return b.rate - a.rate; });
+    const txs = this.transactions.map(tx => { return { vsize: tx.vsize, rate: tx.rate || (tx.fee / tx.vsize) }; }).sort((a, b) => { return b.rate - a.rate; });
     const maxBlockVSize = this.stateService.env.BLOCK_WEIGHT_UNITS / 4;
     const sampleInterval = maxBlockVSize / this.numSamples;
     let cumVSize = 0;
@@ -95,9 +97,9 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
     this.mempoolVsizeFeesOptions = {
       grid: {
         height: '210',
-        right: '20',
+        right: this.smallScreen ? '10' : '20',
         top: '22',
-        left: '40',
+        left: this.smallScreen ? '10' : '40',
       },
       xAxis: {
         type: 'category',
@@ -126,21 +128,22 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
         splitLine: {
           lineStyle: {
             type: 'dotted',
-            color: '#ffffff66',
+            color: 'var(--transparent-fg)',
             opacity: 0.25,
           }
         },
         axisLabel: {
-          show: true,
+          show: !this.smallScreen,
           formatter: (value: number): string => {
             const unitValue = this.weightMode ? value / 4 : value;
             const selectedPowerOfTen = selectPowerOfTen(unitValue);
-            const newVal = Math.round(unitValue / selectedPowerOfTen.divider);
+            const scaledValue = unitValue / selectedPowerOfTen.divider;
+            const newVal = scaledValue >= 100 ? Math.round(scaledValue) : scaledValue.toPrecision(3);
             return `${newVal}${selectedPowerOfTen.unit}`;
           },
         },
         axisTick: {
-          show: true,
+          show: !this.smallScreen,
         }
       },
       series: [{
@@ -151,11 +154,13 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
           position: 'top',
           color: '#ffffff',
           textShadowBlur: 0,
+          fontSize: this.smallScreen ? 10 : 12,
           formatter: (label: { data: number[] }): string => {
             const value = label.data[1];
             const unitValue = this.weightMode ? value / 4 : value;
             const selectedPowerOfTen = selectPowerOfTen(unitValue);
-            const newVal = Math.round(unitValue / selectedPowerOfTen.divider);
+            const scaledValue = unitValue / selectedPowerOfTen.divider;
+            const newVal = scaledValue >= 100 ? Math.round(scaledValue) : scaledValue.toPrecision(3);
             return `${newVal}${selectedPowerOfTen.unit}`;
           }
         },
@@ -177,6 +182,16 @@ export class FeeDistributionGraphComponent implements OnInit, OnChanges, OnDestr
         }
       }]
     };
+  }
+
+  @HostListener('window:resize', ['$event'])
+  onResize(): void {
+    const isSmallScreen = window.innerWidth < 450;
+    if (this.smallScreen !== isSmallScreen) {
+      this.smallScreen = isSmallScreen;
+      this.prepareChart();
+      this.mountChart();
+    }
   }
 
   ngOnDestroy(): void {

@@ -3,12 +3,11 @@ import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { WebsocketResponse } from '../interfaces/websocket.interface';
 import { StateService } from './state.service';
 import { Transaction } from '../interfaces/electrs.interface';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { ApiService } from './api.service';
 import { take } from 'rxjs/operators';
-import { TransferState, makeStateKey } from '@angular/platform-browser';
+import { TransferState, makeStateKey } from '@angular/core';
 import { CacheService } from './cache.service';
-import { environment } from 'src/environments/environment';
 import { uncompressDeltaChange, uncompressTx } from '../shared/common.utils';
 
 const OFFLINE_RETRY_AFTER_MS = 2000;
@@ -21,13 +20,8 @@ const initData = makeStateKey('/api/v1/init-data');
   providedIn: 'root'
 })
 export class WebsocketService {
-
-  // HACK
-  // private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
-
-  // HACK
-  // private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
-  private webSocketUrl = environment.websocketBaseUrl + ':' + '443' + '{network}/api/v1/ws';
+  private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
+  private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
 
   private websocketSubject: WebSocketSubject<WebsocketResponse>;
   private goneOffline = false;
@@ -38,6 +32,8 @@ export class WebsocketService {
   private isTrackingRbf: 'all' | 'fullRbf' | false = false;
   private isTrackingRbfSummary = false;
   private isTrackingAddress: string | false = false;
+  private isTrackingAddresses: string[] | false = false;
+  private isTrackingAccelerations: boolean = false;
   private trackingMempoolBlock: number;
   private latestGitCommit = '';
   private onlineCheckTimeout: number;
@@ -59,11 +55,16 @@ export class WebsocketService {
         .pipe(take(1))
         .subscribe((response) => this.handleResponse(response));
     } else {
-      this.network = this.stateService.network === 'bisq' && !this.stateService.env.BISQ_SEPARATE_BACKEND ? '' : this.stateService.network;
+      this.network = this.stateService.network;
       this.websocketSubject = webSocket<WebsocketResponse>(this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : ''));
 
-      const theInitData = this.transferState.get<any>(initData, null);
+      const { response: theInitData } = this.transferState.get<any>(initData, null) || {};
       if (theInitData) {
+        if (theInitData.body.blocks) {
+          theInitData.body.blocks = theInitData.body.blocks.reverse();
+        }
+        this.stateService.backend$.next(theInitData.backend);
+        this.stateService.isLoadingWebSocket$.next(false);
         this.handleResponse(theInitData.body);
         this.startSubscription(false, true);
       } else {
@@ -71,9 +72,6 @@ export class WebsocketService {
       }
 
       this.stateService.networkChanged$.subscribe((network) => {
-        if (network === 'bisq' && !this.stateService.env.BISQ_SEPARATE_BACKEND) {
-          network = '';
-        }
         if (network === this.network) {
           return;
         }
@@ -83,15 +81,20 @@ export class WebsocketService {
 
         this.stateService.resetChainTip();
 
-        this.websocketSubject.complete();
-        this.subscription.unsubscribe();
-        this.websocketSubject = webSocket<WebsocketResponse>(
-          this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : '')
-        );
-
-        this.startSubscription();
+        this.reconnectWebsocket();
       });
     }
+  }
+
+  reconnectWebsocket(retrying = false, hasInitData = false) {
+    console.log('reconnecting websocket');
+    this.websocketSubject.complete();
+    this.subscription.unsubscribe();
+    this.websocketSubject = webSocket<WebsocketResponse>(
+      this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : '')
+    );
+
+    this.startSubscription(retrying, hasInitData);
   }
 
   startSubscription(retrying = false, hasInitData = false) {
@@ -116,7 +119,7 @@ export class WebsocketService {
             this.startMultiTrackTransaction(this.trackingTxId);
           }
           if (this.isTrackingMempoolBlock) {
-            this.startTrackMempoolBlock(this.trackingMempoolBlock);
+            this.startTrackMempoolBlock(this.trackingMempoolBlock, true);
           }
           if (this.isTrackingRbf) {
             this.startTrackRbf(this.isTrackingRbf);
@@ -126,6 +129,12 @@ export class WebsocketService {
           }
           if (this.isTrackingAddress) {
             this.startTrackAddress(this.isTrackingAddress);
+          }
+          if (this.isTrackingAddresses) {
+            this.startTrackAddresses(this.isTrackingAddresses);
+          }
+          if (this.isTrackingAccelerations) {
+            this.startTrackAccelerations();
           }
           this.stateService.connectionState$.next(2);
         }
@@ -176,6 +185,16 @@ export class WebsocketService {
     this.isTrackingAddress = false;
   }
 
+  startTrackAddresses(addresses: string[]) {
+    this.websocketSubject.next({ 'track-addresses': addresses });
+    this.isTrackingAddresses = addresses;
+  }
+
+  stopTrackingAddresses() {
+    this.websocketSubject.next({ 'track-addresses': [] });
+    this.isTrackingAddresses = false;
+  }
+
   startTrackAsset(asset: string) {
     this.websocketSubject.next({ 'track-asset': asset });
   }
@@ -184,15 +203,19 @@ export class WebsocketService {
     this.websocketSubject.next({ 'track-asset': 'stop' });
   }
 
-  startTrackMempoolBlock(block: number) {
-    this.websocketSubject.next({ 'track-mempool-block': block });
-    this.isTrackingMempoolBlock = true
-    this.trackingMempoolBlock = block
+  startTrackMempoolBlock(block: number, force: boolean = false) {
+    // skip duplicate tracking requests
+    if (force || this.trackingMempoolBlock !== block) {
+      this.websocketSubject.next({ 'track-mempool-block': block });
+      this.isTrackingMempoolBlock = true;
+      this.trackingMempoolBlock = block;
+    }
   }
 
   stopTrackMempoolBlock() {
     this.websocketSubject.next({ 'track-mempool-block': -1 });
-    this.isTrackingMempoolBlock = false
+    this.isTrackingMempoolBlock = false;
+    this.trackingMempoolBlock = null;
   }
 
   startTrackRbf(mode: 'all' | 'fullRbf') {
@@ -206,6 +229,7 @@ export class WebsocketService {
   }
 
   startTrackRbfSummary() {
+    this.initRbfSummary();
     this.websocketSubject.next({ 'track-rbf-summary': true });
     this.isTrackingRbfSummary = true;
   }
@@ -215,12 +239,22 @@ export class WebsocketService {
     this.isTrackingRbfSummary = false;
   }
 
-  startTrackBisqMarket(market: string) {
-    this.websocketSubject.next({ 'track-bisq-market': market });
+  startTrackAccelerations() {
+    this.websocketSubject.next({ 'track-accelerations': true });
+    this.isTrackingAccelerations = true;
   }
 
-  stopTrackingBisqMarket() {
-    this.websocketSubject.next({ 'track-bisq-market': 'stop' });
+  stopTrackAccelerations() {
+    if (this.isTrackingAccelerations) {
+      this.websocketSubject.next({ 'track-accelerations': false });
+      this.isTrackingAccelerations = false;
+    }
+  }
+
+  ensureTrackAccelerations() {
+    if (!this.isTrackingAccelerations) {
+      this.startTrackAccelerations();
+    }
   }
 
   fetchStatistics(historicalDate: string) {
@@ -244,7 +278,7 @@ export class WebsocketService {
     this.goneOffline = true;
     this.stateService.connectionState$.next(0);
     window.setTimeout(() => {
-      this.startSubscription(true);
+      this.reconnectWebsocket(true);
     }, retryDelay);
   }
 
@@ -267,6 +301,10 @@ export class WebsocketService {
 
   handleResponse(response: WebsocketResponse) {
     let reinitBlocks = false;
+
+    if (response.backend) {
+      this.stateService.backend$.next(response.backend);
+    }
 
     if (response.blocks && response.blocks.length) {
       const blocks = response.blocks;
@@ -313,8 +351,8 @@ export class WebsocketService {
       this.stateService.rbfLatest$.next(response.rbfLatest);
     }
 
-    if (response.rbfLatestSummary) {
-      this.stateService.rbfLatestSummary$.next(response.rbfLatestSummary);
+    if (response.rbfLatestSummary !== undefined) {
+      this.stateService.rbfLatestSummary$.next(response.rbfLatestSummary || []);
     }
 
     if (response.txReplaced) {
@@ -326,7 +364,7 @@ export class WebsocketService {
     }
 
     if (response.transactions) {
-      response.transactions.forEach((tx) => this.stateService.transactions$.next(tx));
+      this.stateService.transactions$.next(response.transactions.slice(0, 6));
     }
 
     if (response['bsq-price']) {
@@ -371,6 +409,10 @@ export class WebsocketService {
       });
     }
 
+    if (response['multi-address-transactions']) {
+      this.stateService.multiAddressTransactions$.next(response['multi-address-transactions']);
+    }
+
     if (response['block-transactions']) {
       response['block-transactions'].forEach((addressTransaction: Transaction) => {
         this.stateService.blockTransactions$.next(addressTransaction);
@@ -380,14 +422,31 @@ export class WebsocketService {
     if (response['projected-block-transactions']) {
       if (response['projected-block-transactions'].index == this.trackingMempoolBlock) {
         if (response['projected-block-transactions'].blockTransactions) {
-          // HACK: backport from latest, remove after big merge
-          // this.stateService.mempoolBlockTransactions$.next(response['projected-block-transactions'].blockTransactions);
-          this.stateService.mempoolBlockTransactions$.next(response['projected-block-transactions'].blockTransactions.map(uncompressTx));
+          this.stateService.mempoolSequence = response['projected-block-transactions'].sequence;
+          this.stateService.mempoolBlockUpdate$.next({
+            transactions: response['projected-block-transactions'].blockTransactions.map(uncompressTx),
+          });
         } else if (response['projected-block-transactions'].delta) {
-          // HACK: backport from latest, remove after big merge
-          // this.stateService.mempoolBlockDelta$.next(response['projected-block-transactions'].delta);
-          this.stateService.mempoolBlockDelta$.next(uncompressDeltaChange(response['projected-block-transactions'].delta));
+          if (this.stateService.mempoolSequence && response['projected-block-transactions'].sequence !== this.stateService.mempoolSequence + 1) {
+            this.stateService.mempoolSequence = 0;
+            this.startTrackMempoolBlock(this.trackingMempoolBlock, true);
+          } else {
+            this.stateService.mempoolSequence = response['projected-block-transactions'].sequence;
+            this.stateService.mempoolBlockUpdate$.next(uncompressDeltaChange(response['projected-block-transactions'].delta));
+          }
         }
+      }
+    }
+
+    if (response['accelerations']) {
+      if (response['accelerations'].accelerations) {
+        this.stateService.accelerations$.next({
+          added: response['accelerations'].accelerations,
+          removed: [],
+          reset: true,
+        });
+      } else {
+        this.stateService.accelerations$.next(response['accelerations']);
       }
     }
 
@@ -416,12 +475,42 @@ export class WebsocketService {
       this.stateService.previousRetarget$.next(response.previousRetarget);
     }
 
+    if (response['tomahawk']) {
+      this.stateService.serverHealth$.next(response['tomahawk']);
+    }
+
     if (response['git-commit']) {
       this.stateService.backendInfo$.next(response['git-commit']);
     }
 
     if (reinitBlocks) {
       this.websocketSubject.next({'refresh-blocks': true});
+    }
+  }
+
+  async initRbfSummary(): Promise<void> {
+    if (!this.stateService.isBrowser) {
+      const rbfList = await firstValueFrom(this.apiService.getRbfList$(false));
+      if (rbfList) {
+        const rbfSummary = rbfList.slice(0, 6).map(rbfTree => {
+          let oldFee = 0;
+          let oldVsize = 0;
+          for (const replaced of rbfTree.replaces) {
+            oldFee += replaced.tx.fee;
+            oldVsize += replaced.tx.vsize;
+          }
+          return {
+            txid: rbfTree.tx.txid,
+            mined: !!rbfTree.tx.mined,
+            fullRbf: !!rbfTree.tx.fullRbf,
+            oldFee,
+            oldVsize,
+            newFee: rbfTree.tx.fee,
+            newVsize: rbfTree.tx.vsize,
+          };
+        });
+        this.stateService.rbfLatestSummary$.next(rbfSummary);
+      }
     }
   }
 }

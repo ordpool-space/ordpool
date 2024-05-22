@@ -9,6 +9,7 @@ const networkModules = {
     subnets: [
       { name: 'mainnet', path: '' },
       { name: 'testnet', path: '/testnet' },
+      { name: 'testnet4', path: '/testnet4' },
       { name: 'signet', path: '/signet' },
     ],
   },
@@ -17,12 +18,7 @@ const networkModules = {
       { name: 'liquid', path: '' },
       { name: 'liquidtestnet', path: '/testnet' },
     ],
-  },
-  bisq: {
-    subnets: [
-      { name: 'bisq', path: '' },
-    ],
-  },
+  }
 };
 const networks = Object.keys(networkModules);
 
@@ -44,7 +40,7 @@ export class NavigationService {
     });
   }
 
-  // For each network (bitcoin/liquid/bisq), find and save the longest url path compatible with the current route
+  // For each network (bitcoin/liquid), find and save the longest url path compatible with the current route
   updateSubnetPaths(root: ActivatedRouteSnapshot): void {
     let path = '';
     const networkPaths = {};
@@ -73,7 +69,7 @@ export class NavigationService {
       }
       if (route.url?.length) {
         path = [path, ...route.url.map(segment => segment.path).filter(path => {
-          return path.length && !['testnet', 'signet'].includes(path);
+          return path.length && !['testnet', 'testnet4', 'signet'].includes(path);
         })].join('/');
       }
       route = route.firstChild;

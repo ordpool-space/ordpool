@@ -54,6 +54,7 @@ export interface DifficultyAdjustment {
   previousTime: number;
   nextRetargetHeight: number;
   timeAvg: number;
+  adjustedTimeAvg: number;
   timeOffset: number;
   expectedBlocks: number;
 }
@@ -74,6 +75,54 @@ export interface AddressInformation {
 export interface LiquidPegs {
   amount: string;
   date: string;
+}
+
+export interface CurrentPegs {
+  amount: string;
+  lastBlockUpdate: number;
+  hash: string;
+}
+
+export interface PegsVolume {
+  volume: string;
+  number: number;
+}
+
+export interface FederationAddress { 
+  bitcoinaddress: string;
+  balance: string;
+}
+
+export interface FederationUtxo {
+  txid: string;
+  txindex: number;
+  bitcoinaddress: string;
+  amount: number;
+  blocknumber: number;
+  blocktime: number;
+  pegtxid: string;
+  pegindex: number;
+  pegblocktime: number;
+  timelock: number;
+  expiredAt: number;
+  isDust?: boolean;
+}
+
+export interface RecentPeg {
+  txid: string;
+  txindex: number;
+  amount: number;
+  bitcoinaddress: string;
+  bitcointxid: string;
+  bitcoinindex: number;
+  blocktime: number;
+}
+
+export interface AuditStatus {
+  bitcoinBlocks: number;
+  bitcoinHeaders: number;
+  lastBlockAudit: number;
+  isAuditSynced: boolean;
 }
 
 export interface ITranslators { [language: string]: string; }
@@ -114,6 +163,7 @@ export interface PoolInfo {
   emptyBlocks: number;
   slug: string;
   poolUniqueId: number;
+  unique_id: number;
 }
 export interface PoolStat {
   pool: PoolInfo;
@@ -159,6 +209,7 @@ export interface BlockExtended extends Block {
 export interface BlockAudit extends BlockExtended {
   missingTxs: string[],
   addedTxs: string[],
+  prioritizedTxs: string[],
   freshTxs: string[],
   sigopTxs: string[],
   fullrbfTxs: string[],
@@ -180,7 +231,9 @@ export interface TransactionStripped {
   value: number;
   rate?: number; // effective fee rate
   acc?: boolean;
-  status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'censored' | 'selected' | 'rbf' | 'accelerated';
+  flags?: number | null;
+  time?: number;
+  status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'prioritized' | 'censored' | 'selected' | 'rbf' | 'accelerated';
   context?: 'projected' | 'actual';
 }
 
@@ -254,6 +307,29 @@ export interface INodesRanking {
   topByChannels: ITopNodesPerChannels[];
 }
 
+export interface INodesStatisticsEntry {
+  added: string;
+  avg_base_fee_mtokens: number; 
+  avg_capacity: number;
+  avg_fee_rate: number;
+  channel_count: number;
+  clearnet_nodes: number;
+  clearnet_tor_nodes: number;
+  id: number; 
+  med_base_fee_mtokens: number;
+  med_capacity: number;
+  med_fee_rate: number;
+  node_count: number;
+  tor_nodes: number;
+  total_capacity: number;
+  unannounced_nodes: number;
+}
+
+export interface INodesStatistics {
+  latest: INodesStatisticsEntry;
+  previous: INodesStatisticsEntry;
+}
+
 export interface IOldestNodes {
   publicKey: string,
   alias: string,
@@ -301,4 +377,63 @@ export interface INode {
   latitude: number;
   funding_balance?: number;
   closing_balance?: number;
+}
+
+export interface Acceleration {
+  txid: string;
+  status: 'requested' | 'accelerating' | 'completed_provisional' | 'completed' | 'failed' | 'failed_provisional';
+  pools: number[];
+  feePaid: number;
+  added: number; // timestamp
+  lastUpdated: number; // timestamp
+  baseFee: number;
+  vsizeFee: number;
+  effectiveFee: number;
+  effectiveVsize: number;
+  feeDelta: number;
+  blockHash: string;
+  blockHeight: number;
+
+  acceleratedFeeRate?: number;
+  boost?: number;
+  bidBoost?: number;
+  boostCost?: number;
+  boostRate?: number;
+}
+
+export interface AccelerationHistoryParams {
+  status?: string;
+  timeframe?: string;
+  poolUniqueId?: number;
+  blockHash?: string;
+  blockHeight?: number;
+  page?: number;
+  pageLength?: number;
+}
+
+export interface AccelerationInfo {
+  txid: string,
+  height: number,
+  pool: {
+    id: number,
+    slug: string,
+    name: string,
+  },
+  effective_vsize: number,
+  effective_fee: number,
+  boost_rate: number,
+  boost_cost: number,
+}
+
+export interface TestMempoolAcceptResult {
+  txid: string,
+  wtxid: string,
+  allowed?: boolean,
+  vsize?: number,
+  fees?: {
+    base: number,
+    "effective-feerate": number,
+    "effective-includes": string[],
+  },
+  ['reject-reason']?: string,
 }
