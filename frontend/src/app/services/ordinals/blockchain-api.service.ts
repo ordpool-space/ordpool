@@ -6,9 +6,6 @@ import { Transaction } from '../../interfaces/electrs.interface';
 import { DigitalArtifactsFetcherService } from './digital-artifacts-fetcher.service';
 import { WalletService } from './wallet.service';
 
-// found here: https://github.com/input-output-hk/symphony-2/blob/7aa0a6e359c61b0668f1ddf8202065dd4833cf0c/src/Config.js#L32
-// const apiCode = '0a52b97c-0d8e-4033-a87d-abfda8bfe940';
-const apiCode = '';
 
 /**
  * Represents the spending outpoint of a transaction.
@@ -382,8 +379,8 @@ export class BlockchainApiService {
   isMainnet = true;
 
   private readonly baseUrl = 'https://blockchain.info';
-  private readonly itemsPerPage = 250; // 5000 is the API's maximum allowed value
-  private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
+  // private readonly itemsPerPage = 250; // 5000 is the API's maximum allowed value
+  // private readonly maxPagesToFetch = 20; // maximum number of pages to fetch
 
   constructor(
     private httpClient: HttpClient,
@@ -394,69 +391,69 @@ export class BlockchainApiService {
     });
   }
 
-  /**
-   * Fetches unconfirmed transactions from blockchain.info API.
-   * Hint: there is also a https://blockchain.info/q/unconfirmedcount
-   *
-   * Hint: Only used for testing
-   * Undocumented parameter: show_adv=true
-   *
-   * @returns An observable of the list of unconfirmed transactions.
-   */
-  fetchFirstUnconfirmedTransactions(): Observable<Transaction[]> {
-    return this.httpClient.get<RawTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json` + (apiCode ? `&apiCode=${apiCode}`: '')).pipe(
-      map(response => response.txs.map(u => RawTransactionToTransaction(u)))
-    );
-  }
+  // /**
+  //  * Fetches unconfirmed transactions from blockchain.info API.
+  //  * Hint: there is also a https://blockchain.info/q/unconfirmedcount
+  //  *
+  //  * Hint: Only used for testing
+  //  * Undocumented parameter: show_adv=true
+  //  *
+  //  * @returns An observable of the list of unconfirmed transactions.
+  //  */
+  // fetchFirstUnconfirmedTransactions(): Observable<Transaction[]> {
+  //   return this.httpClient.get<RawTransactionsResponse>(`${this.baseUrl}/unconfirmed-transactions?format=json` + (apiCode ? `&apiCode=${apiCode}`: '')).pipe(
+  //     map(response => response.txs.map(u => RawTransactionToTransaction(u)))
+  //   );
+  // }
 
-  /**
-   * Iterates over all pages of unconfirmed transactions (up to maxPagesToFetch) and caches them using the DigitalArtifactsFetcherService.
-   * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
-   */
-  fetchAndCacheManyUnconfirmedTransactions(): Observable<Transaction[]> {
+  // /**
+  //  * Iterates over all pages of unconfirmed transactions (up to maxPagesToFetch) and caches them using the DigitalArtifactsFetcherService.
+  //  * It takes time to load the huge amount of data, that's why we don't wait for the final result but push the data directly to the cache
+  //  */
+  // fetchAndCacheManyUnconfirmedTransactions(): Observable<Transaction[]> {
 
-    let currentOffset = 0;
-    let pagesFetched = 0;
+  //   let currentOffset = 0;
+  //   let pagesFetched = 0;
 
-    return this.fetchPage(currentOffset, this.itemsPerPage).pipe(
-      expand(response => {
-        pagesFetched++;
+  //   return this.fetchPage(currentOffset, this.itemsPerPage).pipe(
+  //     expand(response => {
+  //       pagesFetched++;
 
-        // Stop if we've fetched the desired number of pages or the length of transactions in the response is less than the limit
-        if (pagesFetched >= this.maxPagesToFetch || response.txs.length < this.itemsPerPage) {
-          return EMPTY; // finish expand
-        }
+  //       // Stop if we've fetched the desired number of pages or the length of transactions in the response is less than the limit
+  //       if (pagesFetched >= this.maxPagesToFetch || response.txs.length < this.itemsPerPage) {
+  //         return EMPTY; // finish expand
+  //       }
 
-        // Update the offset for the next page
-        currentOffset += this.itemsPerPage;
-        return this.fetchPage(currentOffset, this.itemsPerPage);
-      }),
-      map(response => response.txs.map(u => RawTransactionToTransaction(u))),
-      tap(transactions => {
-        const digitalArtifactsFetcher = this.injector.get(DigitalArtifactsFetcherService);
-        digitalArtifactsFetcher.addTransactions(transactions);
-      })
-    );
-  }
+  //       // Update the offset for the next page
+  //       currentOffset += this.itemsPerPage;
+  //       return this.fetchPage(currentOffset, this.itemsPerPage);
+  //     }),
+  //     map(response => response.txs.map(u => RawTransactionToTransaction(u))),
+  //     tap(transactions => {
+  //       const digitalArtifactsFetcher = this.injector.get(DigitalArtifactsFetcherService);
+  //       // digitalArtifactsFetcher.addTransactions(transactions);
+  //     })
+  //   );
+  // }
 
-  /**
-   * Fetches a single page of unconfirmed transactions from the API.
-   *
-   * @param {number} offset - The offset value indicating the starting point from which records are fetched.
-   * @param {number} limit - The number of records to fetch in a single API call.
-   *
-   * @returns {Observable<RawTransactionsResponse>} An observable that emits the response from the API for the specified page.
-   */
-  private fetchPage(offset: number, limit: number): Observable<RawTransactionsResponse> {
+  // /**
+  //  * Fetches a single page of unconfirmed transactions from the API.
+  //  *
+  //  * @param {number} offset - The offset value indicating the starting point from which records are fetched.
+  //  * @param {number} limit - The number of records to fetch in a single API call.
+  //  *
+  //  * @returns {Observable<RawTransactionsResponse>} An observable that emits the response from the API for the specified page.
+  //  */
+  // private fetchPage(offset: number, limit: number): Observable<RawTransactionsResponse> {
 
-    // early exit if we are not on Mainnet – seems like blockchain.info has no testnet API :-(
-    if (!this.isMainnet) {
-      return of({ txs: [] });
-    }
+  //   // early exit if we are not on Mainnet – seems like blockchain.info has no testnet API :-(
+  //   if (!this.isMainnet) {
+  //     return of({ txs: [] });
+  //   }
 
-    return this.httpClient.get<RawTransactionsResponse>(
-      `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}` + (apiCode ? `&apiCode=${apiCode}`: ''));
-  }
+  //   return this.httpClient.get<RawTransactionsResponse>(
+  //     `${this.baseUrl}/unconfirmed-transactions?format=json&limit=${limit}&offset=${offset}` + (apiCode ? `&apiCode=${apiCode}`: ''));
+  // }
 
   /**
    * Fetch the details of a single transaction based on its hash (transaction id).

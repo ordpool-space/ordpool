@@ -2,8 +2,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, catchError, of, retry } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
-import { WalletService } from './wallet.service';
+import { environment } from '../../../../environments/environment';
+import { WalletService } from '../wallet.service';
 
 interface BlockData {
   hash: string;

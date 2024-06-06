@@ -105,7 +105,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
       // HACK
       if (this.txid) {
-        this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid, true).pipe(
+        this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid).pipe(
           startWith(undefined)
         );
       } else {
