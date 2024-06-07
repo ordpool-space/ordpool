@@ -2,13 +2,32 @@
 
 ![Preview](frontend/src/resources/mempool-space-preview.png)
 
-This is a fork of the awesome [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with changes for the Bitcoin Ordinals community.
+Your favorite Bitcoin MEMEpool explorer. 
+Inscriptions, Stamps, Runes, and 😺 CAT-21 Ordinals?
+We have you covered!
 
-It shows you ordinal inscriptions in the mempool transactions.
-So you know in advance what will be inscribed next. 
+This is a fork of the [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with significant changes for the Bitcoin Ordinals community.
 
-* Production: https://ordpool.space/ (`stage-prod` branch)
-* Test Stage: https://test.ordpool.space/ (`stage-test` branch)
+
+
+## 🟧 Quick Setup for Backend Development
+
+Get your Bitcoin node and Electrs ready!
+You should have the following services already running:
+
+- Bitcoin
+- Electrs
+- MariaDB
+
+Read the [/backend/README.md](/backend/README.md) first.
+Copy `mempool-config.sample.json` to `mempool-config.json and adjust all connection settings.
+
+```sh
+cd backend
+npm install
+npm start
+```
+
 
 
 ## 🟧 Quick Setup for Frontend Development
@@ -17,27 +36,30 @@ Read the [/frontend/README.md](/frontend/README.md) first.
 The key difference to the original setup is the following new command:
 
 
-```shell
+```sh
 cd frontend
+npm install
 npm run config:defaults:ordpool
+npm start
 ```
 
 This generates the required file `/resources/config.js` with the correct settings for Ordpool.
 
 
----
 
-## ordpool-parser
+## 🟧 ordpool-parser
 
-We've extracted the Inscription parser to a separate repository! 
-Now it's your turn! Fork it and add support for Bitcoin Stamps, Atomicals or any other Metaprotocol.
+We've extracted the parsing of digital artifacts to a separate repository! 
+Now it's your turn! Fork it and add support for the next big metaprotocol.
 Can't wait to see what you come up with! 🚀
 
 More at: 
 * https://github.com/ordpool-space/ordpool-parser
 * https://www.npmjs.com/package/ordpool-parser
 
-If you want to integrate the parser into your own project, feel free to do so. The code is 100% open-source and is under the MIT License. Do whatever you want with it!
+If you want to integrate the parser into your own project, feel free to do so.
+The code is 100% open-source and is under the MIT License.
+Do whatever you want with it!
 
 <!--
 
