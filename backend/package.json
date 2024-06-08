@@ -28,7 +28,7 @@
     "package": "./npm_package.sh",
     "package-rm-build-deps": "./npm_package_rm_build_deps.sh",
     "preinstall": "cd ../rust/gbt && npm run build-release && npm run to-backend",
-    "start": "node --max-old-space-size=2048 dist/index.js",
+    "start": "node --max-old-space-size=4096 dist/index.js",
     "start-production": "node --max-old-space-size=16384 dist/index.js",
     "reindex-updated-pools": "npm run start-production --update-pools",
     "reindex-all-blocks": "npm run start-production --update-pools --reindex-blocks",
