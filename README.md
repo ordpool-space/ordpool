@@ -2,9 +2,9 @@
 
 ![Preview](frontend/src/resources/mempool-space-preview.png)
 
-Your favorite Bitcoin MEMEpool explorer. 
-Inscriptions, Stamps, Runes, and 😺 CAT-21 Ordinals?
-We have you covered!
+Your favorite Bitcoin MEMEpool explorer.  
+Inscriptions, Stamps, Runes, and 😺 CAT-21 Ordinals?  
+We have you covered!  
 
 This is a fork of the [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with significant changes for the Bitcoin Ordinals community.
 
