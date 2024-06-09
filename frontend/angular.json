@@ -167,8 +167,7 @@
               "src/robots.txt",
               "src/config.js",
               "src/customize.js",
-              "src/config.template.js",
-              "src/_redirects"
+              "src/config.template.js"
             ],
             "styles": [
               "src/styles.scss",
@@ -200,8 +199,7 @@
             "production": {
               "assets": [
                 "src/favicon.ico",
-                "src/robots.txt",
-                "src/_redirects"
+                "src/robots.txt"
               ],
               "fileReplacements": [
                 {
