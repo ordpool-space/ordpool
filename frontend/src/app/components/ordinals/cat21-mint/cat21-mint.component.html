@@ -118,9 +118,9 @@
                 UTXO {{ x.paymentOutput.txid }}:{{ x.paymentOutput.vout }}
 
                 <span *ngIf="x.paymentOutput.status.confirmed" type="button"
-                  class="bg-success no-cursor pr-1 pl-1">Confirmed</span>
+                  class="btn btn-outline-success no-cursor pr-1 pl-1">Confirmed</span>
                 <span *ngIf="!x.paymentOutput.status.confirmed" type="button"
-                  class="bg-danger no-cursor pr-1 pl-1">Unconfirmed</span>
+                  class="btn btn-outline-danger no-cursor pr-1 pl-1">Unconfirmed</span>
                 <br>
 
                 {{ x.paymentOutput.value | number }}

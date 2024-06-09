@@ -89,3 +89,16 @@ $popover-border-color: purple;
 .btn-close {
   @extend .close
 }
+ 
+// removes the distracting badge from the blocks
+app-blockchain-blocks .badge {
+  background: none;
+  border: none;
+  font-weight: normal;
+}
+
+// why are these confirmations unclickable buttons??
+app-confirmations button {
+  background-color: transparent !important;
+  border-width: 2px !important;
+}

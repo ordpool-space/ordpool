@@ -2,7 +2,7 @@
 
 ![Preview](frontend/src/resources/mempool-space-preview.png)
 
-Your favorite Bitcoin MEMEpool explorer.  
+Your favorite MEMEpool explorer.  
 Inscriptions, Stamps, Runes, and 😺 CAT-21 Ordinals?  
 We have you covered!  
 
