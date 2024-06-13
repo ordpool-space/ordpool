@@ -51,15 +51,72 @@ This generates the required file `/resources/config.js` with the correct setting
 
 We've extracted the parsing of digital artifacts to a separate repository! 
 Now it's your turn! Fork it and add support for the next big metaprotocol.
-Can't wait to see what you come up with! 🚀
+Can't wait to see what you come up with! ...so that we can show it on Ordpool! 🧡
 
 More at: 
 * https://github.com/ordpool-space/ordpool-parser
-* https://www.npmjs.com/package/ordpool-parser
 
 If you want to integrate the parser into your own project, feel free to do so.
 The code is 100% open-source and is under the MIT License.
 Do whatever you want with it!
+
+### npm link ordpool-parser
+
+Use the following instructions to make the ordpool-parser available locally (for testing changes against Ordpool) via npm link.
+
+1. Clone the project
+
+   ```sh
+   git clone https://github.com/ordpool-space/ordpool-parser.git
+   cd ordpool-parser
+   ```
+
+2. Install the dependencies
+
+   ```sh
+   npm install
+   ```
+
+3. Build the project:
+
+   ```sh
+   npm run build
+   ```
+
+4. Create a local npm link:
+
+   ```sh
+   cd dist
+   npm link
+   ```
+
+### use the linked ordpool-parser
+
+Once you have completed the previous steps to `npm link` the local copy of `ordpool-parser`, 
+follow these steps to use it in your local frontend project or backgend project. (the parser is used in both projects)
+
+1. Enter the project directory
+
+   ```sh
+   cd ordpool
+   cd frontend
+   # OR
+   cd backend
+   ```
+
+2. Add the local version of `ordpool-parser` (instead of the stable version from npm).
+
+   ```sh
+   npm link ordpool-parser
+   ```
+
+3. Now execute the `ng-add` schematic.
+
+4. Happy developing! Don't forget to execute the tests! ☕️
+
+5. You can remove the link later by running `npm unlink`
+
+Read more about the `link` feature in the [official NPM documentation](https://docs.npmjs.com/cli/link).
 
 <!--
 
