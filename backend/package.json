@@ -48,8 +48,9 @@
     "express": "~4.19.2",
     "maxmind": "~4.3.11",
     "mysql2": "~3.9.7",
-    "rust-gbt": "file:./rust-gbt",
+    "ordpool-parser": "^0.0.9",
     "redis": "^4.6.6",
+    "rust-gbt": "file:./rust-gbt",
     "socks-proxy-agent": "~7.0.0",
     "typescript": "~4.9.3",
     "ws": "~8.17.0"
