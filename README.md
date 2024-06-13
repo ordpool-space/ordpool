@@ -93,7 +93,7 @@ Use the following instructions to make the ordpool-parser available locally (for
 ### use the linked ordpool-parser
 
 Once you have completed the previous steps to `npm link` the local copy of `ordpool-parser`, 
-follow these steps to use it in your local frontend project or backgend project. (the parser is used in both projects)
+follow these steps to use it in your local frontend project or backend project. (the parser is used in both projects)
 
 1. Enter the project directory
 
@@ -110,11 +110,9 @@ follow these steps to use it in your local frontend project or backgend project.
    npm link ordpool-parser
    ```
 
-3. Now execute the `ng-add` schematic.
+3. Happy developing! Don't forget to execute the tests! ☕️
 
-4. Happy developing! Don't forget to execute the tests! ☕️
-
-5. You can remove the link later by running `npm unlink`
+4. You can remove the link later by running `npm unlink ordpool-parser`.
 
 Read more about the `link` feature in the [official NPM documentation](https://docs.npmjs.com/cli/link).
 
