@@ -253,7 +253,7 @@ export const TransactionFlags = {
   // data
   op_return:                        0b00000001_00000000_00000000_00000000n,
   fake_pubkey:                      0b00000010_00000000_00000000_00000000n,
-  inscription:                      0b00000100_00000000_00000000_00000000n, // the heuristic for this one is fundamentally broken, see https://github.com/mempool/mempool/issues/4714
+  inscription:                      0b00000100_00000000_00000000_00000000n,
   fake_scripthash:                  0b00001000_00000000_00000000_00000000n,
   // heuristics
   coinjoin:                0b00000001_00000000_00000000_00000000_00000000n,
@@ -266,13 +266,16 @@ export const TransactionFlags = {
   sighash_default:0b00001000_00000000_00000000_00000000_00000000_00000000n,
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
 
-  // Ordpool flags
+  // HACK -- Ordpool flags
   // these bits are near the last available bit 64, assuming a traditional 64-bit BigInt range
+  // keep this in sync with frontend/src/app/shared/filters.utils.ts
   ordpool_atomical:    0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 57th bit
   ordpool_cat21:       0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 58th bit
   ordpool_inscription: 0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 59th bit
   ordpool_runestone:   0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 60th bit
   ordpool_src20:       0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 61st bit
+  // ordpool_stacks:      0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 62th bit
+  // ordpool_lightning:   0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 63th bit
 };
 
 export interface BlockExtension {

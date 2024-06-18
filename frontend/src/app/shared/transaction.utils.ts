@@ -2,6 +2,7 @@ import { TransactionFlags } from './filters.utils';
 import { getVarIntLength, opcodes, parseMultisigScript, isPoint } from './script.utils';
 import { Transaction } from '../interfaces/electrs.interface';
 import { CpfpInfo, RbfInfo } from '../interfaces/node-api.interface';
+import { AtomicalParserService, Cat21ParserService, InscriptionParserService, RuneParserService, Src20ParserService } from 'ordpool-parser';
 
 // Bitcoin Core default policy settings
 const TX_MAX_STANDARD_VERSION = 2;
@@ -262,6 +263,9 @@ export function isBurnKey(pubkey: string): boolean {
   ].includes(pubkey);
 }
 
+  // HACK - WARNING
+  // THIS METHOD was just duplicated between frontend/backend and is super redundant!
+  // nearly the same code exists in backend/src/api/common.ts
 export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean): bigint {
   let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
@@ -394,7 +398,7 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
   if (hasFakePubkey) {
     flags |= TransactionFlags.fake_pubkey;
   }
-  
+
   // fast but bad heuristic to detect possible coinjoins
   // (at least 5 inputs and 5 outputs, less than half of which are unique amounts, with no address reuse)
   const addressReuse = Object.keys(reusedOutputAddresses).reduce((acc, key) => Math.max(acc, (reusedInputAddresses[key] || 0) + (reusedOutputAddresses[key] || 0)), 0) > 1;
@@ -413,6 +417,30 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
   if (isNonStandard(tx)) {
     flags |= TransactionFlags.nonstandard;
   }
+
+  // HACK -- add Ordpool flags
+  // keep this in sync with backend/src/api/common.ts
+  if (AtomicalParserService.hasAtomical(tx)) {
+    flags |= TransactionFlags.ordpool_atomical;
+  }
+
+  if (Cat21ParserService.hasCat21(tx)) {
+    flags |= TransactionFlags.ordpool_cat21;
+  }
+
+  if (InscriptionParserService.hasInscription(tx)) {
+    flags |= TransactionFlags.ordpool_inscription;
+  }
+
+  if (RuneParserService.hasRunestone(tx)) {
+    flags |= TransactionFlags.ordpool_runestone;
+  }
+
+  if (Src20ParserService.hasSrc20(tx)) {
+    flags |= TransactionFlags.ordpool_src20;
+  }
+
+  // TODO: Stacks + Lightning
 
   return flags;
 }

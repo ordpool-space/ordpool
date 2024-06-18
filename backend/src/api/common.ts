@@ -389,6 +389,9 @@ export class Common {
     return flags;
   }
 
+  // HACK - WARNING
+  // THIS METHOD was just duplicated between frontend/backend and is super redundant!
+  // nearly the same code exists in frontend/src/app/shared/transaction.utils.ts
   static getTransactionFlags(tx: TransactionExtended): number {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
@@ -541,6 +544,7 @@ export class Common {
     }
 
     // HACK -- add Ordpool flags
+    // keep this in sync with frontend/src/app/shared/transaction.utils.ts
     if (AtomicalParserService.hasAtomical(tx)) {
       flags |= TransactionFlags.ordpool_atomical;
     }
@@ -560,6 +564,8 @@ export class Common {
     if (Src20ParserService.hasSrc20(tx)) {
       flags |= TransactionFlags.ordpool_src20;
     }
+
+    // TODO: Stacks + Lightning
 
     return Number(flags);
   }
