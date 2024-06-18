@@ -5,7 +5,7 @@ import { TransactionStripped } from '../../interfaces/node-api.interface.js';
 import { Filter, FilterMode, TransactionFlags, toFilters } from '../../shared/filters.utils';
 import { Block } from '../../interfaces/electrs.interface.js';
 import { DigitalArtifact } from 'ordpool-parser';
-import { Observable, of, startWith } from 'rxjs';
+import { Observable, catchError, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 import { inject } from '@angular/core';
 
@@ -105,8 +105,9 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
       // HACK
       if (this.txid) {
-        this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid, true).pipe(
-          startWith(undefined)
+        this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid).pipe(
+          startWith(undefined),
+          catchError(err => of(null))
         );
       } else {
         this.digitalArtifacts$ = of([]);

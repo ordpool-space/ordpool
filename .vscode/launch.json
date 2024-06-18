@@ -4,7 +4,19 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug Jest Tests (Browser env)",
+      "name": "Backend: Debug with Inspector",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/backend/dist/index.js",
+      "preLaunchTask": "npm: build-debug",
+      "runtimeArgs": ["--inspect", "--max-old-space-size=4096"],
+      "outFiles": ["${workspaceFolder}/backend/dist/**/*.js"],
+      "cwd": "${workspaceFolder}/backend",
+      "sourceMaps": true
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Frontend: Debug Jest Tests (Browser env)",
       "program": "${workspaceFolder}/frontend/node_modules/.bin/jest",
       "args": [
         "--runInBand",
@@ -14,7 +26,7 @@
     }, {
       "type": "node",
       "request": "launch",
-      "name": "Debug Jest Tests (Node env)",
+      "name": "Fontend: Debug Jest Tests (Node env)",
       "program": "${workspaceFolder}/frontend/node_modules/.bin/jest",
       "args": [
         "--runInBand",

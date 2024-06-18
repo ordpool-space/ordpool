@@ -8,6 +8,7 @@ import transactionUtils from './transaction-utils';
 import { isPoint } from '../utils/secp256k1';
 import logger from '../logger';
 import { getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
+import { InscriptionParserService, AtomicalParserService, Cat21ParserService, Src20ParserService, RuneParserService } from 'ordpool-parser';
 
 // Bitcoin Core default policy settings
 const TX_MAX_STANDARD_VERSION = 2;
@@ -388,6 +389,9 @@ export class Common {
     return flags;
   }
 
+  // HACK - WARNING
+  // THIS METHOD was just duplicated between frontend/backend and is super redundant!
+  // nearly the same code exists in frontend/src/app/shared/transaction.utils.ts
   static getTransactionFlags(tx: TransactionExtended): number {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
@@ -519,7 +523,7 @@ export class Common {
     if (hasFakePubkey) {
       flags |= TransactionFlags.fake_pubkey;
     }
-    
+
     // fast but bad heuristic to detect possible coinjoins
     // (at least 5 inputs and 5 outputs, less than half of which are unique amounts, with no address reuse)
     const addressReuse = Object.keys(reusedOutputAddresses).reduce((acc, key) => Math.max(acc, (reusedInputAddresses[key] || 0) + (reusedOutputAddresses[key] || 0)), 0) > 1;
@@ -538,6 +542,37 @@ export class Common {
     if (this.isNonStandard(tx)) {
       flags |= TransactionFlags.nonstandard;
     }
+
+    const debug = false;
+
+    // HACK -- add Ordpool flags
+    // keep this in sync with frontend/src/app/shared/transaction.utils.ts
+    if (AtomicalParserService.hasAtomical(tx)) {
+      flags |= TransactionFlags.ordpool_atomical;
+      if (debug) { logger.debug(tx.txid, 'flagged as atomical'); }
+    }
+
+    if (Cat21ParserService.hasCat21(tx)) {
+      flags |= TransactionFlags.ordpool_cat21;
+      if (debug) { logger.debug(tx.txid, 'flagged as CAT-21'); }
+    }
+
+    if (InscriptionParserService.hasInscription(tx)) {
+      flags |= TransactionFlags.ordpool_inscription;
+      if (debug) { logger.debug(tx.txid, 'flagged as inscription'); }
+    }
+
+    if (RuneParserService.hasRunestone(tx)) {
+      flags |= TransactionFlags.ordpool_runestone;
+      if (debug) { logger.debug(tx.txid, 'flagged as runestone'); }
+    }
+
+    if (Src20ParserService.hasSrc20(tx)) {
+      flags |= TransactionFlags.ordpool_src20;
+      if (debug) { logger.debug(tx.txid, 'flagged as SRC-20'); }
+    }
+
+    // TODO: Stacks + Lightning
 
     return Number(flags);
   }
@@ -683,7 +718,7 @@ export class Common {
     if (id.indexOf('/') !== -1) {
       id = id.slice(0, -2);
     }
-    
+
     if (id.indexOf('x') !== -1) { // Already a short id
       return id;
     }
@@ -1064,14 +1099,14 @@ export class Common {
 /**
  * Class to calculate average fee rates of a list of transactions
  * at certain weight percentiles, in a single pass
- * 
+ *
  * init with:
  *   maxWeight - the total weight to measure percentiles relative to (e.g. 4MW for a single block)
  *   percentileBandWidth - how many weight units to average over for each percentile (as a % of maxWeight)
  *   percentiles - an array of weight percentiles to compute, in %
- * 
+ *
  * then call .processNext(tx) for each transaction, in descending order
- * 
+ *
  * retrieve the final results with .getFeeStats()
  */
 export class OnlineFeeStatsCalculator {

@@ -56,6 +56,17 @@ export const TransactionFlags = {
   sighash_single: 0b00000100_00000000_00000000_00000000_00000000_00000000n,
   sighash_default:0b00001000_00000000_00000000_00000000_00000000_00000000n,
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
+
+  // HACK -- Ordpool flags
+  // these bits are near the last available bit 64, assuming a traditional 64-bit BigInt range
+  // keep this in sync with backend/src/mempool.interfaces.ts
+  ordpool_atomical:    0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 57th bit
+  ordpool_cat21:       0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 58th bit
+  ordpool_inscription: 0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 59th bit
+  ordpool_runestone:   0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 60th bit
+  ordpool_src20:       0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 61st bit
+  // ordpool_stacks:      0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 62th bit
+  // ordpool_lightning:   0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 63th bit
 };
 
 export function toFlags(filters: string[]): bigint {
@@ -100,7 +111,9 @@ export const TransactionFilters: { [key: string]: Filter } = {
     /* data */
     op_return: { key: 'op_return', label: 'OP_RETURN', flag: TransactionFlags.op_return, important: true, tooltip: true, txPage: true, },
     fake_pubkey: { key: 'fake_pubkey', label: 'Fake pubkey', flag: TransactionFlags.fake_pubkey, tooltip: true, txPage: true, },
-    inscription: { key: 'inscription', label: 'Inscription', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
+    // HACK - rename inscription
+    // inscription: { key: 'inscription', label: 'Inscription', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
+    inscription: { key: 'inscription', label: 'Arbitrary data in witness', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
     fake_scripthash: { key: 'fake_scripthash', label: 'Fake scripthash', flag: TransactionFlags.fake_scripthash, tooltip: true, txPage: true,},
     /* heuristics */
     coinjoin: { key: 'coinjoin', label: $localize`Coinjoin`, flag: TransactionFlags.coinjoin, important: true, tooltip: true, txPage: true, },
@@ -112,13 +125,27 @@ export const TransactionFilters: { [key: string]: Filter } = {
     sighash_single: { key: 'sighash_single', label: 'sighash_single', flag: TransactionFlags.sighash_single, tooltip: true },
     sighash_default: { key: 'sighash_default', label: 'sighash_default', flag: TransactionFlags.sighash_default },
     sighash_acp: { key: 'sighash_acp', label: 'sighash_anyonecanpay', flag: TransactionFlags.sighash_acp, tooltip: true },
+
+    // HACK --- Ordpool Flags
+    /* ordpool flags */
+    ordpool_atomical:    { key: 'ordpool_atomical',    label: 'Atomical',        flag: TransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
+    ordpool_cat21:       { key: 'ordpool_cat21',       label: 'CAT-21 Mint',     flag: TransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription: { key: 'ordpool_inscription', label: 'Inscription',     flag: TransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
+    ordpool_runestone:   { key: 'ordpool_runestone',   label: 'Rune',            flag: TransactionFlags.ordpool_runestone, important: true, tooltip: true, txPage: true, },
+    ordpool_src20:       { key: 'ordpool_src20',       label: 'SRC-20 (Stamps)', flag: TransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
+
 };
 
 export const FilterGroups: { label: string, filters: Filter[]}[] = [
+  /*
   { label: $localize`:@@885666551418fd59011ceb09d5c481095940193b:Features`, filters: ['rbf', 'no_rbf', 'v1', 'v2', 'v3', 'nonstandard'] },
   { label: $localize`Address Types`, filters: ['p2pk', 'p2ms', 'p2pkh', 'p2sh', 'p2wpkh', 'p2wsh', 'p2tr'] },
   { label: $localize`Behavior`, filters: ['cpfp_parent', 'cpfp_child', 'replacement', 'acceleration'] },
   { label: $localize`Data`, filters: ['op_return', 'fake_pubkey', 'fake_scripthash', 'inscription'] },
   { label: $localize`Heuristics`, filters: ['coinjoin', 'consolidation', 'batch_payout'] },
   { label: $localize`Sighash Flags`, filters: ['sighash_all', 'sighash_none', 'sighash_single', 'sighash_default', 'sighash_acp'] },
+  */
+  // HACK --- Ordpool Flags
+  { label: 'Ordpool Flags', filters: ['ordpool_atomical', 'ordpool_cat21', 'ordpool_inscription', 'ordpool_runestone', 'ordpool_src20'] },
+
 ].map(group => ({ label: group.label, filters: group.filters.map(filter => TransactionFilters[filter] || null).filter(f => f != null) }));

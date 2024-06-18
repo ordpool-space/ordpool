@@ -9,9 +9,7 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { SeoService } from '../../services/seo.service';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
-import { BlockchainApiService } from '../../services/ordinals/blockchain-api.service';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { inject } from '@angular/core';
+
 
 @Component({
   selector: 'app-mempool-block',
@@ -28,8 +26,6 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   previewTx: TransactionStripped | void;
   webGlEnabled: boolean;
 
-  private blockchainApiService = inject(BlockchainApiService);
-
   constructor(
     private route: ActivatedRoute,
     public stateService: StateService,
@@ -39,16 +35,6 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
     @Inject(PLATFORM_ID) private platformId: Object,
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
-
-    // HACK
-    // boost our inscriptions chache with data from blockchain.info
-    // to speed things up! 🚀
-    this.route.paramMap.pipe(
-      takeUntilDestroyed(),
-      switchMap(() => {
-        return this.blockchainApiService.fetchAndCacheManyUnconfirmedTransactions();
-      })
-    ).subscribe();
   }
 
   ngOnInit(): void {

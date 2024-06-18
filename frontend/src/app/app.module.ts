@@ -29,12 +29,10 @@ import { AppPreloadingStrategy } from './app.preloading-strategy';
 import { ServicesApiServices } from './services/services-api.service';
 import { DigitalArtifactsFetcherService } from './services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from './services/ordinals/blockchain-api.service';
-import { OrdApiService } from './services/ordinals/ord-api.service';
 import { Cat21ApiService } from './services/ordinals/cat21-api.service';
-import { BlockchairApiService } from './services/ordinals/blockchair-api.service';
 import { InscriptionAcceleratorApiService } from './services/ordinals/inscription-accelerator-api.service';
 import { WalletService } from './services/ordinals/wallet.service';
-import { RollingElectrsApiService } from './services/ordinals/rolling-electrs-api.service';
+import { BlockstreamApiService } from './services/ordinals/blockstream-api.service';
 import { Cat21Service } from './services/ordinals/cat21.service';
 
 import { HIGHLIGHT_OPTIONS } from 'ngx-highlightjs';
@@ -62,12 +60,10 @@ const providers = [
   { provide: ZONE_SERVICE, useClass: ZoneService },
   DigitalArtifactsFetcherService,
   BlockchainApiService,
-  OrdApiService,
   Cat21ApiService,
-  BlockchairApiService,
   InscriptionAcceleratorApiService,
   WalletService,
-  RollingElectrsApiService,
+  BlockstreamApiService,
   Cat21Service,
   // HACK
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
