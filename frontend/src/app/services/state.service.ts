@@ -181,7 +181,19 @@ export class StateService {
   searchFocus$: Subject<boolean> = new Subject<boolean>();
   menuOpen$: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
-  activeGoggles$: BehaviorSubject<ActiveFilter> = new BehaviorSubject({ mode: 'and', filters: [], gradient: 'age' });
+  // HACK - or by default, "classic by default", all filters on by default
+  // activeGoggles$: BehaviorSubject<ActiveFilter> = new BehaviorSubject({ mode: 'and', filters: [], gradient: 'age' });
+  activeGoggles$: BehaviorSubject<ActiveFilter> = new BehaviorSubject({ 
+    mode: 'or', 
+    filters: [
+      'ordpool_atomical',
+      'ordpool_cat21',
+      'ordpool_inscription',
+      'ordpool_runestone',
+      'ordpool_src20'
+    ], 
+    gradient: 'fee'
+  });
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: any,
