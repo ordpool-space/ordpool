@@ -19,10 +19,24 @@ try {
 }
 
 let PROXY_CONFIG = [
-  // HACK
+  // HACK - this is just for local development, enter your own ord server here if available
   {
     context: ['/content/**'],
-    target: `https://ordinals.com`,
+    target: 'https://ordinals.com',
+    secure: false,
+    changeOrigin: true,
+    proxyTimeout: 30000
+  },
+  {
+    context: ['/r/**'],
+    target: 'https://ordinals.com',
+    secure: false,
+    changeOrigin: true,
+    proxyTimeout: 30000
+  },
+  {
+    context: ['/preview/**'],
+    target: 'https://ordinals.com',
     secure: false,
     changeOrigin: true,
     proxyTimeout: 30000

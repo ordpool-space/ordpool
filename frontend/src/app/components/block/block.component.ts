@@ -17,12 +17,7 @@ import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { PriceService, Price } from '../../services/price.service';
 import { CacheService } from '../../services/cache.service';
 import { ServicesApiServices } from '../../services/services-api.service';
-import { OrdApiService } from '../../services/ordinals/ord-api.service';
-import { BlockchairApiService } from '../../services/ordinals/blockchair-api.service';
-import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
-import { Cat21ParserService } from 'ordpool-parser';
-import { Cat21ApiService } from '../../services/ordinals/cat21-api.service';
-import { inject } from '@angular/core';
+
 
 @Component({
   selector: 'app-block',
@@ -100,12 +95,6 @@ export class BlockComponent implements OnInit, OnDestroy {
 
   @ViewChildren('blockGraphProjected') blockGraphProjected: QueryList<BlockOverviewGraphComponent>;
   @ViewChildren('blockGraphActual') blockGraphActual: QueryList<BlockOverviewGraphComponent>;
-
-  private ordApiService = inject(OrdApiService);
-  private blockchairApiService = inject(BlockchairApiService);
-  private cat21ApiService = inject(Cat21ApiService);
-  private digitalArtifactsFetcherService = inject(DigitalArtifactsFetcherService);
-
 
   constructor(
     private route: ActivatedRoute,
@@ -366,6 +355,7 @@ export class BlockComponent implements OnInit, OnDestroy {
         ]).pipe(
 
           // HACK - query indexer
+          /*
           tap(([transactions, blockAudit]) => {
 
             forkJoin([
@@ -413,7 +403,7 @@ export class BlockComponent implements OnInit, OnDestroy {
                 for (const transaction of transactions) {
                   const matchingArtifact = txnsWithArtifacts.find(i => i === transaction.txid);
                   if (!matchingArtifact) {
-                    this.digitalArtifactsFetcherService.addToCache(transaction.txid, []);
+                    // this.digitalArtifactsFetcherService.addToCache(transaction.txid, []);
                   } else {
                     // console.log(transaction.txid, 'has an artifact')
                   }
@@ -438,10 +428,11 @@ export class BlockComponent implements OnInit, OnDestroy {
                 });
 
                 // super fast lane for cats!
-                this.digitalArtifactsFetcherService.addToCache(cat21mint.transactionId, [parsedCat21]);
+                // this.digitalArtifactsFetcherService.addToCache(cat21mint.transactionId, [parsedCat21]);
               });
             });
           })
+          */
 
         );
       })

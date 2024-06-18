@@ -3,8 +3,8 @@ import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { Transaction } from '../../interfaces/electrs.interface';
-import { StateService } from '../state.service';
+import { Transaction } from '../../../interfaces/electrs.interface';
+import { StateService } from '../../state.service';
 
 // looks like they blocked us 😞
 

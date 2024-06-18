@@ -1,5 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import { WalletService } from "./wallet.service";
+import { WalletService } from "../wallet.service";
 import { HttpClient } from "@angular/common/http";
 import { Observable, catchError, expand, map, of, takeWhile } from "rxjs";
 

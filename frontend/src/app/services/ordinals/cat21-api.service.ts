@@ -82,6 +82,7 @@ export class Cat21ApiService {
     });
   }
 
+  /*
   getStatus(): Observable<StatusResult> {
     return this.http.get<StatusResult>(`${this.baseUrl}/api/status`);
   }
@@ -105,11 +106,13 @@ export class Cat21ApiService {
   getCatsByUtxos(body: any): Observable<Cat21[]> {
     return this.http.post<Cat21[]>(`${this.baseUrl}/api/cats/by-utxos`, body);
   }
+  */
 
   getWhitelistStatus(walletAddress: string): Observable<WhitelistStatusResult> {
     return this.http.get<WhitelistStatusResult>(`${this.baseUrl}/whitelist/status/${walletAddress}`);
   }
 
+  /*
   getWhitelistStatusPolled(walletAddress: string): Observable<WhitelistStatusResult> {
     return interval(10000).pipe(
       startWith(0),
@@ -122,4 +125,5 @@ export class Cat21ApiService {
   announceMintTransaction(mintTransaction: MintTransaction) {
     return this.http.post<any>(`${this.baseUrl}/whitelist/announceMintTransaction`, mintTransaction);
   }
+  */
 }

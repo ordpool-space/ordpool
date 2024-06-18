@@ -104,6 +104,11 @@
             Loading...
           </ng-container>
 
+          <ng-container *ngIf="i.digitalArtifacts === null">
+            Error while loading. 😕<br>
+            Please try again!
+          </ng-container>
+
           <ng-container *ngIf="i.digitalArtifacts && !i.digitalArtifacts.length">
             None
           </ng-container>

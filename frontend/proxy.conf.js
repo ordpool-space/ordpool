@@ -19,6 +19,29 @@ try {
 }
 
 PROXY_CONFIG = [
+    // HACK - this is just for local development, enter your own ord server here if available
+    {
+      context: ['/content/**'],
+      target: 'https://ordinals.com',
+      secure: false,
+      changeOrigin: true,
+      proxyTimeout: 30000
+    },
+    {
+      context: ['/r/**'],
+      target: 'https://ordinals.com',
+      secure: false,
+      changeOrigin: true,
+      proxyTimeout: 30000
+    },
+    {
+      context: ['/preview/**'],
+      target: 'https://ordinals.com',
+      secure: false,
+      changeOrigin: true,
+      proxyTimeout: 30000
+    },
+    // END HACK
     {
         context: ['*',
         '/api/**', '!/api/v1/ws',
