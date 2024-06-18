@@ -543,7 +543,7 @@ export class Common {
       flags |= TransactionFlags.nonstandard;
     }
 
-    const debug = true;
+    const debug = false;
 
     // HACK -- add Ordpool flags
     // keep this in sync with frontend/src/app/shared/transaction.utils.ts
