@@ -418,26 +418,33 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
     flags |= TransactionFlags.nonstandard;
   }
 
+  const debug = false;
+
   // HACK -- add Ordpool flags
   // keep this in sync with backend/src/api/common.ts
   if (AtomicalParserService.hasAtomical(tx)) {
     flags |= TransactionFlags.ordpool_atomical;
+    if (debug) { console.log(tx.txid, 'flagged as atomical'); }
   }
 
   if (Cat21ParserService.hasCat21(tx)) {
     flags |= TransactionFlags.ordpool_cat21;
+    if (debug) { console.log(tx.txid, 'flagged as CAT-21'); }
   }
 
   if (InscriptionParserService.hasInscription(tx)) {
     flags |= TransactionFlags.ordpool_inscription;
+    if (debug) { console.log(tx.txid, 'flagged as inscription'); }
   }
 
   if (RuneParserService.hasRunestone(tx)) {
     flags |= TransactionFlags.ordpool_runestone;
+    if (debug) { console.log(tx.txid, 'flagged as runestone'); }
   }
 
   if (Src20ParserService.hasSrc20(tx)) {
     flags |= TransactionFlags.ordpool_src20;
+    if (debug) { console.log(tx.txid, 'flagged as SRC-20'); }
   }
 
   // TODO: Stacks + Lightning
