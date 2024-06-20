@@ -251,7 +251,7 @@
             },
             "local-esplora": {
               "proxyConfig": "proxy.conf.local-esplora.js",
-              "verbose": true
+              "verbose": false
             },
             "mixed": {
               "proxyConfig": "proxy.conf.mixed.js",
