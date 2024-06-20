@@ -67,6 +67,8 @@ export class MasterPageComponent implements OnInit, OnDestroy {
     this.network$ = merge(of(''), this.stateService.networkChanged$);
     this.urlLanguage = this.languageService.getLanguageForUrl();
     this.subdomain = this.enterpriseService.getSubdomain();
+
+    /* HACK: this is sometimes null, and I also have no issue to always see the footer
     this.navigationService.subnetPaths.subscribe((paths) => {
       this.networkPaths = paths;
       if (this.footerVisibleOverride === null) {
@@ -79,6 +81,7 @@ export class MasterPageComponent implements OnInit, OnDestroy {
         this.footerVisible = this.footerVisibleOverride;
       }
     });
+    */
     this.enterpriseInfo$ = this.enterpriseService.info$.subscribe(info => {
       this.enterpriseInfo = info;
     });

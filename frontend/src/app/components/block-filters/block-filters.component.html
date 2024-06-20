@@ -1,4 +1,6 @@
 <div class="block-filters" [class.filters-active]="activeFilters.length > 0" [class.any-mode]="filterMode === 'or'" [class.menu-open]="menuOpen" [class.small]="cssWidth < 500" [class.vsmall]="cssWidth < 400" [class.tiny]="cssWidth < 200">
+  <!-- HACK: hide google menu for now -->
+  <!--
   <a *ngIf="menuOpen" [routerLink]="['/docs/faq' | relativeUrl]" fragment="how-do-mempool-goggles-work" class="info-badges" i18n-ngbTooltip="Mempool Goggles&trade; tooltip" ngbTooltip="select filter categories to highlight matching transactions">
     <span class="badge badge-pill badge-warning beta" i18n="beta">beta</span>
     <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true" size="lg"></fa-icon>
@@ -13,7 +15,10 @@
       </ng-container>
     </div>
   </div>
+  -->
   <div class="filter-menu" *ngIf="menuOpen && cssWidth > 280">
+    <!-- HACK: remove unnecessary Match and Tint option -->
+    <!--
     <div class="filter-row">
       <div class="filter-element">
         <h5 i18n="mempool-goggles.match">Match</h5>
@@ -38,6 +43,7 @@
         </div>
       </div>
     </div>
+    -->
     <ng-container *ngFor="let group of filterGroups;">
       <h5>{{ group.label }}</h5>
       <div class="filter-group">

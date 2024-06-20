@@ -9,7 +9,7 @@ import { Price } from '../../services/price.service';
 import { StateService } from '../../services/state.service';
 import { ThemeService } from '../../services/theme.service';
 import { Subscription } from 'rxjs';
-import { defaultColorFunction, setOpacity, defaultAuditColors, defaultColors, ageColorFunction, contrastColorFunction, contrastAuditColors, contrastColors } from './utils';
+import { defaultColorFunction, setOpacity, defaultAuditColors, defaultColors, ageColorFunction, contrastColorFunction, contrastAuditColors, contrastColors, ordpoolColorFunction } from './utils';
 import { ActiveFilter, FilterMode, toFlags } from '../../shared/filters.utils';
 import { detectWebGL } from '../../shared/graphs.utils';
 
@@ -649,6 +649,22 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   }
 
   getFilterColorFunction(flags: bigint, gradient: 'fee' | 'age'): ((tx: TxView) => Color) {
+
+    // HACK -- Ordpool flags
+    // hint: ordpool always uses 'fee' gradient (not age)
+
+    return (tx: TxView) => {
+
+      const hasMatch = (
+        (this.filterMode === 'and' && (tx.bigintFlags & flags) === flags) || 
+        (this.filterMode === 'or' && (flags === 0n || (tx.bigintFlags & flags) > 0n)));
+
+      return ordpoolColorFunction(
+        tx, this.relativeTime || (Date.now() / 1000), 
+        hasMatch);
+    };
+
+    /*
     return (tx: TxView) => {
       if ((this.filterMode === 'and' && (tx.bigintFlags & flags) === flags) || (this.filterMode === 'or' && (flags === 0n || (tx.bigintFlags & flags) > 0n))) {
         if (this.themeService.theme !== 'contrast' && this.themeService.theme !== 'bukele') {
@@ -674,6 +690,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
         }
       }
     };
+    */
   }
 }
 

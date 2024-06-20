@@ -32,6 +32,12 @@ $popover-body-color: $light;
 $popover-bg: $body-bg;
 $popover-border-color: $gray-800;
 
+// Workaround for https://github.com/ng-bootstrap/ng-bootstrap/issues/2686
+// (modal not clickable)
+ngb-modal-backdrop {
+  z-index: 1050 !important;
+}
+
 body {
   min-width: 375px;
 }
@@ -72,19 +78,6 @@ body {
   padding-top: 0;
 }
 
-// Workaround for https://github.com/ng-bootstrap/ng-bootstrap/issues/2686
-// (modal not clickable)
-ngb-modal-backdrop {
-  z-index: 1050 !important;
-}
-
-// nicer colors for ng-bootstrap modals + popover
-$modal-content-color: $light;
-$modal-content-bg:  #1f1f1f;
-$popover-body-color: $light;
-$popover-bg: red;
-$popover-border-color: purple;
-
 // this is a Bootstrap 5 class, let's already use the future one
 .btn-close {
   @extend .close
@@ -101,4 +94,9 @@ app-blockchain-blocks .badge {
 app-confirmations button {
   background-color: transparent !important;
   border-width: 2px !important;
+}
+
+// hides the little x in the block title
+.title-block button {
+  display: none;
 }

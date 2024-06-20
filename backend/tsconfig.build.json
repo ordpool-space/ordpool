@@ -1,8 +1,11 @@
 {
   "extends": "./tsconfig",
-  "exclude": ["**/*.test.*", "**/__mocks__/*", "**/__tests__/*"],
   "compilerOptions": {
     "types": ["node"]
   },
-
+  "exclude": [
+    "**/*.test.*",
+    "**/__mocks__/*",
+    "**/__tests__/*"
+  ],
 }

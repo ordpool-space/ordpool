@@ -1,4 +1,5 @@
 import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '../../app.constants';
+import { TransactionFlags, isFlagSet } from '../../shared/filters.utils';
 import { Color } from './sprite-types';
 import TxView from './tx-view';
 
@@ -186,4 +187,43 @@ export function ageColorFunction(
     b: color.b,
     a: color.a * (1 - ageLevel)
   };
+}
+
+// HACK
+export function ordpoolColorFunction(
+  tx: TxView,
+  relativeTime: number,
+  hasMatch: boolean
+): Color {
+
+  // we have a cat!!!
+  if (isFlagSet(tx, TransactionFlags.ordpool_cat21)) {
+    return defaultAuditColors.censored;
+  }
+
+  if (hasMatch) {
+
+    // derive the cat colors from feeRate, by @Ethspresso & @HausHoppe
+    // const saturationSeed = 100;
+    // const { rgb, saturation } = feeRateToColor(feeRate, saturationSeed);
+    // const colors = derivePalette(rgb[0], rgb[1], rgb[2], saturation);
+    // const primaryColor = colors[3].replace('#', '');
+    // const catColor = hexToColor(primaryColor);
+    // // catColor.a = 0.8;
+    // return catColor;
+
+    // defaultColors.unmatchedfee
+    const colors = defaultColors.fee;
+
+    // Mempool colors
+    const rate = tx.fee / tx.vsize; // color by simple single-tx fee rate
+    const levelIndex = colors.baseLevel(tx, rate, relativeTime || (Date.now() / 1000));
+    const levelColor = colors.base[levelIndex] || colors.base[defaultMempoolFeeColors.length - 1];
+    return levelColor;
+  }
+
+  // return darker gray (no artifact found)
+  return { r: 0.8, g: 0.8, b: 0.8, a: 0.3 };
+
+
 }
