@@ -58,15 +58,14 @@ export const TransactionFlags = {
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
 
   // HACK -- Ordpool flags
-  // these bits are near the last available bit 64, assuming a traditional 64-bit BigInt range
   // keep this in sync with backend/src/mempool.interfaces.ts
-  ordpool_atomical:    0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 57th bit
-  ordpool_cat21:       0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 58th bit
-  ordpool_inscription: 0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 59th bit
-  ordpool_runestone:   0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 60th bit
-  ordpool_src20:       0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 61st bit
-  // ordpool_stacks:      0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 62th bit
-  // ordpool_lightning:   0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n, // 63th bit
+  ordpool_atomical:     0b00000001_00000000_00000000_00000000_00000000_00000000_00000000n,
+  ordpool_cat21:        0b00000010_00000000_00000000_00000000_00000000_00000000_00000000n,
+  ordpool_inscription:  0b00000100_00000000_00000000_00000000_00000000_00000000_00000000n,
+  ordpool_runestone:    0b00001000_00000000_00000000_00000000_00000000_00000000_00000000n,
+  ordpool_src20:        0b00010000_00000000_00000000_00000000_00000000_00000000_00000000n,
+  // ordpool_stacks:    0b00100000_00000000_00000000_00000000_00000000_00000000_00000000n,
+  // ordpool_lightning: 0b01000000_00000000_00000000_00000000_00000000_00000000_00000000n,
 };
 
 export function toFlags(filters: string[]): bigint {
@@ -149,3 +148,22 @@ export const FilterGroups: { label: string, filters: Filter[]}[] = [
   { label: 'Ordpool Flags', filters: ['ordpool_atomical', 'ordpool_cat21', 'ordpool_inscription', 'ordpool_runestone', 'ordpool_src20'] },
 
 ].map(group => ({ label: group.label, filters: group.filters.map(filter => TransactionFilters[filter] || null).filter(f => f != null) }));
+
+
+type TransactionFlag = typeof TransactionFlags[keyof typeof TransactionFlags];
+
+/**
+ * Checks if a specific flag is set on a transaction.
+ * 
+ * @param tx - The transaction to check.
+ * @param flag - The flag to check for.
+ * @returns True if the flag is set, false otherwise.
+ */
+export function isFlagSet(tx: { flags?: number | null }, flag: TransactionFlag): boolean {
+
+  if (!tx.flags) {
+    return false;
+  }
+
+  return (BigInt(tx.flags) & flag) === flag;
+}

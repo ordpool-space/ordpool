@@ -49,8 +49,13 @@
 
   <ng-container *ngIf="x.connectedWallet">
 
-    <button #myPopover="ngbPopover" [popoverTitle]="popTitle" [ngbPopover]="popContent" [autoClose]="'outside'"
-      popoverClass="walletConnectPopover" class="ml-4 btn btn-secondary"
+    <button 
+      #myPopover="ngbPopover" 
+      [popoverTitle]="popTitle"
+      [ngbPopover]="popContent"
+      [autoClose]="'outside'"
+      popoverClass="walletConnectPopover" 
+      class="ml-4 btn btn-secondary"
       title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
     </button>

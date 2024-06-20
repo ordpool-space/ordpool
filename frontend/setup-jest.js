@@ -13,3 +13,6 @@ global.TextDecoder = util.TextDecoder;
 
 // add this too
 global.Uint8Array = Uint8Array;
+
+// fix: $localize is not defined
+global.$localize = function(x) { return x };
