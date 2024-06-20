@@ -40,7 +40,9 @@ The key difference to the original setup is the following new command:
 cd frontend
 npm install
 npm run config:defaults:ordpool
-npm start
+npm start 
+# OR
+npm run start:local-esplora
 ```
 
 This generates the required file `/resources/config.js` with the correct settings for Ordpool.

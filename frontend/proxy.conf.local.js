@@ -18,6 +18,9 @@ try {
   }
 }
 
+console.log('** USING PROXY_CONFIG FROM proxy.conf.local.js ***');
+
+
 let PROXY_CONFIG = [
   // HACK - this is just for local development, enter your own ord server here if available
   {
