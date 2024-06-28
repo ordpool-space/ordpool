@@ -1,13 +1,13 @@
-<app-inscription-viewer
-  *ngIf="whatToShow === 'inscription'"
-  [showDetails]="showDetails"
-  [parsedInscription]="asInscription"
-/>
-
 <app-src20-viewer
   *ngIf="whatToShow === 'src20'"
   [showDetails]="showDetails"
   [parsedSrc20]="asSrc20"
+/>
+
+<app-inscription-viewer
+  *ngIf="whatToShow === 'inscription'"
+  [showDetails]="showDetails"
+  [parsedInscription]="asInscription"
 />
 
 <app-cat21-viewer
@@ -15,3 +15,9 @@
   [showDetails]="showDetails"
   [parsedCat21]="asCat21"
 />
+
+
+<div *ngIf="whatToShow === 'nothing'">
+  Unknown digital artifact.
+  Please update the <code>DigitalArtifactViewerComponent</code>
+</div>
