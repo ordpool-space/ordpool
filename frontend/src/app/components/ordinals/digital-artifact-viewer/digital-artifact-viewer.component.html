@@ -4,6 +4,18 @@
   [parsedSrc20]="asSrc20"
 />
 
+<app-runestone-viewer
+  *ngIf="whatToShow === 'runestone'"
+  [showDetails]="showDetails"
+  [parsedRunestone]="asRunestone"
+/>
+
+<app-atomical-viewer
+  *ngIf="whatToShow === 'atomical'"
+  [showDetails]="showDetails"
+  [parsedAtomical]="asAtomical"
+/>
+
 <app-inscription-viewer
   *ngIf="whatToShow === 'inscription'"
   [showDetails]="showDetails"
@@ -18,6 +30,6 @@
 
 
 <div *ngIf="whatToShow === 'nothing'">
-  Unknown digital artifact.
+  Unknown digital artifact.<br>
   Please update the <code>DigitalArtifactViewerComponent</code>
 </div>

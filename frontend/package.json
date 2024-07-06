@@ -96,7 +96,7 @@
     "ngx-echarts": "~17.1.0",
     "ngx-highlightjs": "^10.0.0",
     "ngx-infinite-scroll": "^17.0.0",
-    "ordpool-parser": "^0.0.10-beta.2",
+    "ordpool-parser": "^0.0.10-beta.3",
     "prettier": "^3.1.1",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",

@@ -76,19 +76,19 @@
 
             <ul class="m-0">
               <li>
-                <code style="color:#FF9900">{{ 200000 | number }}</code>&nbsp;<span class="symbol" i18n="shared.sat|sat">sat</span> (<app-fiat
+                <code class="bitcoin">{{ 200000 | number }}</code>&nbsp;<span class="symbol" i18n="shared.sat|sat">sat</span> (<app-fiat
                   [value]="200000"></app-fiat>)&nbsp;<app-clipboard [button]="true" [text]="'200000'"
                   [class]="'btn btn-sm p-0'"></app-clipboard>
 
               </li>
               <li>to your address <code
-                  style="color:#FF9900">{{ x.connectedWallet.paymentAddress }}</code>&nbsp;<app-clipboard
+                  class="bitcoin">{{ x.connectedWallet.paymentAddress }}</code>&nbsp;<app-clipboard
                   [button]="true" [text]="x.connectedWallet.paymentAddress"
                   [class]="'btn btn-sm p-0'"></app-clipboard>
               </li>
             </ul>
 
-            This should be enough to mint <strong style="color:#FF9900">multiple</strong> CAT-21 ordinals. 😻😻😻
+            This should be enough to mint <strong class="bitcoin">multiple</strong> CAT-21 ordinals. 😻😻😻
           </div>
 
           <div *ngIf="!utxoLoading && !utxoError && (paymentOutputs$ | async)?.length">
