@@ -121,6 +121,9 @@ import { DigitalArtifactViewerComponent } from '../components/ordinals/digital-a
 import { InscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
 import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-viewer/src20-viewer/src20-viewer.component';
 import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
+import { RunestoneViewerComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
+import { BigIntFormatterPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
+import { AtomicalViewerComponent } from '../components/ordinals/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
 import { CapitalizeFirstPipe } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
 import { JsonViewerComponent } from '../components/ordinals/digital-artifact-viewer/json-viewer/json-viewer.component';
 import { CodeViewerComponent } from '../components/ordinals/digital-artifact-viewer/code-viewer/code-viewer.component';
@@ -252,6 +255,9 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     InscriptionViewerComponent,
     Src20ViewerComponent,
     Cat21ViewerComponent,
+    RunestoneViewerComponent,
+    BigIntFormatterPipe,
+    AtomicalViewerComponent,
     CapitalizeFirstPipe,
     JsonViewerComponent,
     CodeViewerComponent,

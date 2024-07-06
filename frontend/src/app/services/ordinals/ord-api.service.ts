@@ -1,9 +1,9 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, catchError, of, retry } from 'rxjs';
+import { Observable } from 'rxjs';
 
-import { environment } from '../../../../environments/environment';
-import { WalletService } from '../wallet.service';
+import { environment } from '../../../environments/environment';
+import { WalletService } from './wallet.service';
 
 interface BlockData {
   hash: string;
@@ -34,19 +34,19 @@ export class OrdApiService {
   }
 
   /**
+   * NOT USED ATM
    * Retrieves inscription data for a specific Bitcoin block.
    *
-   * @param blockNumber The height of the Bitcoin block to retrieve data for.
+   * @param blockHeight The height of the Bitcoin block to retrieve data for.
    * @returns Observable of BlockData containing the block details.
    */
-  getBlockData(blockNumber: number): Observable<BlockData | { inscriptions: string[] }> {
+  getBlockData(blockHeight: number): Observable<BlockData | { inscriptions: string[] }> {
     const headers = new HttpHeaders().set('Accept', 'application/json');
-    return this.http.get<BlockData>(`${this.baseUrl}/block/${blockNumber}`, { headers }).pipe(
-      retry({
-        count: 3,
-        delay: 2500
-      }),
-      catchError(() => of({ inscriptions: [] })),
-    );
+    return this.http.get<BlockData>(`${this.baseUrl}/block/${blockHeight}`, { headers });
+  }
+
+  getRuneById(blockHeight: number, transactionNumber: number): Observable<any> {
+    const headers = new HttpHeaders().set('Accept', 'application/json');
+    return this.http.get<any>(`${this.baseUrl}/rune/${blockHeight}:${transactionNumber}`, { headers });
   }
 }

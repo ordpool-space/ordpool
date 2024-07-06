@@ -32,6 +32,10 @@ $popover-body-color: $light;
 $popover-bg: $body-bg;
 $popover-border-color: $gray-800;
 
+.bitcoin {
+  color: $bitcoin;
+}
+
 // Workaround for https://github.com/ng-bootstrap/ng-bootstrap/issues/2686
 // (modal not clickable)
 ngb-modal-backdrop {

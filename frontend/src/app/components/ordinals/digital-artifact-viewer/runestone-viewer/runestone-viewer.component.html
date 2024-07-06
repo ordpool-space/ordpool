@@ -1,0 +1,237 @@
+<ng-container *ngIf="runestone">
+
+  <strong>▣ Rune (Runestone message)</strong><br>
+  <br *ngIf="showDetails">
+
+  <!-- <app-json-viewer [text]="runestone" /> -->
+
+  <ng-container *ngIf="runestone.etching as etching">
+
+    <strong>Etching</strong><br>
+    This runestone creates a new Rune.<br>
+    These are the properties of the new Rune:
+
+    <div class="row mt-2">
+      <div class="col-sm">
+
+        <table class="table table-borderless table-striped"
+          [ngClass]="{ 'small-text' : showDetails }">
+          <tbody>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="This field contains the name of the rune being etched. If this field is omitted, a reserved rune name is allocated.
+                  
+                  Names consist of the letters A through Z and are between one and twenty-six letters long."
+                ></fa-icon>
+                Rune Name
+              </td>
+              <td>{{ etching.runeName === undefined ? 'None' : etching.runeName }}</td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="The divisibility sets the smallest amount you can send.
+                  
+                  A rune with divisibility 0 may not be divided.
+                  A unit of a rune with divisibility 1 may be divided into ten sub-units,
+                  a rune with divisibility 2 may be divided into a hundred, and so on."
+                ></fa-icon>
+                Divisibility
+              </td>
+              <td>{{ etching.divisibility === undefined ? 'None' : etching.divisibility }}</td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="The etcher of a rune may optionally allocate to themselves units of the rune being etched.
+                  This allocation is called a premine."
+                ></fa-icon>
+                Premine
+              </td>
+              <td>{{ etching.premine === undefined ? 'None' : etching.premine | bigIntFormatter }}</td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="A rune's currency symbol is a single Unicode character, displayed after quantities of that rune.
+                  101 atomic units of a rune with divisibility 2 and symbol 🧿 would be rendered as 1.01 🧿."
+                ></fa-icon>
+                Symbol
+              </td>
+              <td>{{ etching.symbol === undefined ? 'None' : etching.symbol }}</td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="A rune may have an open mint, allowing anyone to create and allocate units of that rune for themselves.
+                  An open mint is subject to terms, which are defined in this terms section."
+                ></fa-icon>
+                Terms
+              </td>
+              <td>
+
+                <ng-container *ngIf="!etching.terms">None</ng-container>
+              
+                <table *ngIf="etching.terms as terms" class="table table-borderless mt-n2">
+                  <tbody>
+
+                    <tr>
+                      <td class="pl-0">
+                        <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                          ngbTooltip="The number of times a rune may be minted is its cap. A mint is closed once the cap is reached."
+                        ></fa-icon>
+                        Cap
+                      </td>
+                      <td>{{ terms.cap === undefined ? 'None' : terms.cap | bigIntFormatter  }}</td>
+                    </tr>
+
+                    <tr>
+                      <td class="pl-0">
+                        <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                          ngbTooltip="Each mint transaction creates this exact fixed amount of new units of a rune."
+                        ></fa-icon>
+                        Amount
+                      </td>
+                      <td>{{ terms.amount === undefined ? 'None' : terms.amount | bigIntFormatter }}</td>
+                    </tr>
+
+                    <tr>
+                      <td class="pl-0">
+                        <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                          ngbTooltip="This section contains the mint's starting and ending absolute block heights, respectively. 
+                          The mint is open starting in the block with height start, and closes in the block with height end."
+                        ></fa-icon>
+                        Height
+                      </td>
+                      <td>
+                        
+                        <ng-container *ngIf="!terms.height">None</ng-container>
+
+                        <ng-container *ngIf="terms.height as height">
+                          <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                            ngbTooltip="A mint is open starting in the block with the given start height."
+                          ></fa-icon>Start: {{ height.start === undefined ? 'None' : height.start }}<br>
+                          <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                          ngbTooltip="A rune may not be minted in or after the block with the given end height."
+                        ></fa-icon>End: {{ height.end === undefined ? 'None' : height.end }}
+                        </ng-container>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td class="pl-0">
+                        <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                          ngbTooltip="The section contains the mint's starting and ending block heights, relative to the block in which the etching is mined.
+                          The mint is open starting in the block with height offset stat + etching height, and closes in the block with height offset end + etching height."
+                        ></fa-icon>
+                        Offset
+                      </td>
+                      <td>
+                        
+                        <ng-container *ngIf="!terms.offset">None</ng-container>
+
+                          <ng-container *ngIf="terms.offset as offset">
+                            <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                            ngbTooltip="A mint is open starting in the block whose height is equal to the start offset plus the height of the block in which the rune was etched."
+                          ></fa-icon>Start: {{ offset.start === undefined ? 'None' : offset.start }}<br>
+                          <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                            ngbTooltip="A rune may not be minted in or after the block whose height is equal to the end offset plus the height of the block in which the rune was etched."
+                          ></fa-icon>End: {{ offset.end === undefined ? 'None' : offset.end }}
+                        </ng-container>
+                      </td>
+                    </tr>
+        
+
+                  </tbody>
+                </table>
+              
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                  ngbTooltip="The 'Yes' setting means that this rune accepts all future protocol changes."
+                ></fa-icon>
+                Turbo
+              </td>
+              <td>{{ etching.turbo ? 'Yes' : 'No' }}</td>
+            </tr>
+
+          </tbody>
+        </table>
+
+      </div>
+      <div class="col-sm">
+        &nbsp;
+      </div>
+    </div>  
+
+  </ng-container>
+
+  <ng-container *ngIf="runestone.mint as mint">
+
+    <strong>Mint</strong><br>
+
+    <ng-container *ngIf="isUncommonGoods()">
+
+      <ng-container *ngIf="showDetails">
+        This runestone mints <strong>one unit</strong> of the hardcoded Rune #0.<br>
+      </ng-container>
+
+      1x <strong>⧉ UNCOMMON•GOODS</strong>
+
+    </ng-container>
+
+    <ng-container *ngIf="!isUncommonGoods()">
+
+      <ng-container *ngIf="showDetails">
+
+        This runestone creates fixed amount of new units of a Rune 
+        <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+          ngbTooltip="Runes are identified by IDs, which consist of the block in which a rune was etched and the index of the etching transaction within that block, represented in text as BLOCK:TX . 
+          For example, the ID of the rune etched in the 20th transaction of the 500th block is 500:20"
+        ></fa-icon>
+        <strong class="bitcoin">{{ mint.block }}:{{ mint.tx }}</strong>.<br>
+        <br>
+
+        Block: {{ mint.block }}<br>
+        Transaction number: {{ mint.tx }}
+      </ng-container>
+
+      <pre>
+      {{  getRuneById$(mint.block, mint.tx) | async | json }}
+      </pre>
+
+
+    </ng-container>
+
+  </ng-container>
+
+</ng-container>
+
+
+<ng-container *ngIf="cenotaph">
+
+  <strong>▣ Cenotaph (Invalid Runestone message)</strong><br>
+  <br *ngIf="showDetails">
+
+  <ng-container *ngIf="showDetails">
+    This is a runestone message that is malformed.<br>
+    All Runes in this transaction are burned!<br>
+    <br>
+  </ng-container>
+
+  <strong>Flaws:</strong>
+  <ol class="pb-2 mt-2">
+    <li *ngFor="let flaw of cenotaph.flaws" class="pl-2">
+      {{ flaw.split('_').join(' ') }}
+    </li>
+  </ol>
+</ng-container>

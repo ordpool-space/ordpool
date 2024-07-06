@@ -1,5 +1,7 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { ParsedInscription } from 'ordpool-parser';
+import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
+import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
+import { ElectrsApiService } from '../../../../services/electrs-api.service';
+import { Observable, map } from 'rxjs';
 
 /*
 More test cases:
@@ -20,8 +22,15 @@ More test cases:
 })
 export class InscriptionViewerComponent {
 
+  electrsApiService = inject(ElectrsApiService);
+
   _parsedInscription: ParsedInscription | undefined;
   delegates: string[] = [];
+  delegateInscriptions: {
+    inscriptionId: string;
+    txId: string;
+    allInscriptionsInTheTxn$: Observable<ParsedInscription[]>;
+  }[] = [];
 
   whatToShow: 'nothing' | 'json' | 'code' | 'preview' | 'delegates' = 'nothing';
 
@@ -47,14 +56,28 @@ export class InscriptionViewerComponent {
     if (delegates.length) {
       this.whatToShow = 'delegates';
       this.delegates = delegates;
+
+      this.delegateInscriptions = this.delegates
+        .map(inscriptionId => ({
+          inscriptionId,
+          txId: inscriptionId.split('i')[0]
+        }))
+        .map(({ inscriptionId, txId }) => ({
+          inscriptionId,
+          txId,
+          allInscriptionsInTheTxn$: this.electrsApiService.getTransaction$(txId).pipe(
+            map(txn => InscriptionParserService.parse(txn))
+          )
+        }));
+
       return;
     } else {
       this.delegates = [];
     }
 
     if ((inscription.contentType.startsWith('text/plain') ||
-         inscription.contentType.startsWith('application/json')) &&
-         this.validateJson(inscription.getContent())) {
+      inscription.contentType.startsWith('application/json')) &&
+      this.validateJson(inscription.getContent())) {
 
       this.whatToShow = 'json';
       return;

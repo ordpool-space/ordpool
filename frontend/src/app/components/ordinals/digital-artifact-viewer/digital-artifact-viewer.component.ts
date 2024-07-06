@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { DigitalArtifact, DigitalArtifactType, ParsedCat21, ParsedInscription, ParsedSrc20 } from 'ordpool-parser';
+import { DigitalArtifact, DigitalArtifactType, ParsedAtomical, ParsedCat21, ParsedInscription, ParsedRunestone, ParsedSrc20 } from 'ordpool-parser';
 
 
 @Component({
@@ -12,7 +12,7 @@ export class DigitalArtifactViewerComponent {
 
   private _parsedDigitalArtifact: DigitalArtifact | undefined;
 
-  whatToShow: 'nothing' | 'inscription' | 'src20' | 'cat21' = 'nothing';
+  whatToShow: 'nothing' | 'src20' | 'runestone' | 'atomical' | 'inscription' | 'cat21' = 'nothing';
 
   @Input() showDetails = false;
 
@@ -31,13 +31,23 @@ export class DigitalArtifactViewerComponent {
       return;
     }
 
-    if (artifact.type === DigitalArtifactType.Inscription) {
-      this.whatToShow = 'inscription';
+    if (artifact.type  === DigitalArtifactType.Src20) {
+      this.whatToShow = 'src20';
       return;
     }
 
-    if (artifact.type  === DigitalArtifactType.Src20) {
-      this.whatToShow = 'src20';
+    if (artifact.type  === DigitalArtifactType.Runestone) {
+      this.whatToShow = 'runestone';
+      return;
+    }
+
+    if (artifact.type  === DigitalArtifactType.Atomical) {
+      this.whatToShow = 'atomical';
+      return;
+    }
+
+    if (artifact.type === DigitalArtifactType.Inscription) {
+      this.whatToShow = 'inscription';
       return;
     }
 
@@ -49,6 +59,18 @@ export class DigitalArtifactViewerComponent {
     this.whatToShow = 'nothing';
   }
 
+  get asCat21() {
+    return this._parsedDigitalArtifact as ParsedCat21;
+  }
+
+  get asRunestone() {
+    return this._parsedDigitalArtifact as ParsedRunestone;
+  }
+
+  get asAtomical() {
+    return this._parsedDigitalArtifact as ParsedAtomical;
+  }
+
   get asInscription() {
     return this._parsedDigitalArtifact as ParsedInscription;
   }
@@ -57,7 +79,4 @@ export class DigitalArtifactViewerComponent {
     return this._parsedDigitalArtifact as ParsedSrc20;
   }
 
-  get asCat21() {
-    return this._parsedDigitalArtifact as ParsedCat21;
-  }
 }

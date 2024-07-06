@@ -3,15 +3,29 @@
   <ng-container *ngIf="whatToShow === 'delegates'">
 
     <div *ngFor="let delegate of delegates">
-      <strong>Delegate Inscription:</strong>
+      <strong>◉ Delegate Inscription:</strong>
 
-      <ol class="smaller-text mt-2">
-        <li *ngFor="let delegate of delegates" class="pl-2">
-          <a class="address" [routerLink]="['/tx/' | relativeUrl, delegate.split('i')[0]]" title="{{ delegate }}">
-            <app-truncate [text]="delegate" [lastChars]="10"></app-truncate>
-          </a>
-        </li>
-      </ol>
+      <p class="smaller-text mt-2">
+        <a *ngFor="let delegate of delegates" class="address" [routerLink]="['/tx/' | relativeUrl, delegate.split('i')[0]]" title="{{ delegate }}">
+          <app-truncate [text]="delegate" [lastChars]="10"></app-truncate>
+        </a>
+      </p>
+
+      <div *ngFor="let delegateInscription of delegateInscriptions" class="ml-4">
+        <ng-container *ngIf="delegateInscription.allInscriptionsInTheTxn$ | async as allInscriptionsInTheTxn">
+          <ng-container *ngFor="let inscription of allInscriptionsInTheTxn">
+
+            <app-inscription-viewer 
+              *ngIf="inscription.inscriptionId === delegateInscription.inscriptionId"
+              [showDetails]="showDetails"
+              [parsedInscription]="inscription"
+            />
+
+          </ng-container>
+        </ng-container>
+      </div>
+
+      
 
     </div>
 
@@ -19,7 +33,7 @@
 
   <ng-container *ngIf="whatToShow !== 'delegates'">
 
-    <strong>Inscription: </strong>{{ _parsedInscription.contentType }}<br>
+    <strong>◉ Inscription: </strong>{{ _parsedInscription.contentType }}<br>
     <br *ngIf="showDetails">
 
     <app-json-viewer
