@@ -39,7 +39,7 @@
                         <fa-icon [icon]="['fas', 'arrow-alt-circle-right']" [fixedWidth]="true"></fa-icon>
                       </a>
                       <ng-template #localPegInLink>
-                        <a [routerLink]="['/tx/', vin.txid]" class="red">
+                        <a [routerLink]="['/tx/' | relativeUrl, vin.txid]" class="red">
                           <fa-icon [icon]="['fas', 'arrow-alt-circle-right']" [fixedWidth]="true"></fa-icon>
                         </a>
                       </ng-template>

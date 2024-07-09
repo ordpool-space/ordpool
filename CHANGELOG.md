@@ -1,3 +1,10 @@
+# v0.0.6 – Parsing Runes
+
+* Support for runestone messages in transactions
+* Drastically improved performance: server-side detection of Digital Artifacts (including runes)
+* Detection of Atomicals (but no real parsing & display)
+
+
 # v0.0.5 – CAT-21 Ordinals
 
 ![cats](https://github.com/ordpool-space/ordpool/assets/108269257/0fb9fad1-0cbd-4c77-b007-5206a1349c8a)

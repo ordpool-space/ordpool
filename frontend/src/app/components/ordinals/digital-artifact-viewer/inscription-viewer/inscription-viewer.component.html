@@ -12,7 +12,7 @@
       </p>
 
       <div *ngFor="let delegateInscription of delegateInscriptions" class="ml-4">
-        <ng-container *ngIf="delegateInscription.allInscriptionsInTheTxn$ | async as allInscriptionsInTheTxn">
+        @if (delegateInscription.allInscriptionsInTheTxn$ | async; as allInscriptionsInTheTxn) {
           <ng-container *ngFor="let inscription of allInscriptionsInTheTxn">
 
             <app-inscription-viewer 
@@ -22,7 +22,9 @@
             />
 
           </ng-container>
-        </ng-container>
+        } @else {
+          <span class="skeleton-loader"></span>
+        }
       </div>
 
       

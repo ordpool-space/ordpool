@@ -44,7 +44,7 @@ export class SearchFormComponent implements OnInit {
   regexDate = getRegex('date');
   regexUnixTimestamp = getRegex('timestamp');
 
-  // HACK
+  // HACK -- search for inscription ID (part 1/2)
   regexInscription = /^([a-fA-F0-9]{64}i\d+)?$/;
 
   focus$ = new Subject<string>();
@@ -181,7 +181,7 @@ export class SearchFormComponent implements OnInit {
           const addressPrefixSearchResults = result[0];
           const lightningResults = result[1];
 
-          // HACK
+          // HACK -- search for inscription ID (part 2/2)
           if (this.regexInscription.test(searchText)) {
             searchText = searchText.split('i')[0];
           }

@@ -110,7 +110,7 @@ export const TransactionFilters: { [key: string]: Filter } = {
     /* data */
     op_return: { key: 'op_return', label: 'OP_RETURN', flag: TransactionFlags.op_return, important: true, tooltip: true, txPage: true, },
     fake_pubkey: { key: 'fake_pubkey', label: 'Fake pubkey', flag: TransactionFlags.fake_pubkey, tooltip: true, txPage: true, },
-    // HACK - rename inscription
+    // HACK -- rename inscription label
     // inscription: { key: 'inscription', label: 'Inscription', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
     inscription: { key: 'inscription', label: 'Arbitrary data in witness', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
     fake_scripthash: { key: 'fake_scripthash', label: 'Fake scripthash', flag: TransactionFlags.fake_scripthash, tooltip: true, txPage: true,},
@@ -166,4 +166,20 @@ export function isFlagSet(tx: { flags?: number | null }, flag: TransactionFlag):
   }
 
   return (BigInt(tx.flags) & flag) === flag;
+}
+
+/**
+ * Checks for all ordpool flags.
+ */
+export function hasDigitalArtifactFlagSet(tx: { flags?: number | null }): boolean {
+
+  if (!tx.flags) {
+    return false;
+  }
+  
+  return isFlagSet(tx, TransactionFlags.ordpool_atomical) ||
+    isFlagSet(tx, TransactionFlags.ordpool_cat21) ||
+    isFlagSet(tx, TransactionFlags.ordpool_inscription) ||
+    isFlagSet(tx, TransactionFlags.ordpool_runestone) ||
+    isFlagSet(tx, TransactionFlags.ordpool_src20);
 }

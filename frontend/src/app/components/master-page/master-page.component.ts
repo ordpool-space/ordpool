@@ -51,7 +51,7 @@ export class MasterPageComponent implements OnInit, OnDestroy {
     private router: Router,
   ) {
 
-    // HACK
+    // HACK -- redirect to block-overwiew
     if (router.routerState.snapshot.url === '/') {
       router.navigate(['/mempool-block', '0']);
     }

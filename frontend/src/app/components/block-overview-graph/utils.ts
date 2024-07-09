@@ -189,7 +189,7 @@ export function ageColorFunction(
   };
 }
 
-// HACK
+// HACK -- ordpoolColorFunction
 export function ordpoolColorFunction(
   tx: TxView,
   relativeTime: number,

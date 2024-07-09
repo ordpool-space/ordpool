@@ -73,7 +73,9 @@
     background: #181b2daf;
     border: solid 1px var(--primary);
     color: white;
-    border-radius: 0.2rem;
+
+    // HACK -- don't change border radius
+    // border-radius: 0.2rem;
     padding: 0.2em 0.5em;
     transition: background-color 300ms;
     margin-right: 0.25em;
@@ -84,14 +86,15 @@
     }
   }
 
-  &.any-mode {
-    .filter-tag {
-      border: solid 1px var(--success);
-      &.selected {
-        background-color: var(--success);
-      }
-    }
-  }
+  // HACK -- don't change primary color
+  // &.any-mode {
+  //   .filter-tag {
+  //     border: solid 1px var(--success);
+  //     &.selected {
+  //       background-color: var(--success);
+  //     }
+  //   }
+  // }
 
   .btn-group {
     font-size: 0.9em;

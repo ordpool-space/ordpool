@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
 import { Cenotaph, ParsedRunestone, RunestoneSpec } from 'ordpool-parser';
-import { OrdApiService } from '../../../../services/ordinals/ord-api.service';
+import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api.service';
+import { Observable } from 'rxjs';
 
 /**
  * Test cases:
  * http://localhost:4200/tx/2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e (etching Z•Z•Z•Z•Z•FEHU•Z•Z•Z•Z•Z)
- * http://localhost:4200/tx/795e09306dba134150142801f92e66dbd44cfad304b0a0688578160a300352ee (edicts)
+ * http://localhost:4200/tx/795e09306dba134150142801f92e66dbd44cfad304b0a0688578160a300352ee (edicts of 13x 75 NOR•MOONRUNNERS)
  * http://localhost:4200/tx/1af2a846befbfac4091bf540adad4fd1a86604c26c004066077d5fe22510e99b (dog airdrop)
  * http://localhost:4200/tx/7f4c516ca5b7b2b747bb04e0bd50aef2e8c4c34d78e681be40c5d93c9d635972 (mint UNCOMMON•GOODS)
  * http://localhost:4200/tx/e59cc3f24abd61c0b6ec97cbde001e6da859409644c8ed64027512ed5f61329e (mint THE•PONZI•CHANNEL)
@@ -13,6 +14,19 @@ import { OrdApiService } from '../../../../services/ordinals/ord-api.service';
  * http://localhost:4200/tx/b3205ea418e67fb5a9b80bb14956e7566751903fb7fc6b36af55429af9681d0e (pointer)
  * http://localhost:4200/tx/25d919c2f02c00ef26a4d674ac1ecffd92684bce35fc449b7834841fd017a9f9 (1st cenotaph)
  * http://localhost:4200/tx/9327998a4aee68a6792db8b00540976ebf81b32ef3c0fd52a43d4ce1e3c5cf11 (etching COOK•THE•MEMPOOL, with 0 premine but cap 21b)
+ * 
+ * 
+ * More test cases
+ * https://ordiscan.com/rune/HOPEYOUGETRICH
+ * Starts at Block 840,001
+ * Ends at Block 844,609
+ * Mint of 100,000 HOPE•YOU•GET•RICH: 
+ * https://ordiscan.com/tx/897cb15f5d7633e8daa9d29d8f8b73238668a136394d0c319b8e1f55a279df46
+ * -->  * http://localhost:4200/tx/897cb15f5d7633e8daa9d29d8f8b73238668a136394d0c319b8e1f55a279df46
+
+ * 
+ * https://ordiscan.com/tx/c7a7cf4c146e48e39b1ab2d235263886d364a225255d421dd61f19538e96e79c
+ * 
  * 
  * TODO:
  * total supply, must be equal to `premine + terms.cap * terms.amount`
@@ -35,6 +49,8 @@ export class RunestoneViewerComponent {
   runestone: RunestoneSpec | undefined = undefined;
   cenotaph: Cenotaph | undefined = undefined;
 
+  runeDetails$: Observable<OrdApiRune> = undefined;
+
   @Input() showDetails = false;
 
   @Input()
@@ -50,19 +66,21 @@ export class RunestoneViewerComponent {
     if (parsedRunestone) {
       this.runestone = parsedRunestone.runestone;
       this.cenotaph = parsedRunestone.cenotaph;
+
+      if (this.runestone.mint && !this.isUncommonGoods()) {
+        this.runeDetails$ = this.ordApiService.getRuneById(Number(this.runestone.mint.block), this.runestone.mint.tx);
+      }
+
       return;
     }
 
     this.runestone = undefined;
     this.cenotaph = undefined;
+    this.runeDetails$ = undefined;
   }
 
   isUncommonGoods() {
     return this.runestone?.mint?.block === 1n && this.runestone?.mint?.tx === 0;
-  }
-  
-  getRuneById$(blockHeight: bigint, transactionNumber: number) {
-    return this.ordApiService.getRuneById(Number(blockHeight), transactionNumber);
   }
 
   // /**

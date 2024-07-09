@@ -23,7 +23,10 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
   filterFlags: { [key: string]: boolean } = {};
   filterMode: FilterMode = 'and';
   gradientMode: GradientMode = 'fee';
-  menuOpen: boolean = false;
+  
+  // HACK: menu always open
+  // menuOpen: boolean = false;
+  menuOpen: boolean = true;
 
   constructor(
     private stateService: StateService,
@@ -103,14 +106,15 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
     return flags || null;
   }
 
-  @HostListener('document:click', ['$event'])
-  onClick(event): boolean {
-    // click away from menu
-    if (!event.target.closest('button') && !event.target.closest('label')) {
-      this.menuOpen = false;
-    }
-    return true;
-  }
+  // HACK -- menu always open
+  // @HostListener('document:click', ['$event'])
+  // onClick(event): boolean {
+  //   // click away from menu
+  //   if (!event.target.closest('button') && !event.target.closest('label')) {
+  //     this.menuOpen = false;
+  //   }
+  //   return true;
+  // }
 
   ngOnDestroy(): void {
     this.filterSubscription.unsubscribe();
