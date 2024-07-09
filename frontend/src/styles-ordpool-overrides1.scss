@@ -104,3 +104,28 @@ app-confirmations button {
 .title-block button {
   display: none;
 }
+
+// fixes the whitepaces handling from style.scss line 707
+app-runestone-viewer,
+app-atomical-viewer {
+  white-space: normal !important;
+}
+
+// moves app-block-filters out of the block overview
+// no "gray" blocking anymore
+.block-overview-graph {
+  margin-top: 80px;
+}
+
+.block-filters {
+  height: 80px !important;
+
+  h5 {
+    margin-top: 0 !important;
+    margin-bottom: 4px !important;
+  }
+}
+
+app-block-filters > div {
+  margin-top: -80px;
+}

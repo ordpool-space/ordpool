@@ -65,7 +65,7 @@ const providers = [
   WalletService,
   BlockstreamApiService,
   Cat21Service,
-  // HACK
+  // HACK -- HttpRetryInterceptor
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
   { provide: HIGHLIGHT_OPTIONS,
     useValue: {

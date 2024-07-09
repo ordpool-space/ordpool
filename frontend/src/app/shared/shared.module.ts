@@ -123,6 +123,8 @@ import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-vi
 import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { RunestoneViewerComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
 import { BigIntFormatterPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
+import { NumberSuffixPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
+import { DivisibilityPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
 import { AtomicalViewerComponent } from '../components/ordinals/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
 import { CapitalizeFirstPipe } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
 import { JsonViewerComponent } from '../components/ordinals/digital-artifact-viewer/json-viewer/json-viewer.component';
@@ -257,6 +259,8 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     Cat21ViewerComponent,
     RunestoneViewerComponent,
     BigIntFormatterPipe,
+    NumberSuffixPipe,
+    DivisibilityPipe,
     AtomicalViewerComponent,
     CapitalizeFirstPipe,
     JsonViewerComponent,

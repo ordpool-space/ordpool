@@ -2,12 +2,14 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
 import { TransactionStripped } from '../../interfaces/node-api.interface.js';
-import { Filter, FilterMode, TransactionFlags, toFilters } from '../../shared/filters.utils';
+import { Filter, FilterMode, TransactionFlags, hasDigitalArtifactFlagSet, toFilters } from '../../shared/filters.utils';
 import { Block } from '../../interfaces/electrs.interface.js';
 import { DigitalArtifact } from 'ordpool-parser';
 import { Observable, catchError, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 import { inject } from '@angular/core';
+
+// DEBUGGING HINT: Temp. Remove [style.visibility] in template for easier HTML/CSS work
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -102,14 +104,14 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
       this.cd.markForCheck();
 
-
-      // HACK
-      if (this.txid) {
+      // HACK -- fetch artifacts for tooltip
+      if (this.tx && hasDigitalArtifactFlagSet(this.tx)) {
         this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid).pipe(
           startWith(undefined),
           catchError(err => of(null))
         );
-      } else {
+      }
+      else {
         this.digitalArtifacts$ = of([]);
       }
     }

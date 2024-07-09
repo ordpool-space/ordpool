@@ -98,7 +98,8 @@
         <td class="td-width" colspan="2">Digital Artifacts</td>
       </tr>
       <tr>
-        <td class="text-center" *ngIf="{ digitalArtifacts: digitalArtifacts$ | async } as i"  colspan="2" style="height: 220px;">
+
+        <td class="text-center normal-white-space" *ngIf="{ digitalArtifacts: digitalArtifacts$ | async } as i"  colspan="2" style="height: 220px;">
 
           <ng-container *ngIf="i.digitalArtifacts === undefined">
             Loading...

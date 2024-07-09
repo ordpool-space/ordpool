@@ -48,7 +48,7 @@ export class DigitalArtifactsFetcherService {
    *
    * @param txid - The transaction ID.
    * @param priority - Whether the request has a higher priority.
-   * @returns An Observable that emits the parsed inscriptions.
+   * @returns An Observable with the digital artifacts.
    */
   fetchArtifacts(txid: string): Observable<DigitalArtifact[]> {
 
@@ -90,7 +90,7 @@ export class DigitalArtifactsFetcherService {
   //  * Fetches a single transaction by ID.
   //  * Tries fetching from
   //  *
-  //  * 1. Our own backend - but only if it responds within a timeout of 1000ms
+  //  * 1. Our own backend
   //  * 2. fallback: blockstream.info
   //  * 3. fallback: blockchain.info (warning: has no Testnet support)
   //  * ... or gives up
@@ -100,7 +100,6 @@ export class DigitalArtifactsFetcherService {
   //  */
   // fetchTransaction(txid: string): Observable<Transaction> {
   //   return this.electrsApiService.getTransaction$(txid).pipe(
-  //     timeout(2000),
   //     catchError(() => this.blockstreamApiService.getTransaction$(txid)),
   //     catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
   //     catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
@@ -112,7 +111,7 @@ export class DigitalArtifactsFetcherService {
    * Tries fetching from
    *
    * 1. blockstream.info - because they are fast
-   * 2. fallback: Our own backend - but only if it responds within a timeout of 1000ms
+   * 2. fallback: Our own backend
    * 3. fallback: blockchain.info (warning: has no Testnet support)
    * ... or gives up
    *
@@ -121,7 +120,7 @@ export class DigitalArtifactsFetcherService {
    */
   fetchTransaction(txid: string): Observable<Transaction> {
     return this.blockstreamApiService.getTransaction$(txid).pipe(
-      catchError(() => this.electrsApiService.getTransaction$(txid).pipe(timeout(2000))),
+      catchError(() => this.electrsApiService.getTransaction$(txid)),
       catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
       catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
     );
