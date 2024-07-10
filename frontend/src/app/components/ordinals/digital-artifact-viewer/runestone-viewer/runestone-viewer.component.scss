@@ -1,0 +1,44 @@
+// this would give us the possebility to scroll, if the tooltip wouldn't close
+// seen here: https://stackoverflow.com/questions/17067294/html-table-with-100-width-with-vertical-scroll-inside-tbody
+.scrollable-table-container {
+  height: 10em;
+
+  table {
+    display: flex;
+    flex-flow: column;
+    height: 100%;
+    width: 100%;
+    
+    thead {
+      /* head takes the height it requires, 
+      and it's not scaled when table is resized */
+      flex: 0 0 auto;
+      width: calc(100% - 0.9em);
+    }
+    tbody {
+      /* body takes all the remaining available space */
+      flex: 1 1 auto;
+      display: block;
+      overflow-y: scroll;
+    }
+    tbody tr {
+      width: 100%;
+    }
+    thead, table tbody tr {
+      display: table;
+      table-layout: fixed;
+    }
+  }
+}
+
+.smaller-text {
+
+  width: 100%;
+
+  th, td {
+    padding: 0.5em;
+  }
+  fa-icon {
+    display: none;
+  }
+}
