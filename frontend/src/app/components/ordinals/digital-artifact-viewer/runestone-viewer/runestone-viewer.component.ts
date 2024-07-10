@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
 import { Cenotaph, ParsedRunestone, RunestoneSpec } from 'ordpool-parser';
 import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api.service';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay } from 'rxjs';
 
 /**
  * Test cases:
@@ -48,8 +48,9 @@ export class RunestoneViewerComponent {
   private _runestone: ParsedRunestone | undefined;
   runestone: RunestoneSpec | undefined = undefined;
   cenotaph: Cenotaph | undefined = undefined;
+  transactionId: string | undefined = undefined;
 
-  runeDetails$: Observable<OrdApiRune> = undefined;
+  private runeDetailsMap: Map<string, Observable<OrdApiRune>> = new Map();
 
   @Input() showDetails = false;
 
@@ -66,22 +67,47 @@ export class RunestoneViewerComponent {
     if (parsedRunestone) {
       this.runestone = parsedRunestone.runestone;
       this.cenotaph = parsedRunestone.cenotaph;
-
-      if (this.runestone.mint && !this.isUncommonGoods()) {
-        this.runeDetails$ = this.ordApiService.getRuneById(Number(this.runestone.mint.block), this.runestone.mint.tx);
-      }
-
+      this.transactionId = parsedRunestone.transactionId;
       return;
     }
 
     this.runestone = undefined;
     this.cenotaph = undefined;
-    this.runeDetails$ = undefined;
+    this.transactionId = undefined;
   }
 
   isUncommonGoods() {
     return this.runestone?.mint?.block === 1n && this.runestone?.mint?.tx === 0;
   }
+
+  /**
+   * Retrieves rune details by block height and transaction number.
+   * Caches the result and shares the observable among multiple subscribers.
+   * 
+   * The observable is cached and shared among subscribers using shareReplay,
+   * ensuring that multiple requests for the same rune do not result in multiple API calls.
+   *
+   * @param block The height of the Bitcoin block.
+   * @param tx The number of the transaction within that block.
+   * @returns An observable containing the rune details.
+   */
+  getRuneDetails(block: number | bigint, tx: number): Observable<OrdApiRune> {
+    const key = `${block}:${tx}`;
+    
+    if (this.runeDetailsMap.has(key)) {
+      return this.runeDetailsMap.get(key);
+    } else {
+      const runeDetails$ = this.ordApiService.getRuneById(Number(block), tx).pipe(
+        shareReplay({
+          refCount: true,
+          bufferSize: 1
+        })
+      );
+      this.runeDetailsMap.set(key, runeDetails$);
+      return runeDetails$;
+    }
+  }
+
 
   // /**
   //  * Calculates the percentage of two BigInt numbers with fixed-point precision.
