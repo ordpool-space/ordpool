@@ -112,7 +112,7 @@ export const TransactionFilters: { [key: string]: Filter } = {
     fake_pubkey: { key: 'fake_pubkey', label: 'Fake pubkey', flag: TransactionFlags.fake_pubkey, tooltip: true, txPage: true, },
     // HACK -- rename inscription label
     // inscription: { key: 'inscription', label: 'Inscription', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
-    inscription: { key: 'inscription', label: 'Arbitrary data in witness', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
+    inscription: { key: 'inscription', label: 'Extra data in witness', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
     fake_scripthash: { key: 'fake_scripthash', label: 'Fake scripthash', flag: TransactionFlags.fake_scripthash, tooltip: true, txPage: true,},
     /* heuristics */
     coinjoin: { key: 'coinjoin', label: $localize`Coinjoin`, flag: TransactionFlags.coinjoin, important: true, tooltip: true, txPage: true, },

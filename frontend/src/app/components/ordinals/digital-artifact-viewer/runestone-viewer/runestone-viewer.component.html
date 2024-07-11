@@ -207,8 +207,7 @@
     <br *ngIf="showDetails">
 
     <ng-container *ngIf="showDetails">
-      This runestone contains a message that allows customization of the output destination and amount of Runes
-      transferred during the transaction.<br>
+      This runestone customizes the output destination and amount of Runes transferred during the transaction.<br>
     </ng-container>
 
     <div class="row mt-4">
@@ -276,6 +275,21 @@
         &nbsp;
       </div>
     </div>
+
+  </div>
+
+  <div *ngIf="runestone.pointer as pointer" class="mb-4">
+
+    <strong>▣ Rune Pointer
+      <a [routerLink]="['/tx/' | relativeUrl, transactionId]" fragment="flow=&vout={{ pointer }}">
+        to Output {{ pointer }}
+      </a>
+    </strong><br>
+    <br *ngIf="showDetails">
+
+    <ng-container *ngIf="showDetails">
+      This runestone contains the index of the output to which runes not assigned by edicts are to be transferred.<br>
+    </ng-container>
 
   </div>
 
