@@ -1,5 +1,6 @@
 import { FastVertexArray } from './fast-vertex-array';
 import { InterpolatedAttribute, Attributes, OptionalAttributes, SpriteUpdateParams, Update } from './sprite-types';
+import { ordpoolColors } from './utils';
 
 const attribKeys = ['a', 'b', 't', 'v'];
 const updateKeys = ['x', 'y', 's', 'r', 'g', 'b', 'a'];
@@ -16,6 +17,7 @@ export default class TxSprite {
   attributes: Attributes;
   tempAttributes: OptionalAttributes;
 
+  iAmACat: boolean;
 
   constructor(params: SpriteUpdateParams, vertexArray: FastVertexArray) {
     const offsetTime = params.start;
@@ -39,6 +41,12 @@ export default class TxSprite {
     this.tempAttributes = null;
 
     this.vertexPointer = this.vertexArray.insert(this);
+
+    // HACK -- special sprite for CAT-21 transactions (1/3)
+    this.iAmACat = (params.r === ordpoolColors.cat21.r &&
+                    params.g === ordpoolColors.cat21.g &&
+                    params.b === ordpoolColors.cat21.b &&
+                    params.a === ordpoolColors.cat21.a);
 
     this.compile();
   }
@@ -139,14 +147,17 @@ export default class TxSprite {
         ...this.tempAttributes
       };
     }
-    const size = attributes.s;
+    
+    //const size = attributes.s;
+  
+    // HACK -- special sprite for CAT-21 transactions (2/3)
 
     // update vertex data in place
     // ugly, but avoids overhead of allocating large temporary arrays
     const vertexStride = VI.length + 2;
     for (let vertex = 0; vertex < 6; vertex++) {
-      this.vertexData[vertex * vertexStride] = vertexOffsetFactors[vertex][0];
-      this.vertexData[(vertex * vertexStride) + 1] = vertexOffsetFactors[vertex][1];
+      this.vertexData[vertex * vertexStride] = (this.iAmACat ? cat21VertexOffsetFactors : vertexOffsetFactors)[vertex][0];
+      this.vertexData[(vertex * vertexStride) + 1] = (this.iAmACat ? cat21VertexOffsetFactors : vertexOffsetFactors)[vertex][1];
       for (let step = 0; step < VI.length; step++) {
         // components of each field in the vertex array are defined by an entry in VI:
         // VI[i].a is the attribute, VI[i].f is the inner field, VI[i].offA and VI[i].offB are offset factors
@@ -195,14 +206,54 @@ function interpolateAttributeStart(attribute: InterpolatedAttribute, start: DOMH
   }
 }
 
+/*
+
+(0,1) *-------------* (1,1)
+      |           / |
+      |   2.    /   |
+      |       /     |
+      |     /       |
+      |   /   1.    |
+      | /           |
+(0,0) *-------------* (1,0)
+
+*/
+
 const vertexOffsetFactors = [
-  [0, 0],
-  [1, 1],
-  [1, 0],
-  [0, 0],
-  [1, 1],
-  [0, 1]
+  [0, 0], // Bottom-left corner of the first triangle
+  [1, 1], // Top-right corner of the first triangle
+  [1, 0], // Bottom-right corner of the first triangle
+
+  [0, 0], // Bottom-left corner for the second triangle
+  [1, 1], // Top-right corner for the second triangle
+  [0, 1]  // Top-left corner of the second triangle
 ];
+
+// HACK -- special sprite for CAT-21 transactions (3/3)
+
+/*
+
+(0,1) *             * (1,1)
+      | \         / |
+      |   \     /   |
+      |     \ /     |
+      |     / \     |
+      |   /     \   |
+      | /         \ |
+(0,0) *-------------* (1,0)
+
+*/
+
+const cat21VertexOffsetFactors = [
+  [0, 0], // Bottom-left corner of the first triangle
+  [1, 1], // Top-right corner of the first triangle
+  [1, 0], // Bottom-right corner of the first triangle
+
+  [0, 0], // Bottom-left corner for the second triangle
+  [1, 0], // Bottom-right corner of the second triangle
+  [0, 1]  // Top-left corner of the second triangle
+];
+
 
 const VI = [];
 updateKeys.forEach((attribute, aIndex) => {

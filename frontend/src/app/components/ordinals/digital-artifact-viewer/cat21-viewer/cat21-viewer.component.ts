@@ -21,6 +21,10 @@ import { environment } from 'src/environments/environment';
  * http://localhost:4200/tx/bab0ca815cc56a281ff510067984f38236f533e9100d737a9fd28bd12521ac6f
  * http://localhost:4200/tx/6d895bcdb8af42669305f3360b35c403b35064ed7ff3e6845983016adb29af01
  * http://localhost:4200/tx/e8b98486b151fcc4570dbd526f6ef50d5c194e54e248592d04bb092d5c08c430
+ * 
+ * A large cat:
+ * http://localhost:4200/tx/b0d6d810f4b3a6c6f92c2d5f502877f30a7a343f8f937a41985ea1db8bf82f14
+ * 
  */
 @Component({
   selector: 'app-cat21-viewer',

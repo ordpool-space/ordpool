@@ -76,6 +76,11 @@ export const defaultAuditColors = {
   accelerated: hexToColor('8f5ff6'),
 };
 
+export const ordpoolColors = {
+  // censored color + a bit opacity
+  cat21: setOpacity(hexToColor('f344df'), 0.7)
+};
+
 const contrastColors: { [key: string]: ColorPalette } = {
   fee: {
     base: contrastMempoolFeeColors.map(hexToColor),
@@ -124,6 +129,7 @@ export function defaultColorFunction(
     }
     return levelColor;
   }
+  
   // Block audit
   switch(tx.status) {
     case 'censored':
@@ -198,7 +204,7 @@ export function ordpoolColorFunction(
 
   // we have a cat!!!
   if (isFlagSet(tx, TransactionFlags.ordpool_cat21)) {
-    return defaultAuditColors.censored;
+    return ordpoolColors.cat21;
   }
 
   if (hasMatch) {
