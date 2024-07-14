@@ -64,6 +64,12 @@
             [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
             {{ block.extras.pool.name}}</a>
         </div>
+
+        <div class="animated">
+          Stats: {{ block.extras.ordpoolStats | json }}
+        </div>
+
+        
       </div>
     </ng-container>
     <ng-template #placeholderBlock>

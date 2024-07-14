@@ -1,9 +1,12 @@
 # v0.0.6 – Parsing Runes
 
-* Support for runestone messages in transactions
+* New Digital Artifact: Runestone messages in transactions (all details are displayed nicely)
+* New Digital Artifact: Detection of Atomicals (but no real parsing or display*)
 * Drastically improved performance: server-side detection of Digital Artifacts (including runes)
-* Detection of Atomicals (but no real parsing & display)
+* Ordpool Filters: Highlight transactions by included Digital Artifacts: Atomical, CAT-21 Mint, Inscription, Rune, SRC-20 (Stamps)
+* Ordpool Stats: Quick summaries of all detected Digital Artifacts in a block
 
+&nbsp;* If you can contribute, please send a <a href="https://github.com/ordpool-space/ordpool-parser" target="_blank">🧡 pull request (Github) to our repository</a>.
 
 # v0.0.5 – CAT-21 Ordinals
 

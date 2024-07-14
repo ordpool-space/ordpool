@@ -182,6 +182,40 @@ export interface PoolStat {
   totalReward: number;
 }
 
+export interface OrdpoolStats {
+  amount: {
+    atomical: number | null;
+    atomicalMint: number | null;
+    atomicalTransfer: number | null;
+    atomcialUpdate: number | null;
+
+    cat21: number | null;
+    cat21Mint: number | null;
+    cat21Transfer: number | null;
+
+    inscription: number | null;
+    inscriptionMint: number | null;
+    inscriptionTransfer: number | null;
+    inscriptionBurn: number | null;
+
+    rune: number | null;
+    runeEtch: number | null;
+    runeTransfer: number | null;
+    runeBurn: number | null;
+
+    brc20: number | null;
+    brc20Deploy: number | null;
+    brc20Mint: number | null;
+    brc20Transfer: number | null;
+
+    src20: number | null;
+    src20Deploy: number | null;
+    src20Mint: number | null;
+    src20Transfer: number | null;
+  }
+}
+
+// see also: backend/src/mempool.interfaces.ts
 export interface BlockExtension {
   totalFees?: number;
   medianFee?: number;
@@ -200,6 +234,9 @@ export interface BlockExtension {
     name: string;
     slug: string;
   }
+
+  // HACK -- Ordpool stats
+  ordpoolStats: OrdpoolStats;
 }
 
 export interface BlockExtended extends Block {

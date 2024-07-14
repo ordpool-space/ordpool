@@ -36,13 +36,17 @@
         <br><br>
       </div>
     </div>
-    <div class="row version d-none" [style]="{'background-color': isServicesPage ? '#1d1f31' : ''}">
+    <div class="row version" [style]="{'background-color': isServicesPage ? '#1d1f31' : ''}">
       <div class="col-sm-12">
         <p>
-          <span>{{ (backendInfo$ | async)?.hostname }} (v{{ (backendInfo$ | async )?.version }}) [<a target="_blank" href="https://github.com/mempool/mempool/commit/{{ (backendInfo$ | async )?.gitCommit | slice:0:8 }}">{{ (backendInfo$ | async )?.gitCommit | slice:0:8 }}</a>]</span>
+          Backend: 
+          <span>{{ (backendInfo$ | async)?.hostname }} (v{{ (backendInfo$ | async )?.version }}) [<a target="_blank" href="https://github.com/ordpool-space/ordpool/commit/{{ (backendInfo$ | async )?.gitCommit | slice:0:8 }}">{{ (backendInfo$ | async )?.gitCommit | slice:0:8 }}</a>]</span>
           <span *ngIf="stateService.env.GIT_COMMIT_HASH_MEMPOOL_SPACE">[{{ (servicesBackendInfo$ | async )?.gitCommit | slice:0:8 }}]</span>
+
+          <br>
+          Fontend: v{{ packetJsonVersion }} [<a target="_blank" href="https://github.com/ordpool-space/ordpool/commit/{{ frontendGitCommitHash }}">{{ frontendGitCommitHash }}</a>]
+          BASE_MODULE: {{ env.BASE_MODULE }}
         </p>
-        <p *ngIf="!officialMempoolSpace">v{{ packetJsonVersion }} [<a target="_blank" href="https://github.com/mempool/mempool/commit/{{ frontendGitCommitHash }}">{{ frontendGitCommitHash }}</a>]</p>
       </div>
     </div>
 

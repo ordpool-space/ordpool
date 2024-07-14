@@ -55,6 +55,36 @@ interface DatabaseBlock {
   utxoSetChange: number;
   utxoSetSize: number;
   totalInputAmt: number;
+
+  // HACK -- Ordpool stats
+  amountAtomical: number | null;
+  amountAtomicalMint: number | null;
+  amountAtomicalTransfer: number | null;
+  amountAtomcialUpdate: number | null;
+
+  amountCat21: number | null;
+  amountCat21Mint: number | null;
+  amountCat21Transfer: number | null;
+
+  amountInscription: number | null;
+  amountInscriptionMint: number | null;
+  amountInscriptionTransfer: number | null;
+  amountInscriptionBurn: number | null;
+
+  amountRunestone: number | null;
+  amountRunestoneEtch: number | null;
+  amountRunestoneTransfer: number | null;
+  amountRunestoneBurn: number | null;
+
+  amountBrc20: number | null;
+  amountBrc20Deploy: number | null;
+  amountBrc20Mint: number | null;
+  amountBrc20Transfer: number | null;
+
+  amountSrc20: number | null;
+  amountSrc20Deploy: number | null;
+  amountSrc20Mint: number | null;
+  amountSrc20Transfer: number | null;
 }
 
 const BLOCK_DB_FIELDS = `
@@ -96,8 +126,39 @@ const BLOCK_DB_FIELDS = `
   blocks.header,
   blocks.utxoset_change AS utxoSetChange,
   blocks.utxoset_size AS utxoSetSize,
-  blocks.total_input_amt AS totalInputAmt
+  blocks.total_input_amt AS totalInputAmt,
+
+  /* HACK -- Ordpool stats */
+  blocks.amount_atomical              AS amountAtomical,
+  blocks.amount_atomical_mint         AS amountAtomicalMint,
+  blocks.amount_atomical_transfer     AS amountAtomicalTransfer,
+  blocks.amount_atomcial_update       AS amountAtomcialUpdate,
+
+  blocks.amount_cat21                 AS amountCat21,
+  blocks.amount_cat21_mint            AS amountCat21Mint,
+  blocks.amount_cat21_transfer        AS amountCat21Transfer,
+
+  blocks.amount_inscription           AS amountInscription,
+  blocks.amount_inscription_mint      AS amountInscriptionMint,
+  blocks.amount_inscription_transfer  AS amountInscriptionTransfer,
+  blocks.amount_inscription_burn      AS amountInscriptionBurn,
+
+  blocks.amount_runestone             AS amountRunestone,
+  blocks.amount_rune_etch             AS amountRunestoneEtch,
+  blocks.amount_rune_transfer         AS amountRunestoneTransfer,
+  blocks.amount_rune_burn             AS amountRunestoneBurn,
+
+  blocks.amount_brc20                 AS amountBrc20,
+  blocks.amount_brc20_deploy          AS amountBrc20Deploy,
+  blocks.amount_brc20_mint            AS amountBrc20Mint,
+  blocks.amount_brc20_transfer        AS amountBrc20Transfer,
+
+  blocks.amount_src20                 AS amountSrc20,
+  blocks.amount_src20_deploy          AS amountSrc20Deploy,
+  blocks.amount_src20_mint            AS amountSrc20Mint,
+  blocks.amount_src20_transfer        AS amountSrc20Transfer
 `;
+
 
 class BlocksRepository {
   /**
@@ -118,7 +179,33 @@ class BlocksRepository {
         coinbase_signature, utxoset_size,        utxoset_change,    avg_tx_size,
         total_inputs,       total_outputs,       total_input_amt,   total_output_amt,
         fee_percentiles,    segwit_total_txs,    segwit_total_size, segwit_total_weight,
-        median_fee_amt,     coinbase_signature_ascii
+        median_fee_amt,     coinbase_signature_ascii,
+
+        /* HACK -- Ordpool Stats */
+        amount_atomical,
+        amount_atomical_mint,
+        amount_atomical_transfer,
+        amount_atomcial_update,
+        amount_cat21,
+        amount_cat21_mint,
+        amount_cat21_transfer,
+        amount_inscription,
+        amount_inscription_mint,
+        amount_inscription_transfer,
+        amount_inscription_burn,
+        amount_runestone,
+        amount_rune_etch,
+        amount_rune_transfer,
+        amount_rune_burn,
+        amount_brc20,
+        amount_brc20_deploy,
+        amount_brc20_mint,
+        amount_brc20_transfer,
+        amount_src20,
+        amount_src20_deploy,
+        amount_src20_mint,
+        amount_src20_transfer
+
       ) VALUE (
         ?, ?, FROM_UNIXTIME(?), ?,
         ?, ?, ?, ?,
@@ -129,7 +216,32 @@ class BlocksRepository {
         ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?, ?,
-        ?, ?
+        ?, ?,
+
+        /* HACK -- Ordpool Stats */
+        ?, /* amount_atomical */
+        ?, /* amount_atomical_mint */
+        ?, /* amount_atomical_transfer */
+        ?, /* amount_atomcial_update */
+        ?, /* amount_cat21 */
+        ?, /* amount_cat21_mint */
+        ?, /* amount_cat21_transfer */
+        ?, /* amount_inscription */
+        ?, /* amount_inscription_mint */
+        ?, /* amount_inscription_transfer */
+        ?, /* amount_inscription_burn */
+        ?, /* amount_runestone */
+        ?, /* amount_rune_etch */
+        ?, /* amount_rune_transfer */
+        ?, /* amount_rune_burn */
+        ?, /* amount_brc20 */
+        ?, /* amount_brc20_deploy */
+        ?, /* amount_brc20_mint */
+        ?, /* amount_brc20_transfer */
+        ?, /* amount_src20 */
+        ?, /* amount_src20_deploy */
+        ?, /* amount_src20_mint */
+        ?  /* amount_src20_transfer */
       )`;
 
       const poolDbId = await PoolsRepository.$getPoolByUniqueId(block.extras.pool.id);
@@ -175,6 +287,36 @@ class BlocksRepository {
         block.extras.segwitTotalWeight,
         block.extras.medianFeeAmt,
         truncatedCoinbaseSignatureAscii,
+
+        // HACK -- Ordpool Stats
+        block.extras.ordpoolStats.amount.atomical,
+        block.extras.ordpoolStats.amount.atomicalMint,
+        block.extras.ordpoolStats.amount.atomicalTransfer,
+        block.extras.ordpoolStats.amount.atomcialUpdate,
+
+        block.extras.ordpoolStats.amount.cat21,
+        block.extras.ordpoolStats.amount.cat21Mint,
+        block.extras.ordpoolStats.amount.cat21Transfer,
+
+        block.extras.ordpoolStats.amount.inscription,
+        block.extras.ordpoolStats.amount.inscriptionMint,
+        block.extras.ordpoolStats.amount.inscriptionTransfer,
+        block.extras.ordpoolStats.amount.inscriptionBurn,
+
+        block.extras.ordpoolStats.amount.rune,
+        block.extras.ordpoolStats.amount.runeEtch,
+        block.extras.ordpoolStats.amount.runeTransfer,
+        block.extras.ordpoolStats.amount.runeBurn,
+
+        block.extras.ordpoolStats.amount.brc20,
+        block.extras.ordpoolStats.amount.brc20Deploy,
+        block.extras.ordpoolStats.amount.brc20Mint,
+        block.extras.ordpoolStats.amount.brc20Transfer,
+
+        block.extras.ordpoolStats.amount.src20,
+        block.extras.ordpoolStats.amount.src20Deploy,
+        block.extras.ordpoolStats.amount.src20Mint,
+        block.extras.ordpoolStats.amount.src20Transfer
       ];
 
       await DB.query(query, params);
@@ -190,9 +332,9 @@ class BlocksRepository {
 
   /**
    * Save newly indexed data from core coinstatsindex
-   * 
-   * @param utxoSetSize 
-   * @param totalInputAmt 
+   *
+   * @param utxoSetSize
+   * @param totalInputAmt
    */
   public async $updateCoinStatsIndexData(blockHash: string, utxoSetSize: number,
     totalInputAmt: number
@@ -218,9 +360,9 @@ class BlocksRepository {
   /**
    * Update missing fee amounts fields
    *
-   * @param blockHash 
-   * @param feeAmtPercentiles 
-   * @param medianFeeAmt 
+   * @param blockHash
+   * @param feeAmtPercentiles
+   * @param medianFeeAmt
    */
   public async $updateFeeAmounts(blockHash: string, feeAmtPercentiles, medianFeeAmt) : Promise<void> {
     try {
@@ -529,7 +671,7 @@ class BlocksRepository {
         return null;
       }
 
-      return await this.formatDbBlockIntoExtendedBlock(rows[0] as DatabaseBlock);  
+      return await this.formatDbBlockIntoExtendedBlock(rows[0] as DatabaseBlock);
     } catch (e) {
       logger.err(`Cannot get indexed block ${height}. Reason: ` + (e instanceof Error ? e.message : e));
       throw e;
@@ -924,9 +1066,9 @@ class BlocksRepository {
 
   /**
    * Save indexed median fee to avoid recomputing it later
-   * 
-   * @param id 
-   * @param feePercentiles 
+   *
+   * @param id
+   * @param feePercentiles
    */
   public async $saveFeePercentilesForBlockId(id: string, feePercentiles: number[]): Promise<void> {
     try {
@@ -943,9 +1085,9 @@ class BlocksRepository {
 
   /**
    * Save indexed effective fee statistics
-   * 
-   * @param id 
-   * @param feeStats 
+   *
+   * @param id
+   * @param feeStats
    */
   public async $saveEffectiveFeeStats(id: string, feeStats: EffectiveFeeStats): Promise<void> {
     try {
@@ -963,8 +1105,8 @@ class BlocksRepository {
   /**
    * Convert a mysql row block into a BlockExtended. Note that you
    * must provide the correct field into dbBlk object param
-   * 
-   * @param dbBlk 
+   *
+   * @param dbBlk
    */
   private async formatDbBlockIntoExtendedBlock(dbBlk: DatabaseBlock): Promise<BlockExtended> {
     const blk: Partial<BlockExtended> = {};
@@ -984,7 +1126,7 @@ class BlocksRepository {
     blk.weight = dbBlk.weight;
     blk.previousblockhash = dbBlk.previousblockhash;
     blk.mediantime = dbBlk.mediantime;
-    
+
     // BlockExtension
     extras.totalFees = dbBlk.totalFees;
     extras.medianFee = dbBlk.medianFee;
@@ -1059,6 +1201,40 @@ class BlocksRepository {
       if (extras.feePercentiles !== null) {
         extras.medianFeeAmt = extras.feePercentiles[3];
         await this.$updateFeeAmounts(dbBlk.id, extras.feePercentiles, extras.medianFeeAmt);
+      }
+    }
+
+    // HACK -- Ordpool Stats
+    extras.ordpoolStats = {
+      amount: {
+        atomical:             dbBlk.amountAtomical,
+        atomicalMint:         dbBlk.amountAtomicalMint,
+        atomicalTransfer:     dbBlk.amountAtomicalTransfer,
+        atomcialUpdate:       dbBlk.amountAtomcialUpdate,
+
+        cat21:                dbBlk.amountCat21,
+        cat21Mint:            dbBlk.amountCat21Mint,
+        cat21Transfer:        dbBlk.amountCat21Transfer,
+
+        inscription:          dbBlk.amountInscription,
+        inscriptionMint:      dbBlk.amountInscriptionMint,
+        inscriptionTransfer:  dbBlk.amountInscriptionTransfer,
+        inscriptionBurn:      dbBlk.amountInscriptionBurn,
+
+        rune:                 dbBlk.amountRunestone,
+        runeEtch:             dbBlk.amountRunestoneEtch,
+        runeTransfer:         dbBlk.amountRunestoneTransfer,
+        runeBurn:             dbBlk.amountRunestoneBurn,
+
+        brc20:                dbBlk.amountBrc20,
+        brc20Deploy:          dbBlk.amountBrc20Deploy,
+        brc20Mint:            dbBlk.amountBrc20Mint,
+        brc20Transfer:        dbBlk.amountBrc20Transfer,
+
+        src20:                dbBlk.amountSrc20,
+        src20Deploy:          dbBlk.amountSrc20Deploy,
+        src20Mint:            dbBlk.amountSrc20Mint,
+        src20Transfer:        dbBlk.amountSrc20Transfer
       }
     }
 

@@ -1,6 +1,6 @@
 {
   "name": "ordinals-mempool-frontend",
-  "version": "0.0.6-test.1",
+  "version": "0.0.6-dev",
   "description": "Bitcoin mempool visualizer and blockchain explorer backend",
   "license": "GNU Affero General Public License v3.0",
   "homepage": "https://ordpool.space/",
