@@ -17,6 +17,7 @@ import loadingIndicators from './api/loading-indicators';
 import mempool from './api/mempool';
 import elementsParser from './api/liquid/elements-parser';
 import databaseMigration from './api/database-migration';
+import ordpoolDatabaseMigration from './api/ordpool-database-migration';
 import syncAssets from './sync-assets';
 import icons from './api/liquid/icons';
 import { Common } from './api/common';
@@ -119,6 +120,7 @@ class Server {
           await databaseMigration.$blocksReindexingTruncate();
         }
         await databaseMigration.$initializeOrMigrateDatabase();
+        await ordpoolDatabaseMigration.$initializeOrMigrateDatabase();
       } catch (e) {
         throw new Error(e instanceof Error ? e.message : 'Error');
       }
@@ -309,7 +311,7 @@ class Server {
     }
     loadingIndicators.setProgressChangedCallback(websocketHandler.handleLoadingChanged.bind(websocketHandler));
   }
-  
+
   setUpHttpApiRoutes(): void {
     bitcoinRoutes.initRoutes(this.app);
     bitcoinCoreRoutes.initRoutes(this.app);

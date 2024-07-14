@@ -350,6 +350,40 @@ class Blocks {
           extras.expectedWeight = auditScore.expectedWeight;
         }
       }
+
+      // HACK -- Ordpool stats
+      extras.ordpoolStats = {
+        amount: {
+          atomical: null,
+          atomicalMint: null,
+          atomicalTransfer: null,
+          atomcialUpdate: null,
+
+          cat21: null,
+          cat21Mint: null,
+          cat21Transfer: null,
+
+          inscription: null,
+          inscriptionMint: null,
+          inscriptionTransfer: null,
+          inscriptionBurn: null,
+
+          rune: null,
+          runeEtch: null,
+          runeTransfer: null,
+          runeBurn: null,
+
+          brc20: null,
+          brc20Deploy: null,
+          brc20Mint: null,
+          brc20Transfer: null,
+
+          src20: null,
+          src20Deploy: null,
+          src20Mint: null,
+          src20Transfer: null,
+        }
+      };
     }
 
     blk.extras = <BlockExtension>extras;

@@ -563,7 +563,7 @@ export class Common {
     }
 
     if (RuneParserService.hasRunestone(tx)) {
-      flags |= TransactionFlags.ordpool_runestone;
+      flags |= TransactionFlags.ordpool_rune;
       if (debug) { logger.debug(tx.txid, 'flagged as runestone'); }
     }
 
@@ -572,7 +572,9 @@ export class Common {
       if (debug) { logger.debug(tx.txid, 'flagged as SRC-20'); }
     }
 
-    // TODO: Stacks + Lightning
+    // Test to make sure that large numbers don't cause issues when sent to frontend
+    // --> seems to work fine so far! :-)
+    // flags |= TransactionFlags.test_large_numbers;
 
     return Number(flags);
   }

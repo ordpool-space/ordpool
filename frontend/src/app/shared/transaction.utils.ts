@@ -438,7 +438,7 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
   }
 
   if (RuneParserService.hasRunestone(tx)) {
-    flags |= TransactionFlags.ordpool_runestone;
+    flags |= TransactionFlags.ordpool_rune;
     if (debug) { console.log(tx.txid, 'flagged as runestone'); }
   }
 
@@ -447,7 +447,6 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
     if (debug) { console.log(tx.txid, 'flagged as SRC-20'); }
   }
 
-  // TODO: Stacks + Lightning
 
   return flags;
 }

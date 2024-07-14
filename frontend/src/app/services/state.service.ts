@@ -189,8 +189,9 @@ export class StateService {
       'ordpool_atomical',
       'ordpool_cat21',
       'ordpool_inscription',
-      'ordpool_runestone',
-      'ordpool_src20'
+      'ordpool_rune',
+      'ordpool_src20',
+      // 'test_large_numbers'
     ], 
     gradient: 'fee'
   });
