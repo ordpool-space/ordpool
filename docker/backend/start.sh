@@ -148,6 +148,9 @@ __MEMPOOL_SERVICES_ACCELERATIONS__=${MEMPOOL_SERVICES_ACCELERATIONS:=false}
 __REDIS_ENABLED__=${REDIS_ENABLED:=false}
 __REDIS_UNIX_SOCKET_PATH__=${REDIS_UNIX_SOCKET_PATH:=true}
 __REDIS_BATCH_QUERY_BASE_SIZE__=${REDIS_BATCH_QUERY_BASE_SIZE:=5000}
+# HACK: add redis hostname:port
+__REDIS_HOST__=${REDIS_HOST:=localhost}
+__REDIS_PORT__=${REDIS_HOST:=6379}
 
 # FIAT_PRICE
 __FIAT_PRICE_ENABLED__=${FIAT_PRICE_ENABLED:=true}
@@ -294,6 +297,9 @@ sed -i "s!__MEMPOOL_SERVICES_ACCELERATIONS__!${__MEMPOOL_SERVICES_ACCELERATIONS_
 sed -i "s!__REDIS_ENABLED__!${__REDIS_ENABLED__}!g" mempool-config.json
 sed -i "s!__REDIS_UNIX_SOCKET_PATH__!${__REDIS_UNIX_SOCKET_PATH__}!g" mempool-config.json
 sed -i "s!__REDIS_BATCH_QUERY_BASE_SIZE__!${__REDIS_BATCH_QUERY_BASE_SIZE__}!g" mempool-config.json
+# HACK: add redis hostname:port
+sed -i "s!__REDIS_HOST__!${__REDIS_HOST__}!g" mempool-config.json
+sed -i "s!__REDIS_PORT__!${__REDIS_PORT__}!g" mempool-config.json
 
 # FIAT_PRICE
 sed -i "s!__FIAT_PRICE_ENABLED__!${__FIAT_PRICE_ENABLED__}!g" mempool-config.json
