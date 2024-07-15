@@ -5,7 +5,7 @@ const config: Config.InitialOptions = {
   testEnvironment: "node",
   verbose: true,
   automock: false,
-  collectCoverage: true,
+  collectCoverage: false,
   collectCoverageFrom: ["./src/**/**.ts"],
   coverageProvider: "babel",
   coverageThreshold: {
@@ -16,5 +16,6 @@ const config: Config.InitialOptions = {
   setupFiles: [
     "./testSetup.ts",
   ],
+  modulePathIgnorePatterns: ["<rootDir>/dist/"]
 }
 export default config;

@@ -35,7 +35,7 @@
     "start-production": "node --max-old-space-size=16384 dist/index.js",
     "reindex-updated-pools": "npm run start-production --update-pools",
     "reindex-all-blocks": "npm run start-production --update-pools --reindex-blocks",
-    "test": "./node_modules/.bin/jest --coverage",
+    "test": "./node_modules/.bin/jest",
     "test:ci": "CI=true ./node_modules/.bin/jest --coverage",
     "lint": "./node_modules/.bin/eslint . --ext .ts",
     "lint:fix": "./node_modules/.bin/eslint . --ext .ts --fix",
