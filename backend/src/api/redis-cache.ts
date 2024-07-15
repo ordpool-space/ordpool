@@ -32,7 +32,10 @@ class RedisCache {
     if (config.REDIS.ENABLED) {
       this.redisConfig = {
         socket: {
-          path: config.REDIS.UNIX_SOCKET_PATH
+          path: config.REDIS.UNIX_SOCKET_PATH,
+          // HACK: add redis hostname:port
+          host: config.REDIS.HOST,
+          port: config.REDIS.PORT,
         },
         database: NetworkDB[config.MEMPOOL.NETWORK],
       };

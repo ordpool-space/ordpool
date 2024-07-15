@@ -151,6 +151,9 @@ interface IConfig {
     ENABLED: boolean;
     UNIX_SOCKET_PATH: string;
     BATCH_QUERY_BASE_SIZE: number;
+    // HACK: add redis hostname:port
+    HOST: string;
+    PORT: number;
   },
   FIAT_PRICE: {
     ENABLED: boolean;
@@ -308,6 +311,9 @@ const defaults: IConfig = {
     'ENABLED': false,
     'UNIX_SOCKET_PATH': '',
     'BATCH_QUERY_BASE_SIZE': 5000,
+    // HACK: add redis hostname:port
+    'HOST': 'localhost',
+    'PORT': 6379
   },
   'FIAT_PRICE': {
     'ENABLED': true,
