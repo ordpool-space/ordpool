@@ -140,7 +140,10 @@
   "REDIS": {
     "ENABLED": false,
     "UNIX_SOCKET_PATH": "/tmp/redis.sock",
-    "BATCH_QUERY_BASE_SIZE": 5000
+    "BATCH_QUERY_BASE_SIZE": 5000,
+
+    "HOST": "localhost",
+    "PORT": 6379
   },
   "FIAT_PRICE": {
     "ENABLED": true,
