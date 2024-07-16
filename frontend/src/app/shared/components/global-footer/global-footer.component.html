@@ -13,7 +13,7 @@
           <p class="category">Tools</p>
 
           <p><a *ngIf="enableCat21Mint" [routerLink]="['/cat21-mint']">Mint a CAT-21 <img src="/resources/cat21-logo.svg" style="margin-top: -4px;" title="Mint a CAT-21 ordinal" height="30"></a></p>
-          <p><a href="https://cubes.haushoppe.art/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Mint an Ordinal Cube"></fa-icon> Mint an Ordinal Cube</a></p>
+          <!-- <p><a href="https://cubes.haushoppe.art/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Mint an Ordinal Cube"></fa-icon> Mint an Ordinal Cube</a></p> -->
           <p><a [routerLink]="['/tools/calculator']">BTC/Fiat Converter</a></p>
 
           <p *ngIf="env.TESTNET_ENABLED">
