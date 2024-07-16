@@ -8,9 +8,7 @@ WORKDIR /build
 COPY . .
 RUN apt-get update
 RUN apt-get install -y build-essential rsync
-RUN cat mempool-frontend-config.sample.json
 RUN cp mempool-frontend-config.sample.json mempool-frontend-config.json
-RUN cat mempool-frontend-config.json
 RUN npm install --omit=dev --omit=optional
 
 RUN npm run build
