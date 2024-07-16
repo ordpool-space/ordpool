@@ -147,6 +147,10 @@ describe('Mempool Backend Config', () => {
         ENABLED: false,
         UNIX_SOCKET_PATH: '',
         BATCH_QUERY_BASE_SIZE: 5000,
+
+        // HACK: add redis hostname:port
+        HOST: 'localhost',
+        PORT: 6379,
       });
 
       expect(config.FIAT_PRICE).toStrictEqual({
