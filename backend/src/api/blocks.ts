@@ -30,6 +30,7 @@ import redisCache from './redis-cache';
 import rbfCache from './rbf-cache';
 import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
+import { getEmptyStats } from 'ordpool-parser';
 
 class Blocks {
   private blocks: BlockExtended[] = [];
@@ -351,39 +352,13 @@ class Blocks {
         }
       }
 
+      if (transactions?.length > 1) {
+        console.log(transactions);
+        debugger
+      }
+
       // HACK -- Ordpool stats
-      extras.ordpoolStats = {
-        amount: {
-          atomical: null,
-          atomicalMint: null,
-          atomicalTransfer: null,
-          atomcialUpdate: null,
-
-          cat21: null,
-          cat21Mint: null,
-          cat21Transfer: null,
-
-          inscription: null,
-          inscriptionMint: null,
-          inscriptionTransfer: null,
-          inscriptionBurn: null,
-
-          rune: null,
-          runeEtch: null,
-          runeTransfer: null,
-          runeBurn: null,
-
-          brc20: null,
-          brc20Deploy: null,
-          brc20Mint: null,
-          brc20Transfer: null,
-
-          src20: null,
-          src20Deploy: null,
-          src20Mint: null,
-          src20Transfer: null,
-        }
-      };
+      extras.ordpoolStats = getEmptyStats();
     }
 
     blk.extras = <BlockExtension>extras;
@@ -867,7 +842,11 @@ class Blocks {
       }
     }
 
+    // TODO: remove
+    this.currentBlockHeight = 840000;
+
     while (this.currentBlockHeight < blockHeightTip) {
+
       if (this.currentBlockHeight === 0) {
         this.currentBlockHeight = blockHeightTip;
       } else {
@@ -879,6 +858,9 @@ class Blocks {
           await chainTips.updateOrphanedBlocks();
         }
       }
+
+      // TODO: remove
+      this.currentBlockHeight = 840000;
 
       this.updateTimerProgress(timer, `getting block data for ${this.currentBlockHeight}`);
       const blockHash = await bitcoinCoreApi.$getBlockHash(this.currentBlockHeight);

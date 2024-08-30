@@ -1,3 +1,4 @@
+import { OrdpoolStats } from "ordpool-parser";
 import { Block, Transaction } from "./electrs.interface";
 
 export interface OptimizedMempoolStats {
@@ -180,39 +181,6 @@ export interface PoolStat {
   estimatedHashrate: number;
   avgBlockHealth: number;
   totalReward: number;
-}
-
-export interface OrdpoolStats {
-  amount: {
-    atomical: number | null;
-    atomicalMint: number | null;
-    atomicalTransfer: number | null;
-    atomcialUpdate: number | null;
-
-    cat21: number | null;
-    cat21Mint: number | null;
-    cat21Transfer: number | null;
-
-    inscription: number | null;
-    inscriptionMint: number | null;
-    inscriptionTransfer: number | null;
-    inscriptionBurn: number | null;
-
-    rune: number | null;
-    runeEtch: number | null;
-    runeTransfer: number | null;
-    runeBurn: number | null;
-
-    brc20: number | null;
-    brc20Deploy: number | null;
-    brc20Mint: number | null;
-    brc20Transfer: number | null;
-
-    src20: number | null;
-    src20Deploy: number | null;
-    src20Mint: number | null;
-    src20Transfer: number | null;
-  }
 }
 
 // see also: backend/src/mempool.interfaces.ts

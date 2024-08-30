@@ -1,3 +1,4 @@
+import { OrdpoolStats, OrdpoolFlags } from 'ordpool-parser';
 import { IEsploraApi } from './api/bitcoin/esplora-api.interface';
 import { OrphanedBlock } from './api/chain-tips';
 import { HeapNode } from './utils/pairing-heap';
@@ -267,76 +268,8 @@ export const TransactionFlags = {
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
 
   // HACK -- Ordpool flags
-  // keep this in sync with frontend/src/app/shared/filters.utils.ts
-  ordpool_atomical:             0b00000001_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_cat21:                0b00000010_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_inscription:          0b00000100_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune:                 0b00001000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_brc20:                0b00010000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_src20:                0b00100000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  // unused:                    0b01000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  // unused:                    0b10000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_atomical_mint:        0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_atomical_transfer:    0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_atomcial_update:      0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_cat21_mint:           0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_cat21_transfer:       0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_inscription_mint:     0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_inscription_transfer: 0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_inscription_burn:     0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_rune_etch:            0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune_mint:            0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune_transfer:        0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune_burn:            0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_brc20_deploy:         0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_brc20_mint:           0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_brc20_transfer:       0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  // just for testing!
-  test_large_numbers:           0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_src20_deploy:         0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_src20_mint:           0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_src20_transfer:       0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
+  ...OrdpoolFlags
 };
-
-export interface OrdpoolStats {
-  amount: {
-    atomical: number | null;
-    atomicalMint: number | null;
-    atomicalTransfer: number | null;
-    atomcialUpdate: number | null;
-
-    cat21: number | null;
-    cat21Mint: number | null;
-    cat21Transfer: number | null;
-
-    inscription: number | null;
-    inscriptionMint: number | null;
-    inscriptionTransfer: number | null;
-    inscriptionBurn: number | null;
-
-    rune: number | null;
-    runeEtch: number | null;
-    runeTransfer: number | null;
-    runeBurn: number | null;
-
-    brc20: number | null;
-    brc20Deploy: number | null;
-    brc20Mint: number | null;
-    brc20Transfer: number | null;
-
-    src20: number | null;
-    src20Deploy: number | null;
-    src20Mint: number | null;
-    src20Transfer: number | null;
-  }
-}
 
 // see also: frontend/src/app/interfaces/node-api.interface.ts
 export interface BlockExtension {
