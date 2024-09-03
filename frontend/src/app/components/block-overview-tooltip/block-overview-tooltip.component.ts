@@ -2,9 +2,9 @@ import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStra
 import { Position } from '../../components/block-overview-graph/sprite-types.js';
 import { Price } from '../../services/price.service';
 import { TransactionStripped } from '../../interfaces/node-api.interface.js';
-import { Filter, FilterMode, TransactionFlags, hasDigitalArtifactFlagSet, toFilters } from '../../shared/filters.utils';
+import { Filter, FilterMode, TransactionFlags, toFilters } from '../../shared/filters.utils';
 import { Block } from '../../interfaces/electrs.interface.js';
-import { DigitalArtifact } from 'ordpool-parser';
+import { DigitalArtifact, hasDigitalArtifactFlagSet } from 'ordpool-parser';
 import { Observable, catchError, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 import { inject } from '@angular/core';

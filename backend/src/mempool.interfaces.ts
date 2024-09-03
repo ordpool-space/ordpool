@@ -1,4 +1,4 @@
-import { OrdpoolStats, OrdpoolFlags } from 'ordpool-parser';
+import { OrdpoolStats, OrdpoolTransactionFlags } from 'ordpool-parser';
 import { IEsploraApi } from './api/bitcoin/esplora-api.interface';
 import { OrphanedBlock } from './api/chain-tips';
 import { HeapNode } from './utils/pairing-heap';
@@ -268,7 +268,7 @@ export const TransactionFlags = {
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
 
   // HACK -- Ordpool flags
-  ...OrdpoolFlags
+  ...OrdpoolTransactionFlags
 };
 
 // see also: frontend/src/app/interfaces/node-api.interface.ts

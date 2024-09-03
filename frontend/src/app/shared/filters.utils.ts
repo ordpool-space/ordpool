@@ -1,3 +1,5 @@
+import { OrdpoolTransactionFlags } from 'ordpool-parser';
+
 export interface Filter {
   key: string,
   label: string,
@@ -58,42 +60,7 @@ export const TransactionFlags = {
   sighash_acp:    0b00010000_00000000_00000000_00000000_00000000_00000000n,
 
   // HACK -- Ordpool flags
-  // keep this in sync with backend/src/mempool.interfaces.ts
-  ordpool_atomical:             0b00000001_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_cat21:                0b00000010_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_inscription:          0b00000100_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune:                 0b00001000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_brc20:                0b00010000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_src20:                0b00100000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  // unused:                    0b01000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  // unused:                    0b10000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_atomical_mint:        0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_atomical_transfer:    0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_atomcial_update:      0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_cat21_mint:           0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_cat21_transfer:       0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_inscription_mint:     0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_inscription_transfer: 0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_inscription_burn:     0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_rune_etch:            0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune_mint:            0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune_transfer:        0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_rune_burn:            0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_brc20_deploy:         0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_brc20_mint:           0b00100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_brc20_transfer:       0b01000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  // just for testing!
-  test_large_numbers:           0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-
-  ordpool_src20_deploy:         0b00000001_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_src20_mint:           0b00000010_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
-  ordpool_src20_transfer:       0b00000100_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000n,
+  ...OrdpoolTransactionFlags
 };
 
 export function toFlags(filters: string[]): bigint {
@@ -155,13 +122,12 @@ export const TransactionFilters: { [key: string]: Filter } = {
 
     // HACK --- Ordpool Flags
     /* ordpool flags */
-    ordpool_atomical:    { key: 'ordpool_atomical',    label: 'Atomical',        flag: TransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
-    ordpool_cat21:       { key: 'ordpool_cat21',       label: 'CAT-21 Mint',     flag: TransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
-    ordpool_inscription: { key: 'ordpool_inscription', label: 'Inscription',     flag: TransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
-    ordpool_rune:   { key: 'ordpool_rune',   label: 'Rune',            flag: TransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
-    ordpool_src20:       { key: 'ordpool_src20',       label: 'SRC-20 (Stamps)', flag: TransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
-    // test_large_numbers:  { key: 'test_large_numbers',  label: 'Test',            flag: TransactionFlags.test_large_numbers, important: false, tooltip: true, txPage: true, },
-
+    ordpool_atomical:    { key: 'ordpool_atomical',    label: 'Atomical',        flag: OrdpoolTransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
+    ordpool_cat21:       { key: 'ordpool_cat21',       label: 'CAT-21 Mint',     flag: OrdpoolTransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription: { key: 'ordpool_inscription', label: 'Inscription',     flag: OrdpoolTransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
+    ordpool_rune:        { key: 'ordpool_rune',        label: 'Rune',            flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
+    ordpool_src20:       { key: 'ordpool_src20',       label: 'SRC-20 (Stamps)', flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
+    // test_large_numbers:  { key: 'test_large_numbers',  label: 'Test',            flag: OrdpoolTransactionFlags.test_large_numbers, important: false, tooltip: true, txPage: true, },
 };
 
 export const FilterGroups: { label: string, filters: Filter[]}[] = [
@@ -178,38 +144,3 @@ export const FilterGroups: { label: string, filters: Filter[]}[] = [
 
 ].map(group => ({ label: group.label, filters: group.filters.map(filter => TransactionFilters[filter] || null).filter(f => f != null) }));
 
-
-type TransactionFlag = typeof TransactionFlags[keyof typeof TransactionFlags];
-
-/**
- * Checks if a specific flag is set on a transaction.
- * 
- * @param tx - The transaction to check.
- * @param flag - The flag to check for.
- * @returns True if the flag is set, false otherwise.
- */
-export function isFlagSet(tx: { flags?: number | null }, flag: TransactionFlag): boolean {
-
-  if (!tx.flags) {
-    return false;
-  }
-
-  return (BigInt(tx.flags) & flag) === flag;
-}
-
-/**
- * Checks for all ordpool flags.
- */
-export function hasDigitalArtifactFlagSet(tx: { flags?: number | null }): boolean {
-
-  if (!tx.flags) {
-    return false;
-  }
-  
-  return isFlagSet(tx, TransactionFlags.ordpool_atomical) ||
-    isFlagSet(tx, TransactionFlags.ordpool_cat21) ||
-    isFlagSet(tx, TransactionFlags.ordpool_inscription) ||
-    isFlagSet(tx, TransactionFlags.ordpool_rune) ||
-    isFlagSet(tx, TransactionFlags.ordpool_src20) 
-    // || isFlagSet(tx, TransactionFlags.test_large_numbers);
-}
