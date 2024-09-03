@@ -1,5 +1,5 @@
+import { OrdpoolTransactionFlags, isFlagSet } from 'ordpool-parser';
 import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '../../app.constants';
-import { TransactionFlags, isFlagSet } from '../../shared/filters.utils';
 import { Color } from './sprite-types';
 import TxView from './tx-view';
 
@@ -203,7 +203,7 @@ export function ordpoolColorFunction(
 ): Color {
 
   // we have a cat!!!
-  if (isFlagSet(tx, TransactionFlags.ordpool_cat21)) {
+  if (isFlagSet(tx, OrdpoolTransactionFlags.ordpool_cat21)) {
     return ordpoolColors.cat21;
   }
 
