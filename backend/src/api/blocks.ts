@@ -842,9 +842,6 @@ class Blocks {
       }
     }
 
-    // TODO: remove
-    this.currentBlockHeight = 840000;
-
     while (this.currentBlockHeight < blockHeightTip) {
 
       if (this.currentBlockHeight === 0) {
@@ -858,9 +855,6 @@ class Blocks {
           await chainTips.updateOrphanedBlocks();
         }
       }
-
-      // TODO: remove
-      this.currentBlockHeight = 840000;
 
       this.updateTimerProgress(timer, `getting block data for ${this.currentBlockHeight}`);
       const blockHash = await bitcoinCoreApi.$getBlockHash(this.currentBlockHeight);
