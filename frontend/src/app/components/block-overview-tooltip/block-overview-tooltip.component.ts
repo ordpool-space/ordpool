@@ -4,7 +4,7 @@ import { Price } from '../../services/price.service';
 import { TransactionStripped } from '../../interfaces/node-api.interface.js';
 import { Filter, FilterMode, TransactionFlags, toFilters } from '../../shared/filters.utils';
 import { Block } from '../../interfaces/electrs.interface.js';
-import { DigitalArtifact, hasDigitalArtifactFlagSet } from 'ordpool-parser';
+import { DigitalArtifact, hasDigitalArtifactFlagSetOnTransaction } from 'ordpool-parser';
 import { Observable, catchError, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
 import { inject } from '@angular/core';
@@ -105,7 +105,7 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       this.cd.markForCheck();
 
       // HACK -- fetch artifacts for tooltip
-      if (this.tx && hasDigitalArtifactFlagSet(this.tx)) {
+      if (this.tx && hasDigitalArtifactFlagSetOnTransaction(this.tx)) {
         this.digitalArtifacts$ = this.digitalArtifactsFetcher.fetchArtifacts(this.txid).pipe(
           startWith(undefined),
           catchError(err => of(null))

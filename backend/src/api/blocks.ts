@@ -353,6 +353,7 @@ class Blocks {
       }
 
       if (transactions?.length > 1) {
+        // TODO: collect stats here!
         console.log(transactions);
         debugger
       }

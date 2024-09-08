@@ -8,7 +8,7 @@ import transactionUtils from './transaction-utils';
 import { isPoint } from '../utils/secp256k1';
 import logger from '../logger';
 import { getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
-import { InscriptionParserService, AtomicalParserService, Cat21ParserService, Src20ParserService, RuneParserService } from 'ordpool-parser';
+import { getOrdpoolTransactionFlags } from 'ordpool-parser';
 
 // Bitcoin Core default policy settings
 const TX_MAX_STANDARD_VERSION = 2;
@@ -543,38 +543,8 @@ export class Common {
       flags |= TransactionFlags.nonstandard;
     }
 
-    const debug = false;
-
-    // HACK -- add Ordpool flags
-    // keep this in sync with frontend/src/app/shared/transaction.utils.ts
-    if (AtomicalParserService.hasAtomical(tx)) {
-      flags |= TransactionFlags.ordpool_atomical;
-      if (debug) { logger.debug(tx.txid, 'flagged as atomical'); }
-    }
-
-    if (Cat21ParserService.hasCat21(tx)) {
-      flags |= TransactionFlags.ordpool_cat21;
-      if (debug) { logger.debug(tx.txid, 'flagged as CAT-21'); }
-    }
-
-    if (InscriptionParserService.hasInscription(tx)) {
-      flags |= TransactionFlags.ordpool_inscription;
-      if (debug) { logger.debug(tx.txid, 'flagged as inscription'); }
-    }
-
-    if (RuneParserService.hasRunestone(tx)) {
-      flags |= TransactionFlags.ordpool_rune;
-      if (debug) { logger.debug(tx.txid, 'flagged as runestone'); }
-    }
-
-    if (Src20ParserService.hasSrc20(tx)) {
-      flags |= TransactionFlags.ordpool_src20;
-      if (debug) { logger.debug(tx.txid, 'flagged as SRC-20'); }
-    }
-
-    // Test to make sure that large numbers don't cause issues when sent to frontend
-    // --> seems to work fine so far! :-)
-    // flags |= TransactionFlags.test_large_numbers;
+    // HACK --- Ordpool Flags
+    flags = getOrdpoolTransactionFlags(tx, flags);
 
     return Number(flags);
   }
