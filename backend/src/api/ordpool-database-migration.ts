@@ -2,7 +2,10 @@ import DB from '../database';
 import logger from '../logger';
 
 class OrdpoolDatabaseMigration {
-  private static currentVersion = 1;
+
+  // change this after every update
+  private static currentVersion = 2;
+
   private queryTimeout = 3600_000;
 
   /**
@@ -16,7 +19,6 @@ class OrdpoolDatabaseMigration {
     if (ordpoolDatabaseSchemaVersion === 0) {
       logger.info('Changing database to Ordpool schema!');
       await this.$executeQuery(`INSERT INTO state VALUES('ordpool_schema_version', 0, NULL);`);
-      await this.$blocksTruncate();
     }
 
     logger.debug('ORDPOOL MIGRATIONS: Current state.ordpool_schema_version ' + ordpoolDatabaseSchemaVersion);
@@ -118,6 +120,14 @@ class OrdpoolDatabaseMigration {
       queries.push(`ALTER TABLE blocks ADD amount_src20_deploy           INT UNSIGNED NULL DEFAULT NULL`);
       queries.push(`ALTER TABLE blocks ADD amount_src20_mint             INT UNSIGNED NULL DEFAULT NULL`);
       queries.push(`ALTER TABLE blocks ADD amount_src20_transfer         INT UNSIGNED NULL DEFAULT NULL`);
+      queries.push(`TRUNCATE blocks`);
+    }
+
+    if (version < 2) {
+
+      queries.push(`ALTER TABLE blocks ADD amount_rune_mint              INT UNSIGNED NULL DEFAULT NULL   AFTER amount_rune_etch `);
+      queries.push(`ALTER TABLE blocks ADD analyser_version              INT UNSIGNED NULL DEFAULT NULL`);
+      queries.push(`TRUNCATE blocks`);
     }
 
     return queries;
@@ -128,11 +138,6 @@ class OrdpoolDatabaseMigration {
    */
   private getUpdateToLatestSchemaVersionQuery(): string {
     return `UPDATE state SET number = ${OrdpoolDatabaseMigration.currentVersion} WHERE name = 'ordpool_schema_version';`;
-  }
-
-  public async $blocksTruncate(): Promise<void> {
-    logger.warn(`Truncating blocks table, so that OrdpoolStats can be filled on next indexing.`);
-    await this.$executeQuery(`TRUNCATE blocks`);
   }
 }
 
