@@ -73,6 +73,7 @@ interface DatabaseBlock {
 
   amountRunestone: number | null;
   amountRunestoneEtch: number | null;
+  amountRunestoneMint: number | null;
   amountRunestoneTransfer: number | null;
   amountRunestoneBurn: number | null;
 
@@ -145,6 +146,7 @@ const BLOCK_DB_FIELDS = `
 
   blocks.amount_runestone             AS amountRunestone,
   blocks.amount_rune_etch             AS amountRunestoneEtch,
+  blocks.amount_rune_mint             AS amountRunestoneMint,
   blocks.amount_rune_transfer         AS amountRunestoneTransfer,
   blocks.amount_rune_burn             AS amountRunestoneBurn,
 
@@ -195,6 +197,7 @@ class BlocksRepository {
         amount_inscription_burn,
         amount_runestone,
         amount_rune_etch,
+        amount_rune_mint,
         amount_rune_transfer,
         amount_rune_burn,
         amount_brc20,
@@ -204,7 +207,8 @@ class BlocksRepository {
         amount_src20,
         amount_src20_deploy,
         amount_src20_mint,
-        amount_src20_transfer
+        amount_src20_transfer,
+        analyser_version
 
       ) VALUE (
         ?, ?, FROM_UNIXTIME(?), ?,
@@ -232,6 +236,7 @@ class BlocksRepository {
         ?, /* amount_inscription_burn */
         ?, /* amount_runestone */
         ?, /* amount_rune_etch */
+        ?, /* amount_rune_mint */
         ?, /* amount_rune_transfer */
         ?, /* amount_rune_burn */
         ?, /* amount_brc20 */
@@ -241,7 +246,8 @@ class BlocksRepository {
         ?, /* amount_src20 */
         ?, /* amount_src20_deploy */
         ?, /* amount_src20_mint */
-        ?  /* amount_src20_transfer */
+        ?, /* amount_src20_transfer */
+        ?  /* analyser_version */
       )`;
 
       const poolDbId = await PoolsRepository.$getPoolByUniqueId(block.extras.pool.id);
@@ -305,6 +311,7 @@ class BlocksRepository {
 
         block.extras.ordpoolStats.amount.rune,
         block.extras.ordpoolStats.amount.runeEtch,
+        block.extras.ordpoolStats.amount.runeMint,
         block.extras.ordpoolStats.amount.runeTransfer,
         block.extras.ordpoolStats.amount.runeBurn,
 
@@ -316,7 +323,10 @@ class BlocksRepository {
         block.extras.ordpoolStats.amount.src20,
         block.extras.ordpoolStats.amount.src20Deploy,
         block.extras.ordpoolStats.amount.src20Mint,
-        block.extras.ordpoolStats.amount.src20Transfer
+        block.extras.ordpoolStats.amount.src20Transfer,
+
+        // next time we should use the value from DigitalArtifactAnalyserService.version here (currently it's v1)
+        1
       ];
 
       await DB.query(query, params);
@@ -1223,6 +1233,7 @@ class BlocksRepository {
 
         rune:                 dbBlk.amountRunestone,
         runeEtch:             dbBlk.amountRunestoneEtch,
+        runeMint:             dbBlk.amountRunestoneMint,
         runeTransfer:         dbBlk.amountRunestoneTransfer,
         runeBurn:             dbBlk.amountRunestoneBurn,
 
