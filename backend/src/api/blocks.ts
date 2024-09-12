@@ -30,7 +30,7 @@ import redisCache from './redis-cache';
 import rbfCache from './rbf-cache';
 import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
-import { getEmptyStats } from 'ordpool-parser';
+import { DigitalArtifactAnalyserService, getEmptyStats } from 'ordpool-parser';
 
 class Blocks {
   private blocks: BlockExtended[] = [];
@@ -352,14 +352,14 @@ class Blocks {
         }
       }
 
-      if (transactions?.length > 1) {
-        // TODO: collect stats here!
-        console.log(transactions);
-        debugger
-      }
-
       // HACK -- Ordpool stats
-      extras.ordpoolStats = getEmptyStats();
+      if (transactions?.length > 1) {
+        // This is the most important part of the Ordpool statistics,
+        // we will do a deep analysis against all supported protocols.
+        extras.ordpoolStats = DigitalArtifactAnalyserService.analyseTransactions(transactions);
+      } else {
+        extras.ordpoolStats = getEmptyStats();
+      }
     }
 
     blk.extras = <BlockExtension>extras;

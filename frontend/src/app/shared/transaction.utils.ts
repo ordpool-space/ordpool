@@ -2,7 +2,7 @@ import { TransactionFlags } from './filters.utils';
 import { getVarIntLength, opcodes, parseMultisigScript, isPoint } from './script.utils';
 import { Transaction } from '../interfaces/electrs.interface';
 import { CpfpInfo, RbfInfo } from '../interfaces/node-api.interface';
-import { getOrdpoolTransactionFlags } from 'ordpool-parser';
+import { DigitalArtifactAnalyserService } from 'ordpool-parser';
 
 // Bitcoin Core default policy settings
 const TX_MAX_STANDARD_VERSION = 2;
@@ -418,8 +418,8 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
     flags |= TransactionFlags.nonstandard;
   }
 
-    // HACK --- Ordpool Flags
-    flags = getOrdpoolTransactionFlags(tx, flags);
+  // HACK --- Ordpool Flags
+  flags = DigitalArtifactAnalyserService.quickAnalyseTransaction(tx, flags);
 
   return flags;
 }

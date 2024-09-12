@@ -60,7 +60,7 @@ interface DatabaseBlock {
   amountAtomical: number | null;
   amountAtomicalMint: number | null;
   amountAtomicalTransfer: number | null;
-  amountAtomcialUpdate: number | null;
+  amountAtomicalUpdate: number | null;
 
   amountCat21: number | null;
   amountCat21Mint: number | null;
@@ -71,11 +71,12 @@ interface DatabaseBlock {
   amountInscriptionTransfer: number | null;
   amountInscriptionBurn: number | null;
 
-  amountRunestone: number | null;
-  amountRunestoneEtch: number | null;
-  amountRunestoneMint: number | null;
-  amountRunestoneTransfer: number | null;
-  amountRunestoneBurn: number | null;
+  amountRune: number | null;
+  amountRuneEtch: number | null;
+  amountRuneMint: number | null;
+  amountRuneCenotaph: number | null;
+  amountRuneTransfer: number | null;
+  amountRuneBurn: number | null;
 
   amountBrc20: number | null;
   amountBrc20Deploy: number | null;
@@ -133,7 +134,7 @@ const BLOCK_DB_FIELDS = `
   blocks.amount_atomical              AS amountAtomical,
   blocks.amount_atomical_mint         AS amountAtomicalMint,
   blocks.amount_atomical_transfer     AS amountAtomicalTransfer,
-  blocks.amount_atomcial_update       AS amountAtomcialUpdate,
+  blocks.amount_atomical_update       AS amountAtomicalUpdate,
 
   blocks.amount_cat21                 AS amountCat21,
   blocks.amount_cat21_mint            AS amountCat21Mint,
@@ -144,11 +145,12 @@ const BLOCK_DB_FIELDS = `
   blocks.amount_inscription_transfer  AS amountInscriptionTransfer,
   blocks.amount_inscription_burn      AS amountInscriptionBurn,
 
-  blocks.amount_runestone             AS amountRunestone,
-  blocks.amount_rune_etch             AS amountRunestoneEtch,
-  blocks.amount_rune_mint             AS amountRunestoneMint,
-  blocks.amount_rune_transfer         AS amountRunestoneTransfer,
-  blocks.amount_rune_burn             AS amountRunestoneBurn,
+  blocks.amount_runestone             AS amountRune,
+  blocks.amount_rune_etch             AS amountRuneEtch,
+  blocks.amount_rune_mint             AS amountRuneMint,
+  blocks.amount_rune_cenotaph         AS amountRuneCenotaph,
+  blocks.amount_rune_transfer         AS amountRuneTransfer,
+  blocks.amount_rune_burn             AS amountRuneBurn,
 
   blocks.amount_brc20                 AS amountBrc20,
   blocks.amount_brc20_deploy          AS amountBrc20Deploy,
@@ -187,7 +189,7 @@ class BlocksRepository {
         amount_atomical,
         amount_atomical_mint,
         amount_atomical_transfer,
-        amount_atomcial_update,
+        amount_atomical_update,
         amount_cat21,
         amount_cat21_mint,
         amount_cat21_transfer,
@@ -198,6 +200,7 @@ class BlocksRepository {
         amount_runestone,
         amount_rune_etch,
         amount_rune_mint,
+        amount_rune_cenotaph,
         amount_rune_transfer,
         amount_rune_burn,
         amount_brc20,
@@ -226,7 +229,7 @@ class BlocksRepository {
         ?, /* amount_atomical */
         ?, /* amount_atomical_mint */
         ?, /* amount_atomical_transfer */
-        ?, /* amount_atomcial_update */
+        ?, /* amount_atomical_update */
         ?, /* amount_cat21 */
         ?, /* amount_cat21_mint */
         ?, /* amount_cat21_transfer */
@@ -237,6 +240,7 @@ class BlocksRepository {
         ?, /* amount_runestone */
         ?, /* amount_rune_etch */
         ?, /* amount_rune_mint */
+        ?, /* amount_rune_cenotaph */
         ?, /* amount_rune_transfer */
         ?, /* amount_rune_burn */
         ?, /* amount_brc20 */
@@ -298,7 +302,7 @@ class BlocksRepository {
         block.extras.ordpoolStats.amount.atomical,
         block.extras.ordpoolStats.amount.atomicalMint,
         block.extras.ordpoolStats.amount.atomicalTransfer,
-        block.extras.ordpoolStats.amount.atomcialUpdate,
+        block.extras.ordpoolStats.amount.atomicalUpdate,
 
         block.extras.ordpoolStats.amount.cat21,
         block.extras.ordpoolStats.amount.cat21Mint,
@@ -1220,7 +1224,7 @@ class BlocksRepository {
         atomical:             dbBlk.amountAtomical,
         atomicalMint:         dbBlk.amountAtomicalMint,
         atomicalTransfer:     dbBlk.amountAtomicalTransfer,
-        atomcialUpdate:       dbBlk.amountAtomcialUpdate,
+        atomicalUpdate:       dbBlk.amountAtomicalUpdate,
 
         cat21:                dbBlk.amountCat21,
         cat21Mint:            dbBlk.amountCat21Mint,
@@ -1231,11 +1235,12 @@ class BlocksRepository {
         inscriptionTransfer:  dbBlk.amountInscriptionTransfer,
         inscriptionBurn:      dbBlk.amountInscriptionBurn,
 
-        rune:                 dbBlk.amountRunestone,
-        runeEtch:             dbBlk.amountRunestoneEtch,
-        runeMint:             dbBlk.amountRunestoneMint,
-        runeTransfer:         dbBlk.amountRunestoneTransfer,
-        runeBurn:             dbBlk.amountRunestoneBurn,
+        rune:                 dbBlk.amountRune,
+        runeEtch:             dbBlk.amountRuneEtch,
+        runeMint:             dbBlk.amountRuneMint,
+        runeCenotaph:         dbBlk.amountRuneCenotaph,
+        runeTransfer:         dbBlk.amountRuneTransfer,
+        runeBurn:             dbBlk.amountRuneBurn,
 
         brc20:                dbBlk.amountBrc20,
         brc20Deploy:          dbBlk.amountBrc20Deploy,

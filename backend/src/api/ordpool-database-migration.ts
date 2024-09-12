@@ -125,7 +125,11 @@ class OrdpoolDatabaseMigration {
 
     if (version < 2) {
 
-      queries.push(`ALTER TABLE blocks ADD amount_rune_mint              INT UNSIGNED NULL DEFAULT NULL   AFTER amount_rune_etch `);
+      queries.push(`ALTER TABLE table_name RENAME COLUMN amount_atomcial_update TO amount_atomical_update;`);
+      queries.push(`ALTER TABLE table_name RENAME COLUMN amount_runestone       TO amount_rune;`);
+
+      queries.push(`ALTER TABLE blocks ADD amount_rune_mint              INT UNSIGNED NULL DEFAULT NULL   AFTER amount_rune_etch`);
+      queries.push(`ALTER TABLE blocks ADD amount_rune_cenotaph          INT UNSIGNED NULL DEFAULT NULL   AFTER amount_rune_mint`);
       queries.push(`ALTER TABLE blocks ADD analyser_version              INT UNSIGNED NULL DEFAULT NULL`);
       queries.push(`TRUNCATE blocks`);
     }

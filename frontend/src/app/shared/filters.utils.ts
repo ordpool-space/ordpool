@@ -126,8 +126,7 @@ export const TransactionFilters: { [key: string]: Filter } = {
     ordpool_cat21:       { key: 'ordpool_cat21',       label: 'CAT-21 Mint',     flag: OrdpoolTransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
     ordpool_inscription: { key: 'ordpool_inscription', label: 'Inscription',     flag: OrdpoolTransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
     ordpool_rune:        { key: 'ordpool_rune',        label: 'Rune',            flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
-    ordpool_src20:       { key: 'ordpool_src20',       label: 'SRC-20 (Stamps)', flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
-    // test_large_numbers:  { key: 'test_large_numbers',  label: 'Test',            flag: OrdpoolTransactionFlags.test_large_numbers, important: false, tooltip: true, txPage: true, },
+    ordpool_src20:       { key: 'ordpool_src20',       label: 'SRC-20 (Stamps)', flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, }
 };
 
 export const FilterGroups: { label: string, filters: Filter[]}[] = [
@@ -140,7 +139,7 @@ export const FilterGroups: { label: string, filters: Filter[]}[] = [
   { label: $localize`Sighash Flags`, filters: ['sighash_all', 'sighash_none', 'sighash_single', 'sighash_default', 'sighash_acp'] },
   */
   // HACK --- Ordpool Flags
-  { label: 'Ordpool Flags', filters: ['ordpool_atomical', 'ordpool_cat21', 'ordpool_inscription', 'ordpool_rune', 'ordpool_src20' /*, 'test_large_numbers' */] },
+  { label: 'Ordpool Flags', filters: ['ordpool_atomical', 'ordpool_cat21', 'ordpool_inscription', 'ordpool_rune', 'ordpool_src20'] },
 
 ].map(group => ({ label: group.label, filters: group.filters.map(filter => TransactionFilters[filter] || null).filter(f => f != null) }));
 
