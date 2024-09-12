@@ -188,10 +188,9 @@ export class StateService {
     filters: [
       'ordpool_atomical',
       'ordpool_cat21',
-      'ordpool_inscription',
+      'ordpool_inscription', // brc20 is already included here
       'ordpool_rune',
-      'ordpool_src20',
-      // 'test_large_numbers'
+      'ordpool_src20'
     ], 
     gradient: 'fee'
   });

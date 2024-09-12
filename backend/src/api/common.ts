@@ -8,7 +8,7 @@ import transactionUtils from './transaction-utils';
 import { isPoint } from '../utils/secp256k1';
 import logger from '../logger';
 import { getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
-import { getOrdpoolTransactionFlags } from 'ordpool-parser';
+import { DigitalArtifactAnalyserService } from 'ordpool-parser';
 
 // Bitcoin Core default policy settings
 const TX_MAX_STANDARD_VERSION = 2;
@@ -544,7 +544,7 @@ export class Common {
     }
 
     // HACK --- Ordpool Flags
-    flags = getOrdpoolTransactionFlags(tx, flags);
+    flags = DigitalArtifactAnalyserService.quickAnalyseTransaction(tx, flags);
 
     return Number(flags);
   }
