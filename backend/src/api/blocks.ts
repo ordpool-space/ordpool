@@ -32,6 +32,9 @@ import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { DigitalArtifactAnalyserService, getEmptyStats } from 'ordpool-parser';
 
+// const debugBlock = 831802;
+const debugBlock = null;
+
 class Blocks {
   private blocks: BlockExtended[] = [];
   private blockSummaries: BlockSummary[] = [];
@@ -352,10 +355,29 @@ class Blocks {
         }
       }
 
+      const inscriptionZeroBlock = 767430;
+
       // HACK -- Ordpool stats
-      if (transactions?.length > 1) {
+      if (config.MEMPOOL.NETWORK === 'mainnet' && block.height < inscriptionZeroBlock) {
+
+        extras.ordpoolStats = getEmptyStats();
+
+      } else if (transactions?.length > 1) {
+
         // This is the most important part of the Ordpool statistics,
         // we will do a deep analysis against all supported protocols.
+
+        if (debugBlock) {
+          // save to file
+          const formattedJson = JSON.stringify(transactions, null, 2);
+          const filePath = `${__dirname}/../../../../ordpool-parser/testdata/block_${block.height}_txns.json`;
+          require('fs').writeFile(filePath, formattedJson, (err) => {
+            if (err) {throw err;}
+            logger.warn(`block_${block.height}_txns.json written. exiting`);
+            process.exit(1);
+          });
+        }
+
         extras.ordpoolStats = DigitalArtifactAnalyserService.analyseTransactions(transactions);
       } else {
         extras.ordpoolStats = getEmptyStats();
@@ -855,6 +877,11 @@ class Blocks {
           this.updateTimerProgress(timer, `getting orphaned blocks for ${this.currentBlockHeight}`);
           await chainTips.updateOrphanedBlocks();
         }
+      }
+
+      if (debugBlock) {
+        // HACK: force a given block for debugging reasons
+        this.currentBlockHeight = debugBlock;
       }
 
       this.updateTimerProgress(timer, `getting block data for ${this.currentBlockHeight}`);
