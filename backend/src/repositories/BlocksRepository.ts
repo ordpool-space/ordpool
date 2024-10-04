@@ -57,36 +57,60 @@ interface DatabaseBlock {
   totalInputAmt: number;
 
   // HACK -- Ordpool stats
-  amountAtomical: number | null;
-  amountAtomicalMint: number | null;
-  amountAtomicalTransfer: number | null;
-  amountAtomicalUpdate: number | null;
+  amountsAtomical: number;
+  amountsAtomicalMint: number;
+  amountsAtomicalTransfer: number;
+  amountsAtomicalUpdate: number;
 
-  amountCat21: number | null;
-  amountCat21Mint: number | null;
-  amountCat21Transfer: number | null;
+  amountsCat21: number;
+  amountsCat21Mint: number;
+  amountsCat21Transfer: number;
 
-  amountInscription: number | null;
-  amountInscriptionMint: number | null;
-  amountInscriptionTransfer: number | null;
-  amountInscriptionBurn: number | null;
+  amountsInscription: number;
+  amountsInscriptionMint: number;
+  amountsInscriptionTransfer: number;
+  amountsInscriptionBurn: number;
 
-  amountRune: number | null;
-  amountRuneEtch: number | null;
-  amountRuneMint: number | null;
-  amountRuneCenotaph: number | null;
-  amountRuneTransfer: number | null;
-  amountRuneBurn: number | null;
+  amountsRune: number;
+  amountsRuneEtch: number;
+  amountsRuneMint: number;
+  amountsRuneCenotaph: number;
+  amountsRuneTransfer: number;
+  amountsRuneBurn: number;
 
-  amountBrc20: number | null;
-  amountBrc20Deploy: number | null;
-  amountBrc20Mint: number | null;
-  amountBrc20Transfer: number | null;
+  amountsBrc20: number;
+  amountsBrc20Deploy: number;
+  amountsBrc20Mint: number;
+  amountsBrc20Transfer: number;
 
-  amountSrc20: number | null;
-  amountSrc20Deploy: number | null;
-  amountSrc20Mint: number | null;
-  amountSrc20Transfer: number | null;
+  amountsSrc20: number;
+  amountsSrc20Deploy: number;
+  amountsSrc20Mint: number;
+  amountsSrc20Transfer: number;
+
+  feesRuneMints: number;
+  feesNonUncommonRuneMints: number;
+  feesBrc20Mints: number;
+  feesSrc20Mints: number;
+  feesCat21Mints: number;
+  feesAtomicals: number;
+  feesInscriptionMints: number;
+
+  inscriptionsTotalEnvelopeSize: number;
+  inscriptionsTotalContentSize: number;
+  inscriptionsLargestEnvelopeSize: number;
+  inscriptionsLargestContentSize: number;
+  inscriptionsLargestEnvelopeInscriptionId: string | null;
+  inscriptionsLargestContentInscriptionId: string | null;
+  inscriptionsAverageEnvelopeSize: number;
+  inscriptionsAverageContentSize: number;
+
+  runesMostActiveMint: string | null;
+  runesMostActiveNonUncommonMint: string | null;
+  brc20MostActiveMint: string | null;
+  src20MostActiveMint: string | null;
+
+  analyserVersion: number;
 }
 
 const BLOCK_DB_FIELDS = `
@@ -131,36 +155,60 @@ const BLOCK_DB_FIELDS = `
   blocks.total_input_amt AS totalInputAmt,
 
   /* HACK -- Ordpool stats */
-  blocks.amount_atomical              AS amountAtomical,
-  blocks.amount_atomical_mint         AS amountAtomicalMint,
-  blocks.amount_atomical_transfer     AS amountAtomicalTransfer,
-  blocks.amount_atomical_update       AS amountAtomicalUpdate,
+  blocks.amounts_atomical               AS amountsAtomical,
+  blocks.amounts_atomical_mint          AS amountsAtomicalMint,
+  blocks.amounts_atomical_transfer      AS amountsAtomicalTransfer,
+  blocks.amounts_atomical_update        AS amountsAtomicalUpdate,
 
-  blocks.amount_cat21                 AS amountCat21,
-  blocks.amount_cat21_mint            AS amountCat21Mint,
-  blocks.amount_cat21_transfer        AS amountCat21Transfer,
+  blocks.amounts_cat21                  AS amountsCat21,
+  blocks.amounts_cat21_mint             AS amountsCat21Mint,
+  blocks.amounts_cat21_transfer         AS amountsCat21Transfer,
 
-  blocks.amount_inscription           AS amountInscription,
-  blocks.amount_inscription_mint      AS amountInscriptionMint,
-  blocks.amount_inscription_transfer  AS amountInscriptionTransfer,
-  blocks.amount_inscription_burn      AS amountInscriptionBurn,
+  blocks.amounts_inscription            AS amountsInscription,
+  blocks.amounts_inscription_mint       AS amountsInscriptionMint,
+  blocks.amounts_inscription_transfer   AS amountsInscriptionTransfer,
+  blocks.amounts_inscription_burn       AS amountsInscriptionBurn,
 
-  blocks.amount_runestone             AS amountRune,
-  blocks.amount_rune_etch             AS amountRuneEtch,
-  blocks.amount_rune_mint             AS amountRuneMint,
-  blocks.amount_rune_cenotaph         AS amountRuneCenotaph,
-  blocks.amount_rune_transfer         AS amountRuneTransfer,
-  blocks.amount_rune_burn             AS amountRuneBurn,
+  blocks.amounts_runestone              AS amountsRune,
+  blocks.amounts_rune_etch              AS amountsRuneEtch,
+  blocks.amounts_rune_mint              AS amountsRuneMint,
+  blocks.amounts_rune_cenotaph          AS amountsRuneCenotaph,
+  blocks.amounts_rune_transfer          AS amountsRuneTransfer,
+  blocks.amounts_rune_burn              AS amountsRuneBurn,
 
-  blocks.amount_brc20                 AS amountBrc20,
-  blocks.amount_brc20_deploy          AS amountBrc20Deploy,
-  blocks.amount_brc20_mint            AS amountBrc20Mint,
-  blocks.amount_brc20_transfer        AS amountBrc20Transfer,
+  blocks.amounts_brc20                  AS amountsBrc20,
+  blocks.amounts_brc20_deploy           AS amountsBrc20Deploy,
+  blocks.amounts_brc20_mint             AS amountsBrc20Mint,
+  blocks.amounts_brc20_transfer         AS amountsBrc20Transfer,
 
-  blocks.amount_src20                 AS amountSrc20,
-  blocks.amount_src20_deploy          AS amountSrc20Deploy,
-  blocks.amount_src20_mint            AS amountSrc20Mint,
-  blocks.amount_src20_transfer        AS amountSrc20Transfer
+  blocks.amounts_src20                  AS amountsSrc20,
+  blocks.amounts_src20_deploy           AS amountsSrc20Deploy,
+  blocks.amounts_src20_mint             AS amountsSrc20Mint,
+  blocks.amounts_src20_transfer         AS amountsSrc20Transfer,
+
+  blocks.fees_rune_mints                              AS feesRuneMints,
+  blocks.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,
+  blocks.fees_brc20_mints                             AS feesBrc20Mints,
+  blocks.fees_src20_mints                             AS feesSrc20Mints,
+  blocks.fees_cat21_mints                             AS feesCat21Mints,
+  blocks.fees_atomicals                               AS feesAtomicals,
+  blocks.fees_inscription_mints                       AS feesInscriptionMints,
+
+  blocks.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,
+  blocks.inscriptions_total_content_size              AS inscriptionsTotalContentSize,
+  blocks.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,
+  blocks.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,
+  blocks.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,
+  blocks.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,
+  blocks.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,
+  blocks.inscriptions_average_content_size            AS inscriptionsAverageContentSize,
+
+  blocks.runes_most_active_mint                       AS runesMostActiveMint,
+  blocks.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,
+  blocks.brc20_most_active_mint                       AS brc20MostActiveMint,
+  blocks.src20_most_active_mint                       AS src20MostActiveMint,
+
+  blocks.analyser_version                             AS analyserVersion
 `;
 
 
@@ -190,27 +238,55 @@ class BlocksRepository {
         amount_atomical_mint,
         amount_atomical_transfer,
         amount_atomical_update,
+
         amount_cat21,
         amount_cat21_mint,
         amount_cat21_transfer,
+
         amount_inscription,
         amount_inscription_mint,
         amount_inscription_transfer,
         amount_inscription_burn,
+
         amount_runestone,
         amount_rune_etch,
         amount_rune_mint,
         amount_rune_cenotaph,
         amount_rune_transfer,
         amount_rune_burn,
+
         amount_brc20,
         amount_brc20_deploy,
         amount_brc20_mint,
         amount_brc20_transfer,
+
         amount_src20,
         amount_src20_deploy,
         amount_src20_mint,
         amount_src20_transfer,
+
+        fees_rune_mints,
+        fees_non_uncommon_rune_mints,
+        fees_brc20_mints,
+        fees_src20_mints,
+        fees_cat21_mints,
+        fees_atomicals,
+        fees_inscription_mints,
+
+        inscriptions_total_envelope_size,
+        inscriptions_total_content_size,
+        inscriptions_largest_envelope_size,
+        inscriptions_largest_content_size,
+        inscriptions_largest_envelope_inscription_id,
+        inscriptions_largest_content_inscription_id,
+        inscriptions_average_envelope_size,
+        inscriptions_average_content_size,
+
+        runes_most_active_mint,
+        runes_most_active_non_uncommon_mint,
+        brc20_most_active_mint,
+        src20_most_active_mint,
+
         analyser_version
 
       ) VALUE (
@@ -230,27 +306,55 @@ class BlocksRepository {
         ?, /* amount_atomical_mint */
         ?, /* amount_atomical_transfer */
         ?, /* amount_atomical_update */
+
         ?, /* amount_cat21 */
         ?, /* amount_cat21_mint */
         ?, /* amount_cat21_transfer */
+
         ?, /* amount_inscription */
         ?, /* amount_inscription_mint */
         ?, /* amount_inscription_transfer */
         ?, /* amount_inscription_burn */
+
         ?, /* amount_runestone */
         ?, /* amount_rune_etch */
         ?, /* amount_rune_mint */
         ?, /* amount_rune_cenotaph */
         ?, /* amount_rune_transfer */
         ?, /* amount_rune_burn */
+
         ?, /* amount_brc20 */
         ?, /* amount_brc20_deploy */
         ?, /* amount_brc20_mint */
         ?, /* amount_brc20_transfer */
+
         ?, /* amount_src20 */
         ?, /* amount_src20_deploy */
         ?, /* amount_src20_mint */
         ?, /* amount_src20_transfer */
+
+        ?, /* fees_rune_mints */
+        ?, /* fees_non_uncommon_rune_mints */
+        ?, /* fees_brc20_mints */
+        ?, /* fees_src20_mints */
+        ?, /* fees_cat21_mints */
+        ?, /* fees_atomicals */
+        ?, /* fees_inscription_mints */
+
+        ?, /* inscriptions_total_envelope_size */
+        ?, /* inscriptions_total_content_size */
+        ?, /* inscriptions_largest_envelope_size */
+        ?, /* inscriptions_largest_content_size */
+        ?, /* inscriptions_largest_envelope_inscription_id */
+        ?, /* inscriptions_largest_content_inscription_id */
+        ?, /* inscriptions_average_envelope_size */
+        ?, /* inscriptions_average_content_size */
+
+        ?, /* runes_most_active_mint */
+        ?, /* runes_most_active_non_uncommon_mint */
+        ?, /* brc20_most_active_mint */
+        ?, /* src20_most_active_mint */
+
         ?  /* analyser_version */
       )`;
 
@@ -299,38 +403,59 @@ class BlocksRepository {
         truncatedCoinbaseSignatureAscii,
 
         // HACK -- Ordpool Stats
-        block.extras.ordpoolStats.amount.atomical,
-        block.extras.ordpoolStats.amount.atomicalMint,
-        block.extras.ordpoolStats.amount.atomicalTransfer,
-        block.extras.ordpoolStats.amount.atomicalUpdate,
+        block.extras.ordpoolStats.amounts.atomical,
+        block.extras.ordpoolStats.amounts.atomicalMint,
+        block.extras.ordpoolStats.amounts.atomicalTransfer,
+        block.extras.ordpoolStats.amounts.atomicalUpdate,
 
-        block.extras.ordpoolStats.amount.cat21,
-        block.extras.ordpoolStats.amount.cat21Mint,
-        block.extras.ordpoolStats.amount.cat21Transfer,
+        block.extras.ordpoolStats.amounts.cat21,
+        block.extras.ordpoolStats.amounts.cat21Mint,
+        block.extras.ordpoolStats.amounts.cat21Transfer,
 
-        block.extras.ordpoolStats.amount.inscription,
-        block.extras.ordpoolStats.amount.inscriptionMint,
-        block.extras.ordpoolStats.amount.inscriptionTransfer,
-        block.extras.ordpoolStats.amount.inscriptionBurn,
+        block.extras.ordpoolStats.amounts.inscription,
+        block.extras.ordpoolStats.amounts.inscriptionMint,
+        block.extras.ordpoolStats.amounts.inscriptionTransfer,
+        block.extras.ordpoolStats.amounts.inscriptionBurn,
 
-        block.extras.ordpoolStats.amount.rune,
-        block.extras.ordpoolStats.amount.runeEtch,
-        block.extras.ordpoolStats.amount.runeMint,
-        block.extras.ordpoolStats.amount.runeTransfer,
-        block.extras.ordpoolStats.amount.runeBurn,
+        block.extras.ordpoolStats.amounts.rune,
+        block.extras.ordpoolStats.amounts.runeEtch,
+        block.extras.ordpoolStats.amounts.runeMint,
+        block.extras.ordpoolStats.amounts.runeTransfer,
+        block.extras.ordpoolStats.amounts.runeBurn,
 
-        block.extras.ordpoolStats.amount.brc20,
-        block.extras.ordpoolStats.amount.brc20Deploy,
-        block.extras.ordpoolStats.amount.brc20Mint,
-        block.extras.ordpoolStats.amount.brc20Transfer,
+        block.extras.ordpoolStats.amounts.brc20,
+        block.extras.ordpoolStats.amounts.brc20Deploy,
+        block.extras.ordpoolStats.amounts.brc20Mint,
+        block.extras.ordpoolStats.amounts.brc20Transfer,
 
-        block.extras.ordpoolStats.amount.src20,
-        block.extras.ordpoolStats.amount.src20Deploy,
-        block.extras.ordpoolStats.amount.src20Mint,
-        block.extras.ordpoolStats.amount.src20Transfer,
+        block.extras.ordpoolStats.amounts.src20,
+        block.extras.ordpoolStats.amounts.src20Deploy,
+        block.extras.ordpoolStats.amounts.src20Mint,
+        block.extras.ordpoolStats.amounts.src20Transfer,
 
-        // next time we should use the value from DigitalArtifactAnalyserService.version here (currently it's v1)
-        1
+        block.extras.ordpoolStats.fees.runeMints,
+        block.extras.ordpoolStats.fees.nonUncommonRuneMints,
+        block.extras.ordpoolStats.fees.brc20Mints,
+        block.extras.ordpoolStats.fees.src20Mints,
+        block.extras.ordpoolStats.fees.cat21Mints,
+        block.extras.ordpoolStats.fees.atomicals,
+        block.extras.ordpoolStats.fees.inscriptionMints,
+
+        block.extras.ordpoolStats.inscriptions.totalEnvelopeSize,
+        block.extras.ordpoolStats.inscriptions.totalContentSize,
+        block.extras.ordpoolStats.inscriptions.largestEnvelopeSize,
+        block.extras.ordpoolStats.inscriptions.largestContentSize,
+        block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId,
+        block.extras.ordpoolStats.inscriptions.largestContentInscriptionId,
+        block.extras.ordpoolStats.inscriptions.averageEnvelopeSize,
+        block.extras.ordpoolStats.inscriptions.averageContentSize,
+
+        block.extras.ordpoolStats.runes.mostActiveMint,
+        block.extras.ordpoolStats.runes.mostActiveNonUncommonMint,
+        block.extras.ordpoolStats.brc20.mostActiveMint,
+        block.extras.ordpoolStats.src20.mostActiveMint,
+
+        block.extras.ordpoolStats.version
       ];
 
       await DB.query(query, params);
@@ -1220,39 +1345,72 @@ class BlocksRepository {
 
     // HACK -- Ordpool Stats
     extras.ordpoolStats = {
-      amount: {
-        atomical:             dbBlk.amountAtomical,
-        atomicalMint:         dbBlk.amountAtomicalMint,
-        atomicalTransfer:     dbBlk.amountAtomicalTransfer,
-        atomicalUpdate:       dbBlk.amountAtomicalUpdate,
+      amounts: {
+        atomical:             dbBlk.amountsAtomical,
+        atomicalMint:         dbBlk.amountsAtomicalMint,
+        atomicalTransfer:     dbBlk.amountsAtomicalTransfer,
+        atomicalUpdate:       dbBlk.amountsAtomicalUpdate,
 
-        cat21:                dbBlk.amountCat21,
-        cat21Mint:            dbBlk.amountCat21Mint,
-        cat21Transfer:        dbBlk.amountCat21Transfer,
+        cat21:                dbBlk.amountsCat21,
+        cat21Mint:            dbBlk.amountsCat21Mint,
+        cat21Transfer:        dbBlk.amountsCat21Transfer,
 
-        inscription:          dbBlk.amountInscription,
-        inscriptionMint:      dbBlk.amountInscriptionMint,
-        inscriptionTransfer:  dbBlk.amountInscriptionTransfer,
-        inscriptionBurn:      dbBlk.amountInscriptionBurn,
+        inscription:          dbBlk.amountsInscription,
+        inscriptionMint:      dbBlk.amountsInscriptionMint,
+        inscriptionTransfer:  dbBlk.amountsInscriptionTransfer,
+        inscriptionBurn:      dbBlk.amountsInscriptionBurn,
 
-        rune:                 dbBlk.amountRune,
-        runeEtch:             dbBlk.amountRuneEtch,
-        runeMint:             dbBlk.amountRuneMint,
-        runeCenotaph:         dbBlk.amountRuneCenotaph,
-        runeTransfer:         dbBlk.amountRuneTransfer,
-        runeBurn:             dbBlk.amountRuneBurn,
+        rune:                 dbBlk.amountsRune,
+        runeEtch:             dbBlk.amountsRuneEtch,
+        runeMint:             dbBlk.amountsRuneMint,
+        runeCenotaph:         dbBlk.amountsRuneCenotaph,
+        runeTransfer:         dbBlk.amountsRuneTransfer,
+        runeBurn:             dbBlk.amountsRuneBurn,
 
-        brc20:                dbBlk.amountBrc20,
-        brc20Deploy:          dbBlk.amountBrc20Deploy,
-        brc20Mint:            dbBlk.amountBrc20Mint,
-        brc20Transfer:        dbBlk.amountBrc20Transfer,
+        brc20:                dbBlk.amountsBrc20,
+        brc20Deploy:          dbBlk.amountsBrc20Deploy,
+        brc20Mint:            dbBlk.amountsBrc20Mint,
+        brc20Transfer:        dbBlk.amountsBrc20Transfer,
 
-        src20:                dbBlk.amountSrc20,
-        src20Deploy:          dbBlk.amountSrc20Deploy,
-        src20Mint:            dbBlk.amountSrc20Mint,
-        src20Transfer:        dbBlk.amountSrc20Transfer
-      }
-    }
+        src20:                dbBlk.amountsSrc20,
+        src20Deploy:          dbBlk.amountsSrc20Deploy,
+        src20Mint:            dbBlk.amountsSrc20Mint,
+        src20Transfer:        dbBlk.amountsSrc20Transfer
+      },
+      fees: {
+        runeMints:                    dbBlk.feesRuneMints,
+        nonUncommonRuneMints:         dbBlk.feesNonUncommonRuneMints,
+        brc20Mints:                   dbBlk.feesBrc20Mints,
+        src20Mints:                   dbBlk.feesSrc20Mints,
+        cat21Mints:                   dbBlk.feesCat21Mints,
+        atomicals:                    dbBlk.feesAtomicals,
+        inscriptionMints:             dbBlk.feesInscriptionMints
+      },
+      inscriptions: {
+        totalEnvelopeSize:            dbBlk.inscriptionsTotalEnvelopeSize,
+        totalContentSize:             dbBlk.inscriptionsTotalContentSize,
+
+        largestEnvelopeSize:          dbBlk.inscriptionsLargestEnvelopeSize,
+        largestContentSize:           dbBlk.inscriptionsLargestContentSize,
+
+        largestEnvelopeInscriptionId: dbBlk.inscriptionsLargestEnvelopeInscriptionId,
+        largestContentInscriptionId:  dbBlk.inscriptionsLargestContentInscriptionId,
+
+        averageEnvelopeSize:          dbBlk.inscriptionsAverageEnvelopeSize,
+        averageContentSize:           dbBlk.inscriptionsAverageContentSize
+      },
+      runes: {
+        mostActiveMint:               dbBlk.runesMostActiveMint,
+        mostActiveNonUncommonMint:    dbBlk.runesMostActiveNonUncommonMint
+      },
+      brc20: {
+        mostActiveMint:               dbBlk.brc20MostActiveMint,
+      },
+      src20: {
+        mostActiveMint:               dbBlk.src20MostActiveMint,
+      },
+      version:                        dbBlk.analyserVersion
+    };
 
     blk.extras = <BlockExtension>extras;
     return <BlockExtended>blk;
