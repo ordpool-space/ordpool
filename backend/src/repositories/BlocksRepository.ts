@@ -155,60 +155,60 @@ const BLOCK_DB_FIELDS = `
   blocks.total_input_amt AS totalInputAmt,
 
   /* HACK -- Ordpool stats */
-  blocks.amounts_atomical               AS amountsAtomical,
-  blocks.amounts_atomical_mint          AS amountsAtomicalMint,
-  blocks.amounts_atomical_transfer      AS amountsAtomicalTransfer,
-  blocks.amounts_atomical_update        AS amountsAtomicalUpdate,
+  blocks.amounts_atomical                             AS amountsAtomical,                           /* 1 */
+  blocks.amounts_atomical_mint                        AS amountsAtomicalMint,                       /* 2 */
+  blocks.amounts_atomical_transfer                    AS amountsAtomicalTransfer,                   /* 3 */
+  blocks.amounts_atomical_update                      AS amountsAtomicalUpdate,                     /* 4 */
 
-  blocks.amounts_cat21                  AS amountsCat21,
-  blocks.amounts_cat21_mint             AS amountsCat21Mint,
-  blocks.amounts_cat21_transfer         AS amountsCat21Transfer,
+  blocks.amounts_cat21                                AS amountsCat21,                              /* 5 */
+  blocks.amounts_cat21_mint                           AS amountsCat21Mint,                          /* 6 */
+  blocks.amounts_cat21_transfer                       AS amountsCat21Transfer,                      /* 7 */
 
-  blocks.amounts_inscription            AS amountsInscription,
-  blocks.amounts_inscription_mint       AS amountsInscriptionMint,
-  blocks.amounts_inscription_transfer   AS amountsInscriptionTransfer,
-  blocks.amounts_inscription_burn       AS amountsInscriptionBurn,
+  blocks.amounts_inscription                          AS amountsInscription,                        /* 8 */
+  blocks.amounts_inscription_mint                     AS amountsInscriptionMint,                    /* 9 */
+  blocks.amounts_inscription_transfer                 AS amountsInscriptionTransfer,                /* 10 */
+  blocks.amounts_inscription_burn                     AS amountsInscriptionBurn,                    /* 11 */
 
-  blocks.amounts_runestone              AS amountsRune,
-  blocks.amounts_rune_etch              AS amountsRuneEtch,
-  blocks.amounts_rune_mint              AS amountsRuneMint,
-  blocks.amounts_rune_cenotaph          AS amountsRuneCenotaph,
-  blocks.amounts_rune_transfer          AS amountsRuneTransfer,
-  blocks.amounts_rune_burn              AS amountsRuneBurn,
+  blocks.amounts_rune                                 AS amountsRune,                               /* 12 */
+  blocks.amounts_rune_etch                            AS amountsRuneEtch,                           /* 13 */
+  blocks.amounts_rune_mint                            AS amountsRuneMint,                           /* 14 */
+  blocks.amounts_rune_cenotaph                        AS amountsRuneCenotaph,                       /* 15 */
+  blocks.amounts_rune_transfer                        AS amountsRuneTransfer,                       /* 16 */
+  blocks.amounts_rune_burn                            AS amountsRuneBurn,                           /* 17 */
 
-  blocks.amounts_brc20                  AS amountsBrc20,
-  blocks.amounts_brc20_deploy           AS amountsBrc20Deploy,
-  blocks.amounts_brc20_mint             AS amountsBrc20Mint,
-  blocks.amounts_brc20_transfer         AS amountsBrc20Transfer,
+  blocks.amounts_brc20                                AS amountsBrc20,                              /* 18 */
+  blocks.amounts_brc20_deploy                         AS amountsBrc20Deploy,                        /* 19 */
+  blocks.amounts_brc20_mint                           AS amountsBrc20Mint,                          /* 20 */
+  blocks.amounts_brc20_transfer                       AS amountsBrc20Transfer,                      /* 21 */
 
-  blocks.amounts_src20                  AS amountsSrc20,
-  blocks.amounts_src20_deploy           AS amountsSrc20Deploy,
-  blocks.amounts_src20_mint             AS amountsSrc20Mint,
-  blocks.amounts_src20_transfer         AS amountsSrc20Transfer,
+  blocks.amounts_src20                                AS amountsSrc20,                              /* 22 */
+  blocks.amounts_src20_deploy                         AS amountsSrc20Deploy,                        /* 23 */
+  blocks.amounts_src20_mint                           AS amountsSrc20Mint,                          /* 24 */
+  blocks.amounts_src20_transfer                       AS amountsSrc20Transfer,                      /* 25 */
 
-  blocks.fees_rune_mints                              AS feesRuneMints,
-  blocks.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,
-  blocks.fees_brc20_mints                             AS feesBrc20Mints,
-  blocks.fees_src20_mints                             AS feesSrc20Mints,
-  blocks.fees_cat21_mints                             AS feesCat21Mints,
-  blocks.fees_atomicals                               AS feesAtomicals,
-  blocks.fees_inscription_mints                       AS feesInscriptionMints,
+  blocks.fees_rune_mints                              AS feesRuneMints,                             /* 26 */
+  blocks.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,                  /* 27 */
+  blocks.fees_brc20_mints                             AS feesBrc20Mints,                            /* 28 */
+  blocks.fees_src20_mints                             AS feesSrc20Mints,                            /* 29 */
+  blocks.fees_cat21_mints                             AS feesCat21Mints,                            /* 30 */
+  blocks.fees_atomicals                               AS feesAtomicals,                             /* 31 */
+  blocks.fees_inscription_mints                       AS feesInscriptionMints,                      /* 32 */
 
-  blocks.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,
-  blocks.inscriptions_total_content_size              AS inscriptionsTotalContentSize,
-  blocks.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,
-  blocks.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,
-  blocks.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,
-  blocks.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,
-  blocks.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,
-  blocks.inscriptions_average_content_size            AS inscriptionsAverageContentSize,
+  blocks.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,             /* 33 */
+  blocks.inscriptions_total_content_size              AS inscriptionsTotalContentSize,              /* 34 */
+  blocks.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,           /* 35 */
+  blocks.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,            /* 36 */
+  blocks.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,  /* 37 */
+  blocks.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,   /* 38 */
+  blocks.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,           /* 39 */
+  blocks.inscriptions_average_content_size            AS inscriptionsAverageContentSize,            /* 40 */
 
-  blocks.runes_most_active_mint                       AS runesMostActiveMint,
-  blocks.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,
-  blocks.brc20_most_active_mint                       AS brc20MostActiveMint,
-  blocks.src20_most_active_mint                       AS src20MostActiveMint,
+  blocks.runes_most_active_mint                       AS runesMostActiveMint,                       /* 41 */
+  blocks.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,            /* 42 */
+  blocks.brc20_most_active_mint                       AS brc20MostActiveMint,                       /* 43 */
+  blocks.src20_most_active_mint                       AS src20MostActiveMint,                       /* 44 */
 
-  blocks.analyser_version                             AS analyserVersion
+  blocks.analyser_version                             AS analyserVersion                            /* 45 */
 `;
 
 
@@ -234,60 +234,60 @@ class BlocksRepository {
         median_fee_amt,     coinbase_signature_ascii,
 
         /* HACK -- Ordpool Stats */
-        amount_atomical,
-        amount_atomical_mint,
-        amount_atomical_transfer,
-        amount_atomical_update,
+        amount_atomical,                                    /* 1 */
+        amount_atomical_mint,                               /* 2 */
+        amount_atomical_transfer,                           /* 3 */
+        amount_atomical_update,                             /* 4 */
 
-        amount_cat21,
-        amount_cat21_mint,
-        amount_cat21_transfer,
+        amount_cat21,                                       /* 5 */
+        amount_cat21_mint,                                  /* 6 */
+        amount_cat21_transfer,                              /* 7 */
 
-        amount_inscription,
-        amount_inscription_mint,
-        amount_inscription_transfer,
-        amount_inscription_burn,
+        amount_inscription,                                 /* 8 */
+        amount_inscription_mint,                            /* 9 */
+        amount_inscription_transfer,                        /* 10 */
+        amount_inscription_burn,                            /* 11 */
 
-        amount_runestone,
-        amount_rune_etch,
-        amount_rune_mint,
-        amount_rune_cenotaph,
-        amount_rune_transfer,
-        amount_rune_burn,
+        amount_rune,                                        /* 12 */
+        amount_rune_etch,                                   /* 13 */
+        amount_rune_mint,                                   /* 14 */
+        amount_rune_cenotaph,                               /* 15 */
+        amount_rune_transfer,                               /* 16 */
+        amount_rune_burn,                                   /* 17 */
 
-        amount_brc20,
-        amount_brc20_deploy,
-        amount_brc20_mint,
-        amount_brc20_transfer,
+        amount_brc20,                                       /* 18 */
+        amount_brc20_deploy,                                /* 19 */
+        amount_brc20_mint,                                  /* 20 */
+        amount_brc20_transfer,                              /* 21 */
 
-        amount_src20,
-        amount_src20_deploy,
-        amount_src20_mint,
-        amount_src20_transfer,
+        amount_src20,                                       /* 22 */
+        amount_src20_deploy,                                /* 23 */
+        amount_src20_mint,                                  /* 24 */
+        amount_src20_transfer,                              /* 25 */
 
-        fees_rune_mints,
-        fees_non_uncommon_rune_mints,
-        fees_brc20_mints,
-        fees_src20_mints,
-        fees_cat21_mints,
-        fees_atomicals,
-        fees_inscription_mints,
+        fees_rune_mints,                                    /* 26 */
+        fees_non_uncommon_rune_mints,                       /* 27 */
+        fees_brc20_mints,                                   /* 28 */
+        fees_src20_mints,                                   /* 29 */
+        fees_cat21_mints,                                   /* 30 */
+        fees_atomicals,                                     /* 31 */
+        fees_inscription_mints,                             /* 32 */
 
-        inscriptions_total_envelope_size,
-        inscriptions_total_content_size,
-        inscriptions_largest_envelope_size,
-        inscriptions_largest_content_size,
-        inscriptions_largest_envelope_inscription_id,
-        inscriptions_largest_content_inscription_id,
-        inscriptions_average_envelope_size,
-        inscriptions_average_content_size,
+        inscriptions_total_envelope_size,                   /* 33 */
+        inscriptions_total_content_size,                    /* 34 */
+        inscriptions_largest_envelope_size,                 /* 35 */
+        inscriptions_largest_content_size,                  /* 36 */
+        inscriptions_largest_envelope_inscription_id,       /* 37 */
+        inscriptions_largest_content_inscription_id,        /* 38 */
+        inscriptions_average_envelope_size,                 /* 39 */
+        inscriptions_average_content_size,                  /* 40 */
 
-        runes_most_active_mint,
-        runes_most_active_non_uncommon_mint,
-        brc20_most_active_mint,
-        src20_most_active_mint,
+        runes_most_active_mint,                             /* 41 */
+        runes_most_active_non_uncommon_mint,                /* 42 */
+        brc20_most_active_mint,                             /* 43 */
+        src20_most_active_mint,                             /* 44 */
 
-        analyser_version
+        analyser_version                                    /* 45 */
 
       ) VALUE (
         ?, ?, FROM_UNIXTIME(?), ?,
@@ -302,61 +302,63 @@ class BlocksRepository {
         ?, ?,
 
         /* HACK -- Ordpool Stats */
-        ?, /* amount_atomical */
-        ?, /* amount_atomical_mint */
-        ?, /* amount_atomical_transfer */
-        ?, /* amount_atomical_update */
+        ?, /* 1 amount_atomical */
+        ?, /* 2 amount_atomical_mint */
+        ?, /* 3 amount_atomical_transfer */
+        ?, /* 4 amount_atomical_update */
 
-        ?, /* amount_cat21 */
-        ?, /* amount_cat21_mint */
-        ?, /* amount_cat21_transfer */
+        ?, /* 5 amount_cat21 */
+        ?, /* 6 amount_cat21_mint */
+        ?, /* 7 amount_cat21_transfer */
 
-        ?, /* amount_inscription */
-        ?, /* amount_inscription_mint */
-        ?, /* amount_inscription_transfer */
-        ?, /* amount_inscription_burn */
+        ?, /* 8 amount_inscription */
+        ?, /* 9 amount_inscription_mint */
+        ?, /* 10 amount_inscription_transfer */
+        ?, /* 11 amount_inscription_burn */
 
-        ?, /* amount_runestone */
-        ?, /* amount_rune_etch */
-        ?, /* amount_rune_mint */
-        ?, /* amount_rune_cenotaph */
-        ?, /* amount_rune_transfer */
-        ?, /* amount_rune_burn */
+        ?, /* 12 amount_rune */
+        ?, /* 13 amount_rune_etch */
+        ?, /* 14 amount_rune_mint */
+        ?, /* 15 amount_rune_cenotaph */
+        ?, /* 16 amount_rune_transfer */
+        ?, /* 17 amount_rune_burn */
 
-        ?, /* amount_brc20 */
-        ?, /* amount_brc20_deploy */
-        ?, /* amount_brc20_mint */
-        ?, /* amount_brc20_transfer */
+        ?, /* 18 amount_brc20 */
+        ?, /* 19 amount_brc20_deploy */
+        ?, /* 20 amount_brc20_mint */
+        ?, /* 21 amount_brc20_transfer */
 
-        ?, /* amount_src20 */
-        ?, /* amount_src20_deploy */
-        ?, /* amount_src20_mint */
-        ?, /* amount_src20_transfer */
+        ?, /* 22 amount_src20 */
+        ?, /* 23 amount_src20_deploy */
+        ?, /* 24 amount_src20_mint */
+        ?, /* 25 amount_src20_transfer */
 
-        ?, /* fees_rune_mints */
-        ?, /* fees_non_uncommon_rune_mints */
-        ?, /* fees_brc20_mints */
-        ?, /* fees_src20_mints */
-        ?, /* fees_cat21_mints */
-        ?, /* fees_atomicals */
-        ?, /* fees_inscription_mints */
+        ?, /* 26 fees_rune_mints */
+        ?, /* 27 fees_non_uncommon_rune_mints */
+        ?, /* 28 fees_brc20_mints */
+        ?, /* 29 fees_src20_mints */
+        ?, /* 30 fees_cat21_mints */
+        ?, /* 31 fees_atomicals */
+        ?, /* 32 fees_inscription_mints */
 
-        ?, /* inscriptions_total_envelope_size */
-        ?, /* inscriptions_total_content_size */
-        ?, /* inscriptions_largest_envelope_size */
-        ?, /* inscriptions_largest_content_size */
-        ?, /* inscriptions_largest_envelope_inscription_id */
-        ?, /* inscriptions_largest_content_inscription_id */
-        ?, /* inscriptions_average_envelope_size */
-        ?, /* inscriptions_average_content_size */
+        ?, /* 33 inscriptions_total_envelope_size */
+        ?, /* 34 inscriptions_total_content_size */
+        ?, /* 35 inscriptions_largest_envelope_size */
+        ?, /* 36 inscriptions_largest_content_size */
+        ?, /* 37 inscriptions_largest_envelope_inscription_id */
+        ?, /* 38 inscriptions_largest_content_inscription_id */
+        ?, /* 39 inscriptions_average_envelope_size */
+        ?, /* 40 inscriptions_average_content_size */
 
-        ?, /* runes_most_active_mint */
-        ?, /* runes_most_active_non_uncommon_mint */
-        ?, /* brc20_most_active_mint */
-        ?, /* src20_most_active_mint */
+        ?, /* 41 runes_most_active_mint */
+        ?, /* 42 runes_most_active_non_uncommon_mint */
+        ?, /* 43 brc20_most_active_mint */
+        ?, /* 44 src20_most_active_mint */
 
-        ?  /* analyser_version */
+        ?  /* 45 analyser_version */
       )`;
+
+      console.log(query);
 
       const poolDbId = await PoolsRepository.$getPoolByUniqueId(block.extras.pool.id);
       if (!poolDbId) {
