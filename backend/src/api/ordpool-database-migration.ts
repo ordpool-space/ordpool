@@ -4,7 +4,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 2;
+  private static currentVersion = 1;
 
   private queryTimeout = 3600_000;
 
@@ -90,9 +90,10 @@ class OrdpoolDatabaseMigration {
   private getMigrationQueriesFromVersion(version: number): string[] {
     const queries: string[] = [];
 
-    if (version < 2) {
+    // TODO: MANUAL CLEANUP ALL PREVIOUS ATTEMPTS
+    /*
 
-      queries.push(`ALTER TABLE blocks
+    ALTER TABLE blocks
         DROP COLUMN IF EXISTS amount_atomical,
         DROP COLUMN IF EXISTS amount_atomical_mint,
         DROP COLUMN IF EXISTS amount_atomical_transfer,
@@ -108,6 +109,7 @@ class OrdpoolDatabaseMigration {
         DROP COLUMN IF EXISTS amount_inscription_burn,
 
         DROP COLUMN IF EXISTS amount_runestone,
+        DROP COLUMN IF EXISTS amount_rune,
         DROP COLUMN IF EXISTS amount_rune_etch,
         DROP COLUMN IF EXISTS amount_rune_transfer,
         DROP COLUMN IF EXISTS amount_rune_burn,
@@ -120,7 +122,15 @@ class OrdpoolDatabaseMigration {
         DROP COLUMN IF EXISTS amount_src20,
         DROP COLUMN IF EXISTS amount_src20_deploy,
         DROP COLUMN IF EXISTS amount_src20_mint,
-        DROP COLUMN IF EXISTS amount_src20_transfer`);
+        DROP COLUMN IF EXISTS amount_src20_transfer
+
+        DROP COLUMN IF EXISTS analyser_version;
+
+    */
+
+    if (version < 1) {
+
+      queries.push(``);
 
       queries.push(`ALTER TABLE blocks ADD amounts_atomical                             INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD amounts_atomical_mint                        INT UNSIGNED NOT NULL DEFAULT 0`);
@@ -136,7 +146,7 @@ class OrdpoolDatabaseMigration {
       queries.push(`ALTER TABLE blocks ADD amounts_inscription_transfer                 INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD amounts_inscription_burn                     INT UNSIGNED NOT NULL DEFAULT 0`);
 
-      queries.push(`ALTER TABLE blocks ADD amounts_runestone                            INT UNSIGNED NOT NULL DEFAULT 0`);
+      queries.push(`ALTER TABLE blocks ADD amounts_rune                                 INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD amounts_rune_etch                            INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD amounts_rune_mint                            INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD amounts_rune_cenotaph                        INT UNSIGNED NOT NULL DEFAULT 0`);
