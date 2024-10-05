@@ -234,36 +234,36 @@ class BlocksRepository {
         median_fee_amt,     coinbase_signature_ascii,
 
         /* HACK -- Ordpool Stats */
-        amount_atomical,                                    /* 1 */
-        amount_atomical_mint,                               /* 2 */
-        amount_atomical_transfer,                           /* 3 */
-        amount_atomical_update,                             /* 4 */
+        amounts_atomical,                                   /* 1 */
+        amounts_atomical_mint,                              /* 2 */
+        amounts_atomical_transfer,                          /* 3 */
+        amounts_atomical_update,                            /* 4 */
 
-        amount_cat21,                                       /* 5 */
-        amount_cat21_mint,                                  /* 6 */
-        amount_cat21_transfer,                              /* 7 */
+        amounts_cat21,                                      /* 5 */
+        amounts_cat21_mint,                                 /* 6 */
+        amounts_cat21_transfer,                             /* 7 */
 
-        amount_inscription,                                 /* 8 */
-        amount_inscription_mint,                            /* 9 */
-        amount_inscription_transfer,                        /* 10 */
-        amount_inscription_burn,                            /* 11 */
+        amounts_inscription,                                /* 8 */
+        amounts_inscription_mint,                           /* 9 */
+        amounts_inscription_transfer,                       /* 10 */
+        amounts_inscription_burn,                           /* 11 */
 
-        amount_rune,                                        /* 12 */
-        amount_rune_etch,                                   /* 13 */
-        amount_rune_mint,                                   /* 14 */
-        amount_rune_cenotaph,                               /* 15 */
-        amount_rune_transfer,                               /* 16 */
-        amount_rune_burn,                                   /* 17 */
+        amounts_rune,                                       /* 12 */
+        amounts_rune_etch,                                  /* 13 */
+        amounts_rune_mint,                                  /* 14 */
+        amounts_rune_cenotaph,                              /* 15 */
+        amounts_rune_transfer,                              /* 16 */
+        amounts_rune_burn,                                  /* 17 */
 
-        amount_brc20,                                       /* 18 */
-        amount_brc20_deploy,                                /* 19 */
-        amount_brc20_mint,                                  /* 20 */
-        amount_brc20_transfer,                              /* 21 */
+        amounts_brc20,                                      /* 18 */
+        amounts_brc20_deploy,                               /* 19 */
+        amounts_brc20_mint,                                 /* 20 */
+        amounts_brc20_transfer,                             /* 21 */
 
-        amount_src20,                                       /* 22 */
-        amount_src20_deploy,                                /* 23 */
-        amount_src20_mint,                                  /* 24 */
-        amount_src20_transfer,                              /* 25 */
+        amounts_src20,                                      /* 22 */
+        amounts_src20_deploy,                               /* 23 */
+        amounts_src20_mint,                                 /* 24 */
+        amounts_src20_transfer,                             /* 25 */
 
         fees_rune_mints,                                    /* 26 */
         fees_non_uncommon_rune_mints,                       /* 27 */
@@ -302,36 +302,36 @@ class BlocksRepository {
         ?, ?,
 
         /* HACK -- Ordpool Stats */
-        ?, /* 1 amount_atomical */
-        ?, /* 2 amount_atomical_mint */
-        ?, /* 3 amount_atomical_transfer */
-        ?, /* 4 amount_atomical_update */
+        ?, /* 1 amounts_atomical */
+        ?, /* 2 amounts_atomical_mint */
+        ?, /* 3 amounts_atomical_transfer */
+        ?, /* 4 amounts_atomical_update */
 
-        ?, /* 5 amount_cat21 */
-        ?, /* 6 amount_cat21_mint */
-        ?, /* 7 amount_cat21_transfer */
+        ?, /* 5 amounts_cat21 */
+        ?, /* 6 amounts_cat21_mint */
+        ?, /* 7 amounts_cat21_transfer */
 
-        ?, /* 8 amount_inscription */
-        ?, /* 9 amount_inscription_mint */
-        ?, /* 10 amount_inscription_transfer */
-        ?, /* 11 amount_inscription_burn */
+        ?, /* 8 amounts_inscription */
+        ?, /* 9 amounts_inscription_mint */
+        ?, /* 10 amounts_inscription_transfer */
+        ?, /* 11 amounts_inscription_burn */
 
-        ?, /* 12 amount_rune */
-        ?, /* 13 amount_rune_etch */
-        ?, /* 14 amount_rune_mint */
-        ?, /* 15 amount_rune_cenotaph */
-        ?, /* 16 amount_rune_transfer */
-        ?, /* 17 amount_rune_burn */
+        ?, /* 12 amounts_rune */
+        ?, /* 13 amounts_rune_etch */
+        ?, /* 14 amounts_rune_mint */
+        ?, /* 15 amounts_rune_cenotaph */
+        ?, /* 16 amounts_rune_transfer */
+        ?, /* 17 amounts_rune_burn */
 
-        ?, /* 18 amount_brc20 */
-        ?, /* 19 amount_brc20_deploy */
-        ?, /* 20 amount_brc20_mint */
-        ?, /* 21 amount_brc20_transfer */
+        ?, /* 18 amounts_brc20 */
+        ?, /* 19 amounts_brc20_deploy */
+        ?, /* 20 amounts_brc20_mint */
+        ?, /* 21 amounts_brc20_transfer */
 
-        ?, /* 22 amount_src20 */
-        ?, /* 23 amount_src20_deploy */
-        ?, /* 24 amount_src20_mint */
-        ?, /* 25 amount_src20_transfer */
+        ?, /* 22 amounts_src20 */
+        ?, /* 23 amounts_src20_deploy */
+        ?, /* 24 amounts_src20_mint */
+        ?, /* 25 amounts_src20_transfer */
 
         ?, /* 26 fees_rune_mints */
         ?, /* 27 fees_non_uncommon_rune_mints */
@@ -357,8 +357,6 @@ class BlocksRepository {
 
         ?  /* 45 analyser_version */
       )`;
-
-      console.log(query);
 
       const poolDbId = await PoolsRepository.$getPoolByUniqueId(block.extras.pool.id);
       if (!poolDbId) {
