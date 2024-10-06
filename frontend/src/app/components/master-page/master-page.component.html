@@ -88,7 +88,7 @@
   <div class="navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
       <li class="nav-item" routerLinkActive="active" id="btn-home">
-        <a class="nav-link" [routerLink]="['/mempool-block' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> Pool</a>
+        <a class="nav-link" [routerLink]="['/mempool-block' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> Memory Pool</a>
       </li>
       <!--
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
@@ -126,7 +126,7 @@
 
       <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint" *ngIf="enableCat21Mint">
         <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()">
-          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">Mint a CAT-21</a>
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21</a>
       </li>
 
       <!-- <li class="nav-item" routerLinkActive="active" id="btn-cat21-whitelist-checker">

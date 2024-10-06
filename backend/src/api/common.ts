@@ -544,7 +544,7 @@ export class Common {
     }
 
     // HACK --- Ordpool Flags
-    flags = DigitalArtifactAnalyserService.quickAnalyseTransaction(tx, flags);
+    flags = DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
 
     return Number(flags);
   }

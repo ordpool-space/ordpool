@@ -419,7 +419,7 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
   }
 
   // HACK --- Ordpool Flags
-  flags = DigitalArtifactAnalyserService.quickAnalyseTransaction(tx, flags);
+  flags = DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
 
   return flags;
 }
