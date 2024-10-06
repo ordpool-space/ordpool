@@ -90,7 +90,7 @@ class OrdpoolDatabaseMigration {
   private getMigrationQueriesFromVersion(version: number): string[] {
     const queries: string[] = [];
 
-    // TODO: MANUAL CLEANUP ALL PREVIOUS ATTEMPTS
+    // TODO: MANUAL CLEANUP ALL PREVIOUS ATTEMPTS 😅
     /*
 
     ALTER TABLE blocks
@@ -122,15 +122,57 @@ class OrdpoolDatabaseMigration {
         DROP COLUMN IF EXISTS amount_src20,
         DROP COLUMN IF EXISTS amount_src20_deploy,
         DROP COLUMN IF EXISTS amount_src20_mint,
-        DROP COLUMN IF EXISTS amount_src20_transfer
+        DROP COLUMN IF EXISTS amount_src20_transfer,
 
-        DROP COLUMN IF EXISTS analyser_version;
+        DROP COLUMN IF EXISTS analyser_version,
 
+        DROP COLUMN IF EXISTS amounts_atomical,
+        DROP COLUMN IF EXISTS amounts_atomical_mint,
+        DROP COLUMN IF EXISTS amounts_atomical_transfer,
+        DROP COLUMN IF EXISTS amounts_atomical_update,
+        DROP COLUMN IF EXISTS amounts_cat21,
+        DROP COLUMN IF EXISTS amounts_cat21_mint,
+        DROP COLUMN IF EXISTS amounts_cat21_transfer,
+        DROP COLUMN IF EXISTS amounts_inscription,
+        DROP COLUMN IF EXISTS amounts_inscription_mint,
+        DROP COLUMN IF EXISTS amounts_inscription_transfer,
+        DROP COLUMN IF EXISTS amounts_inscription_burn,
+        DROP COLUMN IF EXISTS amounts_rune,
+        DROP COLUMN IF EXISTS amounts_rune_etch,
+        DROP COLUMN IF EXISTS amounts_rune_mint,
+        DROP COLUMN IF EXISTS amounts_rune_cenotaph,
+        DROP COLUMN IF EXISTS amounts_rune_transfer,
+        DROP COLUMN IF EXISTS amounts_rune_burn,
+        DROP COLUMN IF EXISTS amounts_brc20,
+        DROP COLUMN IF EXISTS amounts_brc20_deploy,
+        DROP COLUMN IF EXISTS amounts_brc20_mint,
+        DROP COLUMN IF EXISTS amounts_brc20_transfer,
+        DROP COLUMN IF EXISTS amounts_src20,
+        DROP COLUMN IF EXISTS amounts_src20_deploy,
+        DROP COLUMN IF EXISTS amounts_src20_mint,
+        DROP COLUMN IF EXISTS amounts_src20_transfer,
+        DROP COLUMN IF EXISTS fees_rune_mints,
+        DROP COLUMN IF EXISTS fees_non_uncommon_rune_mints,
+        DROP COLUMN IF EXISTS fees_brc20_mints,
+        DROP COLUMN IF EXISTS fees_src20_mints,
+        DROP COLUMN IF EXISTS fees_cat21_mints,
+        DROP COLUMN IF EXISTS fees_atomicals,
+        DROP COLUMN IF EXISTS fees_inscription_mints,
+        DROP COLUMN IF EXISTS inscriptions_total_envelope_size,
+        DROP COLUMN IF EXISTS inscriptions_total_content_size,
+        DROP COLUMN IF EXISTS inscriptions_largest_envelope_size,
+        DROP COLUMN IF EXISTS inscriptions_largest_content_size,
+        DROP COLUMN IF EXISTS inscriptions_largest_envelope_inscription_id,
+        DROP COLUMN IF EXISTS inscriptions_largest_content_inscription_id,
+        DROP COLUMN IF EXISTS inscriptions_average_envelope_size,
+        DROP COLUMN IF EXISTS inscriptions_average_content_size,
+        DROP COLUMN IF EXISTS runes_most_active_mint,
+        DROP COLUMN IF EXISTS runes_most_active_non_uncommon_mint,
+        DROP COLUMN IF EXISTS brc20_most_active_mint,
+        DROP COLUMN IF EXISTS src20_most_active_mint;
     */
 
     if (version < 1) {
-
-      queries.push(``);
 
       queries.push(`ALTER TABLE blocks ADD amounts_atomical                             INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD amounts_atomical_mint                        INT UNSIGNED NOT NULL DEFAULT 0`);
@@ -175,12 +217,16 @@ class OrdpoolDatabaseMigration {
       queries.push(`ALTER TABLE blocks ADD inscriptions_total_content_size              INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD inscriptions_largest_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD inscriptions_largest_content_size            INT UNSIGNED NOT NULL DEFAULT 0`);
+
+      // assumptions: 64 (transaction ID) + 1 (i seperator) + 35 (index) = 100 characters, a 35 digits long index should be more than enough
       queries.push(`ALTER TABLE blocks ADD inscriptions_largest_envelope_inscription_id VARCHAR(100) CHARACTER SET ascii DEFAULT NULL`);
       queries.push(`ALTER TABLE blocks ADD inscriptions_largest_content_inscription_id  VARCHAR(100) CHARACTER SET ascii DEFAULT NULL`);
+
       queries.push(`ALTER TABLE blocks ADD inscriptions_average_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD inscriptions_average_content_size            INT UNSIGNED NOT NULL DEFAULT 0`);
 
       // this is the runes ID (block:tx)
+      // assumptions: 10 (block height) + 1 (: separator) + 7 (transaction index) = 18 characters, +2 to be very safe
       queries.push(`ALTER TABLE blocks ADD runes_most_active_mint                       VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
       queries.push(`ALTER TABLE blocks ADD runes_most_active_non_uncommon_mint          VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
 
@@ -190,13 +236,16 @@ class OrdpoolDatabaseMigration {
       // In total, you have 63 different characters to work with.
       // Ticker names are not case-sensitive.
       // https://docs.fractalbitcoin.io/doc/brc-20-on-fractal
-      queries.push(`ALTER TABLE blocks ADD brc20_most_active_mint                       VARCHAR(12) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
+      // BUT there are are ticker names like `龙B` on mainnet --> we go full unicode to be safe
+      // 20 should be a save value
+      queries.push(`ALTER TABLE blocks ADD brc20_most_active_mint                       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL`);
 
       // SRC20 ticker names on Bitcoin must must be 1-5 characters in length.
       // https://github.com/stampchain-io/stamps_sdk/blob/main/docs/src20specs.md
       // SRC20 ticker names on Fractal must be between 6 and 12 characters.
       // https://docs.openstamp.io/introduction/src20-protocol/src20-on-fractal
-      queries.push(`ALTER TABLE blocks ADD src20_most_active_mint                       VARCHAR(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL`);
+      // 20 should be a save value
+      queries.push(`ALTER TABLE blocks ADD src20_most_active_mint                       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL`);
 
       queries.push(`ALTER TABLE blocks ADD analyser_version                             INT UNSIGNED NOT NULL DEFAULT 0`);
 

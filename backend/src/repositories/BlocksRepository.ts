@@ -302,60 +302,60 @@ class BlocksRepository {
         ?, ?,
 
         /* HACK -- Ordpool Stats */
-        ?, /* 1 amounts_atomical */
-        ?, /* 2 amounts_atomical_mint */
-        ?, /* 3 amounts_atomical_transfer */
-        ?, /* 4 amounts_atomical_update */
+        ?,  /* 1 amounts_atomical */
+        ?,  /* 2 amounts_atomical_mint */
+        ?,  /* 3 amounts_atomical_transfer */
+        ?,  /* 4 amounts_atomical_update */
 
-        ?, /* 5 amounts_cat21 */
-        ?, /* 6 amounts_cat21_mint */
-        ?, /* 7 amounts_cat21_transfer */
+        ?,  /* 5 amounts_cat21 */
+        ?,  /* 6 amounts_cat21_mint */
+        ?,  /* 7 amounts_cat21_transfer */
 
-        ?, /* 8 amounts_inscription */
-        ?, /* 9 amounts_inscription_mint */
-        ?, /* 10 amounts_inscription_transfer */
-        ?, /* 11 amounts_inscription_burn */
+        ?,  /* 8 amounts_inscription */
+        ?,  /* 9 amounts_inscription_mint */
+        ?,  /* 10 amounts_inscription_transfer */
+        ?,  /* 11 amounts_inscription_burn */
 
-        ?, /* 12 amounts_rune */
-        ?, /* 13 amounts_rune_etch */
-        ?, /* 14 amounts_rune_mint */
-        ?, /* 15 amounts_rune_cenotaph */
-        ?, /* 16 amounts_rune_transfer */
-        ?, /* 17 amounts_rune_burn */
+        ?,  /* 12 amounts_rune */
+        ?,  /* 13 amounts_rune_etch */
+        ?,  /* 14 amounts_rune_mint */
+        ?,  /* 15 amounts_rune_cenotaph */
+        ?,  /* 16 amounts_rune_transfer */
+        ?,  /* 17 amounts_rune_burn */
 
-        ?, /* 18 amounts_brc20 */
-        ?, /* 19 amounts_brc20_deploy */
-        ?, /* 20 amounts_brc20_mint */
-        ?, /* 21 amounts_brc20_transfer */
+        ?,  /* 18 amounts_brc20 */
+        ?,  /* 19 amounts_brc20_deploy */
+        ?,  /* 20 amounts_brc20_mint */
+        ?,  /* 21 amounts_brc20_transfer */
 
-        ?, /* 22 amounts_src20 */
-        ?, /* 23 amounts_src20_deploy */
-        ?, /* 24 amounts_src20_mint */
-        ?, /* 25 amounts_src20_transfer */
+        ?,  /* 22 amounts_src20 */
+        ?,  /* 23 amounts_src20_deploy */
+        ?,  /* 24 amounts_src20_mint */
+        ?,  /* 25 amounts_src20_transfer */
 
-        ?, /* 26 fees_rune_mints */
-        ?, /* 27 fees_non_uncommon_rune_mints */
-        ?, /* 28 fees_brc20_mints */
-        ?, /* 29 fees_src20_mints */
-        ?, /* 30 fees_cat21_mints */
-        ?, /* 31 fees_atomicals */
-        ?, /* 32 fees_inscription_mints */
+        ?,  /* 26 fees_rune_mints */
+        ?,  /* 27 fees_non_uncommon_rune_mints */
+        ?,  /* 28 fees_brc20_mints */
+        ?,  /* 29 fees_src20_mints */
+        ?,  /* 30 fees_cat21_mints */
+        ?,  /* 31 fees_atomicals */
+        ?,  /* 32 fees_inscription_mints */
 
-        ?, /* 33 inscriptions_total_envelope_size */
-        ?, /* 34 inscriptions_total_content_size */
-        ?, /* 35 inscriptions_largest_envelope_size */
-        ?, /* 36 inscriptions_largest_content_size */
-        ?, /* 37 inscriptions_largest_envelope_inscription_id */
-        ?, /* 38 inscriptions_largest_content_inscription_id */
-        ?, /* 39 inscriptions_average_envelope_size */
-        ?, /* 40 inscriptions_average_content_size */
+        ?,  /* 33 inscriptions_total_envelope_size */
+        ?,  /* 34 inscriptions_total_content_size */
+        ?,  /* 35 inscriptions_largest_envelope_size */
+        ?,  /* 36 inscriptions_largest_content_size */
+        ?,  /* 37 inscriptions_largest_envelope_inscription_id */
+        ?,  /* 38 inscriptions_largest_content_inscription_id */
+        ?,  /* 39 inscriptions_average_envelope_size */
+        ?,  /* 40 inscriptions_average_content_size */
 
-        ?, /* 41 runes_most_active_mint */
-        ?, /* 42 runes_most_active_non_uncommon_mint */
-        ?, /* 43 brc20_most_active_mint */
-        ?, /* 44 src20_most_active_mint */
+        LEFT(?, 20),  /* 41 runes_most_active_mint - truncated to 20 ASCII characters */
+        LEFT(?, 20),  /* 42 runes_most_active_non_uncommon_mint - truncated to 20 ASCII characters */
+        LEFT(?, 20),  /* 43 brc20_most_active_mint - truncated to 20 Unicode characters (between 1 and 4 bytes) */
+        LEFT(?, 20),  /* 44 src20_most_active_mint - truncated to 20 Unicode characters (between 1 and 4 bytes) */
 
-        ?  /* 45 analyser_version */
+        ?   /* 45 analyser_version */
       )`;
 
       const poolDbId = await PoolsRepository.$getPoolByUniqueId(block.extras.pool.id);
