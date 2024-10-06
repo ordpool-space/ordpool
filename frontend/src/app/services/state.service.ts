@@ -186,10 +186,11 @@ export class StateService {
   activeGoggles$: BehaviorSubject<ActiveFilter> = new BehaviorSubject({ 
     mode: 'or', 
     filters: [
-      'ordpool_atomical',
+      // 'ordpool_atomical',
       'ordpool_cat21',
-      'ordpool_inscription', // brc20 is already included here
+      'ordpool_inscription',
       'ordpool_rune',
+      'ordpool_brc20',
       'ordpool_src20'
     ], 
     gradient: 'fee'
