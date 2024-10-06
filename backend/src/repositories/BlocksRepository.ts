@@ -403,60 +403,63 @@ class BlocksRepository {
         truncatedCoinbaseSignatureAscii,
 
         // HACK -- Ordpool Stats
-        block.extras.ordpoolStats.amounts.atomical,
-        block.extras.ordpoolStats.amounts.atomicalMint,
-        block.extras.ordpoolStats.amounts.atomicalTransfer,
-        block.extras.ordpoolStats.amounts.atomicalUpdate,
+        block.extras.ordpoolStats.amounts.atomical,                           // 1
+        block.extras.ordpoolStats.amounts.atomicalMint,                       // 2
+        block.extras.ordpoolStats.amounts.atomicalTransfer,                   // 3
+        block.extras.ordpoolStats.amounts.atomicalUpdate,                     // 4
 
-        block.extras.ordpoolStats.amounts.cat21,
-        block.extras.ordpoolStats.amounts.cat21Mint,
-        block.extras.ordpoolStats.amounts.cat21Transfer,
+        block.extras.ordpoolStats.amounts.cat21,                              // 5
+        block.extras.ordpoolStats.amounts.cat21Mint,                          // 6
+        block.extras.ordpoolStats.amounts.cat21Transfer,                      // 7
 
-        block.extras.ordpoolStats.amounts.inscription,
-        block.extras.ordpoolStats.amounts.inscriptionMint,
-        block.extras.ordpoolStats.amounts.inscriptionTransfer,
-        block.extras.ordpoolStats.amounts.inscriptionBurn,
+        block.extras.ordpoolStats.amounts.inscription,                        // 8
+        block.extras.ordpoolStats.amounts.inscriptionMint,                    // 9
+        block.extras.ordpoolStats.amounts.inscriptionTransfer,                // 10
+        block.extras.ordpoolStats.amounts.inscriptionBurn,                    // 11
 
-        block.extras.ordpoolStats.amounts.rune,
-        block.extras.ordpoolStats.amounts.runeEtch,
-        block.extras.ordpoolStats.amounts.runeMint,
-        block.extras.ordpoolStats.amounts.runeTransfer,
-        block.extras.ordpoolStats.amounts.runeBurn,
+        block.extras.ordpoolStats.amounts.rune,                               // 12
+        block.extras.ordpoolStats.amounts.runeEtch,                           // 13
+        block.extras.ordpoolStats.amounts.runeMint,                           // 14
+        block.extras.ordpoolStats.amounts.runeCenotaph,                       // 15
+        block.extras.ordpoolStats.amounts.runeTransfer,                       // 16
+        block.extras.ordpoolStats.amounts.runeBurn,                           // 17
 
-        block.extras.ordpoolStats.amounts.brc20,
-        block.extras.ordpoolStats.amounts.brc20Deploy,
-        block.extras.ordpoolStats.amounts.brc20Mint,
-        block.extras.ordpoolStats.amounts.brc20Transfer,
+        block.extras.ordpoolStats.amounts.brc20,                              // 18
+        block.extras.ordpoolStats.amounts.brc20Deploy,                        // 19
+        block.extras.ordpoolStats.amounts.brc20Mint,                          // 20
+        block.extras.ordpoolStats.amounts.brc20Transfer,                      // 21
 
-        block.extras.ordpoolStats.amounts.src20,
-        block.extras.ordpoolStats.amounts.src20Deploy,
-        block.extras.ordpoolStats.amounts.src20Mint,
-        block.extras.ordpoolStats.amounts.src20Transfer,
+        block.extras.ordpoolStats.amounts.src20,                              // 22
+        block.extras.ordpoolStats.amounts.src20Deploy,                        // 23
+        block.extras.ordpoolStats.amounts.src20Mint,                          // 24
+        block.extras.ordpoolStats.amounts.src20Transfer,                      // 25
 
-        block.extras.ordpoolStats.fees.runeMints,
-        block.extras.ordpoolStats.fees.nonUncommonRuneMints,
-        block.extras.ordpoolStats.fees.brc20Mints,
-        block.extras.ordpoolStats.fees.src20Mints,
-        block.extras.ordpoolStats.fees.cat21Mints,
-        block.extras.ordpoolStats.fees.atomicals,
-        block.extras.ordpoolStats.fees.inscriptionMints,
+        block.extras.ordpoolStats.fees.runeMints,                             // 26
+        block.extras.ordpoolStats.fees.nonUncommonRuneMints,                  // 27
+        block.extras.ordpoolStats.fees.brc20Mints,                            // 28
+        block.extras.ordpoolStats.fees.src20Mints,                            // 29
+        block.extras.ordpoolStats.fees.cat21Mints,                            // 30
+        block.extras.ordpoolStats.fees.atomicals,                             // 31
+        block.extras.ordpoolStats.fees.inscriptionMints,                      // 32
 
-        block.extras.ordpoolStats.inscriptions.totalEnvelopeSize,
-        block.extras.ordpoolStats.inscriptions.totalContentSize,
-        block.extras.ordpoolStats.inscriptions.largestEnvelopeSize,
-        block.extras.ordpoolStats.inscriptions.largestContentSize,
-        block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId,
-        block.extras.ordpoolStats.inscriptions.largestContentInscriptionId,
-        block.extras.ordpoolStats.inscriptions.averageEnvelopeSize,
-        block.extras.ordpoolStats.inscriptions.averageContentSize,
+        block.extras.ordpoolStats.inscriptions.totalEnvelopeSize,             // 33
+        block.extras.ordpoolStats.inscriptions.totalContentSize,              // 34
+        block.extras.ordpoolStats.inscriptions.largestEnvelopeSize,           // 35
+        block.extras.ordpoolStats.inscriptions.largestContentSize,            // 36
+        block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId,  // 37
+        block.extras.ordpoolStats.inscriptions.largestContentInscriptionId,   // 38
+        block.extras.ordpoolStats.inscriptions.averageEnvelopeSize,           // 39
+        block.extras.ordpoolStats.inscriptions.averageContentSize,            // 40
 
-        block.extras.ordpoolStats.runes.mostActiveMint,
-        block.extras.ordpoolStats.runes.mostActiveNonUncommonMint,
-        block.extras.ordpoolStats.brc20.mostActiveMint,
-        block.extras.ordpoolStats.src20.mostActiveMint,
+        block.extras.ordpoolStats.runes.mostActiveMint,                       // 41
+        block.extras.ordpoolStats.runes.mostActiveNonUncommonMint,            // 42
+        block.extras.ordpoolStats.brc20.mostActiveMint,                       // 43
+        block.extras.ordpoolStats.src20.mostActiveMint,                       // 44
 
-        block.extras.ordpoolStats.version
+        block.extras.ordpoolStats.version                                     // 45
       ];
+
+      // console.log(params)
 
       await DB.query(query, params);
     } catch (e: any) {
