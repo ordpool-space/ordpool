@@ -180,9 +180,9 @@ class OrdpoolDatabaseMigration {
       queries.push(`ALTER TABLE blocks ADD inscriptions_average_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0`);
       queries.push(`ALTER TABLE blocks ADD inscriptions_average_content_size            INT UNSIGNED NOT NULL DEFAULT 0`);
 
-      //  26 (characters) + 25 (spacers) = 51 characters
-      queries.push(`ALTER TABLE blocks ADD runes_most_active_mint                       VARCHAR(51) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL`);
-      queries.push(`ALTER TABLE blocks ADD runes_most_active_non_uncommon_mint          VARCHAR(51) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL`);
+      // this is the runes ID (block:tx)
+      queries.push(`ALTER TABLE blocks ADD runes_most_active_mint                       VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
+      queries.push(`ALTER TABLE blocks ADD runes_most_active_non_uncommon_mint          VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
 
       // Ticker names on Fractal Mainnet will be limited to 6 - 12 bytes.
       // Tickers with 4 or 5 characters will not be permitted, as they are already in use on the Bitcoin mainnet.
