@@ -56,7 +56,10 @@
 
 .fees {
   font-size: 12px;
-  margin-top: 10px;
+
+  // HACK: smaller margin, a bit more space to work with
+  // margin-top: 10px;
+  margin-top: 2px;
   margin-bottom: 2px;
 }
 
@@ -88,7 +91,11 @@
   position:absolute;
   top: calc(-0.192 * var(--block-size));
   left: calc(-0.16 * var(--block-size));
+  
+  // HACK, transparent color, so that we can still see the fees
   background-color: #232838;
+  // background-color: #23283880;
+
   transform:skew(40deg);
   transform-origin:top;
 }

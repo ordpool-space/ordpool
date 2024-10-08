@@ -215,7 +215,7 @@ export class PreviewViewerComponent {
     <meta charset='utf-8'>
   </head>
   <body>
-    <h1 style="color:white;font-family: sans-serif;text-align:center;">Unknown!?</h1>
+    <h1 style="color:white;font-family: sans-serif;text-align:center;">?</h1>
   </body>
 </html>
 `;

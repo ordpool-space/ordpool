@@ -134,3 +134,13 @@ app-block-filters > div {
 .badge-accelerated {
   display: none !important;
 }
+
+// hide the toggle that switches between fees and size of the blocks
+.block-display-toggle {
+  display: none !important;
+}
+
+// hide the toggle that changes the time direction
+.time-toggle {
+  visibility: hidden !important;
+}

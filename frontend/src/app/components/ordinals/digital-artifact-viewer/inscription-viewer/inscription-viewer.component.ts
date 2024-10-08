@@ -35,6 +35,7 @@ export class InscriptionViewerComponent {
   whatToShow: 'nothing' | 'json' | 'code' | 'preview' | 'delegates' = 'nothing';
 
   @Input() showDetails = false;
+  @Input() minimal = false;
 
   @Input()
   set parsedInscription(inscription: ParsedInscription | undefined) {
@@ -73,6 +74,13 @@ export class InscriptionViewerComponent {
       return;
     } else {
       this.delegates = [];
+    }
+
+    // preview will force everything into an iframe, which always fits
+    // (quickest solution right now)
+    if (this.minimal) {
+      this.whatToShow = 'preview';
+      return;
     }
 
     if ((inscription.contentType.startsWith('text/plain') ||

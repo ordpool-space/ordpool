@@ -30,6 +30,8 @@
                 <app-fee-rate unitClass=""></app-fee-rate>
               </div>
             </ng-template>
+
+            <!--
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-fee-span'" class="fee-span"
               *ngIf="block?.extras?.minFee != null && block?.extras?.maxFee != null; else emptyfeespan">
               <app-fee-rate [fee]="block?.extras?.minFee" [showUnit]="false" rounding="1.0-0" unitClass=""></app-fee-rate>
@@ -49,12 +51,28 @@
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + 'block-size'"
               class="block-size" [innerHTML]="'&lrm;' + (block.size | bytes: 2)"></div>
             </ng-template>
+            -->
+            <!-- HACK: display degen stuff in the blocks -->
+
+            <app-mini-inscription-viewer
+              [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId"
+            />
+
+            <!---
             <div [attr.data-cy]="'bitcoin-block-' + i + '-transactions'" class="transaction-count">
               <ng-container
                 *ngTemplateOutlet="block.tx_count === 1 ? transactionsSingular : transactionsPlural; context: {$implicit: block.tx_count | number}"></ng-container>
               <ng-template #transactionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} transaction</ng-template>
               <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} transactions</ng-template>
             </div>
+            -->
+
+            <div class="transaction-count">
+              <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? transactionsSingular : transactionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
+              <ng-template #transactionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>
+              <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} inscriptions</ng-template>
+            </div>
+
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
               <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time></div>
           </ng-container>
@@ -64,12 +82,6 @@
             [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
             {{ block.extras.pool.name}}</a>
         </div>
-
-        <!-- <div class="animated">
-          Stats: {{ block.extras.ordpoolStats | json }}
-        </div> -->
-
-        
       </div>
     </ng-container>
     <ng-template #placeholderBlock>
