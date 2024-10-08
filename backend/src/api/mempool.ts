@@ -152,6 +152,7 @@ class Mempool {
             }
             count++;
           }
+          // HACK: improved logging
           const percentage = ((count / expectedCount) * 100).toFixed(2);
           logger.info(`Fetched ${count} of ${expectedCount} mempool transactions from esplora (${percentage}% done)`);
           if (result.length > 0) {

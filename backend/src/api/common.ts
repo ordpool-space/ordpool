@@ -390,8 +390,8 @@ export class Common {
   }
 
   // HACK - WARNING
-  // THIS METHOD was just duplicated between frontend/backend and is super redundant!
-  // nearly the same code exists in frontend/src/app/shared/transaction.utils.ts
+  // THIS METHOD is duplicated between frontend/backend
+  // similar code exists in frontend/src/app/shared/transaction.utils.ts, keep them in sync!
   static getTransactionFlags(tx: TransactionExtended): number {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
