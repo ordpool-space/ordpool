@@ -1,10 +1,11 @@
-# v0.0.6 – Parsing Runes
+# v1.0.0 – Full overhaul
 
-* New Digital Artifact: Runestone messages in transactions (all details are displayed nicely)
+* New Digital Artifact: Runestone messages in transactions
 * New Digital Artifact: Detection of Atomicals (but no real parsing or display*)
 * Drastically improved performance: server-side detection of Digital Artifacts (including runes)
-* Ordpool Filters: Highlight transactions by included Digital Artifacts: Atomical, CAT-21 Mint, Inscription, Rune, SRC-20 (Stamps)
+* Ordpool Flags: Highlight transactions by included Digital Artifacts: CAT-21 Mint, Inscription, Rune, BRC-20, SRC-20 (Stamps)
 * Ordpool Stats: Quick summaries of all detected Digital Artifacts in a block
+* Various small improvements to the user interface
 
 &nbsp;* If you can contribute, please send a <a href="https://github.com/ordpool-space/ordpool-parser" target="_blank">🧡 pull request (Github) to our repository</a>.
 
@@ -19,7 +20,7 @@ Announcement: https://twitter.com/HausHoppe/status/1781222510303785339
 CAT-21 is a novel protocol that utilizes Bitcoin transactions and the Ordinals Theory to mint unique digital collectibles – CAT-21 ordinals. Each CAT-21 ordinal is linked to a unique pixelated cat image with various traits, offering a fresh and playful perspective on Bitcoin transactions and the Ordinals theory. Why? Because it's fun and complely free! And free means free! The minting process is completely free. **Price: FREE, no strings attached.** 😺
 
 
-Read more about the **CAT-21 protocol** [in the whitepaper](https://github.com/ordpool-space/cat-21) and [on the official website](https://cat21.space/).
+Read more about the **CAT-21 protocol** [in the whitepaper](https://github.com/ordpool-space/cat-21)<!--and [on the official website](https://cat21.space/)-->.
 
 **More Features:**
 

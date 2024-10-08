@@ -537,7 +537,11 @@
     @if (!isLoadingTx) {
       @if (featuresEnabled) {
         <tr>
+          <!-- HACK: rename-->
+          <!--
           <td class="td-width" i18n="transaction.features|Transaction features" id="acceleratePreviewAnchor">Features</td>
+          -->
+          <td class="td-width" id="acceleratePreviewAnchor">Feature Usage</td>
           <td>
             <app-tx-features [tx]="tx"></app-tx-features>
           </td>
