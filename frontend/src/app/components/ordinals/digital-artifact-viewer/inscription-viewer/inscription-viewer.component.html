@@ -1,6 +1,6 @@
 <ng-container *ngIf="_parsedInscription">
 
-  <ng-container *ngIf="whatToShow === 'delegates'">
+  <ng-container *ngIf="whatToShow === 'delegates' && !minimal">
 
     <div *ngFor="let delegate of delegates">
       <strong>◉ Delegate Inscription:</strong>
@@ -13,7 +13,7 @@
 
       <div *ngFor="let delegateInscription of delegateInscriptions" class="ml-4">
         @if (delegateInscription.allInscriptionsInTheTxn$ | async; as allInscriptionsInTheTxn) {
-          <ng-container *ngFor="let inscription of allInscriptionsInTheTxn">
+          <ng-container *ngFor="let inscription of allInscriptionsInTheTxn; index as i">
 
             <app-inscription-viewer 
               *ngIf="inscription.inscriptionId === delegateInscription.inscriptionId"
@@ -30,10 +30,31 @@
 
   </ng-container>
 
+  <!-- only show first delegate in minimal mode -->
+  <ng-container *ngIf="whatToShow === 'delegates' && minimal">
+
+    <div *ngIf="delegateInscriptions[0] as delegateInscription" class="ml-4">
+      @if (delegateInscription.allInscriptionsInTheTxn$ | async; as allInscriptionsInTheTxn) {
+        <ng-container *ngFor="let inscription of allInscriptionsInTheTxn; index as i">
+
+          <app-inscription-viewer 
+            *ngIf="inscription.inscriptionId === delegateInscription.inscriptionId"
+            [showDetails]="showDetails"
+            [parsedInscription]="inscription"
+          />
+
+        </ng-container>
+      }
+    </div>
+
+  </ng-container>
+
   <ng-container *ngIf="whatToShow !== 'delegates'">
 
-    <strong>◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
-    <br *ngIf="showDetails">
+    <ng-container *ngIf="!minimal">
+      <strong >◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
+      <br *ngIf="showDetails">
+    </ng-container>
 
     <app-json-viewer
       *ngIf="whatToShow === 'json'"
@@ -53,7 +74,7 @@
       [parsedInscription]="_parsedInscription"
     />
 
-    <div *ngIf="showDetails && _parsedInscription.getParents() as parents">
+    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getParents() as parents">
       <ng-container *ngIf="parents.length === 1">
         Parent Inscription:
         <a class="address smaller-text" [routerLink]="['/tx/' | relativeUrl, parents[0].split('i')[0]]" title="{{ parents[0] }}">
@@ -75,7 +96,7 @@
 
     </div>
 
-    <div *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
+    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getMetaprotocol() as metaprotocol">
       Metaprotocol: {{ metaprotocol }}
     </div>
 
@@ -84,11 +105,11 @@
       <app-metadata-viewer [data]="metadata" />
     </div>
 
-    <div *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
+    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
       Content Encoding: {{ contentEncoding }}
     </div>
 
-    <table class="table table-borderless table-striped w-50 mt-2" *ngIf="showDetails">
+    <table class="mt-2 table table-borderless table-striped w-50" *ngIf="showDetails">
       <tbody>
         <tr>
           <td>Content size</td>

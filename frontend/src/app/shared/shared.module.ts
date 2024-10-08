@@ -119,6 +119,7 @@ import { FaucetComponent } from '../components/faucet/faucet.component';
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
 import { DigitalArtifactViewerComponent } from '../components/ordinals/digital-artifact-viewer/digital-artifact-viewer.component';
 import { InscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
+import { MiniInscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
 import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-viewer/src20-viewer/src20-viewer.component';
 import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { RunestoneViewerComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
@@ -255,6 +256,7 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     FaucetComponent,
     DigitalArtifactViewerComponent,
     InscriptionViewerComponent,
+    MiniInscriptionViewerComponent,
     Src20ViewerComponent,
     Cat21ViewerComponent,
     RunestoneViewerComponent,
