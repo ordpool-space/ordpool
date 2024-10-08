@@ -44,11 +44,17 @@ th, td {
   max-width: 310px;
 
   .badge {
+
+    // HACK -- don't change border radius
+    /*
     border-radius: 0.2rem;
+    */
     padding: 0.2em 0.5em;
     margin-right: 0.25em;
   }
 
+  // HACK -- redefine color to secondary + primary similar to txn page
+  /*
   .filter-tag {
     background: #181b2daf;
     border: solid 1px var(--primary);
@@ -59,7 +65,18 @@ th, td {
       background-color: var(--primary);
     }
   }
+  */
+  // NEW
+  .filter-tag {
+    background: var(--secondary);
 
+    &.matching {
+      background: var(--primary);
+    }
+  }
+
+  // HACK -- ignore any mode (which changes color to green)
+  /*
   &.any-mode {
     .filter-tag {
       border: solid 1px var(--success);
@@ -68,6 +85,7 @@ th, td {
       }
     }
   }
+  */
 }
 
 @keyframes acceleratePulse {

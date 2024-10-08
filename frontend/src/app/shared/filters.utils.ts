@@ -105,9 +105,7 @@ export const TransactionFilters: { [key: string]: Filter } = {
     /* data */
     op_return: { key: 'op_return', label: 'OP_RETURN', flag: TransactionFlags.op_return, important: true, tooltip: true, txPage: true, },
     fake_pubkey: { key: 'fake_pubkey', label: 'Fake pubkey', flag: TransactionFlags.fake_pubkey, tooltip: true, txPage: true, },
-    // HACK -- rename inscription label
-    // inscription: { key: 'inscription', label: 'Inscription', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
-    inscription: { key: 'inscription', label: 'Extra data in witness', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
+    inscription: { key: 'inscription', label: 'Inscription', flag: TransactionFlags.inscription, important: true, tooltip: true, txPage: true, },
     fake_scripthash: { key: 'fake_scripthash', label: 'Fake scripthash', flag: TransactionFlags.fake_scripthash, tooltip: true, txPage: true,},
     /* heuristics */
     coinjoin: { key: 'coinjoin', label: $localize`Coinjoin`, flag: TransactionFlags.coinjoin, important: true, tooltip: true, txPage: true, },
@@ -122,13 +120,72 @@ export const TransactionFilters: { [key: string]: Filter } = {
 
     // HACK --- Ordpool Flags
     /* ordpool flags */
-    // ordpool_atomical: { key: 'ordpool_atomical',    label: 'Atomical',        flag: OrdpoolTransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
-    ordpool_cat21:       { key: 'ordpool_cat21',       label: 'CAT-21 Mint',     flag: OrdpoolTransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
-    ordpool_inscription: { key: 'ordpool_inscription', label: 'Inscription',     flag: OrdpoolTransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
-    ordpool_rune:        { key: 'ordpool_rune',        label: 'Rune',            flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
-    ordpool_brc20:       { key: 'ordpool_brc20',       label: 'BRC-20',          flag: OrdpoolTransactionFlags.ordpool_brc20, important: true, tooltip: true, txPage: true, },
-    ordpool_src20:       { key: 'ordpool_src20',       label: 'SRC-20',          flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, }
+    ordpool_atomical:             { key: 'ordpool_atomical',              label: 'Atomical',              flag: OrdpoolTransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
+    ordpool_cat21:                { key: 'ordpool_cat21',                 label: 'CAT-21',                flag: OrdpoolTransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription:          { key: 'ordpool_inscription',           label: 'Inscription',           flag: OrdpoolTransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
+    ordpool_rune:                 { key: 'ordpool_rune',                  label: 'Rune',                  flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
+    ordpool_brc20:                { key: 'ordpool_brc20',                 label: 'BRC-20',                flag: OrdpoolTransactionFlags.ordpool_brc20, important: true, tooltip: true, txPage: true, },
+    ordpool_src20:                { key: 'ordpool_src20',                 label: 'SRC-20',                flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
+    
+    ordpool_atomical_mint:        { key: 'ordpool_atomical_mint',         label: 'Atomical Mint',         flag: OrdpoolTransactionFlags.ordpool_atomical_mint, important: true, tooltip: true, txPage: true, },
+    ordpool_atomical_transfer:    { key: 'ordpool_atomical_transfer',     label: 'Atomical Transfer',     flag: OrdpoolTransactionFlags.ordpool_atomical_transfer, important: true, tooltip: true, txPage: true, },
+    ordpool_atomcial_update:      { key: 'ordpool_atomcial_update',       label: 'Atomical Update',       flag: OrdpoolTransactionFlags.ordpool_atomcial_update, important: true, tooltip: true, txPage: true, },
+
+    ordpool_cat21_mint:           { key: 'ordpool_cat21_mint',            label: 'CAT-21 Mint',           flag: OrdpoolTransactionFlags.ordpool_cat21_mint, important: true, tooltip: true, txPage: true, },
+    ordpool_cat21_transfer:       { key: 'ordpool_cat21_transfer',        label: 'CAT-21 Transfer',       flag: OrdpoolTransactionFlags.ordpool_cat21_transfer, important: true, tooltip: true, txPage: true, },
+    
+    ordpool_inscription_mint:     { key: 'ordpool_inscription_mint',      label: 'Inscription Mint',      flag: OrdpoolTransactionFlags.ordpool_inscription_mint, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription_transfer: { key: 'ordpool_inscription_transfer',  label: 'Inscription Transfer',  flag: OrdpoolTransactionFlags.ordpool_inscription_transfer, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription_burn:     { key: 'ordpool_inscription_burn',      label: 'Inscription Burn',      flag: OrdpoolTransactionFlags.ordpool_inscription_burn, important: true, tooltip: true, txPage: true, },
+
+    ordpool_rune_etch:            { key: 'ordpool_rune_etch',             label: 'Rune Etch',             flag: OrdpoolTransactionFlags.ordpool_rune_etch, important: true, tooltip: true, txPage: true, },
+    ordpool_rune_mint:            { key: 'ordpool_rune_mint',             label: 'Rune Mint',             flag: OrdpoolTransactionFlags.ordpool_rune_mint, important: true, tooltip: true, txPage: true, },
+    ordpool_rune_cenotaph:        { key: 'ordpool_rune_cenotaph',         label: 'Rune Cenotaph',         flag: OrdpoolTransactionFlags.ordpool_rune_cenotaph, important: true, tooltip: true, txPage: true, },
+    ordpool_rune_transfer:        { key: 'ordpool_rune_transfer',         label: 'Rune Transfer',         flag: OrdpoolTransactionFlags.ordpool_rune_transfer, important: true, tooltip: true, txPage: true, },
+    ordpool_rune_burn:            { key: 'ordpool_rune_burn',             label: 'Rune Burn',             flag: OrdpoolTransactionFlags.ordpool_rune_burn, important: true, tooltip: true, txPage: true, },
+
+    ordpool_brc20_deploy:         { key: 'ordpool_brc20_deploy',          label: 'BRC-20 Deploy',         flag: OrdpoolTransactionFlags.ordpool_brc20_deploy, important: true, tooltip: true, txPage: true, },
+    ordpool_brc20_mint:           { key: 'ordpool_brc20_mint',            label: 'BRC-20 Mint',           flag: OrdpoolTransactionFlags.ordpool_brc20_mint, important: true, tooltip: true, txPage: true, },
+    ordpool_brc20_transfer:       { key: 'ordpool_brc20_transfer',        label: 'BRC-20 Transfer',       flag: OrdpoolTransactionFlags.ordpool_brc20_transfer, important: true, tooltip: true, txPage: true, },
+
+    ordpool_src20_deploy:         { key: 'ordpool_src20_deploy',          label: 'SRC-20 Deploy',         flag: OrdpoolTransactionFlags.ordpool_src20_deploy, important: true, tooltip: true, txPage: true, },
+    ordpool_src20_mint:           { key: 'ordpool_src20_mint',            label: 'SRC-20 Mint',           flag: OrdpoolTransactionFlags.ordpool_src20_mint, important: true, tooltip: true, txPage: true, },
+    ordpool_src20_transfer:       { key: 'ordpool_src20_transfer',        label: 'SRC-20 Transfer',       flag: OrdpoolTransactionFlags.ordpool_src20_transfer, important: true, tooltip: true, txPage: true, }
 };
+
+// Create a new object with the desired order of properties in 3 'easy' steps
+// Step 1: Create a temporary copy of the object with the desired order
+const reorderedProperties = {
+  v1: TransactionFilters.v1,
+  v2: TransactionFilters.v2,
+  v3: TransactionFilters.v3,
+  rbf: TransactionFilters.rbf,
+  no_rbf: TransactionFilters.no_rbf,
+  ...Object.fromEntries(
+    Object.entries(TransactionFilters).filter(
+      ([key]) => !['v1', 'v2', 'v3', 'rbf', 'no_rbf'].includes(key)
+    )
+  )
+};
+// Step 2: Remove all properties from the original object
+for (const key in TransactionFilters) {
+  delete TransactionFilters[key];
+}
+// Step 3: Add properties back to TransactionFilters in the desired order
+Object.assign(TransactionFilters, reorderedProperties);
+
+
+// new labels
+TransactionFilters.v1.label = 'Transaction v1';
+TransactionFilters.v2.label = 'Transaction v2';
+TransactionFilters.v3.label = 'Transaction v3';
+TransactionFilters.inscription.label = 'Arbitrary data in witness';
+// HACK: Patch the wording, according to BIP 0143 + BIP 0341
+TransactionFilters.sighash_all.label = 'SIGHASH_ALL';
+TransactionFilters.sighash_none.label = 'SIGHASH_NONE';
+TransactionFilters.sighash_single.label = 'SIGHASH_SINGLE';
+TransactionFilters.sighash_default.label = 'SIGHASH_DEFAULT'; // SIGHASH_DEFAULT is a sighash flag introduced in BIP341 that is equivalent to SIGHASH_ALL but saves 1 witness byte
+TransactionFilters.sighash_acp.label = 'SIGHASH_ANYONECANPAY';
 
 export const FilterGroups: { label: string, filters: Filter[]}[] = [
   /*
