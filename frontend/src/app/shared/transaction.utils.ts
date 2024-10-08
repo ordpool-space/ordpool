@@ -264,8 +264,8 @@ export function isBurnKey(pubkey: string): boolean {
 }
 
   // HACK - WARNING
-  // THIS METHOD was just duplicated between frontend/backend and is super redundant!
-  // nearly the same code exists in backend/src/api/common.ts
+  // THIS METHOD is duplicated between frontend/backend
+  // similar code exists in backend/src/api/common.ts, keep them in sync!
 export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean): bigint {
   let flags = tx.flags ? BigInt(tx.flags) : 0n;
 

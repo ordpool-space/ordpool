@@ -380,7 +380,7 @@ export class WebsocketService {
     }
 
     if (response.fees) {
-     this.stateService.recommendedFees$.next(response.fees);
+     this.stateService.recommendedFees$.next(response.fees); 
     }
 
     if (response.backendInfo) {
