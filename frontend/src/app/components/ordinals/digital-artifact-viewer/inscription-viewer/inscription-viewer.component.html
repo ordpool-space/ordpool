@@ -26,16 +26,13 @@
           <span class="skeleton-loader"></span>
         }
       </div>
-
-      
-
     </div>
 
   </ng-container>
 
   <ng-container *ngIf="whatToShow !== 'delegates'">
 
-    <strong>◉ Inscription: </strong>{{ _parsedInscription.contentType }}<br>
+    <strong>◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
     <br *ngIf="showDetails">
 
     <app-json-viewer
@@ -90,6 +87,23 @@
     <div *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
       Content Encoding: {{ contentEncoding }}
     </div>
+
+    <table class="table table-borderless table-striped w-50 mt-2" *ngIf="showDetails">
+      <tbody>
+        <tr>
+          <td>Content size</td>
+          <td [innerHTML]="'&lrm;' + (_parsedInscription.contentSize | bytes: 2)"></td>
+        </tr>
+        <tr>
+          <td>Envelope size</td>
+          <td [innerHTML]="'&lrm;' + (_parsedInscription.envelopeSize | bytes: 2)"></td>
+        </tr>
+        <tr *ngIf="_parsedInscription.getPointer() !== undefined">
+          <td>Pointer:</td>
+          <td>{{ _parsedInscription.getPointer() }}</td>
+        </tr>
+      </tbody>
+    </table>
 
   </ng-container>
 
