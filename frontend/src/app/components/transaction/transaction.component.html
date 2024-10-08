@@ -625,14 +625,15 @@
         <td class="td-width">
           <!-- HACK -->
           <!-- <span class="goggles-icon"><app-svg-images name="goggles" width="100%" height="100%"></app-svg-images></span> -->
-          Flags
+          Ordpool Flags
         </td>
         <td class="wrap-cell">
           @if (isAcceleration) {
             <span class="badge badge-accelerated mr-1" i18n="transaction.audit.accelerated">Accelerated</span>
           }
           <ng-container *ngFor="let filter of filters;">
-            <span class="badge badge-primary filter-tag mr-1">{{ filter.label }}</span>
+            <!-- HACK: ordpool colors -->
+            <span class="badge badge-secondary filter-tag mr-1" [ngClass]="{ 'badge-primary': filter.key.startsWith('ordpool') }">{{ filter.label }}</span>
           </ng-container>
         </td>
       </tr>

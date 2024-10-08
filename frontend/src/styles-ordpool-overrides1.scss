@@ -129,3 +129,8 @@ app-atomical-viewer {
 app-block-filters > div {
   margin-top: -80px;
 }
+
+// completely hide accelerated status (this is still shown for some txns)
+.badge-accelerated {
+  display: none !important;
+}
