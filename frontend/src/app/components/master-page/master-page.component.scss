@@ -184,6 +184,11 @@ nav {
   color: var(--icon);
 }
 
+// HACK: orange text MEME changes to white (on orange BG)
+.nav-item.active .bitcoin {
+  color: white;
+}
+
 .subdomain_logo {
   height: 35px;
   overflow: clip;

@@ -88,7 +88,7 @@
   <div class="navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
       <li class="nav-item" routerLinkActive="active" id="btn-home">
-        <a class="nav-link" [routerLink]="['/mempool-block' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> Memory Pool</a>
+        <a class="nav-link" [routerLink]="['/mempool-block' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> <strong class="bitcoin">MEME</strong>pool</a>
       </li>
       <!--
       <li class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" id="btn-pools" *ngIf="stateService.env.MINING_DASHBOARD">
