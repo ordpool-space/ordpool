@@ -1,8 +1,6 @@
 @if(_parsedInscription$ | async; as parsedInscription) {
-  <div style="width: 58px; height: 58px; margin-left: auto; margin-right: auto;"
-  title="{{ parsedInscription.inscriptionId }}"
+  <div class="mx-auto" title="{{ parsedInscription.inscriptionId }}"
 >
-
     <app-inscription-viewer 
       [minimal]="true"
       [parsedInscription]="parsedInscription"
@@ -11,7 +9,7 @@
 
   </div>
 } @else {
-  <div style="width: 58px; height: 58px; margin-left: auto; margin-right: auto;">
+  <div class="mx-auto">
     <br>
     <span class="skeleton-loader"></span>
   </div>

@@ -418,7 +418,8 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     OnlyWeightDirective,
 
     DigitalArtifactViewerComponent,
-    InscriptionAcceleratorComponent
+    InscriptionAcceleratorComponent,
+    MiniInscriptionViewerComponent
   ]
 })
 export class SharedModule {
