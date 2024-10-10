@@ -315,8 +315,13 @@ export class StateService {
     const rateUnitPreference = this.storageService.getValue('rate-unit-preference');
     this.rateUnits$ = new BehaviorSubject<string>(rateUnitPreference || 'vb');
 
+    // HACK: force display mode to `size`
+    /*
     const blockDisplayModePreference = this.storageService.getValue('block-display-mode-preference');
     this.blockDisplayMode$ = new BehaviorSubject<string>(blockDisplayModePreference || 'fees');
+    */
+    this.blockDisplayMode$ = new BehaviorSubject<string>('size');
+
 
     const viewAmountModePreference = this.storageService.getValue('view-amount-mode') as 'btc' | 'sats' | 'fiat';
     this.viewAmountMode$ = new BehaviorSubject<'btc' | 'sats' | 'fiat'>(viewAmountModePreference || 'btc');
