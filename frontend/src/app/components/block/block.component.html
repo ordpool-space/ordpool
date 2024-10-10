@@ -140,11 +140,22 @@
               </tr>
               <tr>
                 <td>Most Active Mint</td>
-                <td>{{ block.extras.ordpoolStats.runes.mostActiveMint }}</td>
+                <td>
+                  @if (block.extras.ordpoolStats.runes.mostActiveMint; as mostActiveMint) {
+                    <app-runestone-id-to-link [runeId]="mostActiveMint"/>
+                  } @else {
+                    <strong class="text-secondary">None</strong>
+                  }
+                </td>
               </tr>
               <tr>
                 <td>Most Active Mint<br><small>(excluding ⧉ UNCOMMON•GOODS)</small></td>
-                <td>{{ block.extras.ordpoolStats.runes.mostActiveNonUncommonMint }}</td>
+                <td>
+                  @if (block.extras.ordpoolStats.runes.mostActiveNonUncommonMint; as mostActiveNonUncommonMint) {
+                    <app-runestone-id-to-link [runeId]="mostActiveNonUncommonMint"/>
+                  } @else {
+                    <strong class="text-secondary">None</strong>
+                  }
               </tr>
             </ng-container>
             <ng-template #skeletonRowsInscriptions>
@@ -181,7 +192,13 @@
               </tr>
               <tr>
                 <td>Most Active Mint</td>
-                <td>{{ block.extras.ordpoolStats.brc20.mostActiveMint }}</td>
+                <td>
+                  @if (block.extras.ordpoolStats.brc20.mostActiveMint; as mostActiveMint) {
+                    {{ mostActiveMint }}
+                  } @else {
+                    <strong class="text-secondary">None</strong>
+                  }
+                </td>
               </tr>
             </ng-container>
             <ng-template #skeletonRowsInscriptions>
@@ -218,7 +235,13 @@
               </tr>
               <tr>
                 <td>Most Active Mint</td>
-                <td>{{ block.extras.ordpoolStats.src20.mostActiveMint }}</td>
+                <td>
+                  @if (block.extras.ordpoolStats.src20.mostActiveMint; as mostActiveMint) {
+                    {{ mostActiveMint }}
+                  } @else {
+                    <strong class="text-secondary">None</strong>
+                  }
+                  </td>
               </tr>
             </ng-container>
             <ng-template #skeletonRowsInscriptions>

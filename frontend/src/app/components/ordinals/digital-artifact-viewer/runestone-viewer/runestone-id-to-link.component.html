@@ -1,0 +1,18 @@
+@if (isUncommonGoods) {
+
+  ⧉ UNCOMMON•GOODS
+
+} @else {
+
+  @if (runeDetails$ | async; as runeDetails) {
+
+    <a [routerLink]="['/tx/' | relativeUrl, runeDetails.entry.etching]">
+      <strong>{{ runeDetails.entry.symbol }} {{ runeDetails.entry.spaced_rune }}</strong>
+    </a>
+  
+  } @else {
+    <span class="skeleton-loader"></span>
+  }
+}
+
+

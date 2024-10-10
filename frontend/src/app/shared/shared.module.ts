@@ -123,6 +123,7 @@ import { MiniInscriptionViewerComponent } from '../components/ordinals/digital-a
 import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-viewer/src20-viewer/src20-viewer.component';
 import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { RunestoneViewerComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
+import { RunestoneIdToLinkComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
 import { BigIntFormatterPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
 import { NumberSuffixPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
 import { DivisibilityPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
@@ -260,6 +261,7 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     Src20ViewerComponent,
     Cat21ViewerComponent,
     RunestoneViewerComponent,
+    RunestoneIdToLinkComponent,
     BigIntFormatterPipe,
     NumberSuffixPipe,
     DivisibilityPipe,
@@ -419,7 +421,8 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
 
     DigitalArtifactViewerComponent,
     InscriptionAcceleratorComponent,
-    MiniInscriptionViewerComponent
+    MiniInscriptionViewerComponent,
+    RunestoneIdToLinkComponent
   ]
 })
 export class SharedModule {

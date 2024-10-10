@@ -44,8 +44,6 @@ export class RunestoneViewerComponent {
   cenotaph: Cenotaph | undefined = undefined;
   transactionId: string | undefined = undefined;
 
-  private runeDetailsMap: Map<string, Observable<OrdApiRune>> = new Map();
-
   @Input() showDetails = false;
 
   @Input()
@@ -74,34 +72,9 @@ export class RunestoneViewerComponent {
     return this.runestone?.mint?.block === 1n && this.runestone?.mint?.tx === 0;
   }
 
-  /**
-   * Retrieves rune details by block height and transaction number.
-   * Caches the result and shares the observable among multiple subscribers.
-   * 
-   * The observable is cached and shared among subscribers using shareReplay,
-   * ensuring that multiple requests for the same rune do not result in multiple API calls.
-   *
-   * @param block The height of the Bitcoin block.
-   * @param tx The number of the transaction within that block.
-   * @returns An observable containing the rune details.
-   */
   getRuneDetails(block: number | bigint, tx: number): Observable<OrdApiRune> {
-    const key = `${block}:${tx}`;
-    
-    if (this.runeDetailsMap.has(key)) {
-      return this.runeDetailsMap.get(key);
-    } else {
-      const runeDetails$ = this.ordApiService.getRuneById(Number(block), tx).pipe(
-        shareReplay({
-          refCount: true,
-          bufferSize: 1
-        })
-      );
-      this.runeDetailsMap.set(key, runeDetails$);
-      return runeDetails$;
-    }
+    return this.ordApiService.getRuneDetails(block, tx);
   }
-
 
   // /**
   //  * Calculates the percentage of two BigInt numbers with fixed-point precision.

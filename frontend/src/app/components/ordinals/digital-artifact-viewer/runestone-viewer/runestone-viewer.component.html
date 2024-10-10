@@ -174,7 +174,7 @@
         This runestone mints <strong>one unit</strong> of the hardcoded Rune #0.<br>
       </ng-container>
 
-      <strong class="bitcoin">1 ⧉ UNCOMMON•GOODS</strong>
+      <strong class="bitcoin">1x ⧉ UNCOMMON•GOODS</strong>
 
     </ng-container>
 
@@ -190,13 +190,13 @@
 
       @if (getRuneDetails(mint.block, mint.tx) | async; as runeDetails) {
 
-      <a [routerLink]="['/tx/' | relativeUrl, runeDetails.entry.etching]">
-        {{ runeDetails.entry.terms.amount | divisibility:runeDetails.entry.divisibility }} <strong>{{
-          runeDetails.entry.symbol }} {{ runeDetails.entry.spaced_rune }}</strong>
-      </a>
+        {{ runeDetails.entry.terms.amount | divisibility:runeDetails.entry.divisibility }}x
+        <strong>
+          <app-runestone-id-to-link [runeId]="{ block: mint.block, tx: mint.tx }"/>
+        </strong>
 
       } @else {
-      <span class="skeleton-loader"></span>
+        <span class="skeleton-loader"></span>
       }
     </ng-container>
   </div>
@@ -241,22 +241,14 @@
               <td>
                 @if (getRuneDetails(edict.id.block, edict.id.tx) | async; as runeDetails) {
 
-                {{ edict.amount| divisibility:runeDetails.entry.divisibility }}
+                  {{ edict.amount| divisibility:runeDetails.entry.divisibility }}
 
                 } @else {
                 <span class="skeleton-loader"></span>
                 }
               </td>
               <td>
-                @if (getRuneDetails(edict.id.block, edict.id.tx) | async; as runeDetails) {
-
-                <a [routerLink]="['/tx/' | relativeUrl, runeDetails.entry.etching]">
-                  <strong>{{ runeDetails.entry.symbol }} {{ runeDetails.entry.spaced_rune }}</strong>
-                </a>
-
-                } @else {
-                <span class="skeleton-loader"></span>
-                }
+                <app-runestone-id-to-link [runeId]="{ block: edict.id.block, tx: edict.id.tx }"/>
               </td>
               <td *ngIf="showDetails">{{ edict.id.block }}:{{ edict.id.tx }}</td>
               <td *ngIf="showDetails">
