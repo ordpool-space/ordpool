@@ -54,10 +54,9 @@
             -->
             <!-- HACK: display degen stuff in the blocks -->
 
-            <app-mini-inscription-viewer
-              [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId"
-            />
-
+            <div style="width: 58px; height: 58px;" class="mx-auto">
+              <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
+            </div>
             <!---
             <div [attr.data-cy]="'bitcoin-block-' + i + '-transactions'" class="transaction-count">
               <ng-container
