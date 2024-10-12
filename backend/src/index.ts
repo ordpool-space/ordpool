@@ -47,6 +47,9 @@ import bitcoinSecondClient from './api/bitcoin/bitcoin-second-client';
 import accelerationRoutes from './api/acceleration/acceleration.routes';
 import aboutRoutes from './api/about.routes';
 
+import generalOrdpoolRoutes from './api/explorer/ordpool.routes';
+
+
 class Server {
   private wss: WebSocket.Server | undefined;
   private wssUnixSocket: WebSocket.Server | undefined;
@@ -334,6 +337,8 @@ class Server {
       accelerationRoutes.initRoutes(this.app);
     }
     aboutRoutes.initRoutes(this.app);
+
+    generalOrdpoolRoutes.initRoutes(this.app);
   }
 
   healthCheck(): void {
