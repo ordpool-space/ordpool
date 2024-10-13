@@ -1,11 +1,32 @@
 import logger from '../../logger';
 import DB from '../../database';
-import { Common } from '../common';
+
+export type Interval =   '1h' | '2h' | '24h' | '3d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '4y';
+export type Aggregation = 'block' | 'hour' | 'day';
 
 class OrdpoolStatisticsApi {
 
-  public async $getOrdpoolStatistics(interval: string | null = null): Promise<any> {
-    interval = Common.getSqlInterval(interval);
+  static getSqlInterval(interval: Interval | null): string | null {
+    switch (interval) {
+      case '1h': return '1 HOUR';
+      case '2h': return '2 HOUR';
+      case '24h': return '1 DAY';
+      case '3d': return '3 DAY';
+      case '1w': return '1 WEEK';
+      case '1m': return '1 MONTH';
+      case '3m': return '3 MONTH';
+      case '6m': return '6 MONTH';
+      case '1y': return '1 YEAR';
+      case '2y': return '2 YEAR';
+      case '3y': return '3 YEAR';
+      case '4y': return '4 YEAR';
+      default: return null;
+    }
+  }
+
+  public async $getOrdpoolStatistics(interval: Interval | null = null, aggregation: Aggregation = 'block'): Promise<any> {
+
+    const sqlInterval = OrdpoolStatisticsApi.getSqlInterval(interval);
 
     let query = `
       SELECT
@@ -37,32 +58,38 @@ class OrdpoolStatisticsApi {
         MAX(inscriptions_total_envelope_size)   AS maxInscriptionsTotalEnvelopeSize,
         MAX(inscriptions_total_content_size)    AS maxInscriptionsTotalContentSize,
         MAX(inscriptions_largest_envelope_size) AS maxInscriptionsLargestEnvelopeSize,
-        MAX(inscriptions_largest_content_size)  AS maxInscriptionsLargestContentSize
+        MAX(inscriptions_largest_content_size)  AS maxInscriptionsLargestContentSize,
+
+        MIN(height) AS minHeight,          -- Identify entry by the minimum block height
+        MAX(height) AS maxHeight,          -- Identify entry by the maximum block height
+        MIN(blockTimestamp) AS minTime,    -- Identify entry by the earliest block timestamp
+        MAX(blockTimestamp) AS maxTime     -- Identify entry by the latest block timestamp
 
       FROM blocks
     `;
 
+    // Apply the interval filter
     if (interval) {
-      query += ` WHERE blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${interval})`;
+      query += ` WHERE blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})`;
     }
 
-    query += ` GROUP BY blockTimestamp ORDER BY blockTimestamp DESC`;
+    // Apply the aggregation level
+    if (aggregation === 'hour') {
+      query += ` GROUP BY YEAR(blockTimestamp), MONTH(blockTimestamp), DAY(blockTimestamp), HOUR(blockTimestamp)`;
+    } else if (aggregation === 'day') {
+      query += ` GROUP BY YEAR(blockTimestamp), MONTH(blockTimestamp), DAY(blockTimestamp)`;
+    } else {
+      // For block-level view, we group by block
+      query += ` GROUP BY blockTimestamp`;
+    }
+
+    query += ` ORDER BY blockTimestamp DESC`;
 
     try {
-      const [rows]: any = await DB.query(query);
+      const [rows] = await DB.query(query);
       return rows;
     } catch (e) {
       logger.err('$getOrdpoolStatistics error: ' + (e instanceof Error ? e.message : e));
-      throw e;
-    }
-  }
-
-  public async $getOrdpoolStatisticsCount(): Promise<number> {
-    try {
-      const [rows]: any = await DB.query(`SELECT COUNT(*) as count FROM blocks`);
-      return rows[0].count;
-    } catch (e) {
-      logger.err('$getOrdpoolStatisticsCount error: ' + (e instanceof Error ? e.message : e));
       throw e;
     }
   }
