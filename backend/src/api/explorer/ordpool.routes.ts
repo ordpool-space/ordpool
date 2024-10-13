@@ -1,27 +1,40 @@
 import config from '../../config';
 import { Application, Request, Response } from 'express';
-import ordpoolStatisticsApi from './ordpool-statistics.api';
+import ordpoolStatisticsApi, { Aggregation, Interval } from './ordpool-statistics.api';
 
 class GeneralOrdpoolRoutes {
 
   public initRoutes(app: Application): void {
     app
-      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:interval', this.$getOrdpoolStatistics)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:interval/:aggregation', this.$getOrdpoolStatistics)
     ;
   }
 
+  // '1h' | 2h | '24h | '3d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '4y'
+  // 'block' | 'hour' | 'day'
+
   // HACK -- Ordpool Stats
-  // http://localhost:4200/api/v1/ordpool/statistics/24h
-  // http://localhost:4200/api/v1/ordpool/statistics/6m
-  // mimics the API of
-  // https://mempool.space/api/v1/lightning/statistics/6m
+  // http://localhost:4200/api/v1/ordpool/statistics/24h/block
+  // http://localhost:4200/api/v1/ordpool/statistics/3d/block
+  // http://localhost:4200/api/v1/ordpool/statistics/1y/block
+  //
+  // http://localhost:4200/api/v1/ordpool/statistics/24h/hour
+  // http://localhost:4200/api/v1/ordpool/statistics/3d/hour
+  // http://localhost:4200/api/v1/ordpool/statistics/1y/hour
+  //
+  // http://localhost:4200/api/v1/ordpool/statistics/24h/day
+  // http://localhost:4200/api/v1/ordpool/statistics/3d/day
+  // http://localhost:4200/api/v1/ordpool/statistics/1y/day
   private async $getOrdpoolStatistics(req: Request, res: Response): Promise<void> {
     try {
-      const statistics = await ordpoolStatisticsApi.$getOrdpoolStatistics(req.params.interval);
-      const statisticsCount = await ordpoolStatisticsApi.$getOrdpoolStatisticsCount();
+
+      const interval = req.params.interval as Interval;
+      const aggregation = req.params.aggregation as Aggregation;
+
+      const statistics = await ordpoolStatisticsApi.$getOrdpoolStatistics(interval, aggregation);
+
       res.header('Pragma', 'public');
       res.header('Cache-control', 'public');
-      res.header('X-total-count', statisticsCount.toString());
       res.setHeader('Expires', new Date(Date.now() + 1000 * 60).toUTCString());
       res.json(statistics);
     } catch (e) {

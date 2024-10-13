@@ -134,6 +134,12 @@
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21 WL Checker</a>
       </li> -->
 
+      <li class="nav-item" routerLinkActive="active" id="btn-ordpool-stats">
+        <a class="nav-link" [routerLink]="['/ordpool-stats' | relativeUrl]" (click)="collapse()">
+          <fa-icon [icon]="['fas', 'chart-area']" [fixedWidth]="true" i18n-title="master-page.graphs" title="Ordpool Stats">Stats</fa-icon>
+        </a>
+      </li>
+
     </ul>
     <app-search-form [hamburgerOpen]="enterpriseInfo === null && user != null" class="search-form-container" location="top" (searchTriggered)="collapse()"></app-search-form>
   </div>

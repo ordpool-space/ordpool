@@ -141,6 +141,7 @@ import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint
 import { CountdownTimerComponent } from '../components/ordinals/cat21-mint/countdown-timer-component';
 import { Cat21CollabComponent } from '../components/ordinals/cat21-collab/cat21-collab.component';
 import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whitelist-checker/cat21-whitelist-checker.component';
+import { OrdpoolStatsComponent } from '../components/ordinals/ordpool-stats/ordpool-stats.component';
 
 
 @NgModule({
@@ -277,7 +278,8 @@ import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whi
     Cat21MintComponent,
     CountdownTimerComponent,
     Cat21CollabComponent,
-    Cat21WhitelistCheckerComponent
+    Cat21WhitelistCheckerComponent,
+    OrdpoolStatsComponent
   ],
   imports: [
     CommonModule,
