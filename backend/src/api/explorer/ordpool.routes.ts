@@ -1,5 +1,6 @@
-import config from '../../config';
 import { Application, Request, Response } from 'express';
+
+import config from '../../config';
 import ordpoolStatisticsApi, { Aggregation, Interval } from './ordpool-statistics.api';
 
 class GeneralOrdpoolRoutes {
