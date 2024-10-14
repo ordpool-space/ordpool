@@ -493,5 +493,6 @@ export class SharedModule {
     library.addIcons(faHourglassEnd);
     library.addIcons(faWandMagicSparkles);
     library.addIcons(faFaucetDrip);
+    
   }
 }

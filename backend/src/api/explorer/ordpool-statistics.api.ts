@@ -69,7 +69,7 @@ class OrdpoolStatisticsApi {
     `;
 
     // Apply the interval filter
-    if (interval) {
+    if (sqlInterval) {
       query += ` WHERE blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})`;
     }
 

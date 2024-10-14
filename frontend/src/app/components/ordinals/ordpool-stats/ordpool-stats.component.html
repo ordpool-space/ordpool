@@ -1,40 +1,59 @@
 @if(statistics$ | async; as statistics) {
-  <div class="container-graph">
+<div class="container-graph">
+  <div>
     <div>
-      <div>
-        <div class="card mb-3">
-          <div class="card-header">
-            <div class="d-flex d-md-block align-items-baseline">
-              Ordpool Stats
-            </div>
+      <div class="card mb-3">
+        
+        <div class="card-header">
+          <div class="d-flex d-md-block align-items-baseline">
+            Ordpool Stats
+          </div>
 
-            <div class="formRadioGroup" class="no-menu">
-              <div class="btn-toggle-rows">
-                @for(intervalGroups of [['1h', '24h', '1w', '1m', '3m'], ['6m', '1y', '2y', '3y', 'all']]; track $index) {
-                  <div class="btn-group btn-group-toggle">
-                    @for(interval of intervalGroups; track $index) {
+          <div class="formRadioGroup no-menu">
+            <div class="btn-toggle-rows">
+              <div class="btn-group btn-group-toggle">
+                @for(interval of ['1h', '24h', '1w', '1m', '3m', '6m', '1y', '2y', '3y', 'all']; track $index) {
                       <a [routerLink]="['/ordpool-stats' | relativeUrl, interval, statistics.aggregation]" 
                         routerLinkActive="active"
                         class="btn btn-primary btn-sm" 
                       >{{ interval | uppercase }}</a>
                     }
-                  </div>
-                }
               </div>
             </div>
-            <div class="spinner-border text-light bootstrap-spinner" *ngIf="loading"></div>
-          </div>
-          <div class="card-body">
-            <div class="incoming-transactions-graph">
 
-              <!-- <app-mempool-graph #mempoolgraph dir="ltr" [template]="'advanced'" [hideCount]="!showCount"
-                [limitFilterFee]="filterFeeIndex" [height]="500" [left]="65" [right]="showCount ? 50 : 10"
-                [data]="mempoolStats && mempoolStats.length ? mempoolStats : null"></app-mempool-graph> -->
-
+            <div class="small-buttons">
+              <div ngbDropdown #myDrop="ngbDropdown">
+                <button class="btn btn btn-primary btn-sm" id="dropdownAggregation" ngbDropdownAnchor
+                  (click)="myDrop.toggle()">
+                  <fa-icon [icon]="['fas', 'filter']" [fixedWidth]="true" title="Aggregate Data"></fa-icon>
+                </button>
+                <div class="dropdown-aggregation" ngbDropdownMenu aria-labelledby="dropdownAggregation">
+                  <ul>
+                    @for(aggregation of ['block', 'hour', 'day']; track $index) {
+                      <li routerLinkActive="active">
+                        <a [routerLink]="['/ordpool-stats' | relativeUrl, statistics.interval, aggregation]">{{ aggregation| uppercase }}</a>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
+          @if(loading) {
+            <div class="spinner-border text-light bootstrap-spinner"></div>
+          }
         </div>
+
+        <div class="card-body">
+
+          <!-- <app-mempool-graph #mempoolgraph dir="ltr" [template]="'advanced'" [hideCount]="!showCount"
+              [limitFilterFee]="filterFeeIndex" [height]="500" [left]="65" [right]="showCount ? 50 : 10"
+              [data]="mempoolStats && mempoolStats.length ? mempoolStats : null"></app-mempool-graph> -->
+
+        </div>
+
       </div>
     </div>
   </div>
+</div>
 }
