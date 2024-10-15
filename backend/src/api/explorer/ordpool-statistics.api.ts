@@ -1,5 +1,7 @@
 import logger from '../../logger';
 import DB from '../../database';
+import { getFirstInscriptionHeight } from './ordpool.config';
+import config from '../../config';
 
 export type Interval =   '1h' | '2h' | '24h' | '3d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '4y';
 export type Aggregation = 'block' | 'hour' | 'day';
@@ -27,6 +29,7 @@ class OrdpoolStatisticsApi {
   public async $getOrdpoolStatistics(interval: Interval | null = null, aggregation: Aggregation = 'block'): Promise<any> {
 
     const sqlInterval = OrdpoolStatisticsApi.getSqlInterval(interval);
+    const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
 
     let query = `
       SELECT
@@ -66,11 +69,13 @@ class OrdpoolStatisticsApi {
         MAX(blockTimestamp) AS maxTime     -- Identify entry by the latest block timestamp
 
       FROM blocks
+
+        WHERE height >= ${firstInscriptionHeight}
     `;
 
     // Apply the interval filter
     if (sqlInterval) {
-      query += ` WHERE blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})`;
+      query += ` AND blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})`;
     }
 
     // Apply the aggregation level
