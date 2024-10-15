@@ -31,6 +31,7 @@ import rbfCache from './rbf-cache';
 import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { DigitalArtifactAnalyserService, getEmptyStats } from 'ordpool-parser';
+import { getFirstInscriptionHeight } from './explorer/ordpool.config';
 
 // const debugBlock = 831802;
 const debugBlock = null;
@@ -355,10 +356,8 @@ class Blocks {
         }
       }
 
-      const inscriptionZeroBlock = 767430;
-
       // HACK -- Ordpool stats
-      if (config.MEMPOOL.NETWORK === 'mainnet' && block.height < inscriptionZeroBlock) {
+      if (block.height < getFirstInscriptionHeight(config.MEMPOOL.NETWORK)) {
 
         extras.ordpoolStats = getEmptyStats();
 

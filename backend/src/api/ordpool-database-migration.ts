@@ -1,5 +1,8 @@
+
+import config from '../config';
 import DB from '../database';
 import logger from '../logger';
+import { getFirstInscriptionHeight } from './explorer/ordpool.config';
 
 class OrdpoolDatabaseMigration {
 
@@ -250,7 +253,7 @@ class OrdpoolDatabaseMigration {
       queries.push(`ALTER TABLE blocks ADD analyser_version                             INT UNSIGNED NOT NULL DEFAULT 0`);
 
       // forces re-indexing of all blocks (starting from inscription 0)
-      queries.push(`DELETE FROM blocks WHERE height >= 767430`);
+      queries.push(`DELETE FROM blocks WHERE height >= ` + getFirstInscriptionHeight(config.MEMPOOL.NETWORK));
     }
 
     return queries;
