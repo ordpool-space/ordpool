@@ -47,7 +47,7 @@ export class AboutComponent implements OnInit {
   ngOnInit() {
     this.backendInfo$ = this.stateService.backendInfo$;
     this.seoService.setTitle($localize`:@@004b222ff9ef9dd4771b777950ca1d0e4cd4348a:About`);
-    this.seoService.setDescription($localize`:@@meta.description.about:'Your favorite MEMEpool explorer. Inscriptions, Runes, BRC-20, SRC-20 (Stamps), and 😺 CAT-21 Ordinals? We have you covered!`);
+    this.seoService.setDescription($localize`:@@meta.description.about:'A Bitcoin MEMEpool explorer. Inscriptions, Runes, BRC-20, SRC-20 (Stamps), and 😺 CAT-21 Ordinals? We have you covered!`);
     this.ogService.setManualOgImage('about.jpg');
     this.websocketService.want(['blocks']);
 

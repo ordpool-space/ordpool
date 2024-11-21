@@ -2,7 +2,7 @@
 
 ![Preview](frontend/src/resources/mempool-space-preview.png)
 
-Your favorite Bitcoin MEMEpool explorer.  
+A Bitcoin MEMEpool explorer.  
 Inscriptions, Runes, BRC-20, SRC-20 (Stamps), and 😺 CAT-21 Ordinals?  
 We have you covered!  
 
