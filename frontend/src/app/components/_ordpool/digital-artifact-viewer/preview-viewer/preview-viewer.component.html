@@ -1,8 +1,11 @@
 <ng-container *ngIf="preview">
   <iframe
     [srcdoc]="preview | noSanitize"
-    scrolling="yes"
+    scrolling="no" 
   ></iframe>
 
-  <!-- sandbox="allow-scripts" -->
+  <!--     
+    sandbox="allow-scripts" 
+    scrolling="no" 
+    loading="lazy" -->
 </ng-container>

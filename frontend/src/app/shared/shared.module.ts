@@ -117,31 +117,30 @@ import { TwitterWidgetComponent } from '../components/twitter-widget/twitter-wid
 import { FaucetComponent } from '../components/faucet/faucet.component';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
-import { DigitalArtifactViewerComponent } from '../components/ordinals/digital-artifact-viewer/digital-artifact-viewer.component';
-import { InscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
-import { MiniInscriptionViewerComponent } from '../components/ordinals/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
-import { Src20ViewerComponent } from '../components/ordinals/digital-artifact-viewer/src20-viewer/src20-viewer.component';
-import { Cat21ViewerComponent } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
-import { RunestoneViewerComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
-import { RunestoneIdToLinkComponent } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
-import { BigIntFormatterPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
-import { NumberSuffixPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
-import { DivisibilityPipe } from '../components/ordinals/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
-import { AtomicalViewerComponent } from '../components/ordinals/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
-import { CapitalizeFirstPipe } from '../components/ordinals/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
-import { JsonViewerComponent } from '../components/ordinals/digital-artifact-viewer/json-viewer/json-viewer.component';
-import { CodeViewerComponent } from '../components/ordinals/digital-artifact-viewer/code-viewer/code-viewer.component';
-import { PreviewViewerComponent } from '../components/ordinals/digital-artifact-viewer/preview-viewer/preview-viewer.component';
-import { MetadataViewerComponent } from '../components/ordinals/digital-artifact-viewer/metadata-viewer/metadata-viewer.component';
-import { InscriptionAcceleratorComponent } from '../components/ordinals/inscription-accelerator/inscription-accelerator.component';
+import { DigitalArtifactViewerComponent } from '../components/_ordpool/digital-artifact-viewer/digital-artifact-viewer.component';
+import { InscriptionViewerComponent } from '../components/_ordpool/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
+import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
+import { Src20ViewerComponent } from '../components/_ordpool/digital-artifact-viewer/src20-viewer/src20-viewer.component';
+import { Cat21ViewerComponent } from '../components/_ordpool/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
+import { RunestoneViewerComponent } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
+import { RunestoneIdToLinkComponent } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
+import { BigIntFormatterPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
+import { NumberSuffixPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
+import { DivisibilityPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
+import { AtomicalViewerComponent } from '../components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
+import { CapitalizeFirstPipe } from '../components/_ordpool/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
+import { JsonViewerComponent } from '../components/_ordpool/digital-artifact-viewer/json-viewer/json-viewer.component';
+import { CodeViewerComponent } from '../components/_ordpool/digital-artifact-viewer/code-viewer/code-viewer.component';
+import { PreviewViewerComponent } from '../components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
+import { MetadataViewerComponent } from '../components/_ordpool/digital-artifact-viewer/metadata-viewer/metadata-viewer.component';
+import { InscriptionAcceleratorComponent } from '../components/_ordpool/inscription-accelerator/inscription-accelerator.component';
 import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
-import { WalletConnectComponent } from '../components/ordinals/wallet-connect/wallet-connect.component';
+import { WalletConnectComponent } from '../components/_ordpool/wallet-connect/wallet-connect.component';
 import { HighlightModule } from 'ngx-highlightjs';
-import { Cat21MintComponent } from '../components/ordinals/cat21-mint/cat21-mint.component';
-import { CountdownTimerComponent } from '../components/ordinals/cat21-mint/countdown-timer-component';
-import { Cat21CollabComponent } from '../components/ordinals/cat21-collab/cat21-collab.component';
-import { Cat21WhitelistCheckerComponent } from '../components/ordinals/cat21-whitelist-checker/cat21-whitelist-checker.component';
-import { OrdpoolStatsComponent } from '../components/ordinals/ordpool-stats/ordpool-stats.component';
+import { Cat21MintComponent } from '../components/_ordpool/cat21-mint/cat21-mint.component';
+import { CountdownTimerComponent } from '../components/_ordpool/cat21-mint/countdown-timer-component';
+import { Cat21CollabComponent } from '../components/_ordpool/cat21-collab/cat21-collab.component';
+import { Cat21WhitelistCheckerComponent } from '../components/_ordpool/cat21-whitelist-checker/cat21-whitelist-checker.component';
 
 
 @NgModule({
@@ -278,8 +277,7 @@ import { OrdpoolStatsComponent } from '../components/ordinals/ordpool-stats/ordp
     Cat21MintComponent,
     CountdownTimerComponent,
     Cat21CollabComponent,
-    Cat21WhitelistCheckerComponent,
-    OrdpoolStatsComponent
+    Cat21WhitelistCheckerComponent
   ],
   imports: [
     CommonModule,
@@ -305,7 +303,7 @@ import { OrdpoolStatsComponent } from '../components/ordinals/ordpool-stats/ordp
     NoSanitizePipe,
     ShortenStringPipe,
     CapAddressPipe,
-    AmountShortenerPipe,
+    AmountShortenerPipe
   ],
   exports: [
     MenuComponent,

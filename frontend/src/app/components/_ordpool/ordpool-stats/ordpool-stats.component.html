@@ -46,10 +46,16 @@
 
         <div class="card-body">
 
-          <!-- <app-mempool-graph #mempoolgraph dir="ltr" [template]="'advanced'" [hideCount]="!showCount"
-              [limitFilterFee]="filterFeeIndex" [height]="500" [left]="65" [right]="showCount ? 50 : 10"
-              [data]="mempoolStats && mempoolStats.length ? mempoolStats : null"></app-mempool-graph> -->
-
+          @if (statistics$ | async; as statistics) {
+            
+            Chart!
+            <div class="chart" 
+              *browserOnly echarts 
+              [initOpts]="chartInitOptions" 
+              [options]="getChartOptions(statistics.stats)">
+            </div>
+          }
+            
         </div>
 
       </div>
