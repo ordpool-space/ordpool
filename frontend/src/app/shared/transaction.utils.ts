@@ -266,7 +266,7 @@ export function isBurnKey(pubkey: string): boolean {
   // HACK - WARNING
   // THIS METHOD is duplicated between frontend/backend
   // similar code exists in backend/src/api/common.ts, keep them in sync!
-export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean): bigint {
+export async function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean): Promise<bigint> {
   let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
   // Update variable flags (CPFP, RBF)
@@ -419,7 +419,7 @@ export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replac
   }
 
   // HACK --- Ordpool Flags
-  flags = DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
+  flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
 
   return flags;
 }

@@ -731,20 +731,25 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   setFeatures(): void {
-    if (this.tx) {
-      this.segwitEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'segwit');
-      this.taprootEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'taproot');
-      this.rbfEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'rbf');
-      this.tx.flags = getTransactionFlags(this.tx);
-      // HACK: always show all flags, because why not?
-      // this.filters = this.tx.flags ? toFilters(this.tx.flags).filter(f => f.txPage) : [];
-      this.filters = this.tx.flags ? toFilters(this.tx.flags) : [];
-    } else {
-      this.segwitEnabled = false;
-      this.taprootEnabled = false;
-      this.rbfEnabled = false;
-    }
-    this.featuresEnabled = this.segwitEnabled || this.taprootEnabled || this.rbfEnabled;
+    (async () => {
+      if (this.tx) {
+        this.segwitEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'segwit');
+        this.taprootEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'taproot');
+        this.rbfEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'rbf');
+        this.tx.flags = await getTransactionFlags(this.tx);
+        // HACK: always show all flags, because why not?
+        // this.filters = this.tx.flags ? toFilters(this.tx.flags).filter(f => f.txPage) : [];
+        this.filters = this.tx.flags ? toFilters(this.tx.flags) : [];
+      } else {
+        this.segwitEnabled = false;
+        this.taprootEnabled = false;
+        this.rbfEnabled = false;
+      }
+      this.featuresEnabled = this.segwitEnabled || this.taprootEnabled || this.rbfEnabled;
+
+      // because of the async wrapper
+      this.cd.detectChanges();
+    })();
   }
 
   isAuditAvailable(blockHeight: number): boolean {

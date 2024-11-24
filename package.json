@@ -1,5 +1,6 @@
 {
   "name": "ordpool",
+  "description": "Scripts for local development",
   "scripts": {
     "link-ordool-parser:frontend": "cd frontend && npm link ordpool-parser",
     "link-ordool-parser:backend": "cd backend && npm link ordpool-parser",

@@ -392,7 +392,7 @@ export class Common {
   // HACK - WARNING
   // THIS METHOD is duplicated between frontend/backend
   // similar code exists in frontend/src/app/shared/transaction.utils.ts, keep them in sync!
-  static getTransactionFlags(tx: TransactionExtended): number {
+  static async getTransactionFlags(tx: TransactionExtended): Promise<number> {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
     // Update variable flags (CPFP, RBF)
@@ -544,15 +544,15 @@ export class Common {
     }
 
     // HACK --- Ordpool Flags
-    flags = DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
+    flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
 
     return Number(flags);
   }
 
-  static classifyTransaction(tx: TransactionExtended): TransactionClassified {
+  static async classifyTransaction(tx: TransactionExtended): Promise<TransactionClassified> {
     let flags = 0;
     try {
-      flags = Common.getTransactionFlags(tx);
+      flags = await Common.getTransactionFlags(tx);
     } catch (e) {
       logger.warn('Failed to add classification flags to transaction: ' + (e instanceof Error ? e.message : e));
     }
@@ -563,8 +563,14 @@ export class Common {
     };
   }
 
+  /*
+  // BEFORE
   static classifyTransactions(txs: TransactionExtended[]): TransactionClassified[] {
     return txs.map(Common.classifyTransaction);
+  }
+  */
+  static async classifyTransactions(txs: TransactionExtended[]): Promise<TransactionClassified[]> {
+    return Promise.all(txs.map(tx => Common.classifyTransaction(tx)));
   }
 
   static stripTransaction(tx: TransactionExtended): TransactionStripped {

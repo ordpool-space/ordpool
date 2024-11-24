@@ -58,13 +58,13 @@
 
     <app-json-viewer
       *ngIf="whatToShow === 'json'"
-      [text]="_parsedInscription.getContent()"
+      [text]="_parsedInscription.getContent() | async"
     />
 
     <app-code-viewer
       *ngIf="whatToShow === 'code'"
       [textAndContentType]="{
-        text: _parsedInscription.getContent(),
+        text: _parsedInscription.getContent() | async,
         contentType: _parsedInscription.contentType
       }"
     />

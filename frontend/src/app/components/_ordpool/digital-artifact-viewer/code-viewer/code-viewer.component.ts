@@ -16,7 +16,7 @@ export class CodeViewerComponent {
   public formatedText = '';
 
   @Input()
-  public set textAndContentType(t: { text: string, contentType: string } | undefined) {
+  public set textAndContentType(t: { text: string, contentType: string | undefined } | undefined) {
 
     if (t?.text && t?.contentType) {
       this.formatWithPrettier(t.text, t.contentType);
@@ -30,7 +30,7 @@ export class CodeViewerComponent {
 
   // css: http://localhost:4200/tx/73eb12c506adaf02e219229b1c800ea1caa70c86a981e8fdb9e231237957224fi0
   // js: http://localhost:4200/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db
-  formatWithPrettier(source: string, contentType: string) {
+  formatWithPrettier(source: string, contentType: string ) {
 
     let parser = '';
     // list of available parsers: https://prettier.io/docs/en/options#parser

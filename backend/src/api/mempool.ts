@@ -116,7 +116,7 @@ class Mempool {
       if (config.MEMPOOL.CACHE_ENABLED && config.REDIS.ENABLED) {
         await redisCache.$addTransaction(this.mempoolCache[txid]);
       }
-      this.mempoolCache[txid].flags = Common.getTransactionFlags(this.mempoolCache[txid]);
+      this.mempoolCache[txid].flags = await Common.getTransactionFlags(this.mempoolCache[txid]);
       this.mempoolCache[txid].cpfpChecked = false;
       this.mempoolCache[txid].cpfpDirty = true;
       this.mempoolCache[txid].cpfpUpdated = undefined;

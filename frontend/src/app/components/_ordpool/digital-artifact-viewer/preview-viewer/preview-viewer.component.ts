@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { decodeDataURI, ParsedInscription } from 'ordpool-parser';
 
@@ -11,11 +11,18 @@ import { decodeDataURI, ParsedInscription } from 'ordpool-parser';
 })
 export class PreviewViewerComponent {
 
+  cd = inject(ChangeDetectorRef);
+
   public preview: string;
 
   @Input()
   public set parsedInscription(inscription: ParsedInscription | undefined) {
-    this.preview = this.getPreview(inscription);
+    (async () => {
+      this.preview = await this.getPreview(inscription);
+
+      // because of the async wrapper
+      this.cd.detectChanges();
+    })();
   }
 
   table: { [key: string]: (dataUri: string) => string } = {
@@ -62,14 +69,14 @@ export class PreviewViewerComponent {
   // all templates from here: https://github.com/ordinals/ord/tree/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/templates
   // see media-types here: https://github.com/ordinals/ord/blob/2c7f15cb6dc0ce0135e1c67676d75b687b5ee0ca/src/media.rs
   // see newer version of media-types here: https://github.com/ordinals/ord/blob/bf37836667a9c58f74f1889f95b71d5a08bc1d77/src/media.rs#L50
-  getPreview(inscription: ParsedInscription | undefined): string {
+  async getPreview(inscription: ParsedInscription | undefined): Promise<string> {
 
     if (!inscription) {
       return '';
     }
 
     const previewFunction = this.table[inscription.contentType] || this.getPreviewUnknown;
-    return previewFunction.call(this, inscription.getDataUri());
+    return previewFunction.call(this, await inscription.getDataUri());
   }
 
   // test here: http://localhost:4200/tx/751007cf3090703f241894af5c057fc8850d650a577a800447d4f21f5d2cecde
