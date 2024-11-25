@@ -3,14 +3,15 @@ import { Application, Request, Response } from 'express';
 import config from '../../config';
 import ordpoolStatisticsApi, { Aggregation, Interval } from './ordpool-statistics.api';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
+import { InscriptionPreviewService, ParsedInscription, PreviewInstructions } from 'ordpool-parser';
 
 class GeneralOrdpoolRoutes {
 
   public initRoutes(app: Application): void {
     app
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:interval/:aggregation', this.$getOrdpoolStatistics)
-      .get('/content/:inscriptionId', this.$getInscription)
-      ;
+      .get('/content/:inscriptionId', this.$getInscriptionContent)
+      .get('/preview/:inscriptionId', this.$getInscriptionPreview);
   }
 
   // '1h' | 2h | '24h | '3d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '4y'
@@ -45,65 +46,103 @@ class GeneralOrdpoolRoutes {
     }
   }
 
-
   // Test cases
   // SVG with gzip: http://127.0.0.1:8999/content/4c83f2e1d12d6f71e9f69159aff48f7946ce04c5ffcc3a3feee4080bac343722i0
   // Delegate: http://127.0.0.1:8999/content/6b6f65ba4bc2cbb8cec1e1ca5e1d426e442a05729cdbac6009cca185f7d95babi0
   // Complex SVG with JavaScript (only works when rendered server-side): http://127.0.0.1:8999/content/77709919918d38c8a89761e3cd300d22ef312948044217327f54e62cc01b47a0i0
-  private async $getInscription(req: Request, res: Response): Promise<void> {
+  private async $getInscriptionContent(req: Request, res: Response): Promise<void> {
     const inscriptionId = req.params.inscriptionId;
-    return $getInscriptionRecursive(res, inscriptionId);
+
+    if (!inscriptionId) {
+      res.status(400).send('Inscription ID is required.');
+      return;
+    }
+
+    try {
+
+      const inscription = await ordpoolInscriptionsApi.$getInscriptionOrDelegeate(inscriptionId);
+
+      if (!inscription) {
+        res.status(404).send('Transaction or inscription not found.');
+        return;
+      }
+
+      sendInscription(res, inscription);
+
+    } catch (error) {
+      res.status(500).send('Internal server error: ' + error);
+    }
+  }
+
+  // Test cases
+  // Direct Render (Iframe mode): http://localhost:8999/preview/751007cf3090703f241894af5c057fc8850d650a577a800447d4f21f5d2cecdei0
+  // Audio: http://localhost:8999/preview/ad99172fce60028406f62725b91b5c508edd95bf21310de5afeb0966ddd89be3i0
+  // Image: http://localhost:8999/preview/6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0
+  // Markdown: http://localhost:8999/preview/c133c03e2ed44bb8ada79b1640b6649129de75a8f31d8e6ad573ede442f91cdbi0
+  // Model: http://localhost:8999/preview/25013a3ab212e0ca5b3ccbd858ff988f506b77080c51963c948c055028af2051i0
+  // Pdf: http://localhost:8999/preview/85b10531435304cbe47d268106b58b57a4416c76573d4b50fa544432597ad670i0i0
+  // Text: http://localhost:8999/preview/430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379i0
+  // Unknown: http://localhost:8999/preview/06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0
+  // Video: http://localhost:8999/preview/700f348e1acef6021cdee8bf09e4183d6a3f4d573b4dc5585defd54009a0148ci0
+  private async $getInscriptionPreview(req: Request, res: Response): Promise<void> {
+    const inscriptionId = req.params.inscriptionId;
+
+    if (!inscriptionId) {
+      res.status(400).send('Inscription ID is required.');
+      return;
+    }
+
+    try {
+
+      const inscription = await ordpoolInscriptionsApi.$getInscriptionOrDelegeate(inscriptionId);
+
+      if (!inscription) {
+        res.status(404).send('Transaction or inscription not found.');
+        return;
+      }
+
+      const previewInstructions = await InscriptionPreviewService.getPreview(inscription);
+      if (previewInstructions.renderDirectly) {
+        sendInscription(res, inscription);
+      } else {
+        sendPreview(res, previewInstructions);
+      }
+
+    } catch (error) {
+      res.status(500).send('Internal server error: ' + error);
+    }
   }
 }
 
-async function $getInscriptionRecursive(res: Response, inscriptionId: string | undefined, recursiveLevel = 0): Promise<void> {
 
-  // prevent endless loops via circular delegates
-  if (recursiveLevel > 4) {
-    res.status(400).send('Too many delegate levels. Stopping.');
+function sendInscription(res: Response, inscription: ParsedInscription): void {
+
+  const contentType = inscription.contentType;
+  if (contentType) {
+    res.setHeader('Content-Type', contentType);
+  } else {
+    res.status(400).send('No content type available. Can\'t display inscription.');
     return;
   }
 
-  if (!inscriptionId) {
-    res.status(400).send('Inscription ID is required.');
-    return;
+  const contentEncoding = inscription.getContentEncoding();
+  if (contentEncoding) {
+    res.setHeader('Content-Encoding', contentEncoding);
   }
 
-  try {
+  res.setHeader('Content-Length', inscription.contentSize);
 
-    const inscription = await ordpoolInscriptionsApi.$getInscriptionById(inscriptionId);
+  // Send the raw data
+  res.status(200).send(Buffer.from(inscription.getDataRaw()));
+}
 
-    if (!inscription) {
-      res.status(404).send('Transaction or inscription not found.');
-      return;
-    }
+function sendPreview(res: Response, previewInstructions: PreviewInstructions) {
 
-    const delegates = inscription.getDelegates();
-    if (delegates.length) {
-      return $getInscriptionRecursive(res, delegates[0], recursiveLevel + 1);
-    }
+  res.setHeader('Content-Type', 'text/html;charset=utf-8');
+  res.setHeader('Content-Length', previewInstructions.previewContent.length);
 
-    const contentType = inscription.contentType;
-    if (contentType) {
-      res.setHeader('Content-Type', contentType);
-    } else {
-      res.status(400).send('No content type available. Can\'t display inscription.');
-      return;
-    }
-
-    const contentEncoding = inscription.getContentEncoding();
-    if (contentEncoding) {
-      res.setHeader('Content-Encoding', contentEncoding);
-    }
-
-    res.setHeader('Content-Length', inscription.contentSize);
-
-    // Send the raw data
-    res.status(200).send(Buffer.from(inscription.getDataRaw()));
-
-  } catch (error) {
-    res.status(500).send('Internal server error: ' + error);
-  }
+    // Send the preview HTML
+  res.status(200).send(previewInstructions.previewContent);
 }
 
 export default new GeneralOrdpoolRoutes();

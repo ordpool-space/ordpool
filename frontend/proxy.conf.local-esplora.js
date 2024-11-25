@@ -37,14 +37,14 @@ let PROXY_CONFIG = [
     proxyTimeout: 30000
   },
   {
-    context: ['/r/**'],
-    target: 'https://ordinals.com',
+    context: ['/preview/**'],
+    target: `http://127.0.0.1:8999`,
     secure: false,
     changeOrigin: true,
     proxyTimeout: 30000
   },
   {
-    context: ['/preview/**'],
+    context: ['/r/**'],
     target: 'https://ordinals.com',
     secure: false,
     changeOrigin: true,

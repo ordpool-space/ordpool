@@ -8,7 +8,28 @@ import memPool from '../mempool';
 
 class OrdpoolInscriptionsApi {
 
-  async $getInscriptionById(inscriptionId: string): Promise<ParsedInscription | undefined> {
+  public async $getInscriptionOrDelegeate(inscriptionId: string, recursiveLevel = 0): Promise<ParsedInscription | undefined> {
+
+
+    // prevent endless loops via circular delegates
+    if (recursiveLevel > 4) {
+      throw new Error('Too many delegate levels. Stopping.');
+    }
+
+    const inscription = await this.$getInscriptionById(inscriptionId);
+    if (!inscription) {
+      return undefined;
+    }
+
+    const delegates = inscription.getDelegates();
+    if (delegates.length) {
+      return this.$getInscriptionOrDelegeate(delegates[0], recursiveLevel + 1);
+    }
+
+    return inscription;
+  }
+
+  private async $getInscriptionById(inscriptionId: string): Promise<ParsedInscription | undefined> {
 
     if (!isValidInscriptionId(inscriptionId)) {
       throw new Error('Invalid inscription ID!');

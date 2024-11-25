@@ -1,11 +1,18 @@
-<ng-container *ngIf="preview">
-  <iframe
-    [srcdoc]="preview | noSanitize"
-    scrolling="no" 
-  ></iframe>
+@if (previewInstructions) {
+  @if (previewInstructions.renderDirectly) {
+    <iframe
+      [src]="'/preview/' + previewInstructions.instructionsFor"
+      sandbox="allow-scripts" 
+      scrolling="no" 
+      loading="lazy"
+    ></iframe>
 
-  <!--     
-    sandbox="allow-scripts" 
-    scrolling="no" 
-    loading="lazy" -->
-</ng-container>
+  } @else {
+    <iframe
+      [srcdoc]="previewInstructions.previewContent | noSanitize"
+      sandbox="allow-scripts" 
+      scrolling="no" 
+      loading="lazy"
+    ></iframe>
+  }
+}
