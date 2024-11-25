@@ -48,7 +48,6 @@
 
           @if (statistics$ | async; as statistics) {
             
-            Chart!
             <div class="chart" 
               *browserOnly echarts 
               [initOpts]="chartInitOptions" 

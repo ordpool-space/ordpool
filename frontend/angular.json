@@ -245,34 +245,8 @@
             "production": {
               "buildTarget": "mempool:build:production"
             },
-            "local": {
-              "proxyConfig": "proxy.conf.local.js",
-              "verbose": false
-            },
             "local-esplora": {
               "proxyConfig": "proxy.conf.local-esplora.js",
-              "verbose": false
-            },
-            "mixed": {
-              "proxyConfig": "proxy.conf.mixed.js",
-              "verbose": true
-            },
-            "staging": {
-              "proxyConfig": "proxy.conf.js",
-              "disableHostCheck": true,
-              "host": "0.0.0.0",
-              "verbose": true
-            },
-            "local-prod": {
-              "proxyConfig": "proxy.conf.js",
-              "disableHostCheck": true,
-              "host": "0.0.0.0",
-              "verbose": false
-            },
-            "local-staging": {
-              "proxyConfig": "proxy.conf.staging.js",
-              "disableHostCheck": true,
-              "host": "0.0.0.0",
               "verbose": false
             }
           }
