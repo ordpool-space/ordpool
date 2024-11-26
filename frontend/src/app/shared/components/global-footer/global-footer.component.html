@@ -45,12 +45,14 @@
           <!-- <span *ngIf="stateService.env.GIT_COMMIT_HASH_MEMPOOL_SPACE">[{{ (servicesBackendInfo$ | async )?.gitCommit | slice:0:8 }}]!!!</span> -->
           <!-- v{{ packetJsonVersion }} -->
 
-          Ordpool is fully open source!<br>
+          Ordpool is fully open source.<br>
 
-          See the latest commit to the 
+          <!-- See the latest commit to the 
           <a target="_blank" class="bitcoin" href="https://github.com/ordpool-space/ordpool/commit/{{ (backendInfo$ | async )?.gitCommit }}">backend</a>
           and the
-          <a target="_blank" class="bitcoin" href="https://github.com/ordpool-space/ordpool/commit/{{ frontendGitCommitHash }}">frontend</a> on GitHub.
+          <a target="_blank" class="bitcoin" href="https://github.com/ordpool-space/ordpool/commit/{{ frontendGitCommitHash }}">frontend</a> on GitHub. -->
+
+          Built from commit <a target="_blank" class="bitcoin" href="https://github.com/ordpool-space/ordpool/commit/{{ frontendGitCommitHash }}">{{ frontendGitCommitHash }}</a>.
         </p>
       </div>
     </div>
