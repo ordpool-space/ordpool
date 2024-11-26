@@ -20,7 +20,7 @@
     <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
       
       <!-- ORDPOOL LOGO!! -->
-      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space</span></h4>
+      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space<sup><strong>v2</strong></sup></span></h4>
       
       <div class="connection-badge">
         <div class="badge badge-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>
@@ -32,7 +32,7 @@
   <a class="navbar-brand d-flex d-md-none justify-content-center" [ngClass]="{'dual-logos': subdomain, 'mr-0': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
 
       <!-- ORDPOOL LOGO!! -->
-      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space</span></h4>
+      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space<sup><strong>v2</strong></sup></span></h4>
       
       <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
 
