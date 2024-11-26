@@ -146,4 +146,29 @@ export class OrdApiService {
       return runeDetails$;
     }
   }
+
+  static splitRuneId(id : { block: number | bigint, tx: number} | string) : { 
+    block: number | bigint;
+    tx: number;
+  } {
+
+    let block : number | bigint;
+    let tx : number;
+
+    if (typeof(id) === 'string') {
+      const splitted = id.split(':');
+      block = parseInt(splitted[0] , 10);
+      tx = parseInt(splitted[1] , 10);
+    } else {
+      block = id.block;
+      tx = id.tx;
+    }
+
+    return { block, tx };
+  }
+
+  static isUncommonGoods(block: number | bigint | undefined, tx: number | undefined) {
+    return (block === 1n && tx === 0) || 
+           (block === 1 && tx === 0);
+  }
 }

@@ -71,8 +71,8 @@ export class RunestoneViewerComponent {
     this.transactionId = undefined;
   }
 
-  isUncommonGoods() {
-    return this.runestone?.mint?.block === 1n && this.runestone?.mint?.tx === 0;
+  get isUncommonGoods() {
+    return OrdApiService.isUncommonGoods(this.runestone?.mint?.block, this.runestone?.mint?.tx);
   }
 
   getRuneDetails(block: number | bigint, tx: number): Observable<OrdApiRune> {

@@ -18,10 +18,10 @@ export class CodeViewerComponent {
   @Input()
   public set textAndContentType(t: { text: string, contentType: string | undefined } | undefined) {
 
-    if (t?.text && t?.contentType) {
-      this.formatWithPrettier(t.text, t.contentType);
+    if (t?.text && t?.contentType) {  
+      this.formatWithPrettier(t.text, t?.contentType);
     } else {
-      this.formatedText = '';
+      this.formatedText = t?.text || '';
     }
   }
 
@@ -39,7 +39,8 @@ export class CodeViewerComponent {
     }
 
     if (contentType.startsWith('text/javascript') ||
-        contentType.startsWith('application/x-javascript')) {
+        contentType.startsWith('application/x-javascript') ||
+        contentType.startsWith('application/javascript')) {
       parser = 'babel';
     }
 

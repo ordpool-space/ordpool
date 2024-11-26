@@ -168,7 +168,7 @@
     <strong>▣ Rune Mint</strong><br>
     <br *ngIf="showDetails">
 
-    <ng-container *ngIf="isUncommonGoods()" class="mb-4">
+    <ng-container *ngIf="isUncommonGoods" class="mb-4">
 
       <ng-container *ngIf="showDetails">
         This runestone mints <strong>one unit</strong> of the hardcoded Rune #0.<br>
@@ -178,7 +178,7 @@
 
     </ng-container>
 
-    <ng-container *ngIf="!isUncommonGoods()" class="mb-4">
+    <ng-container *ngIf="!isUncommonGoods" class="mb-4">
 
       <ng-container *ngIf="showDetails">
         This runestone mints new units of Rune

@@ -4,11 +4,14 @@ import { Observable, of } from 'rxjs';
 import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api.service';
 
 @Component({
-  selector: 'app-runestone-id-to-link',
-  templateUrl: './runestone-id-to-link.component.html',
+  selector: 'app-runestone-id-to-text',
+  templateUrl: './runestone-id-to-text.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class RunestoneIdToLinkComponent {
+export class RunestoneIdToTextComponent {
+
+  zeroWidthSpace = '\u200B';
+  runesSpacer = '•';
 
   ordApiService = inject(OrdApiService);
 

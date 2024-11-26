@@ -18,7 +18,6 @@ import { PriceService, Price } from '../../services/price.service';
 import { CacheService } from '../../services/cache.service';
 import { ServicesApiServices } from '../../services/services-api.service';
 
-
 @Component({
   selector: 'app-block',
   templateUrl: './block.component.html',
@@ -352,89 +351,7 @@ export class BlockComponent implements OnInit, OnDestroy {
                 return of([]);
               }))
             : of([])
-        ]).pipe(
-
-          // HACK - query indexer
-          /*
-          tap(([transactions, blockAudit]) => {
-
-            forkJoin([
-              this.ordApiService.getBlockData(block.height).pipe(
-                map(blockData => blockData.inscriptions),
-                map(inscriptions => inscriptions.map(i => i.split('i')[0]))
-              ),
-
-              // they index faster then my little indexer
-              this.blockchairApiService.fetchAllCat21Transactions(block.height).pipe(
-                map(transactions => transactions.map(t => ({
-                  transactionId: t.hash,
-                  weight: t.weight,
-                  fee: t.fee
-                })))
-              ),
-
-              // but i will never rate limit, so also ask my indexer additionally
-              this.cat21ApiService.getCatsByBlockId(block.id).pipe(
-                map(transactions => transactions.map(t => ({
-                  transactionId: t.transactionId,
-                  weight: t.weight,
-                  fee: t.fee
-                }))),
-                catchError(() => of([] as string[]))
-              )
-            ]).subscribe(([inscriptionTxns, cat21Mints1, cat21Mints2]) => {
-
-              const allCat21Mints: { [key: string ]: { transactionId: string; weight: number; fee: number; }} = {};
-
-              // create object without duplicates
-              cat21Mints1.forEach(c => allCat21Mints[c.transactionId] = c);
-              cat21Mints2.forEach(c => allCat21Mints[c.transactionId] = c);
-              const cat21MintTxns: string[] = [];
-              Object.keys(allCat21Mints).forEach(transactionId => cat21MintTxns.push(transactionId));
-
-
-              // no inscriptions?? (propably an error!) --> then skip chache overrides for this block!
-              if (inscriptionTxns.length) {
-                const txnsWithArtifacts = [...inscriptionTxns, ...cat21MintTxns];
-
-                // If there is NO match, we call addToCache with [],
-                // so that this txn is not any longer catched!
-                // TODO: this still ignores stamps! (they don't offer a public indexer, so it's not my fault!)
-                for (const transaction of transactions) {
-                  const matchingArtifact = txnsWithArtifacts.find(i => i === transaction.txid);
-                  if (!matchingArtifact) {
-                    // this.digitalArtifactsFetcherService.addToCache(transaction.txid, []);
-                  } else {
-                    // console.log(transaction.txid, 'has an artifact')
-                  }
-                }
-              }
-
-              // Debugging hint: block 826877 has 3 cats, block 826587 has 2 cats
-              // we already have all required informations about the cats, so add them directly to the cache
-              // (this ignores the fact that inscriptions can also have cats, this will hide the inscription from the block-overwiew, YOLO!)
-              Object.keys(allCat21Mints).forEach(transactionId => {
-
-                const cat21mint = allCat21Mints[transactionId];
-
-                const parsedCat21 = Cat21ParserService.parse({
-                  txid: cat21mint.transactionId,
-                  locktime: 21,
-                  weight: cat21mint.weight,
-                  fee: cat21mint.fee,
-                  status: {
-                    block_hash: block.id
-                  }
-                });
-
-                // super fast lane for cats!
-                // this.digitalArtifactsFetcherService.addToCache(cat21mint.transactionId, [parsedCat21]);
-              });
-            });
-          })
-          */
-
-        );
+        ]);
       })
     )
     .subscribe(([transactions, blockAudit, accelerations]) => {

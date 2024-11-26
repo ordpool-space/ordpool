@@ -123,6 +123,7 @@ import { Src20ViewerComponent } from '../components/_ordpool/digital-artifact-vi
 import { Cat21ViewerComponent } from '../components/_ordpool/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { RunestoneViewerComponent } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
 import { RunestoneIdToLinkComponent } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
+import { RunestoneIdToTextComponent } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-text.component';
 import { BigIntFormatterPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
 import { NumberSuffixPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
 import { DivisibilityPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
@@ -262,6 +263,7 @@ import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-a
     Cat21ViewerComponent,
     RunestoneViewerComponent,
     RunestoneIdToLinkComponent,
+    RunestoneIdToTextComponent,
     BigIntFormatterPipe,
     NumberSuffixPipe,
     DivisibilityPipe,
@@ -305,7 +307,7 @@ import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-a
     NoSanitizePipe,
     ShortenStringPipe,
     CapAddressPipe,
-    AmountShortenerPipe
+    AmountShortenerPipe,
   ],
   exports: [
     MenuComponent,
@@ -423,7 +425,8 @@ import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-a
 
     DigitalArtifactViewerComponent,
     InscriptionAcceleratorComponent,
-    RunestoneIdToLinkComponent
+    RunestoneIdToLinkComponent,
+    RunestoneIdToTextComponent
   ]
 })
 export class SharedModule {

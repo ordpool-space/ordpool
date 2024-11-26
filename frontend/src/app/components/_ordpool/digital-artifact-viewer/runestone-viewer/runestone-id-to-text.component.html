@@ -1,0 +1,19 @@
+@if (isUncommonGoods) {
+
+  ⧉ UNCOMMON•{{ zeroWidthSpace }}GOODS
+
+} @else {
+
+  @if (runeDetails$ | async; as runeDetails) {
+
+    <strong>
+      {{ runeDetails.entry.symbol }} 
+      {{ runeDetails.entry.spaced_rune.replace(runesSpacer, runesSpacer + zeroWidthSpace) }}
+    </strong>
+  
+  } @else {
+    <span class="skeleton-loader"></span>
+  }
+}
+
+

@@ -1,3 +1,5 @@
+import { getFirstInscriptionHeight } from 'ordpool-parser';
+
 export const defaultMempoolFeeColors = [
   '557d00',
   '5d7d01',
@@ -272,6 +274,19 @@ export const specialBlocks = {
     networks: ['mainnet', 'testnet', 'testnet4'],
   }
 };
+
+const firstInscriptionHeight = getFirstInscriptionHeight('mainnet').toString();
+specialBlocks[firstInscriptionHeight] = {
+  labelEvent: 'First inscription minted',
+  labelEventCompleted: 'Casey Rodarmor minted Inscription #0',
+  networks: ['mainnet'],
+};
+specialBlocks['824205'] = {
+  labelEvent: 'First CAT-21 ordinal minted',
+  labelEventCompleted: 'Johannes minted the genesis cat 😺',
+  networks: ['mainnet'],
+};
+
 
 export const fiatCurrencies = {
   AUD: {

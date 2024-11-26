@@ -21,14 +21,6 @@ try {
 console.log('** USING PROXY_CONFIG FROM proxy.conf.local-esplora.js ***');
 
 let PROXY_CONFIG = [
-  // HACK - this is just for local development, enter your own ord server here if available
-  // {
-  //   context: ['/content/**'],
-  //   target: 'https://ordinals.com',
-  //   secure: false,
-  //   changeOrigin: true,
-  //   proxyTimeout: 30000
-  // },
   {
     context: ['/content/**'],
     target: `http://127.0.0.1:8999`,

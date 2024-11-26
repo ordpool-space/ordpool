@@ -54,12 +54,25 @@
             -->
             <!-- HACK: display degen stuff in the blocks -->
 
-            <div style="width: 58px; height: 58px;" class="mx-auto">
+            <div class="digital-artifact-area mx-auto">
               @if (block.height < firstInscriptionHeight) {
 
               }
-              @else if (block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
-                <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
+              @else if (block.extras.ordpoolStats.version > 0) {
+
+                @if (block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint &&
+                     block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
+                  <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
+                }                
+                @else if (block.extras.ordpoolStats.runes.mostActiveMint) {
+                  <div class="rune-ticker">
+                    <app-runestone-id-to-text [runeId]="block.extras.ordpoolStats.runes.mostActiveMint"/>
+                  </div>
+                } 
+                @else {
+                  <br>
+                  X
+                }
               } @else {
                 <div class="pt-3">?</div>
               }
@@ -76,29 +89,37 @@
             @if (block.height < firstInscriptionHeight) {
 
               <div class="transaction-count">
+                <br>
                 Pre-Ordinals Era
               </div>
 
             } @else if (block.extras.ordpoolStats.version > 0) {
             <div class="transaction-count">
-              <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? transactionsSingular : transactionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
-              <ng-template #transactionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>
-              <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} inscriptions</ng-template>
+              <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? inscriptionsSingular : inscriptionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
+              <ng-template #inscriptionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>
+              <ng-template #inscriptionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} inscriptions</ng-template><br>
+
+              <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.runeMint === 1 ? runesSingular : runesPlural; context: {$implicit: block.extras.ordpoolStats.amounts.runeMint | number}"></ng-container>
+              <ng-template #runesSingular let-i i18n="shared.transaction-count.singular">{{ i }} rune mint</ng-template>
+              <ng-template #runesPlural let-i i18n="shared.transaction-count.plural">{{ i }} rune mints</ng-template>
             </div>
             } @else {
               <div class="transaction-count">
+                <br>
                 Indexing…
               </div>
             }
 
-            <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
-              <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time></div>
+            <!-- <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
+              <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time></div> -->
           </ng-container>
         </div>
         <div class="animated" [class]="markHeight === block.height ? 'hide' : 'show'" *ngIf="block.extras?.pool != undefined && showPools">
           <a [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-pool'" class="badge badge-primary"
             [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
-            {{ block.extras.pool.name}}</a>
+            <!-- {{ block.extras.pool.name}} -->
+            <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
+          </a>
         </div>
       </div>
     </ng-container>
