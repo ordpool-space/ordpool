@@ -19,6 +19,9 @@ import { Observable, shareReplay } from 'rxjs';
  * http://localhost:4200/tx/b3205ea418e67fb5a9b80bb14956e7566751903fb7fc6b36af55429af9681d0e (pointer)
  * http://localhost:4200/tx/25d919c2f02c00ef26a4d674ac1ecffd92684bce35fc449b7834841fd017a9f9 (1st cenotaph)
  * 
+ * Edge case, OP_RETURN OP_PUSHNUM_13 OP_PUSHBYTES_1 00 (no real message) 
+ * http://localhost:4200/tx/28baf9374797230174803b0c3f63fd39e22bb1972a25cc2af4e791ca8fc89dae
+ * 
  * A lot of etchings are here:
  * http://localhost:4200/block/840000
  * 
