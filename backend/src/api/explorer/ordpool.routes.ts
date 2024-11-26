@@ -81,7 +81,9 @@ class GeneralOrdpoolRoutes {
   // Markdown: http://localhost:8999/preview/c133c03e2ed44bb8ada79b1640b6649129de75a8f31d8e6ad573ede442f91cdbi0
   // Model: http://localhost:8999/preview/25013a3ab212e0ca5b3ccbd858ff988f506b77080c51963c948c055028af2051i0
   // Pdf: http://localhost:8999/preview/85b10531435304cbe47d268106b58b57a4416c76573d4b50fa544432597ad670i0i0
-  // Text: http://localhost:8999/preview/430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379i0
+  // Pure Text: http://localhost:8999/preview/430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379i0
+  // Text, but JSON: http://localhost:8999/preview/b84deb50dcee499351e62bbbdcc9b306f8ac36aefc3fc1f1c5ede2bfa7164501i0
+  // Text, but CODE: http://localhost:8999/preview/b84deb50dcee499351e62bbbdcc9b306f8ac36aefc3fc1f1c5ede2bfa7164501i0
   // Unknown: http://localhost:8999/preview/06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0
   // Video: http://localhost:8999/preview/700f348e1acef6021cdee8bf09e4183d6a3f4d573b4dc5585defd54009a0148ci0
   private async $getInscriptionPreview(req: Request, res: Response): Promise<void> {

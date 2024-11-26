@@ -32,17 +32,17 @@
     <strong >◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
     <br *ngIf="showDetails">
 
-    @if (inscriptionContent$ && inscriptionContent$ | async; as inscriptionContent) {
+    @if (contentTypeInstructions$ && contentTypeInstructions$ | async; as instructions) {
       
-      @if (inscriptionContent.whatToShow === 'json') {
+      @if (instructions.whatToShow === 'json') {
         <app-json-viewer
-          [text]="inscriptionContent.content"
+          [text]="instructions.content"
         />
-      } @else if (inscriptionContent.whatToShow === 'code') {
+      } @else if (instructions.whatToShow === 'code') {
 
         <app-code-viewer
           [textAndContentType]="{
-            text: inscriptionContent.content,
+            text: instructions.content,
             contentType: _parsedInscription.contentType
           }"
         />
@@ -99,7 +99,11 @@
           <td [innerHTML]="'&lrm;' + (_parsedInscription.envelopeSize | bytes: 2)"></td>
         </tr>
         <tr>
-          <td>Content</td>
+          <td>Preview</td>
+          <td><a href="/preview/{{ _parsedInscription.inscriptionId }}" target="_blank">Link</a></td>
+        </tr>
+        <tr>
+          <td>Raw Content</td>
           <td><a href="/content/{{ _parsedInscription.inscriptionId }}" target="_blank">Link</a></td>
         </tr>
         <tr *ngIf="_parsedInscription.getPointer() !== undefined">

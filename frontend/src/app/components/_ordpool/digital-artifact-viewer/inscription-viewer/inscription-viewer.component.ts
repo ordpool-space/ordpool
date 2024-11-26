@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, inject } from '@angular/core';
-import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
+import { InscriptionParserService, InscriptionPreviewService, ParsedInscription } from 'ordpool-parser';
+import { map, Observable } from 'rxjs';
+
 import { ElectrsApiService } from '../../../../services/electrs-api.service';
-import { Observable, map, tap } from 'rxjs';
 
 /*
 More test cases:
@@ -35,8 +36,8 @@ export class InscriptionViewerComponent {
     allInscriptionsInTheTxn$: Observable<ParsedInscription[]>;
   }[] = [];
 
-  inscriptionContent$: Promise<{
-    content: string,
+  contentTypeInstructions$: Promise<{
+    content: string | undefined,
     whatToShow: 'json' | 'code' | 'preview'
   }> | undefined;
 
@@ -53,7 +54,7 @@ export class InscriptionViewerComponent {
     this._parsedInscription = inscription;
 
     if (!inscription) {
-      this.inscriptionContent$ = undefined;
+      this.contentTypeInstructions$ = undefined;
       return;
     }
 
@@ -74,47 +75,6 @@ export class InscriptionViewerComponent {
         }));
     }
 
-    this.inscriptionContent$ = this.getContent(inscription);
-  }
-
-  private async getContent(inscription: ParsedInscription) {
-
-    const content = await inscription.getContent();
-    let whatToShow: 'json' | 'code' | 'preview' = 'preview';
-
-    if ((inscription.contentType?.startsWith('text/plain') ||
-      inscription.contentType?.startsWith('application/json')) &&
-      this.validateJson(content)) {
-
-        whatToShow = 'json';
-    }
-
-    else if (inscription.contentType?.startsWith('application/yaml') ||
-      inscription.contentType?.startsWith('text/css') ||
-      inscription.contentType?.startsWith('text/javascript') ||
-      inscription.contentType?.startsWith('application/x-javascript')) {
-
-        whatToShow = 'code';
-    }
-
-    return {
-      content,
-      whatToShow
-    };
-  }
-
-  /**
-   * Checks if a given string is valid JSON.
-   *
-   * @param str - The string to be tested.
-   * @returns Returns true if the string is valid JSON, otherwise false.
-   */
-  validateJson(str: string) {
-    try {
-      JSON.parse(str);
-      return true;
-    } catch (e) {
-      return false;
-    }
+    this.contentTypeInstructions$ = InscriptionPreviewService.getContentTypeInstructions(inscription);
   }
 }
