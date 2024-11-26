@@ -1,7 +1,7 @@
 import logger from '../../logger';
 import DB from '../../database';
-import { getFirstInscriptionHeight } from './ordpool.config';
 import config from '../../config';
+import { getFirstInscriptionHeight } from 'ordpool-parser';
 
 export type Interval =   '1h' | '2h' | '24h' | '3d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '4y';
 export type Aggregation = 'block' | 'hour' | 'day';

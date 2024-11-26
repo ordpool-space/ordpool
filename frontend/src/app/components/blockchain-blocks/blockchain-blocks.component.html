@@ -55,7 +55,14 @@
             <!-- HACK: display degen stuff in the blocks -->
 
             <div style="width: 58px; height: 58px;" class="mx-auto">
-              <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
+              @if (block.height < firstInscriptionHeight) {
+
+              }
+              @else if (block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
+                <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
+              } @else {
+                <div class="pt-3">?</div>
+              }
             </div>
             <!---
             <div [attr.data-cy]="'bitcoin-block-' + i + '-transactions'" class="transaction-count">
@@ -66,11 +73,23 @@
             </div>
             -->
 
+            @if (block.height < firstInscriptionHeight) {
+
+              <div class="transaction-count">
+                Pre-Ordinals Era
+              </div>
+
+            } @else if (block.extras.ordpoolStats.version > 0) {
             <div class="transaction-count">
               <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? transactionsSingular : transactionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
               <ng-template #transactionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>
               <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} inscriptions</ng-template>
             </div>
+            } @else {
+              <div class="transaction-count">
+                Indexing…
+              </div>
+            }
 
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
               <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time></div>

@@ -5,6 +5,7 @@ import { specialBlocks } from '../../app.constants';
 import { BlockExtended } from '../../interfaces/node-api.interface';
 import { Location } from '@angular/common';
 import { CacheService } from '../../services/cache.service';
+import { getFirstInscriptionHeight } from 'ordpool-parser';
 
 interface BlockchainBlock extends BlockExtended {
   placeholder?: boolean;
@@ -18,6 +19,7 @@ interface BlockchainBlock extends BlockExtended {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
+
   @Input() static: boolean = false;
   @Input() offset: number = 0;
   @Input() height: number = 0; // max height of blocks in chunk (dynamic blocks only)
@@ -81,6 +83,8 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
     private location: Location,
   ) {
   }
+
+  firstInscriptionHeight = getFirstInscriptionHeight(this.stateService.network || 'mainnet');
 
   ngOnInit() {
     this.dynamicBlocksAmount = Math.min(8, this.stateService.env.KEEP_BLOCKS_AMOUNT);
