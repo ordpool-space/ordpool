@@ -119,7 +119,6 @@ import { FaucetComponent } from '../components/faucet/faucet.component';
 import { OnlyVsizeDirective, OnlyWeightDirective } from './components/weight-directives/weight-directives';
 import { DigitalArtifactViewerComponent } from '../components/_ordpool/digital-artifact-viewer/digital-artifact-viewer.component';
 import { InscriptionViewerComponent } from '../components/_ordpool/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
-import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
 import { Src20ViewerComponent } from '../components/_ordpool/digital-artifact-viewer/src20-viewer/src20-viewer.component';
 import { Cat21ViewerComponent } from '../components/_ordpool/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { RunestoneViewerComponent } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
@@ -127,11 +126,9 @@ import { RunestoneIdToLinkComponent } from '../components/_ordpool/digital-artif
 import { BigIntFormatterPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
 import { NumberSuffixPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
 import { DivisibilityPipe } from '../components/_ordpool/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
-import { AtomicalViewerComponent } from '../components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
 import { CapitalizeFirstPipe } from '../components/_ordpool/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
 import { JsonViewerComponent } from '../components/_ordpool/digital-artifact-viewer/json-viewer/json-viewer.component';
 import { CodeViewerComponent } from '../components/_ordpool/digital-artifact-viewer/code-viewer/code-viewer.component';
-import { PreviewViewerComponent } from '../components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
 import { MetadataViewerComponent } from '../components/_ordpool/digital-artifact-viewer/metadata-viewer/metadata-viewer.component';
 import { InscriptionAcceleratorComponent } from '../components/_ordpool/inscription-accelerator/inscription-accelerator.component';
 import { FeesBoxClickableComponent } from '../components/fees-box-clickable/fees-box-clickable.component';
@@ -141,6 +138,10 @@ import { Cat21MintComponent } from '../components/_ordpool/cat21-mint/cat21-mint
 import { CountdownTimerComponent } from '../components/_ordpool/cat21-mint/countdown-timer-component';
 import { Cat21CollabComponent } from '../components/_ordpool/cat21-collab/cat21-collab.component';
 import { Cat21WhitelistCheckerComponent } from '../components/_ordpool/cat21-whitelist-checker/cat21-whitelist-checker.component';
+
+import { PreviewViewerComponent } from '../components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
+import { AtomicalViewerComponent } from '../components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
+import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
 
 
 @NgModule({
@@ -257,7 +258,6 @@ import { Cat21WhitelistCheckerComponent } from '../components/_ordpool/cat21-whi
     FaucetComponent,
     DigitalArtifactViewerComponent,
     InscriptionViewerComponent,
-    MiniInscriptionViewerComponent,
     Src20ViewerComponent,
     Cat21ViewerComponent,
     RunestoneViewerComponent,
@@ -265,11 +265,9 @@ import { Cat21WhitelistCheckerComponent } from '../components/_ordpool/cat21-whi
     BigIntFormatterPipe,
     NumberSuffixPipe,
     DivisibilityPipe,
-    AtomicalViewerComponent,
     CapitalizeFirstPipe,
     JsonViewerComponent,
     CodeViewerComponent,
-    PreviewViewerComponent,
     MetadataViewerComponent,
     InscriptionAcceleratorComponent,
     FeesBoxClickableComponent,
@@ -293,7 +291,11 @@ import { Cat21WhitelistCheckerComponent } from '../components/_ordpool/cat21-whi
     FontAwesomeModule,
     NgbModalModule,
     NgbPopoverModule,
-    HighlightModule
+    HighlightModule,
+    
+    PreviewViewerComponent,
+    AtomicalViewerComponent,
+    MiniInscriptionViewerComponent
   ],
   providers: [
     BytesPipe,
@@ -421,7 +423,6 @@ import { Cat21WhitelistCheckerComponent } from '../components/_ordpool/cat21-whi
 
     DigitalArtifactViewerComponent,
     InscriptionAcceleratorComponent,
-    MiniInscriptionViewerComponent,
     RunestoneIdToLinkComponent
   ]
 })

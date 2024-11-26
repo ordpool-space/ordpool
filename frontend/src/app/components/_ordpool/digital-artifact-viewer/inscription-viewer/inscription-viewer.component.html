@@ -1,6 +1,5 @@
-<ng-container *ngIf="_parsedInscription">
-
-  <ng-container *ngIf="whatToShow === 'delegates' && !minimal">
+@if (_parsedInscription) {
+  @if (delegates.length) {
 
     <div *ngFor="let delegate of delegates">
       <strong>◉ Delegate Inscription:</strong>
@@ -28,51 +27,31 @@
       </div>
     </div>
 
-  </ng-container>
+  } @else { 
 
-  <!-- only show first delegate in minimal mode -->
-  <ng-container *ngIf="whatToShow === 'delegates' && minimal">
+    <strong >◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
+    <br *ngIf="showDetails">
 
-    <div *ngIf="delegateInscriptions[0] as delegateInscription" class="ml-4">
-      @if (delegateInscription.allInscriptionsInTheTxn$ | async; as allInscriptionsInTheTxn) {
-        <ng-container *ngFor="let inscription of allInscriptionsInTheTxn; index as i">
+    @if (inscriptionContent$ && inscriptionContent$ | async; as inscriptionContent) {
+      
+      @if (inscriptionContent.whatToShow === 'json') {
+        <app-json-viewer
+          [text]="inscriptionContent.content"
+        />
+      } @else if (inscriptionContent.whatToShow === 'code') {
 
-          <app-inscription-viewer 
-            *ngIf="inscription.inscriptionId === delegateInscription.inscriptionId"
-            [showDetails]="showDetails"
-            [parsedInscription]="inscription"
-          />
-
-        </ng-container>
+        <app-code-viewer
+          [textAndContentType]="{
+            text: inscriptionContent.content,
+            contentType: _parsedInscription.contentType
+          }"
+        />
+      } @else {
+        <app-preview-viewer
+          [parsedInscription]="_parsedInscription"
+        />
       }
-    </div>
-
-  </ng-container>
-
-  <ng-container *ngIf="whatToShow !== 'delegates'">
-
-    <ng-container *ngIf="!minimal">
-      <strong >◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
-      <br *ngIf="showDetails">
-    </ng-container>
-
-    <app-json-viewer
-      *ngIf="whatToShow === 'json'"
-      [text]="_parsedInscription.getContent() | async"
-    />
-
-    <app-code-viewer
-      *ngIf="whatToShow === 'code'"
-      [textAndContentType]="{
-        text: _parsedInscription.getContent() | async,
-        contentType: _parsedInscription.contentType
-      }"
-    />
-
-    <app-preview-viewer
-      *ngIf="whatToShow === 'preview'"
-      [parsedInscription]="_parsedInscription"
-    />
+    }
 
     <div class="mt-2" *ngIf="showDetails && _parsedInscription.getParents() as parents">
       <ng-container *ngIf="parents.length === 1">
@@ -119,6 +98,10 @@
           <td>Envelope size</td>
           <td [innerHTML]="'&lrm;' + (_parsedInscription.envelopeSize | bytes: 2)"></td>
         </tr>
+        <tr>
+          <td>Content</td>
+          <td><a href="/content/{{ _parsedInscription.inscriptionId }}" target="_blank">Link</a></td>
+        </tr>
         <tr *ngIf="_parsedInscription.getPointer() !== undefined">
           <td>Pointer:</td>
           <td>{{ _parsedInscription.getPointer() }}</td>
@@ -126,6 +109,5 @@
       </tbody>
     </table>
 
-  </ng-container>
-
-</ng-container>
+  }
+}

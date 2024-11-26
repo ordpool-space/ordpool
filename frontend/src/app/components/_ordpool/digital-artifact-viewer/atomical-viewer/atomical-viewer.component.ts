@@ -9,7 +9,8 @@ import { ParsedAtomical } from 'ordpool-parser';
   selector: 'app-atomical-viewer',
   templateUrl: './atomical-viewer.component.html',
   styleUrls: ['./atomical-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true
 })
 export class AtomicalViewerComponent {
 

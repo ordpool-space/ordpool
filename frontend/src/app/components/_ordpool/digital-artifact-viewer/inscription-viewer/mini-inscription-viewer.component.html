@@ -1,17 +1,10 @@
-@if(_parsedInscription$ | async; as parsedInscription) {
-  <div class="mx-auto" title="{{ parsedInscription.inscriptionId }}"
->
-    <app-inscription-viewer 
-      [minimal]="true"
-      [parsedInscription]="parsedInscription"
-      [showDetails]="false"
-    />
-
-  </div>
-} @else {
-  <div class="mx-auto">
-    <br>
-    <span class="skeleton-loader"></span>
+@if(inscriptionId) {
+  <div class="mx-auto" title="{{ inscriptionId }}">
+    <iframe
+      [src]="'/preview/' + inscriptionId | safeResourceUrl"
+      sandbox="allow-scripts" 
+      scrolling="no" 
+      loading="lazy"
+    ></iframe>
   </div>
 }
-

@@ -35,8 +35,8 @@ export class RunestoneIdToLinkComponent {
       block = parseInt(splitted[0] , 10);
       tx = parseInt(splitted[1] , 10);
     } else {
-      block === id.block;
-      tx === id.tx;
+      block = id.block;
+      tx = id.tx;
     }
 
     // early exit if setter is called multiple times (don't remove!)
