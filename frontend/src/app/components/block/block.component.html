@@ -123,6 +123,10 @@
           <tbody>
             <ng-container *ngIf="block && !isLoadingBlock; else skeletonRowsInscriptions">
               <tr>
+                <td>Etchings</td>
+                <td>{{ block.extras.ordpoolStats.amounts.runeEtch }}</td>
+              </tr>
+              <tr>
                 <td>Mints</td>
                 <td>{{ block.extras.ordpoolStats.amounts.runeMint }}</td>
               </tr>
