@@ -52,7 +52,12 @@
               </tr>
               <tr>
                 <td>Total Mint Fees</td>
-                <td><app-fee-rate [fee]="block.extras.ordpoolStats.fees.cat21Mints" rounding="1.0-0"></app-fee-rate>
+                <td>
+                  <app-amount [satoshis]="block.extras.ordpoolStats.fees.cat21Mints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+                  <span class="fiat">
+                    <app-fiat [blockConversion]="blockConversion" [value]="block.extras.ordpoolStats.fees.cat21Mints" digitsInfo="1.0-0"></app-fiat>
+                  </span>
+                </td>
               </tr>
             </ng-container>
             <ng-template #skeletonRowsCat21>
@@ -77,7 +82,12 @@
               </tr>
               <tr>
                 <td>Total Mint Fees</td>
-                <td><app-fee-rate [fee]="block.extras.ordpoolStats.fees.inscriptionMints" rounding="1.0-0"></app-fee-rate>
+                <td>
+                  <app-amount [satoshis]="block.extras.ordpoolStats.fees.inscriptionMints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+                  <span class="fiat">
+                    <app-fiat [blockConversion]="blockConversion" [value]="block.extras.ordpoolStats.fees.inscriptionMints" digitsInfo="1.0-0"></app-fiat>
+                  </span>
+                </td>
               </tr>
               <tr>
                 <td>Avg. Envelope Size</td>
@@ -136,11 +146,21 @@
               </tr>
               <tr>
                 <td>Total Mint Fees</td>
-                <td><app-fee-rate [fee]="block.extras.ordpoolStats.fees.runeMints" rounding="1.0-0"></app-fee-rate>
+                <td>
+                  <app-amount [satoshis]="block.extras.ordpoolStats.fees.runeMints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+                  <span class="fiat">
+                    <app-fiat [blockConversion]="blockConversion" [value]="block.extras.ordpoolStats.fees.runeMints" digitsInfo="1.0-0"></app-fiat>
+                  </span>
+                </td>
               </tr>
               <tr>
                 <td>Total Mint Fees<br><small class="text-small">(excluding ⧉ UNCOMMON•GOODS)</small></td>
-                <td><app-fee-rate [fee]="block.extras.ordpoolStats.fees.nonUncommonRuneMints" rounding="1.0-0"></app-fee-rate>
+                <td>
+                  <app-amount [satoshis]="block.extras.ordpoolStats.fees.nonUncommonRuneMints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+                  <span class="fiat">
+                    <app-fiat [blockConversion]="blockConversion" [value]="block.extras.ordpoolStats.fees.nonUncommonRuneMints" digitsInfo="1.0-0"></app-fiat>
+                  </span>
+                </td>
               </tr>
               <tr>
                 <td>Most Active Mint</td>
@@ -192,7 +212,12 @@
               </tr>
               <tr>
                 <td>Total Mint Fees</td>
-                <td><app-fee-rate [fee]="block.extras.ordpoolStats.fees.brc20Mints" rounding="1.0-0"></app-fee-rate>
+                <td>
+                  <app-amount [satoshis]="block.extras.ordpoolStats.fees.brc20Mints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+                  <span class="fiat">
+                    <app-fiat [blockConversion]="blockConversion" [value]="block.extras.ordpoolStats.fees.brc20Mints" digitsInfo="1.0-0"></app-fiat>
+                  </span>
+                </td>
               </tr>
               <tr>
                 <td>Most Active Mint</td>
@@ -235,7 +260,12 @@
               </tr>
               <tr>
                 <td>Total Mint Fees</td>
-                <td><app-fee-rate [fee]="block.extras.ordpoolStats.fees.src20Mints" rounding="1.0-0"></app-fee-rate>
+                <td>
+                  <app-amount [satoshis]="block.extras.ordpoolStats.fees.src20Mints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+                  <span class="fiat">
+                    <app-fiat [blockConversion]="blockConversion" [value]="block.extras.ordpoolStats.fees.src20Mints" digitsInfo="1.0-0"></app-fiat>
+                  </span>
+                </td>
               </tr>
               <tr>
                 <td>Most Active Mint</td>
