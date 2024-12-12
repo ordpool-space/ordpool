@@ -18,7 +18,7 @@ export const extraOrdpoolRoutes = [
     component: Cat21WhitelistCheckerComponent,
   },
   {
-    path: 'ordpool-stats/:interval/:aggregation',
+    path: 'ordpool-stats/:type/:interval/:aggregation',
     component: OrdpoolStatsComponent
   }
 ];

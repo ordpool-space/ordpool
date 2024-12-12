@@ -5,7 +5,8 @@ import { Pipe, PipeTransform } from '@angular/core';
  * It leaves the rest of the string unchanged.
  */
 @Pipe({
-  name: 'capitalizeFirst'
+  name: 'capitalizeFirst',
+  standalone: true
 })
 export class CapitalizeFirstPipe implements PipeTransform {
 

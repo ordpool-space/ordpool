@@ -267,7 +267,6 @@ import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-a
     BigIntFormatterPipe,
     NumberSuffixPipe,
     DivisibilityPipe,
-    CapitalizeFirstPipe,
     JsonViewerComponent,
     CodeViewerComponent,
     MetadataViewerComponent,
@@ -297,7 +296,8 @@ import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-a
     
     PreviewViewerComponent,
     AtomicalViewerComponent,
-    MiniInscriptionViewerComponent
+    MiniInscriptionViewerComponent,
+    CapitalizeFirstPipe
   ],
   providers: [
     BytesPipe,
