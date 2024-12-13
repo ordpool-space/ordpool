@@ -58,7 +58,7 @@
               @if (block.height < firstInscriptionHeight) {
 
               }
-              @else if (block.extras.ordpoolStats.version > 0) {
+              @else if (block.extras.ordpoolStats) {
 
                 @if (block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint &&
                      block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
@@ -93,7 +93,7 @@
                 Pre-Ordinals Era
               </div>
 
-            } @else if (block.extras.ordpoolStats.version > 0) {
+            } @else if (block.extras.ordpoolStats) {
             <div class="transaction-count">
               <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? inscriptionsSingular : inscriptionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
               <ng-template #inscriptionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>

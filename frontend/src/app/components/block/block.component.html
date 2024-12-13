@@ -38,9 +38,11 @@
     <div class="row">
       <div class="col-sm">
 
-        <!-- HACK: START Ordpool Stats -->
-
         <table class="table table-borderless table-striped table-dark">
+          
+          <!-- HACK: START Ordpool Stats -->
+          @if (block.extras.ordpoolStats) {
+
           <thead class="text-primary">
             <tr><th colspan="2">CAT-21 Ordinals</th></tr>
           </thead>
@@ -293,6 +295,7 @@
             <tr><th colspan="2">General Block Data</th></tr>
           </thead>
 
+          }
           <!-- HACK: END Ordpool Stats -->
 
 

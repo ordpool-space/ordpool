@@ -7,7 +7,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 1;
+  private static currentVersion = 2;
 
   private queryTimeout = 3600_000;
 
@@ -93,10 +93,10 @@ class OrdpoolDatabaseMigration {
   private getMigrationQueriesFromVersion(version: number): string[] {
     const queries: string[] = [];
 
-    // TODO: MANUAL CLEANUP ALL PREVIOUS ATTEMPTS 😅
-    /*
+    if (version < 2) {
 
-    ALTER TABLE blocks
+      // MANUAL CLEANUP ALL PREVIOUS ATTEMPTS 😅
+      queries.push(`ALTER TABLE blocks
         DROP COLUMN IF EXISTS amount_atomical,
         DROP COLUMN IF EXISTS amount_atomical_mint,
         DROP COLUMN IF EXISTS amount_atomical_transfer,
@@ -172,88 +172,90 @@ class OrdpoolDatabaseMigration {
         DROP COLUMN IF EXISTS runes_most_active_mint,
         DROP COLUMN IF EXISTS runes_most_active_non_uncommon_mint,
         DROP COLUMN IF EXISTS brc20_most_active_mint,
-        DROP COLUMN IF EXISTS src20_most_active_mint;
-    */
+        DROP COLUMN IF EXISTS src20_most_active_mint;`);
 
-    if (version < 1) {
 
-      queries.push(`ALTER TABLE blocks ADD amounts_atomical                             INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_atomical_mint                        INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_atomical_transfer                    INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_atomical_update                      INT UNSIGNED NOT NULL DEFAULT 0`);
+       queries.push(`CREATE TABLE blocks_ordpool_stats (
+          hash                                         VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height                                       INT(10) UNSIGNED NOT NULL,
 
-      queries.push(`ALTER TABLE blocks ADD amounts_cat21                                INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_cat21_mint                           INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_cat21_transfer                       INT UNSIGNED NOT NULL DEFAULT 0`);
+          amounts_atomical                             INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_atomical_mint                        INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_atomical_transfer                    INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_atomical_update                      INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD amounts_inscription                          INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_inscription_mint                     INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_inscription_transfer                 INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_inscription_burn                     INT UNSIGNED NOT NULL DEFAULT 0`);
+          amounts_cat21                                INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_cat21_mint                           INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_cat21_transfer                       INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD amounts_rune                                 INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_rune_etch                            INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_rune_mint                            INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_rune_cenotaph                        INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_rune_transfer                        INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_rune_burn                            INT UNSIGNED NOT NULL DEFAULT 0`);
+          amounts_inscription                          INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_inscription_mint                     INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_inscription_transfer                 INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_inscription_burn                     INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD amounts_brc20                                INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_brc20_deploy                         INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_brc20_mint                           INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_brc20_transfer                       INT UNSIGNED NOT NULL DEFAULT 0`);
+          amounts_rune                                 INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_rune_etch                            INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_rune_mint                            INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_rune_cenotaph                        INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_rune_transfer                        INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_rune_burn                            INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD amounts_src20                                INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_src20_deploy                         INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_src20_mint                           INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD amounts_src20_transfer                       INT UNSIGNED NOT NULL DEFAULT 0`);
+          amounts_brc20                                INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_brc20_deploy                         INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_brc20_mint                           INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_brc20_transfer                       INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD fees_rune_mints                              INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD fees_non_uncommon_rune_mints                 INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD fees_brc20_mints                             INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD fees_src20_mints                             INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD fees_cat21_mints                             INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD fees_atomicals                               INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD fees_inscription_mints                       INT UNSIGNED NOT NULL DEFAULT 0`);
+          amounts_src20                                INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_src20_deploy                         INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_src20_mint                           INT UNSIGNED NOT NULL DEFAULT 0,
+          amounts_src20_transfer                       INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD inscriptions_total_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD inscriptions_total_content_size              INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD inscriptions_largest_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD inscriptions_largest_content_size            INT UNSIGNED NOT NULL DEFAULT 0`);
+          fees_rune_mints                              INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_non_uncommon_rune_mints                 INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_brc20_mints                             INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_src20_mints                             INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_cat21_mints                             INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_atomicals                               INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_inscription_mints                       INT UNSIGNED NOT NULL DEFAULT 0,
 
-      // assumptions: 64 (transaction ID) + 1 (i seperator) + 35 (index) = 100 characters, a 35 digits long index should be more than enough
-      queries.push(`ALTER TABLE blocks ADD inscriptions_largest_envelope_inscription_id VARCHAR(100) CHARACTER SET ascii DEFAULT NULL`);
-      queries.push(`ALTER TABLE blocks ADD inscriptions_largest_content_inscription_id  VARCHAR(100) CHARACTER SET ascii DEFAULT NULL`);
+          inscriptions_total_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0,
+          inscriptions_total_content_size              INT UNSIGNED NOT NULL DEFAULT 0,
+          inscriptions_largest_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0,
+          inscriptions_largest_content_size            INT UNSIGNED NOT NULL DEFAULT 0,
 
-      queries.push(`ALTER TABLE blocks ADD inscriptions_average_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0`);
-      queries.push(`ALTER TABLE blocks ADD inscriptions_average_content_size            INT UNSIGNED NOT NULL DEFAULT 0`);
+          -- assumptions: 64 (transaction ID) + 1 (i seperator) + 35 (index) = 100 characters, a 35 digits long index should be more than enough
+          inscriptions_largest_envelope_inscription_id VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+          inscriptions_largest_content_inscription_id  VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
 
-      // this is the runes ID (block:tx)
-      // assumptions: 10 (block height) + 1 (: separator) + 7 (transaction index) = 18 characters, +2 to be very safe
-      queries.push(`ALTER TABLE blocks ADD runes_most_active_mint                       VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
-      queries.push(`ALTER TABLE blocks ADD runes_most_active_non_uncommon_mint          VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL`);
+          inscriptions_average_envelope_size           INT UNSIGNED NOT NULL DEFAULT 0,
+          inscriptions_average_content_size            INT UNSIGNED NOT NULL DEFAULT 0,
 
-      // Ticker names on Fractal Mainnet will be limited to 6 - 12 bytes.
-      // Tickers with 4 or 5 characters will not be permitted, as they are already in use on the Bitcoin mainnet.
-      // For brc-20 on Fractal, ticker names can include letters (both uppercase and lowercase: a-z/A-Z), numbers (0-9), and underscores (_).
-      // In total, you have 63 different characters to work with.
-      // Ticker names are not case-sensitive.
-      // https://docs.fractalbitcoin.io/doc/brc-20-on-fractal
-      // BUT there are are ticker names like `龙B` on mainnet --> we go full unicode to be safe
-      // 20 should be a save value
-      queries.push(`ALTER TABLE blocks ADD brc20_most_active_mint                       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL`);
+          -- this is the runes ID (block:tx)
+          -- assumptions: 10 (block height) + 1 (: separator) + 7 (transaction index) = 18 characters, +2 to be very safe
+          runes_most_active_mint                       VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+          runes_most_active_non_uncommon_mint          VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
 
-      // SRC20 ticker names on Bitcoin must must be 1-5 characters in length.
-      // https://github.com/stampchain-io/stamps_sdk/blob/main/docs/src20specs.md
-      // SRC20 ticker names on Fractal must be between 6 and 12 characters.
-      // https://docs.openstamp.io/introduction/src20-protocol/src20-on-fractal
-      // 20 should be a save value
-      queries.push(`ALTER TABLE blocks ADD src20_most_active_mint                       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL`);
+          -- Ticker names on Fractal Mainnet will be limited to 6 - 12 bytes.
+          -- Tickers with 4 or 5 characters will not be permitted, as they are already in use on the Bitcoin mainnet.
+          -- For brc-20 on Fractal, ticker names can include letters (both uppercase and lowercase: a-z/A-Z), numbers (0-9), and underscores (_).
+          -- In total, you have 63 different characters to work with.
+          -- Ticker names are not case-sensitive.
+          -- https://docs.fractalbitcoin.io/doc/brc-20-on-fractal
+          -- BUT there are are ticker names like '龙B' on mainnet --> we go full unicode to be safe
+          -- 20 should be a save value
+          brc20_most_active_mint                       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
 
-      queries.push(`ALTER TABLE blocks ADD analyser_version                             INT UNSIGNED NOT NULL DEFAULT 0`);
+          -- SRC20 ticker names on Bitcoin must must be 1-5 characters in length.
+          -- https://github.com/stampchain-io/stamps_sdk/blob/main/docs/src20specs.md
+          -- SRC20 ticker names on Fractal must be between 6 and 12 characters.
+          -- https://docs.openstamp.io/introduction/src20-protocol/src20-on-fractal
+          -- 20 should be a save value
+          src20_most_active_mint                       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
 
-      // forces re-indexing of all blocks (starting from inscription 0)
-      queries.push(`DELETE FROM blocks WHERE height >= ` + getFirstInscriptionHeight(config.MEMPOOL.NETWORK));
+          analyser_version                             INT UNSIGNED NOT NULL DEFAULT 0,
+
+          PRIMARY KEY (hash)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
     }
 
     return queries;
