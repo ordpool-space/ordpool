@@ -141,7 +141,7 @@ class OrdpoolBlocksRepository {
   /**
    * Save indexed block data in the database
    */
-  public async $saveBlockOrdpoolStatsInDatabase(block: BlockExtended) {
+  public async $saveBlockOrdpoolStatsInDatabase(block: BlockExtended): Promise<void> {
 
     if (!block.extras.ordpoolStats) {
       return;

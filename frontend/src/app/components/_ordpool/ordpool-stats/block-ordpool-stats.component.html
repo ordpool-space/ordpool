@@ -1,0 +1,255 @@
+@if (ordpoolStats) {
+
+  <thead class="text-primary">
+    <tr><th colspan="2">CAT-21 Ordinals</th></tr>
+  </thead>
+  <tbody>
+    <ng-container *ngIf="showSkeleton; else skeletonRowsCat21">
+      <tr>
+        <td class="td-width">Mints</td>
+        <td>{{ ordpoolStats.amounts.cat21Mint }}</td>
+      </tr>
+      <tr>
+        <td>Total Mint Fees</td>
+        <td>
+          <app-amount [satoshis]="ordpoolStats.fees.cat21Mints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+          <span class="fiat">
+            <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.cat21Mints" digitsInfo="1.0-0"></app-fiat>
+          </span>
+        </td>
+      </tr>
+    </ng-container>
+    <ng-template #skeletonRowsCat21>
+      <tr *ngFor="let i of [].constructor(2)">
+        <td colspan="2"><span class="skeleton-loader"></span></td>
+      </tr>
+    </ng-template>
+    <tr class="bg-box">
+      <td colspan="2"></td>
+    </tr>
+  </tbody>
+
+
+  <thead class="text-primary">
+    <tr><th colspan="2">Inscriptions</th></tr>
+  </thead>
+  <tbody>
+    <ng-container *ngIf="showSkeleton; else skeletonRowsInscriptions">
+      <tr>
+        <td>Mints</td>
+        <td>{{ ordpoolStats.amounts.inscriptionMint }}</td>
+      </tr>
+      <tr>
+        <td>Total Mint Fees</td>
+        <td>
+          <app-amount [satoshis]="ordpoolStats.fees.inscriptionMints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+          <span class="fiat">
+            <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.inscriptionMints" digitsInfo="1.0-0"></app-fiat>
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td>Avg. Envelope Size</td>
+        <td [innerHTML]="'&lrm;' + (ordpoolStats.inscriptions.averageContentSize | bytes: 2)"></td>
+      </tr>
+      <tr>
+        <td>Total Envelope Size</td>
+        <td [innerHTML]="'&lrm;' + (ordpoolStats.inscriptions.totalEnvelopeSize | bytes: 2)"></td>
+      </tr>
+      <tr>
+        <td rowspan="2">Largest Envelope</td>
+        <td [innerHTML]="'&lrm;' + (ordpoolStats.inscriptions.largestEnvelopeSize | bytes: 2)"></td>
+      </tr>
+      <tr class="bg-neutral">
+        <td class="pt-0" *ngIf="ordpoolStats.inscriptions.largestEnvelopeInscriptionId as largestEnvelopeInscriptionId">
+          <app-mini-inscription-viewer [inscriptionId]="largestEnvelopeInscriptionId" />
+          <a [routerLink]="['/tx/' | relativeUrl, largestEnvelopeInscriptionId.split('i')[0]]">
+            <app-truncate
+              [text]="largestEnvelopeInscriptionId"
+              [lastChars]="5"
+              [link]="['/tx/' | relativeUrl, largestEnvelopeInscriptionId]"
+              [maxWidth]="250"
+              ><app-clipboard [text]="largestEnvelopeInscriptionId" />
+            </app-truncate>
+          </a>
+        </td>
+      </tr>
+    </ng-container>
+    <ng-template #skeletonRowsInscriptions>
+      <tr *ngFor="let i of [].constructor(6)">
+        <td colspan="2"><span class="skeleton-loader"></span></td>
+      </tr>
+    </ng-template>
+    <tr class="bg-box">
+      <td colspan="2"></td>
+    </tr>
+  </tbody>
+
+
+  <thead class="text-primary">
+    <tr><th colspan="2">Runes</th></tr>
+  </thead>
+  <tbody>
+    <ng-container *ngIf="showSkeleton; else skeletonRowsInscriptions">
+      <tr>
+        <td>Etchings</td>
+        <td>{{ ordpoolStats.amounts.runeEtch }}</td>
+      </tr>
+      <tr>
+        <td>Mints</td>
+        <td>{{ ordpoolStats.amounts.runeMint }}</td>
+      </tr>
+      <tr>
+        <td>Cenotaphs</td>
+        <td>{{ ordpoolStats.amounts.runeCenotaph }}</td>
+      </tr>
+      <tr>
+        <td>Total Mint Fees</td>
+        <td>
+          <app-amount [satoshis]="ordpoolStats.fees.runeMints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+          <span class="fiat">
+            <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.runeMints" digitsInfo="1.0-0"></app-fiat>
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td>Total Mint Fees<br><small class="text-small">(excluding ⧉ UNCOMMON•GOODS)</small></td>
+        <td>
+          <app-amount [satoshis]="ordpoolStats.fees.nonUncommonRuneMints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+          <span class="fiat">
+            <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.nonUncommonRuneMints" digitsInfo="1.0-0"></app-fiat>
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td>Most Active Mint</td>
+        <td>
+          @if (ordpoolStats.runes.mostActiveMint; as mostActiveMint) {
+            <app-runestone-id-to-link [runeId]="mostActiveMint"/>
+          } @else {
+            <strong class="text-secondary">None</strong>
+          }
+        </td>
+      </tr>
+      <tr>
+        <td>Most Active Mint<br><small>(excluding ⧉ UNCOMMON•GOODS)</small></td>
+        <td>
+          @if (ordpoolStats.runes.mostActiveNonUncommonMint; as mostActiveNonUncommonMint) {
+            <app-runestone-id-to-link [runeId]="mostActiveNonUncommonMint"/>
+          } @else {
+            <strong class="text-secondary">None</strong>
+          }
+      </tr>
+    </ng-container>
+    <ng-template #skeletonRowsInscriptions>
+      <tr *ngFor="let i of [].constructor(6)">
+        <td colspan="2"><span class="skeleton-loader"></span></td>
+      </tr>
+    </ng-template>
+    <tr class="bg-box">
+      <td colspan="2"></td>
+    </tr>
+  </tbody>
+
+
+  <thead class="text-primary">
+    <tr><th colspan="2">BRC-20</th></tr>
+  </thead>
+  <tbody>
+    <ng-container *ngIf="showSkeleton; else skeletonRowsInscriptions">
+      <tr>
+        <td>Deployments</td>
+        <td>{{ ordpoolStats.amounts.brc20Deploy }}</td>
+      </tr>
+      <tr>
+        <td>Mints</td>
+        <td>{{ ordpoolStats.amounts.brc20Mint }}</td>
+      </tr>
+      <tr>
+        <td>Transfers</td>
+        <td>{{ ordpoolStats.amounts.brc20Transfer }}</td>
+      </tr>
+      <tr>
+        <td>Total Mint Fees</td>
+        <td>
+          <app-amount [satoshis]="ordpoolStats.fees.brc20Mints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+          <span class="fiat">
+            <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.brc20Mints" digitsInfo="1.0-0"></app-fiat>
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td>Most Active Mint</td>
+        <td>
+          @if (ordpoolStats.brc20.mostActiveMint; as mostActiveMint) {
+            {{ mostActiveMint }}
+          } @else {
+            <strong class="text-secondary">None</strong>
+          }
+        </td>
+      </tr>
+    </ng-container>
+    <ng-template #skeletonRowsInscriptions>
+      <tr *ngFor="let i of [].constructor(5)">
+        <td colspan="2"><span class="skeleton-loader"></span></td>
+      </tr>
+    </ng-template>
+    <tr class="bg-box">
+      <td colspan="2"></td>
+    </tr>
+  </tbody>
+
+
+  <thead class="text-primary">
+    <tr><th colspan="2">SRC-20</th></tr>
+  </thead>
+  <tbody>
+    <ng-container *ngIf="showSkeleton; else skeletonRowsInscriptions">
+      <tr>
+        <td>Deployments</td>
+        <td>{{ ordpoolStats.amounts.src20Deploy }}</td>
+      </tr>
+      <tr>
+        <td>Mints</td>
+        <td>{{ ordpoolStats.amounts.src20Mint }}</td>
+      </tr>
+      <tr>
+        <td>Transfers</td>
+        <td>{{ ordpoolStats.amounts.src20Transfer }}</td>
+      </tr>
+      <tr>
+        <td>Total Mint Fees</td>
+        <td>
+          <app-amount [satoshis]="ordpoolStats.fees.src20Mints" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
+          <span class="fiat">
+            <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.src20Mints" digitsInfo="1.0-0"></app-fiat>
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td>Most Active Mint</td>
+        <td>
+          @if (ordpoolStats.src20.mostActiveMint; as mostActiveMint) {
+            {{ mostActiveMint }}
+          } @else {
+            <strong class="text-secondary">None</strong>
+          }
+          </td>
+      </tr>
+    </ng-container>
+    <ng-template #skeletonRowsInscriptions>
+      <tr *ngFor="let i of [].constructor(5)">
+        <td colspan="2"><span class="skeleton-loader"></span></td>
+      </tr>
+    </ng-template>
+    <tr class="bg-box">
+      <td colspan="2"></td>
+    </tr>
+  </tbody>
+
+
+  <thead class="text-primary">
+    <tr><th colspan="2">General Block Data</th></tr>
+  </thead>
+
+}
