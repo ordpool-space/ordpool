@@ -10,7 +10,6 @@ import { SeoService } from '../../services/seo.service';
 import { seoDescriptionNetwork } from '../../shared/common.utils';
 import { WebsocketService } from '../../services/websocket.service';
 
-
 @Component({
   selector: 'app-mempool-block',
   templateUrl: './mempool-block.component.html',
@@ -38,7 +37,6 @@ export class MempoolBlockComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-
     this.websocketService.want(['blocks', 'mempool-blocks']);
 
     this.mempoolBlock$ = this.route.paramMap

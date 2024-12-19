@@ -6,12 +6,6 @@ import { Pipe, PipeTransform } from '@angular/core';
 export class Hex2asciiPipe implements PipeTransform {
 
   transform(hex: string): string {
-
-    // see https://github.com/mempool/mempool/pull/5162
-    if (!hex) {
-      return '';
-    }
-
     const opPush = hex.split(' ').filter((_, i, a) => i > 0 && /^OP_PUSH/.test(a[i - 1]));
 
     if (opPush[0]) {

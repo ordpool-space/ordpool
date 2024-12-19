@@ -32,6 +32,8 @@ import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { DigitalArtifactAnalyserService, getEmptyStats, getFirstInscriptionHeight } from 'ordpool-parser';
 
+// const debugBlock = 831802;
+const debugBlock = null;
 
 class Blocks {
   private blocks: BlockExtended[] = [];
@@ -359,10 +361,6 @@ class Blocks {
         // This is the most important part of the Ordpool statistics,
         // we will do a deep analysis against all supported protocols.
 
-        /*
-        // const debugBlock = 831802;
-        const debugBlock = null;
-
         if (debugBlock) {
           // save to file
           const formattedJson = JSON.stringify(transactions, null, 2);
@@ -373,7 +371,6 @@ class Blocks {
             process.exit(1);
           });
         }
-        */
 
         extras.ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
       }
