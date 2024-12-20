@@ -33,10 +33,11 @@ describe('getSqlInterval', () => {
     expect(result).toBe(expected);
   });
 
-  test('returns null for invalid interval formats', () => {
-    const invalidIntervals = ['1hour', '1day', '5x', '10', '', 'hour', null, undefined];
-    invalidIntervals.forEach((interval) => {
-      expect(getSqlInterval(interval as Interval)).toBeNull();
+  test('throws an error for invalid interval formats', () => {
+    const invalidCases = ['1hour', 'xyz', 'h1', '1', '', null, undefined];
+
+    invalidCases.forEach((input) => {
+      expect(() => getSqlInterval(input as any)).toThrowError(`Invalid interval: ${input}`);
     });
   });
 
@@ -45,8 +46,7 @@ describe('getSqlInterval', () => {
       { input: '0h', expected: '0 HOUR' },
       { input: '0d', expected: '0 DAY' },
       { input: '0m', expected: '0 MONTH' },
-      { input: '0y', expected: '0 YEAR' },
-      { input: null, expected: null },
+      { input: '0y', expected: '0 YEAR' }
     ];
     edgeCases.forEach(({ input, expected }) => {
       const result = getSqlInterval(input as Interval);

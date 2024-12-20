@@ -12,88 +12,77 @@ class OrdpoolStatisticsApi {
   public async getOrdpoolStatistics(
     type: ChartType,
     interval: Interval,
-    aggregation: Aggregation,
+    aggregation: Aggregation
   ): Promise<OrdpoolStatisticResponse[]> {
 
-    const sqlInterval = getSqlInterval(interval);
     const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
-
-    let baseQuery = `FROM blocks b
-      LEFT JOIN blocks_ordpool_stats bos ON b.hash = bos.hash
-      WHERE b.height >= ${firstInscriptionHeight} `;
-
-    if (sqlInterval) {
-      baseQuery += ` AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval}) `;
-    }
-
+    const sqlInterval = getSqlInterval(interval);
+    const selectClause = this.getSelectClause(type);
     const groupByClause = this.getGroupByClause(aggregation);
-    const orderByClause = `ORDER BY b.blockTimestamp DESC`;
 
-    let selectClause = '';
-    switch (type) {
-      case 'mints':
-        selectClause = this.getMintsQuery();
-        break;
-      case 'new-tokens':
-        selectClause = this.getNewTokensQuery();
-        break;
-      case 'fees':
-        selectClause = this.getFeesQuery();
-        break;
-      case 'inscription-sizes':
-        selectClause = this.getInscriptionSizesQuery();
-        break;
-    }
-
-    const fullQuery = `${selectClause} ${baseQuery} ${groupByClause} ${orderByClause}`;
+    const query = `
+      SELECT ${selectClause}
+      FROM blocks b
+      LEFT JOIN blocks_ordpool_stats bos ON b.hash = bos.hash
+      WHERE b.height >= ${firstInscriptionHeight}
+        AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
+      ${groupByClause}
+      ORDER BY b.blockTimestamp DESC
+    `;
 
     try {
-      const [rows]: any[] = await DB.query(fullQuery);
+      const [rows] : any[] = await DB.query(query);
       return rows;
-    } catch (e) {
-      logger.err(`getOrdpoolStatistics error: ${e instanceof Error ? e.message : e}`);
-      throw e;
+    } catch (error) {
+      logger.err(`Error executing query: ${error}`);
+      throw error;
     }
   }
 
-  private getMintsQuery(): string {
-    return `
-      SELECT
-        CAST(SUM(bos.amounts_cat21_mint) AS UNSIGNED) AS cat21Mints,
-        CAST(SUM(bos.amounts_inscription_mint) AS UNSIGNED) AS inscriptionMints,
-        CAST(SUM(bos.amounts_rune_mint) AS UNSIGNED) AS runeMints,
-        CAST(SUM(bos.amounts_brc20_mint) AS UNSIGNED) AS brc20Mints,
-        CAST(SUM(bos.amounts_src20_mint) AS UNSIGNED) AS src20Mints
+  private getSelectClause(type: ChartType): string {
+    const baseClause = `
+      MIN(b.height) AS minHeight,
+      MAX(b.height) AS maxHeight,
+      MIN(b.blockTimestamp) AS minTime,
+      MAX(b.blockTimestamp) AS maxTime
     `;
-  }
 
-  private getNewTokensQuery(): string {
-    return `
-      SELECT
-        CAST(SUM(bos.amounts_rune_etch) AS UNSIGNED) AS runeEtchings,
-        CAST(SUM(bos.amounts_brc20_deploy) AS UNSIGNED) AS brc20Deploys,
-        CAST(SUM(bos.amounts_src20_deploy) AS UNSIGNED) AS src20Deploys
-    `;
-  }
-
-  private getFeesQuery(): string {
-    return `
-      SELECT
-        CAST(SUM(bos.fees_rune_mints) AS UNSIGNED) AS feesRuneMints,
-        CAST(SUM(bos.fees_brc20_mints) AS UNSIGNED) AS feesBrc20Mints,
-        CAST(SUM(bos.fees_cat21_mints) AS UNSIGNED) AS feesCat21Mints,
-        CAST(SUM(bos.fees_inscription_mints) AS UNSIGNED) AS feesInscriptionMints
-    `;
-  }
-
-  private getInscriptionSizesQuery(): string {
-    return `
-      SELECT
-        CAST(AVG(bos.inscriptions_total_envelope_size) AS UNSIGNED) AS avgInscriptionsTotalEnvelopeSize,
-        CAST(AVG(bos.inscriptions_total_content_size) AS UNSIGNED) AS avgInscriptionsTotalContentSize,
-        CAST(MAX(bos.inscriptions_largest_envelope_size) AS UNSIGNED) AS maxInscriptionsLargestEnvelopeSize,
-        CAST(MAX(bos.inscriptions_largest_content_size) AS UNSIGNED) AS maxInscriptionsLargestContentSize
-    `;
+    switch (type) {
+      case 'mints':
+        return `
+          ${baseClause},
+          SUM(bos.amounts_cat21_mint) AS cat21Mints,
+          SUM(bos.amounts_inscription_mint) AS inscriptionMints,
+          SUM(bos.amounts_rune_mint) AS runeMints,
+          SUM(bos.amounts_brc20_mint) AS brc20Mints,
+          SUM(bos.amounts_src20_mint) AS src20Mints
+        `;
+      case 'new-tokens':
+        return `
+          ${baseClause},
+          SUM(bos.amounts_rune_etch) AS runeEtchings,
+          SUM(bos.amounts_brc20_deploy) AS brc20Deploys,
+          SUM(bos.amounts_src20_deploy) AS src20Deploys
+        `;
+      case 'fees':
+        return `
+          ${baseClause},
+          SUM(bos.fees_inscription_mints) AS feesInscriptionMints,
+          SUM(bos.fees_rune_mints) AS feesRuneMints,
+          SUM(bos.fees_brc20_mints) AS feesBrc20Mints,
+          SUM(bos.fees_src20_mints) AS feesSrc20Mints
+        `;
+      case 'inscription-sizes':
+        return `
+          ${baseClause},
+          AVG(bos.inscriptions_total_envelope_size) AS avgEnvelopeSize,
+          AVG(bos.inscriptions_total_content_size) AS avgContentSize,
+          MAX(bos.inscriptions_largest_envelope_size) AS maxEnvelopeSize,
+          MAX(bos.inscriptions_largest_content_size) AS maxContentSize
+        `;
+      default:
+        throw new Error('Invalid chart type');
+    }
   }
 
   private getGroupByClause(aggregation: Aggregation): string {

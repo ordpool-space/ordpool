@@ -8,7 +8,14 @@ export type Interval =
 export type Aggregation = 'block' | 'hour' | 'day' | 'week' | 'month' | 'year';
 export type ChartType = 'mints' | 'new-tokens' | 'fees' | 'inscription-sizes';
 
-export interface MintStatistic {
+export interface BaseStatistic {
+  minHeight: number;
+  maxHeight: number;
+  minTime: string;
+  maxTime: string;
+}
+
+export interface MintStatistic extends BaseStatistic {
   cat21Mints: number;
   inscriptionMints: number;
   runeMints: number;
@@ -16,20 +23,20 @@ export interface MintStatistic {
   src20Mints: number;
 }
 
-export interface NewTokenStatistic {
+export interface NewTokenStatistic extends BaseStatistic {
   runeEtchings: number;
   brc20Deploys: number;
   src20Deploys: number;
 }
 
-export interface FeeStatistic {
+export interface FeeStatistic extends BaseStatistic {
   feesInscriptionMints: number;
   feesRuneMints: number;
   feesBrc20Mints: number;
   feesSrc20Mints: number;
 }
 
-export interface InscriptionSizeStatistic {
+export interface InscriptionSizeStatistic extends BaseStatistic {
   avgEnvelopeSize: number;
   avgContentSize: number;
   maxEnvelopeSize: number;

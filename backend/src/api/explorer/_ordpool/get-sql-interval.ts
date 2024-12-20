@@ -1,10 +1,15 @@
 import { Interval } from './ordpool-statistics-interface';
 
-export function getSqlInterval(interval: Interval): string | null {
-  const match = interval?.match(/^(\d+)([hwdmy])$/);
+export function getSqlInterval(interval: Interval): string {
+
+  if (!interval || typeof interval !== 'string') {
+    throw new Error(`Invalid interval: ${interval}`);
+  }
+
+  const match = interval.match(/^(\d+)([hwdmy])$/);
 
   if (!match) {
-    return null;
+    throw new Error(`Invalid interval: ${interval}`);
   }
 
   const amount = match[1];
@@ -16,6 +21,6 @@ export function getSqlInterval(interval: Interval): string | null {
     case 'w': return `${amount} WEEK`;   // Weeks
     case 'm': return `${amount} MONTH`;  // Months
     case 'y': return `${amount} YEAR`;   // Years
-    default: return null;
+    default: throw new Error(`Unsupported interval unit: ${unit}`);
   }
 }
