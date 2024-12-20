@@ -4,11 +4,16 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EChartsOption } from 'echarts';
 import { map, startWith, switchMap, tap } from 'rxjs/operators';
 
+import {
+  Aggregation,
+  ChartType,
+  Interval,
+  OrdpoolStatisticResponse,
+} from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 import { GraphsModule } from '../../../graphs/graphs.module';
 import { OrdpoolApiService } from '../../../services/ordinals/ordpool-api.service';
 import { SeoService } from '../../../services/seo.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { OrdpoolStatistics, chartType } from './ordpool-statistics';
 import { CapitalizeFirstPipe } from '../digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
 
 @Component({
@@ -37,11 +42,11 @@ export class OrdpoolStatsComponent {
   statistics$ = this.route.paramMap.pipe(
     tap(() => this.loading = true),
     map(p => ({
-      type: (p.get('type') || 'mints') as chartType,
-      interval: p.get('interval') || '1h',
-      aggregation: p.get('aggregation') || 'block'
+      type: (p.get('type') || 'mints') as ChartType,
+      interval: p.get('interval') || '1h' as Interval,
+      aggregation: p.get('aggregation') || 'block' as Aggregation
     })),
-    switchMap(({ type, interval, aggregation }) => this.ordpoolApiService.getOrdpoolStatistics$(interval, aggregation).pipe(
+    switchMap(({ type, interval, aggregation }) => this.ordpoolApiService.getOrdpoolStatistics$(type, interval, aggregation).pipe(
       startWith([]),
       map(stats => ({
         type,
@@ -62,7 +67,7 @@ export class OrdpoolStatsComponent {
     renderer: 'svg',
   };
 
-  getOptions(type: chartType, statistics: OrdpoolStatistics[]): EChartsOption {
+  getOptions(type: ChartType, statistics: OrdpoolStatisticResponse[]): EChartsOption {
     switch(type) {
       case 'mints': return this.getMintsOptions(statistics);
       case 'new-tokens': return this.getNewTokensOptions(statistics);
@@ -71,7 +76,7 @@ export class OrdpoolStatsComponent {
     } 
   }
 
-  getMintsOptions(statistics: OrdpoolStatistics[]): EChartsOption {
+  getMintsOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
     const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
   
     return {
@@ -88,7 +93,7 @@ export class OrdpoolStatsComponent {
     };
   }
   
-  getNewTokensOptions(statistics: OrdpoolStatistics[]): EChartsOption {
+  getNewTokensOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
     const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
   
     return {
@@ -104,7 +109,7 @@ export class OrdpoolStatsComponent {
     };
   }
   
-  getFeesOptions(statistics: OrdpoolStatistics[]): EChartsOption {
+  getFeesOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
     const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
   
     return {
@@ -121,7 +126,7 @@ export class OrdpoolStatsComponent {
     };
   }
   
-  getInscriptionSizesOptions(statistics: OrdpoolStatistics[]): EChartsOption {
+  getInscriptionSizesOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
     const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
   
     return {

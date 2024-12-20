@@ -1,41 +1,43 @@
 import { Application, Request, Response } from 'express';
-
-import config from '../../config';
-import ordpoolStatisticsApi, { Aggregation, Interval } from './ordpool-statistics.api';
-import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
 import { InscriptionPreviewService, ParsedInscription, PreviewInstructions } from 'ordpool-parser';
+
+import config from '../../../config';
+import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
+import { Aggregation, ChartType, Interval } from './ordpool-statistics-interface';
+import ordpoolStatisticsApi from './ordpool-statistics.api';
 
 class GeneralOrdpoolRoutes {
 
   public initRoutes(app: Application): void {
     app
-      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:interval/:aggregation', this.$getOrdpoolStatistics)
-      .get('/content/:inscriptionId', this.$getInscriptionContent)
-      .get('/preview/:inscriptionId', this.$getInscriptionPreview);
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:type/:interval/:aggregation', this.$getOrdpoolStatistics)
+      .get('/content/:inscriptionId', this.getInscriptionContent)
+      .get('/preview/:inscriptionId', this.getInscriptionPreview);
   }
 
   // '1h' | 2h | '24h | '3d' | '1w' | '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '4y'
   // 'block' | 'hour' | 'day'
 
   // HACK -- Ordpool Stats
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/24h/block
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/3d/block
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/1y/block
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/24h/block
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/3d/block
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/1y/block
   //
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/24h/hour
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/3d/hour
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/1y/hour
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/24h/hour
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/3d/hour
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/1y/hour
   //
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/24h/day
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/3d/day
-  // http://127.0.0.1:8999/api/v1/ordpool/statistics/1y/day
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/24h/day
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/3d/day
+  // http://127.0.0.1:8999/api/v1/ordpool/statistics/mints/1y/day
   private async $getOrdpoolStatistics(req: Request, res: Response): Promise<void> {
     try {
 
+      const type = req.params.interval as ChartType;
       const interval = req.params.interval as Interval;
       const aggregation = req.params.aggregation as Aggregation;
 
-      const statistics = await ordpoolStatisticsApi.$getOrdpoolStatistics(interval, aggregation);
+      const statistics = await ordpoolStatisticsApi.getOrdpoolStatistics(type, interval, aggregation);
 
       res.header('Pragma', 'public');
       res.header('Cache-control', 'public');
@@ -50,7 +52,7 @@ class GeneralOrdpoolRoutes {
   // SVG with gzip: http://127.0.0.1:8999/content/4c83f2e1d12d6f71e9f69159aff48f7946ce04c5ffcc3a3feee4080bac343722i0
   // Delegate: http://127.0.0.1:8999/content/6b6f65ba4bc2cbb8cec1e1ca5e1d426e442a05729cdbac6009cca185f7d95babi0
   // Complex SVG with JavaScript (only works when rendered server-side): http://127.0.0.1:8999/content/77709919918d38c8a89761e3cd300d22ef312948044217327f54e62cc01b47a0i0
-  private async $getInscriptionContent(req: Request, res: Response): Promise<void> {
+  private async getInscriptionContent(req: Request, res: Response): Promise<void> {
     const inscriptionId = req.params.inscriptionId;
 
     if (!inscriptionId) {
@@ -86,7 +88,7 @@ class GeneralOrdpoolRoutes {
   // Text, but CODE: http://localhost:8999/preview/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804dbi0
   // Unknown: http://localhost:8999/preview/06158001c0be9d375c10a56266d8028b80ebe1ef5e2a9c9a4904dbe31b72e01ci0
   // Video: http://localhost:8999/preview/700f348e1acef6021cdee8bf09e4183d6a3f4d573b4dc5585defd54009a0148ci0
-  private async $getInscriptionPreview(req: Request, res: Response): Promise<void> {
+  private async getInscriptionPreview(req: Request, res: Response): Promise<void> {
     const inscriptionId = req.params.inscriptionId;
 
     if (!inscriptionId) {
@@ -138,12 +140,12 @@ function sendInscription(res: Response, inscription: ParsedInscription): void {
   res.status(200).send(Buffer.from(inscription.getDataRaw()));
 }
 
-function sendPreview(res: Response, previewInstructions: PreviewInstructions) {
+function sendPreview(res: Response, previewInstructions: PreviewInstructions): void {
 
   res.setHeader('Content-Type', 'text/html;charset=utf-8');
   res.setHeader('Content-Length', previewInstructions.previewContent.length);
 
-    // Send the preview HTML
+  // Send the preview HTML
   res.status(200).send(previewInstructions.previewContent);
 }
 

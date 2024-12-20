@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { StateService } from '../state.service';
+import { OrdpoolStatisticResponse } from '../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
 
 @Injectable({
@@ -33,8 +34,8 @@ export class OrdpoolApiService {
    * @param aggregation The aggregation level ('block', 'hour', 'day').
    * @returns An observable with the statistics data.
    */
-  getOrdpoolStatistics$(interval: string, aggregation: string): Observable<any> {
+  getOrdpoolStatistics$(type: , interval: string, aggregation: string): Observable<any> {
     const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/statistics/${interval}/${aggregation}`;
-    return this.httpClient.get<any>(url);
+    return this.httpClient.get<OrdpoolStatisticResponse[]>(url);
   }
 }

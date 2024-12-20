@@ -1,15 +1,14 @@
 import { InscriptionParserService, isValidInscriptionId, ParsedInscription } from 'ordpool-parser';
 
-import bitcoinApi from '../bitcoin/bitcoin-api-factory';
-import { IEsploraApi } from '../bitcoin/esplora-api.interface';
-import memPool from '../mempool';
+import bitcoinApi from '../../bitcoin/bitcoin-api-factory';
+import { IEsploraApi } from '../../bitcoin/esplora-api.interface';
+import memPool from '../../mempool';
 
 
 
 class OrdpoolInscriptionsApi {
 
   public async $getInscriptionOrDelegeate(inscriptionId: string, recursiveLevel = 0): Promise<ParsedInscription | undefined> {
-
 
     // prevent endless loops via circular delegates
     if (recursiveLevel > 4) {

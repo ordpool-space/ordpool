@@ -47,7 +47,7 @@ import bitcoinSecondClient from './api/bitcoin/bitcoin-second-client';
 import accelerationRoutes from './api/acceleration/acceleration.routes';
 import aboutRoutes from './api/about.routes';
 
-import generalOrdpoolRoutes from './api/explorer/ordpool.routes';
+import generalOrdpoolRoutes from './api/explorer/_ordpool/ordpool.routes';
 
 
 class Server {
