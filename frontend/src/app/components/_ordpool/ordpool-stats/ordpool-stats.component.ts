@@ -8,6 +8,10 @@ import {
   Aggregation,
   ChartType,
   Interval,
+  isFeeStatistic,
+  isInscriptionSizeStatistic,
+  isMintStatistic,
+  isNewTokenStatistic,
   OrdpoolStatisticResponse,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 import { GraphsModule } from '../../../graphs/graphs.module';
@@ -77,68 +81,68 @@ export class OrdpoolStatsComponent {
   }
 
   getMintsOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
-    const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
+    const stats = statistics.filter(isMintStatistic);
   
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { data: ['Inscriptions', 'Runes', 'BRC20', 'SRC20'], textStyle: { color: 'white' } },
-      xAxis: { type: 'category', data: categories, axisLabel: { rotate: 45, interval: 0, color: 'white' } },
+      xAxis: { type: 'category', data: stats.map(stat => `${stat.minHeight}-${stat.maxHeight}`), axisLabel: { rotate: 45, interval: 0, color: 'white' } },
       yAxis: { type: 'value' },
       series: [
-        { name: 'Inscriptions', type: 'bar', data: statistics.map(stat => +stat.inscriptionMints) },
-        { name: 'Runes', type: 'bar', data: statistics.map(stat => +stat.runeMints) },
-        { name: 'BRC20', type: 'bar', data: statistics.map(stat => +stat.brc20Mints) },
-        { name: 'SRC20', type: 'bar', data: statistics.map(stat => +stat.src20Mints) }
+        { name: 'Inscriptions', type: 'bar', data: stats.map(stat => +stat.inscriptionMints) },
+        { name: 'Runes', type: 'bar', data: stats.map(stat => +stat.runeMints) },
+        { name: 'BRC20', type: 'bar', data: stats.map(stat => +stat.brc20Mints) },
+        { name: 'SRC20', type: 'bar', data: stats.map(stat => +stat.src20Mints) }
       ]
     };
   }
   
   getNewTokensOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
-    const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
+    const stats = statistics.filter(isNewTokenStatistic);
   
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { data: ['Rune Etchings', 'BRC20 Deploys', 'SRC20 Deploys'], textStyle: { color: 'white' } },
-      xAxis: { type: 'category', data: categories, axisLabel: { rotate: 45, interval: 0, color: 'white' } },
+      xAxis: { type: 'category', data: stats.map(stat => `${stat.minHeight}-${stat.maxHeight}`), axisLabel: { rotate: 45, interval: 0, color: 'white' } },
       yAxis: { type: 'value' },
       series: [
-        { name: 'Rune Etchings', type: 'bar', data: statistics.map(stat => +stat.runeEtchings) },
-        { name: 'BRC20 Deploys', type: 'bar', data: statistics.map(stat => +stat.brc20Deploys) },
-        { name: 'SRC20 Deploys', type: 'bar', data: statistics.map(stat => +stat.src20Deploys) }
+        { name: 'Rune Etchings', type: 'bar', data: stats.map(stat => +stat.runeEtchings) },
+        { name: 'BRC20 Deploys', type: 'bar', data: stats.map(stat => +stat.brc20Deploys) },
+        { name: 'SRC20 Deploys', type: 'bar', data: stats.map(stat => +stat.src20Deploys) }
       ]
     };
   }
   
   getFeesOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
-    const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
+    const stats = statistics.filter(isFeeStatistic);
   
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { data: ['Rune Mints', 'BRC20 Mints', 'SRC20 Mints', 'Inscriptions'], textStyle: { color: 'white' } },
-      xAxis: { type: 'category', data: categories, axisLabel: { rotate: 45, interval: 0, color: 'white' } },
+      xAxis: { type: 'category', data: stats.map(stat => `${stat.minHeight}-${stat.maxHeight}`), axisLabel: { rotate: 45, interval: 0, color: 'white' } },
       yAxis: { type: 'value' },
       series: [
-        { name: 'Rune Mints', type: 'bar', data: statistics.map(stat => +stat.feesRuneMints) },
-        { name: 'BRC20 Mints', type: 'bar', data: statistics.map(stat => +stat.feesBrc20Mints) },
-        { name: 'SRC20 Mints', type: 'bar', data: statistics.map(stat => +stat.feesSrc20Mints) },
-        { name: 'Inscriptions', type: 'bar', data: statistics.map(stat => +stat.feesInscriptionMints) }
+        { name: 'Rune Mints', type: 'bar', data: stats.map(stat => +stat.feesRuneMints) },
+        { name: 'BRC20 Mints', type: 'bar', data: stats.map(stat => +stat.feesBrc20Mints) },
+        { name: 'SRC20 Mints', type: 'bar', data: stats.map(stat => +stat.feesSrc20Mints) },
+        { name: 'Inscriptions', type: 'bar', data: stats.map(stat => +stat.feesInscriptionMints) }
       ]
     };
   }
   
   getInscriptionSizesOptions(statistics: OrdpoolStatisticResponse[]): EChartsOption {
-    const categories = statistics.map(stat => `${stat.minHeight}-${stat.maxHeight}`);
-  
+    const stats = statistics.filter(isInscriptionSizeStatistic);
+
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { data: ['Avg Envelope', 'Avg Content', 'Max Envelope', 'Max Content'], textStyle: { color: 'white' } },
-      xAxis: { type: 'category', data: categories, axisLabel: { rotate: 45, interval: 0, color: 'white' } },
+      legend: { data: ['Total Envelope', 'Total Content', 'Largest Envelope', 'Largest Content'], textStyle: { color: 'white' } },
+      xAxis: { type: 'category', data: stats.map(stat => `${stat.minHeight}-${stat.maxHeight}`), axisLabel: { rotate: 45, interval: 0, color: 'white' } }, 
       yAxis: { type: 'value' },
       series: [
-        { name: 'Avg Envelope', type: 'bar', data: statistics.map(stat => +stat.avgInscriptionsTotalEnvelopeSize) },
-        { name: 'Avg Content', type: 'bar', data: statistics.map(stat => +stat.avgInscriptionsTotalContentSize) },
-        { name: 'Max Envelope', type: 'bar', data: statistics.map(stat => +stat.maxInscriptionsTotalEnvelopeSize) },
-        { name: 'Max Content', type: 'bar', data: statistics.map(stat => +stat.maxInscriptionsTotalContentSize) }
+        { name: 'Total Envelope', type: 'bar', data: stats.map(stat => +stat.totalEnvelopeSize) },
+        { name: 'Total Content', type: 'bar', data: stats.map(stat => +stat.totalContentSize) },
+        { name: 'Largest Envelope', type: 'bar', data: stats.map(stat => +stat.largestEnvelopeSize) },
+        { name: 'Largest Content', type: 'bar', data: stats.map(stat => +stat.largestContentSize) }
       ]
     };
   }

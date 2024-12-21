@@ -75,10 +75,10 @@ class OrdpoolStatisticsApi {
       case 'inscription-sizes':
         return `
           ${baseClause},
-          AVG(bos.inscriptions_total_envelope_size) AS avgEnvelopeSize,
-          AVG(bos.inscriptions_total_content_size) AS avgContentSize,
-          MAX(bos.inscriptions_largest_envelope_size) AS maxEnvelopeSize,
-          MAX(bos.inscriptions_largest_content_size) AS maxContentSize
+          SUM(bos.inscriptions_total_envelope_size) AS totalEnvelopeSize,
+          SUM(bos.inscriptions_total_content_size) AS totalContentSize,
+          MAX(bos.inscriptions_largest_envelope_size) AS largestEnvelopeSize,
+          MAX(bos.inscriptions_largest_content_size) AS largestContentSize
         `;
       default:
         throw new Error('Invalid chart type');

@@ -37,10 +37,10 @@ export interface FeeStatistic extends BaseStatistic {
 }
 
 export interface InscriptionSizeStatistic extends BaseStatistic {
-  avgEnvelopeSize: number;
-  avgContentSize: number;
-  maxEnvelopeSize: number;
-  maxContentSize: number;
+  totalEnvelopeSize: number;  // Sum of all envelope sizes
+  totalContentSize: number;   // Sum of all content sizes
+  largestEnvelopeSize: number; // Max envelope size
+  largestContentSize: number;  // Max content size
 }
 
 export type OrdpoolStatisticResponse =
@@ -48,3 +48,19 @@ export type OrdpoolStatisticResponse =
   NewTokenStatistic |
   FeeStatistic |
   InscriptionSizeStatistic;
+
+export function isMintStatistic(stat: OrdpoolStatisticResponse): stat is MintStatistic {
+  return 'inscriptionMints' in stat;
+}
+
+export function isNewTokenStatistic(stat: OrdpoolStatisticResponse): stat is NewTokenStatistic {
+  return 'runeEtchings' in stat;
+}
+
+export function isFeeStatistic(stat: OrdpoolStatisticResponse): stat is FeeStatistic {
+  return 'feesRuneMints' in stat;
+}
+
+export function isInscriptionSizeStatistic(stat: OrdpoolStatisticResponse): stat is InscriptionSizeStatistic {
+  return 'avgInscriptionsTotalEnvelopeSize' in stat;
+}
