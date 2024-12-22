@@ -47,8 +47,8 @@ export class OrdpoolStatsComponent {
     tap(() => this.loading = true),
     map(p => ({
       type: (p.get('type') || 'mints') as ChartType,
-      interval: p.get('interval') || '1h' as Interval,
-      aggregation: p.get('aggregation') || 'block' as Aggregation
+      interval: (p.get('interval') || '1h') as Interval,
+      aggregation: (p.get('aggregation') || 'block') as Aggregation
     })),
     switchMap(({ type, interval, aggregation }) => this.ordpoolApiService.getOrdpoolStatistics$(type, interval, aggregation).pipe(
       startWith([]),

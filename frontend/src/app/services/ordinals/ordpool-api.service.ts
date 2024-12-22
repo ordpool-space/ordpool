@@ -1,8 +1,14 @@
-import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+
+import {
+  Aggregation,
+  ChartType,
+  Interval,
+  OrdpoolStatisticResponse,
+} from '../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 import { StateService } from '../state.service';
-import { OrdpoolStatisticResponse } from '../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
 
 @Injectable({
@@ -29,13 +35,15 @@ export class OrdpoolApiService {
 
 
   /**
-   * Fetch ordpool statistics based on interval and aggregation level.
+   * Fetch ordpool statistics based on type, interval and aggregation level.
+   * 
+   * @param type The type of date (e.g. 'mints', 'new-tokens', 'fees' or 'inscription-sizes').
    * @param interval The time range (e.g., '24h', '3d', '1y').
    * @param aggregation The aggregation level ('block', 'hour', 'day').
    * @returns An observable with the statistics data.
    */
-  getOrdpoolStatistics$(type: , interval: string, aggregation: string): Observable<any> {
-    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/statistics/${interval}/${aggregation}`;
+  getOrdpoolStatistics$(type: ChartType, interval: Interval, aggregation: Aggregation): Observable<OrdpoolStatisticResponse[]> {
+    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/statistics/${type}/${interval}/${aggregation}`;
     return this.httpClient.get<OrdpoolStatisticResponse[]>(url);
   }
 }
