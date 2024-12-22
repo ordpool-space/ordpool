@@ -37,7 +37,7 @@ export class OrdpoolApiService {
   /**
    * Fetch ordpool statistics based on type, interval and aggregation level.
    * 
-   * @param type The type of date (e.g. 'mints', 'new-tokens', 'fees' or 'inscription-sizes').
+   * @param type The type of data (e.g. 'mints', 'new-tokens', 'fees' or 'inscription-sizes').
    * @param interval The time range (e.g., '24h', '3d', '1y').
    * @param aggregation The aggregation level ('block', 'hour', 'day').
    * @returns An observable with the statistics data.

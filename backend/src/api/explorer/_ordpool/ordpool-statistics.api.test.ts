@@ -47,7 +47,9 @@ describe('OrdpoolStatisticsApi', () => {
 
       const result = await OrdpoolStatisticsApi.getOrdpoolStatistics('inscription-sizes', '6m', 'day');
 
-      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('AVG(bos.inscriptions_total_envelope_size)'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.inscriptions_total_envelope_size)'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('MAX(bos.inscriptions_largest_envelope_size)'));
+
       expect(result).toEqual([{ avgInscriptionsTotalEnvelopeSize: 5000 }]);
     });
 
