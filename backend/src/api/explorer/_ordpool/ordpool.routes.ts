@@ -33,7 +33,7 @@ class GeneralOrdpoolRoutes {
   private async $getOrdpoolStatistics(req: Request, res: Response): Promise<void> {
     try {
 
-      const type = req.params.interval as ChartType;
+      const type = req.params.type as ChartType;
       const interval = req.params.interval as Interval;
       const aggregation = req.params.aggregation as Aggregation;
 

@@ -356,7 +356,7 @@ class Blocks {
       }
 
       // HACK -- Ordpool stats
-      if (block.height < getFirstInscriptionHeight(config.MEMPOOL.NETWORK) && transactions?.length > 1) {
+      if (block.height >= getFirstInscriptionHeight(config.MEMPOOL.NETWORK) && transactions?.length > 1) {
 
         // This is the most important part of the Ordpool statistics,
         // we will do a deep analysis against all supported protocols.

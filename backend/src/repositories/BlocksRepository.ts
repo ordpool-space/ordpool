@@ -109,6 +109,10 @@ class BlocksRepository {
     const truncatedCoinbaseSignature = block?.extras?.coinbaseSignature?.substring(0, 500);
     const truncatedCoinbaseSignatureAscii = block?.extras?.coinbaseSignatureAscii?.substring(0, 500);
 
+    // HACK -- Ordpool Stats
+    // storing ordpool stats before storing to the `blocks` table, ER_DUP_ENTRY could occur, but that would also skip our code
+    await OrdpoolBlocksRepository.$saveBlockOrdpoolStatsInDatabase(block);
+
     try {
       const query = `INSERT INTO blocks(
         height,             hash,                blockTimestamp,    size,
@@ -180,9 +184,6 @@ class BlocksRepository {
       ];
 
       await DB.query(query, params);
-
-      // HACK -- Ordpool Stats
-      await OrdpoolBlocksRepository.$saveBlockOrdpoolStatsInDatabase(block);
 
     } catch (e: any) {
       if (e.errno === 1062) { // ER_DUP_ENTRY - This scenario is possible upon node backend restart

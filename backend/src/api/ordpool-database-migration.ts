@@ -1,6 +1,4 @@
 
-import { getFirstInscriptionHeight } from 'ordpool-parser';
-import config from '../config';
 import DB from '../database';
 import logger from '../logger';
 

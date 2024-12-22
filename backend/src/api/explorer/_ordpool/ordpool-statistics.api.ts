@@ -81,7 +81,7 @@ class OrdpoolStatisticsApi {
           MAX(bos.inscriptions_largest_content_size) AS largestContentSize
         `;
       default:
-        throw new Error('Invalid chart type');
+        throw new Error('Invalid chart type: ' + type);
     }
   }
 

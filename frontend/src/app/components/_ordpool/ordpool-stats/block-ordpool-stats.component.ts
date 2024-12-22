@@ -16,7 +16,10 @@ import { MiniInscriptionViewerComponent } from '../digital-artifact-viewer/inscr
     CommonModule,
     SharedModule,
     MiniInscriptionViewerComponent
-]
+  ],
+  host: {
+    style: 'display: contents'
+  }
 })
 export class BlockOrdpoolStatsComponent {
 

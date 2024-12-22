@@ -329,6 +329,8 @@ class OrdpoolBlocksRepository {
       ];
 
       await DB.query(query, params);
+      logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, logger.tags.mining);
+
     } catch (e: any) {
       if (e.errno === 1062) {
         logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} has already been indexed, ignoring`, logger.tags.mining);
