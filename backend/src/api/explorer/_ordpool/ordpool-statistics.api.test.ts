@@ -43,14 +43,14 @@ describe('OrdpoolStatisticsApi', () => {
     });
 
     it('should call the correct query for inscription sizes', async () => {
-      (DB.query as jest.Mock).mockResolvedValueOnce([[{ avgInscriptionsTotalEnvelopeSize: 5000 }]]);
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ totalEnvelopeSize: 5000 }]]);
 
       const result = await OrdpoolStatisticsApi.getOrdpoolStatistics('inscription-sizes', '6m', 'day');
 
       expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.inscriptions_total_envelope_size)'));
       expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('MAX(bos.inscriptions_largest_envelope_size)'));
 
-      expect(result).toEqual([{ avgInscriptionsTotalEnvelopeSize: 5000 }]);
+      expect(result).toEqual([{ totalEnvelopeSize: 5000 }]);
     });
 
     it('should apply interval filtering', async () => {

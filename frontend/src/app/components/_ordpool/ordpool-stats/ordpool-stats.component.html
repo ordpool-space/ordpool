@@ -16,7 +16,7 @@
         
         <div class="card-header">
           <div class="d-flex d-md-block align-items-baseline">
-            Ordpool Stats: <strong class="bitcoin">{{ statistics.type | capitalizeFirst }}</strong>
+            Ordpool Stats: <strong class="bitcoin">{{ statistics.heading }}</strong>
           </div>
 
           <div class="formRadioGroup no-menu">
@@ -61,9 +61,13 @@
             <div class="chart" 
               *browserOnly echarts 
               [initOpts]="chartInitOptions" 
-              [options]="getOptions(statistics.type, statistics.stats)">
+              [options]="getChartOptions(statistics.type, statistics.stats)">
             </div>
           }
+
+          <p class="w-50 m-auto pt-5">
+            {{ statistics.description }}
+          </p>
             
         </div>
 

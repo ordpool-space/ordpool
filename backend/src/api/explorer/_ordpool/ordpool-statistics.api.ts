@@ -67,10 +67,12 @@ class OrdpoolStatisticsApi {
       case 'fees':
         return `
           ${baseClause},
-          SUM(bos.fees_inscription_mints) AS feesInscriptionMints,
           SUM(bos.fees_rune_mints) AS feesRuneMints,
+          SUM(bos.fees_non_uncommon_rune_mints) AS feesNonUncommonRuneMints,
           SUM(bos.fees_brc20_mints) AS feesBrc20Mints,
-          SUM(bos.fees_src20_mints) AS feesSrc20Mints
+          SUM(bos.fees_src20_mints) AS feesSrc20Mints,
+          SUM(bos.fees_cat21_mints) AS feesCat21Mints,
+          SUM(bos.fees_inscription_mints) AS feesInscriptionMints
         `;
       case 'inscription-sizes':
         return `
@@ -78,7 +80,9 @@ class OrdpoolStatisticsApi {
           SUM(bos.inscriptions_total_envelope_size) AS totalEnvelopeSize,
           SUM(bos.inscriptions_total_content_size) AS totalContentSize,
           MAX(bos.inscriptions_largest_envelope_size) AS largestEnvelopeSize,
-          MAX(bos.inscriptions_largest_content_size) AS largestContentSize
+          MAX(bos.inscriptions_largest_content_size) AS largestContentSize,
+          AVG(bos.inscriptions_average_envelope_size) AS avgEnvelopeSize,
+          AVG(bos.inscriptions_average_content_size) AS avgContentSize
         `;
       default:
         throw new Error('Invalid chart type: ' + type);
