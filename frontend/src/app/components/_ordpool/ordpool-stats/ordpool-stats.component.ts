@@ -78,6 +78,14 @@ export class OrdpoolStatsComponent {
    * @param statistics The statistics data to visualize.
    */
   getChartOptions(type: ChartType, statistics: OrdpoolStatisticResponse[]): EChartsOption {
+    
+    // Convert UNIX seconds to milliseconds for ECharts
+    statistics = statistics.map(stat => ({
+      ...stat,
+      minTime: stat.minTime * 1000, // Convert seconds to milliseconds
+      maxTime: stat.maxTime * 1000, // Convert seconds to milliseconds
+    }));
+
     return {
       tooltip: {
         trigger: 'axis',
@@ -88,38 +96,34 @@ export class OrdpoolStatsComponent {
         },
       },
       legend: {
-        show: true, // Ensure the legend is visible
-        orient: 'horizontal', // Layout direction: 'horizontal' or 'vertical'
-        top: 'top', // Position of the legend
+        show: true,
+        orient: 'horizontal',
+        top: 'top',
         textStyle: {
-          color: 'white', // Set legend text color
+          color: 'white'
         },
       },
 
       xAxis: {
-        type: 'time', // Use the time axis type for intelligent formatting
+        type: 'time',
         axisLabel: {
-          formatter: (value: number, index: number) => {
-            const date = new Date(value);
+          formatter: (value: number) => {
+            const date = new Date(value); // value is in milliseconds
             return date.toLocaleString('en-US', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
               hour: '2-digit',
               minute: '2-digit',
-            }); // Adjust based on preferred locale
+            });
           },
-          rotate: 45, // Rotate labels for better readability
+          rotate: 45,
           color: 'white',
         },
-        axisTick: {
-          show: true, // Enables axis ticks
-        },
         splitLine: {
-          show: true, // Optional: Adds grid lines for clarity
+          // show: true,
         },
       },
-      
       yAxis: {
         type: 'value',
       },

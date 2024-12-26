@@ -10,29 +10,6 @@ import {
   NewTokenStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
-type LineType = LineSeriesOption['type'] ;
-const line: LineType = 'line';
-
-/**
- * Represents a series configuration for a chart.
- */
-export interface ChartSeries {
-  /**
-   * The name of the series, which is displayed in the legend and tooltips.
-   */
-  name: string;
-
-  /**
-   * The type of chart to render for this series (e.g., 'line').
-   */
-  type: LineType;
-
-  /**
-   * The numerical data points for the series.
-   */
-  data: number[];
-}
-
 // Helper type to map ChartType to the corresponding statistic type
 type ExtractStatistic<T extends ChartType> =
   T extends 'mints' ? MintStatistic :
@@ -42,69 +19,73 @@ type ExtractStatistic<T extends ChartType> =
   never;
 
 /**
-* A utility function that selects the correct callback function based on the ChartType.
-* @param chartType - The chart type (e.g., 'mints', 'new-tokens', 'fees', 'inscription-sizes').
-* @param cases - An object mapping ChartType to their corresponding callback functions.
-* @returns A callback function for the selected type.
-*/
+ * A utility function to map the chart type to its corresponding data handler.
+ * Ensures type safety and clear mappings for each chart type.
+ * 
+ * @param type - The chart type (e.g., 'mints', 'new-tokens', 'fees', 'inscription-sizes').
+ * @param cases - A map of chart types to their respective handlers.
+ * @returns A callback function for the specified chart type.
+ */
 export function matchType<T extends ChartType>(
-  chartType: T,
-  cases: Record<T, (stats: ExtractStatistic<T>[]) => ChartSeries[]>
-): (stats: ExtractStatistic<T>[]) => ChartSeries[] {
-  const handler = cases[chartType];
+  type: T,
+  cases: { [K in ChartType]: (stats: ExtractStatistic<K>[]) => LineSeriesOption[] }
+): (stats: ExtractStatistic<T>[]) => LineSeriesOption[] {
+  const handler = cases[type];
   if (!handler) {
-    throw new Error(`Unsupported chart type: ${chartType}`);
+    throw new Error(`Unsupported chart type: ${type}`);
   }
   return handler;
 }
 
-type LineTypeSeriesDataResult = { 
-  name: string;    // The name of the series (e.g., "CAT-21", "Runes"), displayed in the legend and tooltips.
-  type: LineType;  // The type of the series, constrained to valid types for line charts (e.g., "line").
-  data: number[];  // An array of numerical values representing the data points for this series.
-};
-
 /**
-* Generates chart series data based on the chart type.
-* @param chartType - The chart type.
-* @param statistics - The statistics to use for generating the chart.
-* @returns The chart series options.
-*/
+ * Generates chart series data based on the chart type.
+ * Each data point in the series is a tuple containing a timestamp (in milliseconds) 
+ * and its corresponding value.
+ * 
+ * Example for "CAT-21" mints:
+ * [
+ *   [1735216562000, 10], // Jan 26, 2024 12:36:02 AM, Value: 10
+ *   [1735217162000, 12]  // Jan 26, 2024 12:46:02 AM, Value: 12
+ * ]
+ * 
+ * @param chartType - The type of chart (e.g., 'mints', 'fees', etc.).
+ * @param statistics - The statistics data for the chart.
+ * @returns The ECharts-compatible series options.
+ */
 export function getSeriesData<T extends ChartType>(
   chartType: T,
   statistics: ExtractStatistic<T>[]
-): LineTypeSeriesDataResult[] {
-
+): LineSeriesOption[] {
   return matchType(chartType, {
     mints: (stats: MintStatistic[]) => [
-      { name: 'CAT-21', type: line, data: stats.map((stat) => stat.cat21Mints) },
-      { name: 'Inscriptions', type: line, data: stats.map((stat) => stat.inscriptionMints) },
-      { name: 'Runes', type: line, data: stats.map((stat) => stat.runeMints) },
-      { name: 'BRC-20', type: line, data: stats.map((stat) => stat.brc20Mints) },
-      { name: 'SRC-20', type: line, data: stats.map((stat) => stat.src20Mints) },
+      { name: 'CAT-21', type: 'line', data: stats.map((stat) => [stat.minTime, stat.cat21Mints]) },
+      { name: 'Inscriptions', type: 'line', data: stats.map((stat) => [stat.minTime, stat.inscriptionMints]) },
+      { name: 'Runes', type: 'line', data: stats.map((stat) => [stat.minTime, stat.runeMints]) },
+      { name: 'BRC-20', type: 'line', data: stats.map((stat) => [stat.minTime, stat.brc20Mints]) },
+      { name: 'SRC-20', type: 'line', data: stats.map((stat) => [stat.minTime, stat.src20Mints]) },
     ],
     'new-tokens': (stats: NewTokenStatistic[]) => [
-      { name: 'Rune Etchings', type: line, data: stats.map((stat) => stat.runeEtchings) },
-      { name: 'BRC-20 Deploys', type: line, data: stats.map((stat) => stat.brc20Deploys) },
-      { name: 'SRC-20 Deploys', type: line, data: stats.map((stat) => stat.src20Deploys) },
+      { name: 'Rune Etchings', type: 'line', data: stats.map((stat) => [stat.minTime, stat.runeEtchings]) },
+      { name: 'BRC-20 Deploys', type: 'line', data: stats.map((stat) => [stat.minTime, stat.brc20Deploys]) },
+      { name: 'SRC-20 Deploys', type: 'line', data: stats.map((stat) => [stat.minTime, stat.src20Deploys]) },
     ],
     fees: (stats: FeeStatistic[]) => [
-      { name: 'CAT-21', type: line, data: stats.map((stat) => stat.feesCat21Mints) },
-      { name: 'Inscriptions', type: line, data: stats.map((stat) => stat.feesInscriptionMints) },
-      { name: 'Runes', type: line, data: stats.map((stat) => stat.feesRuneMints) },
-      { name: 'Runes (excluding ⧉ UNCOMMON•GOODS)', type: line, data: stats.map((stat) => stat.feesNonUncommonRuneMints) },
-      { name: 'BRC-20', type: line, data: stats.map((stat) => stat.feesBrc20Mints) },
-      { name: 'SRC-20', type: line, data: stats.map((stat) => stat.feesSrc20Mints) },
+      { name: 'CAT-21', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesCat21Mints]) },
+      { name: 'Inscriptions', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesInscriptionMints]) },
+      { name: 'Runes', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesRuneMints]) },
+      { name: 'Runes (excluding ⧉ UNCOMMON•GOODS)', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesNonUncommonRuneMints]) },
+      { name: 'BRC-20', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesBrc20Mints]) },
+      { name: 'SRC-20', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesSrc20Mints]) },
     ],
     'inscription-sizes': (stats: InscriptionSizeStatistic[]) => [
-      { name: 'Total Envelope Size', type: line, data: stats.map((stat) => stat.totalEnvelopeSize) },
-      { name: 'Total Content Size', type: line, data: stats.map((stat) => stat.totalContentSize) },
-      { name: 'Largest Envelope Size', type: line, data: stats.map((stat) => stat.largestEnvelopeSize) },
-      { name: 'Largest Content Size', type: line, data: stats.map((stat) => stat.largestContentSize) },
-      { name: 'Average Envelope Size', type: line, data: stats.map((stat) => stat.avgEnvelopeSize) },
-      { name: 'Average Content Size', type: line, data: stats.map((stat) => stat.avgContentSize) },
+      { name: 'Total Envelope Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.totalEnvelopeSize]) },
+      { name: 'Total Content Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.totalContentSize]) },
+      { name: 'Largest Envelope Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.largestEnvelopeSize]) },
+      { name: 'Largest Content Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.largestContentSize]) },
+      { name: 'Average Envelope Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.avgEnvelopeSize]) },
+      { name: 'Average Content Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.avgContentSize]) },
     ],
-  } as Record<T, (stats: ExtractStatistic<T>[]) => LineTypeSeriesDataResult[]>)(statistics);
+  })(statistics);
 }
 
 /**
@@ -119,9 +100,24 @@ export function getTooltipContent(
 ): string {
 
   const baseContent = `
-    Block Range: ${stat.minHeight} - ${stat.maxHeight}<br/>
-    Time Range: ${formatUnixTimestamp(stat.minTime)} - ${formatUnixTimestamp(stat.maxTime)}<br/><br/>
+    Block Range: ${stat.minHeight} – ${stat.maxHeight}<br/>
+    Time Range: ${formatTimestamp(stat.minTime)} – ${formatTimestamp(stat.maxTime)}<br/><br/>
   `;
+
+  // Check if all properties (except minHeight, maxHeight, minTime, maxTime) are `null`
+  const propertiesToCheck = { ...stat };
+  delete propertiesToCheck.minHeight;
+  delete propertiesToCheck.maxHeight;
+  delete propertiesToCheck.minTime;
+  delete propertiesToCheck.maxTime;
+
+  const allPropertiesAreNull = Object.values(propertiesToCheck).every(
+    (value) => value === null
+  );
+
+  if (allPropertiesAreNull) {
+    return baseContent + 'This block has not been fully indexed yet.<br><strong>Please try again later.</strong>';
+  }
 
   switch (type) {
     case 'mints': {
@@ -156,7 +152,7 @@ export function getTooltipContent(
         CAT-21: ${s.feesCat21Mints }<br/>
         Inscriptions: ${s.feesInscriptionMints }<br/>
         Runes: ${s.feesRuneMints }<br/>
-        Runes (excluding ⧉ UNCOMMON•GOODS): ${s.feesNonUncommonRuneMints }<br/>
+        Runes: ${s.feesNonUncommonRuneMints } <small>(excluding ⧉ UNCOMMON•GOODS)</small><br/>
         BRC-20: ${s.feesBrc20Mints }<br/>
         SRC-20: ${s.feesSrc20Mints }
       `
@@ -182,32 +178,17 @@ export function getTooltipContent(
 }
 
 /**
- * Formats a given timestamp into a human-readable format.
- * Converts the timestamp to ISO 8601 format, replaces 'T' with a space, and trims seconds.
+ * Formats a timestamp in ms into a readable format.
  *
- * @param timestamp - The timestamp string to format (e.g., '2024-12-22T15:03:22.454Z').
- * @returns A formatted timestamp string in the format 'YYYY-MM-DD HH:mm:ss'.
- *
- * @example
- * formatTimestamp('2024-12-22T15:03:22.454Z');
- * // Returns: '2024-12-22 15:03:22'
- */
-export function formatTimestamp(timestamp: string): string {
-  return new Date(timestamp).toISOString().replace('T', ' ').substring(0, 19);
-}
-
-/**
- * Formats a Unix timestamp into a readable string in the format 'YYYY-MM-DD HH:mm:ss'.
- *
- * @param {number} timestamp - The Unix timestamp in seconds to format.
+ * @param {number} timestamp - The timestamp in milliseconds to format.
  * @returns {string} The formatted timestamp as a string.
  *
  * @example
- * formatUnixTimestamp(1672531199);
+ * formatTimestamp(1672531199 * 1000);
  * // Output: "2023-01-01 00:59:59"
  */
-export function formatUnixTimestamp(timestamp: number): string {
-  return new Date(timestamp * 1000).toISOString().replace('T', ' ').substring(0, 19);
+export function formatTimestamp(timestamp: number): string {
+  return new Date(timestamp).toISOString().replace('T', ' ').substring(0, 19);
 }
 
 /**

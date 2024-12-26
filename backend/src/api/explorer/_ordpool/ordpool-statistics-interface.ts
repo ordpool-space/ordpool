@@ -16,35 +16,35 @@ export interface BaseStatistic {
 }
 
 export interface MintStatistic extends BaseStatistic {
-  cat21Mints: number;
-  inscriptionMints: number;
-  runeMints: number;
-  brc20Mints: number;
-  src20Mints: number;
+  cat21Mints?: number;
+  inscriptionMints?: number;
+  runeMints?: number;
+  brc20Mints?: number;
+  src20Mints?: number;
 }
 
 export interface NewTokenStatistic extends BaseStatistic {
-  runeEtchings: number;
-  brc20Deploys: number;
-  src20Deploys: number;
+  runeEtchings?: number;
+  brc20Deploys?: number;
+  src20Deploys?: number;
 }
 
 export interface FeeStatistic extends BaseStatistic {
-  feesRuneMints: number;
-  feesNonUncommonRuneMints: number;
-  feesBrc20Mints: number;
-  feesSrc20Mints: number;
-  feesCat21Mints: number;
-  feesInscriptionMints: number;
+  feesRuneMints?: number;
+  feesNonUncommonRuneMints?: number;
+  feesBrc20Mints?: number;
+  feesSrc20Mints?: number;
+  feesCat21Mints?: number;
+  feesInscriptionMints?: number;
 }
 
 export interface InscriptionSizeStatistic extends BaseStatistic {
-  totalEnvelopeSize: number;  // SUM of all envelope sizes
-  totalContentSize: number;   // SUM of all content sizes
-  largestEnvelopeSize: number; // MAX envelope size
-  largestContentSize: number;  // MAX content size
-  avgEnvelopeSize: number; // AVG envelope size
-  avgContentSize: number;  // AVG content size
+  totalEnvelopeSize?: number;  // SUM of all envelope sizes
+  totalContentSize?: number;   // SUM of all content sizes
+  largestEnvelopeSize?: number; // MAX envelope size
+  largestContentSize?: number;  // MAX content size
+  avgEnvelopeSize?: number; // AVG envelope size
+  avgContentSize?: number;  // AVG content size
 }
 
 export type OrdpoolStatisticResponse =
