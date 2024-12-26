@@ -19,6 +19,7 @@ const browserWindow = window || {};
 const browserWindowEnv = browserWindow.__env || {};
 
 import { extraOrdpoolRoutes } from './master-page.module.ordpool';
+import { ActiveClassMatchDirective } from './components/_ordpool/active-class-match.directive';
 
 
 const routes: Routes = [
@@ -139,6 +140,7 @@ export class MasterPageRoutingModule { }
     CommonModule,
     MasterPageRoutingModule,
     SharedModule,
+    ActiveClassMatchDirective
   ],
   declarations: [
     MasterPageComponent,

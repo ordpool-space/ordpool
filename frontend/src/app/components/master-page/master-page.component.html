@@ -87,7 +87,7 @@
 
   <div class="navbar-collapse" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
-      <li class="nav-item" routerLinkActive="active" id="btn-home">
+      <li class="nav-item" id="btn-home" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(block|mempool-block)/.*' }">
         <a class="nav-link" [routerLink]="['/mempool-block' | relativeUrl]" (click)="collapse()"><fa-icon [icon]="['fas', 'cubes']" [fixedWidth]="true" i18n-title="master-page.dashboard" title="Dashboard"></fa-icon> <strong class="bitcoin">MEME</strong>pool</a>
       </li>
       <!--
@@ -134,8 +134,8 @@
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21 WL Checker</a>
       </li> -->
 
-      <li class="nav-item" routerLinkActive="active" id="btn-ordpool-stats">
-        <a class="nav-link" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', '1h', 'block']" (click)="collapse()">
+      <li class="nav-item" id="btn-ordpool-stats" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(ordpool-stats)/.*' }">
+        <a class="nav-link" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', '24h', 'hour']" (click)="collapse()">
           <fa-icon [icon]="['fas', 'chart-area']" [fixedWidth]="true" i18n-title="master-page.graphs" title="Ordpool Stats">Stats</fa-icon>
         </a>
       </li>
