@@ -14,8 +14,12 @@ import { GraphsModule } from '../../../graphs/graphs.module';
 import { OrdpoolApiService } from '../../../services/ordinals/ordpool-api.service';
 import { SeoService } from '../../../services/seo.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { CapitalizeFirstPipe } from '../digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
-import { formatChartDescription, formatChartHeading, formatTimestamp, getSeriesData, getTooltipContent } from './ordpool-stats.component.helper';
+import {
+  formatChartDescription,
+  formatChartHeading,
+  getSeriesData,
+  getTooltipContent,
+} from './ordpool-stats.component.helper';
 
 @Component({
   selector: 'app-ordpool-stats',
@@ -28,8 +32,7 @@ import { formatChartDescription, formatChartHeading, formatTimestamp, getSeriesD
     AsyncPipe,
     RouterLink,
     SharedModule,
-    GraphsModule,
-    CapitalizeFirstPipe
+    GraphsModule
 ]
 })
 export class OrdpoolStatsComponent {
@@ -84,19 +87,43 @@ export class OrdpoolStatsComponent {
           return getTooltipContent(type, stat);
         },
       },
-      xAxis: {
-        type: 'category',
-        data: statistics.map((stat) => formatTimestamp(stat.minTime)),
-        axisLabel: {
-          rotate: 45,
-          interval: 0,
-          color: 'white',
+      legend: {
+        show: true, // Ensure the legend is visible
+        orient: 'horizontal', // Layout direction: 'horizontal' or 'vertical'
+        top: 'top', // Position of the legend
+        textStyle: {
+          color: 'white', // Set legend text color
         },
       },
+
+      xAxis: {
+        type: 'time', // Use the time axis type for intelligent formatting
+        axisLabel: {
+          formatter: (value: number, index: number) => {
+            const date = new Date(value);
+            return date.toLocaleString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }); // Adjust based on preferred locale
+          },
+          rotate: 45, // Rotate labels for better readability
+          color: 'white',
+        },
+        axisTick: {
+          show: true, // Enables axis ticks
+        },
+        splitLine: {
+          show: true, // Optional: Adds grid lines for clarity
+        },
+      },
+      
       yAxis: {
         type: 'value',
       },
-      series: getSeriesData(type, statistics)
+      series: getSeriesData(type, statistics),
     };
   }
 }

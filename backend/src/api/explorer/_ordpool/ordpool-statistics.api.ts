@@ -43,8 +43,8 @@ class OrdpoolStatisticsApi {
     const baseClause = `
       MIN(b.height) AS minHeight,
       MAX(b.height) AS maxHeight,
-      MIN(b.blockTimestamp) AS minTime,
-      MAX(b.blockTimestamp) AS maxTime
+      MIN(UNIX_TIMESTAMP(b.blockTimestamp)) AS minTime,
+      MAX(UNIX_TIMESTAMP(b.blockTimestamp)) AS maxTime
     `;
 
     switch (type) {

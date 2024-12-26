@@ -22,7 +22,7 @@
           <div class="formRadioGroup no-menu">
             <div class="btn-toggle-rows">
               <div class="btn-group btn-group-toggle">
-                @for(interval of ['1h', '24h', '1w', '1m', '3m', '6m', '1y', '2y', '3y', 'all']; track $index) {
+                @for(interval of ['1h', '24h', '1w', '1m', '3m', '6m', '1y', '2y', '3y', '4y']; track $index) {
                       <a [routerLink]="['/ordpool-stats' | relativeUrl, statistics.type, interval, statistics.aggregation]" 
                         routerLinkActive="active"
                         class="btn btn-primary btn-sm" 

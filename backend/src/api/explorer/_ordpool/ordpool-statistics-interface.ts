@@ -11,8 +11,8 @@ export type ChartType = 'mints' | 'new-tokens' | 'fees' | 'inscription-sizes';
 export interface BaseStatistic {
   minHeight: number;
   maxHeight: number;
-  minTime: string;
-  maxTime: string;
+  minTime: number;
+  maxTime: number;
 }
 
 export interface MintStatistic extends BaseStatistic {

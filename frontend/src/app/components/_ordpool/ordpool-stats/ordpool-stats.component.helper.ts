@@ -120,7 +120,7 @@ export function getTooltipContent(
 
   const baseContent = `
     Block Range: ${stat.minHeight} - ${stat.maxHeight}<br/>
-    Time Range: ${formatTimestamp(stat.minTime)} - ${formatTimestamp(stat.maxTime)}<br/><br/>
+    Time Range: ${formatUnixTimestamp(stat.minTime)} - ${formatUnixTimestamp(stat.maxTime)}<br/><br/>
   `;
 
   switch (type) {
@@ -194,6 +194,20 @@ export function getTooltipContent(
  */
 export function formatTimestamp(timestamp: string): string {
   return new Date(timestamp).toISOString().replace('T', ' ').substring(0, 19);
+}
+
+/**
+ * Formats a Unix timestamp into a readable string in the format 'YYYY-MM-DD HH:mm:ss'.
+ *
+ * @param {number} timestamp - The Unix timestamp in seconds to format.
+ * @returns {string} The formatted timestamp as a string.
+ *
+ * @example
+ * formatUnixTimestamp(1672531199);
+ * // Output: "2023-01-01 00:59:59"
+ */
+export function formatUnixTimestamp(timestamp: number): string {
+  return new Date(timestamp * 1000).toISOString().replace('T', ' ').substring(0, 19);
 }
 
 /**

@@ -6,14 +6,14 @@ import {
   NewTokenStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
-import { formatTimestamp, getSeriesData, getTooltipContent }  from './ordpool-stats.component.helper'
+import { formatTimestamp, formatUnixTimestamp, getSeriesData, getTooltipContent }  from './ordpool-stats.component.helper'
 
 describe('getSeriesData', () => {
   const baseStat = {
     minHeight: 1000,
     maxHeight: 2000,
-    minTime: '2024-12-20T10:00:00Z',
-    maxTime: '2024-12-20T11:00:00Z',
+    minTime: 1734994800,
+    maxTime: 1734994800,
   };
 
   const mintStats: MintStatistic[] = [
@@ -114,8 +114,8 @@ describe('getTooltipContent', () => {
   const baseStat = {
     minHeight: 1000,
     maxHeight: 2000,
-    minTime: '2024-12-20T10:00:00Z',
-    maxTime: '2024-12-20T11:00:00Z',
+    minTime: 1734994800,
+    maxTime: 1734994800,
   };
 
   const mintStat: MintStatistic = {
@@ -208,5 +208,25 @@ describe('formatTimestamp', () => {
     const input = '2024-12-22T15:03:22Z';
     const output = '2024-12-22 15:03:22';
     expect(formatTimestamp(input)).toBe(output);
+  });
+});
+
+describe('formatUnixTimestamp', () => {
+  it('formats a valid Unix timestamp correctly', () => {
+    const timestamp = 1672531199; // Corresponds to "2023-12-32 23:59:59 GMT"
+    const result = formatUnixTimestamp(timestamp);
+    expect(result).toBe('2022-12-31 23:59:59');
+  });
+
+  it('handles the Unix epoch correctly', () => {
+    const timestamp = 0; // Unix epoch start
+    const result = formatUnixTimestamp(timestamp);
+    expect(result).toBe('1970-01-01 00:00:00');
+  });
+
+  it('formats a timestamp in the far future correctly', () => {
+    const timestamp = 32503680000; // Year 3000-01-01 00:00:00
+    const result = formatUnixTimestamp(timestamp);
+    expect(result).toBe('3000-01-01 00:00:00');
   });
 });
