@@ -17,6 +17,9 @@
         <div class="card-header">
           <div class="d-flex d-md-block align-items-baseline">
             Ordpool Stats: <strong class="bitcoin">{{ statistics.heading }}</strong>
+            @if(loading) {
+              <div style="position: relative; top: 2px" class="spinner-border text-light bootstrap-spinner"></div>
+            }
           </div>
 
           <div class="formRadioGroup no-menu">
@@ -49,9 +52,6 @@
               </div>
             </div>
           </div>
-          @if(loading) {
-            <div class="spinner-border text-light bootstrap-spinner"></div>
-          }
         </div>
 
         <div class="card-body">
@@ -61,7 +61,8 @@
             <div class="chart" 
               *browserOnly echarts 
               [initOpts]="chartInitOptions" 
-              [options]="getChartOptions(statistics.type, statistics.stats)">
+              [options]="getChartOptions(statistics.type, statistics.stats)"
+              (chartInit)="onChartInit($event)">
             </div>
           }
 

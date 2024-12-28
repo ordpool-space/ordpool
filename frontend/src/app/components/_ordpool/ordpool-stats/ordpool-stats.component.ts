@@ -2,7 +2,9 @@ import { AsyncPipe, UpperCasePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EChartsOption } from 'echarts';
-import { map, startWith, switchMap, tap } from 'rxjs/operators';
+import { echarts } from '../../../graphs/echarts';
+
+import { map, share, shareReplay, startWith, switchMap, tap } from 'rxjs/operators';
 
 import {
   Aggregation,
@@ -36,7 +38,9 @@ import {
 ]
 })
 export class OrdpoolStatsComponent {
+  
   loading = false;
+  lastHoveredStat?: OrdpoolStatisticResponse;
 
   private route = inject(ActivatedRoute);
   private ordpoolApiService = inject(OrdpoolApiService);
@@ -50,6 +54,7 @@ export class OrdpoolStatsComponent {
       aggregation: (p.get('aggregation') || 'block') as Aggregation
     })),
     switchMap(({ type, interval, aggregation }) => this.ordpoolApiService.getOrdpoolStatistics$(type, interval, aggregation).pipe(
+      tap(() => this.loading = false),
       startWith([]),
       map(stats => ({
         type,
@@ -59,8 +64,7 @@ export class OrdpoolStatsComponent {
         heading: formatChartHeading(type),
         description: formatChartDescription(type, interval, aggregation)
       }))
-    )),
-    tap(() => this.loading = false)
+    ))
   );
 
   constructor() {
@@ -89,9 +93,21 @@ export class OrdpoolStatsComponent {
     return {
       tooltip: {
         trigger: 'axis',
+        axisPointer: {
+          type: 'line'
+        },
+        backgroundColor: 'rgba(17, 19, 31, 1)',
+        borderRadius: 4,
+        shadowColor: 'rgba(0, 0, 0, 0.5)',
+        textStyle: {
+          color: '#b1b1b1',
+          align: 'left',
+        },
+        borderColor: '#FF9900',
         formatter: (params: any) => {
           const dataIndex = params[0]?.dataIndex;
           const stat = statistics[dataIndex];
+          this.lastHoveredStat = stat;
           return getTooltipContent(type, stat);
         },
       },
@@ -103,31 +119,44 @@ export class OrdpoolStatsComponent {
           color: 'white'
         },
       },
-
       xAxis: {
         type: 'time',
+        splitNumber: this.isMobile() ? 5 : 10,
         axisLabel: {
-          formatter: (value: number) => {
-            const date = new Date(value); // value is in milliseconds
-            return date.toLocaleString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-          },
-          rotate: 45,
-          color: 'white',
-        },
-        splitLine: {
-          // show: true,
-        },
+          hideOverlap: true,
+        }
       },
       yAxis: {
-        type: 'value',
+        type: 'value'
       },
-      series: getSeriesData(type, statistics),
+      series: getSeriesData(type, statistics).map(x => ({ 
+        ...x, 
+
+        showSymbol: false,
+        symbol: 'circle',
+        symbolSize: 8,
+        areaStyle: {
+          opacity: 0.3,
+        },
+        // triggerLineEvent: true,
+        smooth: false,
+        step: 'start'
+      })),
     };
+  }
+
+  onChartInit(chartInstance) {
+    // chartInstance.on('click', 'series', this.onChartClick.bind(this));
+    chartInstance.getZr().on('click', this.onChartClick.bind(this));
+  }
+
+  onChartClick(e) {
+    if (this.lastHoveredStat) {
+      console.log('DEBUG', this.lastHoveredStat);
+    }
+  }
+
+  isMobile() {
+    return (window.innerWidth <= 767.98);
   }
 }
