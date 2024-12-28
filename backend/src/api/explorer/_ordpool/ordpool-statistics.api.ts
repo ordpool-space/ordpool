@@ -23,7 +23,7 @@ class OrdpoolStatisticsApi {
     const query = `
       SELECT ${selectClause}
       FROM blocks b
-      LEFT JOIN blocks_ordpool_stats bos ON b.hash = bos.hash
+      LEFT JOIN ordpool_stats bos ON b.hash = bos.hash
       WHERE b.height >= ${firstInscriptionHeight}
         AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
       ${groupByClause}

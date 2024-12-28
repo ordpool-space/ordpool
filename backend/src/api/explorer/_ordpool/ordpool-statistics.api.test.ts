@@ -92,7 +92,7 @@ describe('OrdpoolStatisticsApi', () => {
       );
 
       expect(DB.query).toHaveBeenCalledWith(
-        expect.stringContaining('LEFT JOIN blocks_ordpool_stats bos ON b.hash = bos.hash')
+        expect.stringContaining('LEFT JOIN ordpool_stats bos ON b.hash = bos.hash')
       );
 
       expect(DB.query).toHaveBeenCalledWith(

@@ -493,9 +493,16 @@ class BlocksRepository {
       SELECT ${BLOCK_DB_FIELDS}
       FROM blocks
       JOIN pools ON blocks.pool_id = pools.id
+
       -- HACK -- Ordpool Stats
-      LEFT JOIN blocks_ordpool_stats ON blocks.hash = blocks_ordpool_stats.hash
-      WHERE pool_id = ?`;
+      LEFT JOIN ordpool_stats ON blocks.hash = ordpool_stats.hash
+      -- HACK -- Ordpool Stats Mint Activity Tables
+      LEFT JOIN ordpool_stats_rune_mint_activity ra ON ra.hash = blocks.hash
+      LEFT JOIN ordpool_stats_brc20_mint_activity ba ON ba.hash = blocks.hash
+      LEFT JOIN ordpool_stats_src20_mint_activity sa ON sa.hash = blocks.hash
+
+      WHERE pool_id = ?
+      GROUP BY blocks.hash -- to combine activity rows`;
     params.push(pool.id);
 
     if (startHeight !== undefined) {
@@ -530,9 +537,16 @@ class BlocksRepository {
         SELECT ${BLOCK_DB_FIELDS}
         FROM blocks
         JOIN pools ON blocks.pool_id = pools.id
-	-- HACK -- Ordpool Stats
-        LEFT JOIN blocks_ordpool_stats ON blocks.hash = blocks_ordpool_stats.hash
-        WHERE blocks.height = ?`,
+
+        -- HACK -- Ordpool Stats
+        LEFT JOIN ordpool_stats ON blocks.hash = ordpool_stats.hash
+        -- HACK -- Ordpool Stats Mint Activity Tables
+        LEFT JOIN ordpool_stats_rune_mint_activity ra ON ra.hash = blocks.hash
+        LEFT JOIN ordpool_stats_brc20_mint_activity ba ON ba.hash = blocks.hash
+        LEFT JOIN ordpool_stats_src20_mint_activity sa ON sa.hash = blocks.hash
+
+        WHERE blocks.height = ?
+        GROUP BY blocks.hash -- to combine activity rows`,
         [height]
       );
 

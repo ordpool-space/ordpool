@@ -1,20 +1,8 @@
-import bitcoinApi from '../api/bitcoin/bitcoin-api-factory';
-import { BlockExtended, BlockExtension, BlockPrice, EffectiveFeeStats } from '../mempool.interfaces';
+import { OrdpoolStats } from 'ordpool-parser';
+
 import DB from '../database';
 import logger from '../logger';
-import { Common } from '../api/common';
-import PoolsRepository from './PoolsRepository';
-import HashratesRepository from './HashratesRepository';
-import { RowDataPacket, escape } from 'mysql2';
-import BlocksSummariesRepository from './BlocksSummariesRepository';
-import DifficultyAdjustmentsRepository from './DifficultyAdjustmentsRepository';
-import bitcoinClient from '../api/bitcoin/bitcoin-client';
-import config from '../config';
-import chainTips from '../api/chain-tips';
-import blocks from '../api/blocks';
-import BlocksAuditsRepository from './BlocksAuditsRepository';
-import transactionUtils from '../api/transaction-utils';
-import { OrdpoolStats, OrdpoolTransactionFlags } from 'ordpool-parser';
+import { BlockExtended } from '../mempool.interfaces';
 
 
 export interface OrdpoolDatabaseBlock {
@@ -75,65 +63,73 @@ export interface OrdpoolDatabaseBlock {
   src20MostActiveMint: string | null;
 
   analyserVersion: number;
+
+  runeMintActivity: string;
+  brc20MintActivity: string;
+  src20MintActivity: string;
 }
 
 export const ORDPOOL_BLOCK_DB_FIELDS = `
 
   /* HACK -- Ordpool stats */
-  blocks_ordpool_stats.amounts_atomical                             AS amountsAtomical,                           /* 1 */
-  blocks_ordpool_stats.amounts_atomical_mint                        AS amountsAtomicalMint,                       /* 2 */
-  blocks_ordpool_stats.amounts_atomical_transfer                    AS amountsAtomicalTransfer,                   /* 3 */
-  blocks_ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,                     /* 4 */
+  ordpool_stats.amounts_atomical                             AS amountsAtomical,                           /* 1 */
+  ordpool_stats.amounts_atomical_mint                        AS amountsAtomicalMint,                       /* 2 */
+  ordpool_stats.amounts_atomical_transfer                    AS amountsAtomicalTransfer,                   /* 3 */
+  ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,                     /* 4 */
 
-  blocks_ordpool_stats.amounts_cat21                                AS amountsCat21,                              /* 5 */
-  blocks_ordpool_stats.amounts_cat21_mint                           AS amountsCat21Mint,                          /* 6 */
-  blocks_ordpool_stats.amounts_cat21_transfer                       AS amountsCat21Transfer,                      /* 7 */
+  ordpool_stats.amounts_cat21                                AS amountsCat21,                              /* 5 */
+  ordpool_stats.amounts_cat21_mint                           AS amountsCat21Mint,                          /* 6 */
+  ordpool_stats.amounts_cat21_transfer                       AS amountsCat21Transfer,                      /* 7 */
 
-  blocks_ordpool_stats.amounts_inscription                          AS amountsInscription,                        /* 8 */
-  blocks_ordpool_stats.amounts_inscription_mint                     AS amountsInscriptionMint,                    /* 9 */
-  blocks_ordpool_stats.amounts_inscription_transfer                 AS amountsInscriptionTransfer,                /* 10 */
-  blocks_ordpool_stats.amounts_inscription_burn                     AS amountsInscriptionBurn,                    /* 11 */
+  ordpool_stats.amounts_inscription                          AS amountsInscription,                        /* 8 */
+  ordpool_stats.amounts_inscription_mint                     AS amountsInscriptionMint,                    /* 9 */
+  ordpool_stats.amounts_inscription_transfer                 AS amountsInscriptionTransfer,                /* 10 */
+  ordpool_stats.amounts_inscription_burn                     AS amountsInscriptionBurn,                    /* 11 */
 
-  blocks_ordpool_stats.amounts_rune                                 AS amountsRune,                               /* 12 */
-  blocks_ordpool_stats.amounts_rune_etch                            AS amountsRuneEtch,                           /* 13 */
-  blocks_ordpool_stats.amounts_rune_mint                            AS amountsRuneMint,                           /* 14 */
-  blocks_ordpool_stats.amounts_rune_cenotaph                        AS amountsRuneCenotaph,                       /* 15 */
-  blocks_ordpool_stats.amounts_rune_transfer                        AS amountsRuneTransfer,                       /* 16 */
-  blocks_ordpool_stats.amounts_rune_burn                            AS amountsRuneBurn,                           /* 17 */
+  ordpool_stats.amounts_rune                                 AS amountsRune,                               /* 12 */
+  ordpool_stats.amounts_rune_etch                            AS amountsRuneEtch,                           /* 13 */
+  ordpool_stats.amounts_rune_mint                            AS amountsRuneMint,                           /* 14 */
+  ordpool_stats.amounts_rune_cenotaph                        AS amountsRuneCenotaph,                       /* 15 */
+  ordpool_stats.amounts_rune_transfer                        AS amountsRuneTransfer,                       /* 16 */
+  ordpool_stats.amounts_rune_burn                            AS amountsRuneBurn,                           /* 17 */
 
-  blocks_ordpool_stats.amounts_brc20                                AS amountsBrc20,                              /* 18 */
-  blocks_ordpool_stats.amounts_brc20_deploy                         AS amountsBrc20Deploy,                        /* 19 */
-  blocks_ordpool_stats.amounts_brc20_mint                           AS amountsBrc20Mint,                          /* 20 */
-  blocks_ordpool_stats.amounts_brc20_transfer                       AS amountsBrc20Transfer,                      /* 21 */
+  ordpool_stats.amounts_brc20                                AS amountsBrc20,                              /* 18 */
+  ordpool_stats.amounts_brc20_deploy                         AS amountsBrc20Deploy,                        /* 19 */
+  ordpool_stats.amounts_brc20_mint                           AS amountsBrc20Mint,                          /* 20 */
+  ordpool_stats.amounts_brc20_transfer                       AS amountsBrc20Transfer,                      /* 21 */
 
-  blocks_ordpool_stats.amounts_src20                                AS amountsSrc20,                              /* 22 */
-  blocks_ordpool_stats.amounts_src20_deploy                         AS amountsSrc20Deploy,                        /* 23 */
-  blocks_ordpool_stats.amounts_src20_mint                           AS amountsSrc20Mint,                          /* 24 */
-  blocks_ordpool_stats.amounts_src20_transfer                       AS amountsSrc20Transfer,                      /* 25 */
+  ordpool_stats.amounts_src20                                AS amountsSrc20,                              /* 22 */
+  ordpool_stats.amounts_src20_deploy                         AS amountsSrc20Deploy,                        /* 23 */
+  ordpool_stats.amounts_src20_mint                           AS amountsSrc20Mint,                          /* 24 */
+  ordpool_stats.amounts_src20_transfer                       AS amountsSrc20Transfer,                      /* 25 */
 
-  blocks_ordpool_stats.fees_rune_mints                              AS feesRuneMints,                             /* 26 */
-  blocks_ordpool_stats.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,                  /* 27 */
-  blocks_ordpool_stats.fees_brc20_mints                             AS feesBrc20Mints,                            /* 28 */
-  blocks_ordpool_stats.fees_src20_mints                             AS feesSrc20Mints,                            /* 29 */
-  blocks_ordpool_stats.fees_cat21_mints                             AS feesCat21Mints,                            /* 30 */
-  blocks_ordpool_stats.fees_atomicals                               AS feesAtomicals,                             /* 31 */
-  blocks_ordpool_stats.fees_inscription_mints                       AS feesInscriptionMints,                      /* 32 */
+  ordpool_stats.fees_rune_mints                              AS feesRuneMints,                             /* 26 */
+  ordpool_stats.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,                  /* 27 */
+  ordpool_stats.fees_brc20_mints                             AS feesBrc20Mints,                            /* 28 */
+  ordpool_stats.fees_src20_mints                             AS feesSrc20Mints,                            /* 29 */
+  ordpool_stats.fees_cat21_mints                             AS feesCat21Mints,                            /* 30 */
+  ordpool_stats.fees_atomicals                               AS feesAtomicals,                             /* 31 */
+  ordpool_stats.fees_inscription_mints                       AS feesInscriptionMints,                      /* 32 */
 
-  blocks_ordpool_stats.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,             /* 33 */
-  blocks_ordpool_stats.inscriptions_total_content_size              AS inscriptionsTotalContentSize,              /* 34 */
-  blocks_ordpool_stats.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,           /* 35 */
-  blocks_ordpool_stats.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,            /* 36 */
-  blocks_ordpool_stats.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,  /* 37 */
-  blocks_ordpool_stats.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,   /* 38 */
-  blocks_ordpool_stats.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,           /* 39 */
-  blocks_ordpool_stats.inscriptions_average_content_size            AS inscriptionsAverageContentSize,            /* 40 */
+  ordpool_stats.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,             /* 33 */
+  ordpool_stats.inscriptions_total_content_size              AS inscriptionsTotalContentSize,              /* 34 */
+  ordpool_stats.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,           /* 35 */
+  ordpool_stats.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,            /* 36 */
+  ordpool_stats.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,  /* 37 */
+  ordpool_stats.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,   /* 38 */
+  ordpool_stats.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,           /* 39 */
+  ordpool_stats.inscriptions_average_content_size            AS inscriptionsAverageContentSize,            /* 40 */
 
-  blocks_ordpool_stats.runes_most_active_mint                       AS runesMostActiveMint,                       /* 41 */
-  blocks_ordpool_stats.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,            /* 42 */
-  blocks_ordpool_stats.brc20_most_active_mint                       AS brc20MostActiveMint,                       /* 43 */
-  blocks_ordpool_stats.src20_most_active_mint                       AS src20MostActiveMint,                       /* 44 */
+  ordpool_stats.runes_most_active_mint                       AS runesMostActiveMint,                       /* 41 */
+  ordpool_stats.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,            /* 42 */
+  ordpool_stats.brc20_most_active_mint                       AS brc20MostActiveMint,                       /* 43 */
+  ordpool_stats.src20_most_active_mint                       AS src20MostActiveMint,                       /* 44 */
 
-  blocks_ordpool_stats.analyser_version                             AS analyserVersion                            /* 45 */
+  ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
+
+  GROUP_CONCAT(JSON_OBJECT('identifier', ra.identifier, 'count', ra.count)) AS runeMintActivity,
+  GROUP_CONCAT(JSON_OBJECT('identifier', ba.identifier, 'count', ba.count)) AS brc20MintActivity,
+  GROUP_CONCAT(JSON_OBJECT('identifier', sa.identifier, 'count', sa.count)) AS src20MintActivity
 `;
 
 
@@ -148,7 +144,7 @@ class OrdpoolBlocksRepository {
     }
 
     try {
-      const query = `INSERT INTO blocks_ordpool_stats(
+      const query = `INSERT INTO ordpool_stats(
         hash,
         height,
 
@@ -267,7 +263,6 @@ class OrdpoolBlocksRepository {
         ?   /* 45 analyser_version */
       )`;
 
-
       const params: any[] = [
         block.id,
         block.height,
@@ -329,13 +324,18 @@ class OrdpoolBlocksRepository {
       ];
 
       await DB.query(query, params);
+
+      await this.storeRuneMintActivity(block.id, block.height, block.extras.ordpoolStats);
+      await this.storeBrc20MintActivity(block.id, block.height, block.extras.ordpoolStats);
+      await this.storeSrc20MintActivity(block.id, block.height, block.extras.ordpoolStats);
+
       logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, logger.tags.mining);
 
     } catch (e: any) {
       if (e.errno === 1062) {
         logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} has already been indexed, ignoring`, logger.tags.mining);
       } else {
-        logger.err('Cannot save indexed block into blocks_ordpool_stats. Reason: ' + (e instanceof Error ? e.message : e), logger.tags.mining);
+        logger.err('Cannot save indexed block into ordpool_stats. Reason: ' + (e instanceof Error ? e.message : e), logger.tags.mining);
         throw e;
       }
     }
@@ -346,6 +346,20 @@ class OrdpoolBlocksRepository {
     if (!dbBlk.analyserVersion) {
       return undefined;
     }
+
+    const parseActivity = (activity: string | null): Record<string, number> => {
+      if (!activity) {
+        return {};
+      }
+
+      return JSON.parse(`[${activity}]`).reduce(
+        (acc, item) => {
+          acc[item.identifier] = item.count;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
+    };
 
     return {
       amounts: {
@@ -404,17 +418,93 @@ class OrdpoolBlocksRepository {
       },
       runes: {
         mostActiveMint:               dbBlk.runesMostActiveMint,
-        mostActiveNonUncommonMint:    dbBlk.runesMostActiveNonUncommonMint
+        mostActiveNonUncommonMint:    dbBlk.runesMostActiveNonUncommonMint,
+        runeMintActivity:             parseActivity(dbBlk.runeMintActivity),
       },
       brc20: {
         mostActiveMint:               dbBlk.brc20MostActiveMint,
+        brc20MintActivity:            parseActivity(dbBlk.brc20MintActivity),
       },
       src20: {
         mostActiveMint:               dbBlk.src20MostActiveMint,
+        src20MintActivity:            parseActivity(dbBlk.src20MintActivity),
       },
       version:                        dbBlk.analyserVersion
     };
   }
+
+  /**
+   * Inserts activity data in batches into the database.
+   * @param tableName - The target table name.
+   * @param data - The data to insert, as an array of rows.
+   * @param batchSize - The number of rows per batch.
+   */
+  async batchInsertActivity(
+    tableName: string,
+    data: { hash: string; height: number; identifier: string; count: number }[],
+    batchSize = 100
+  ): Promise<void> {
+    for (let i = 0; i < data.length; i += batchSize) {
+      const batch = data.slice(i, i + batchSize);
+      const values = batch.map(() => `(?, ?, LEFT(?, 20), ?)`).join(', ');
+
+      const query = `
+        INSERT INTO ${tableName} (hash, height, identifier, count)
+        VALUES ${values}
+        ON DUPLICATE KEY UPDATE count = VALUES(count)
+      `;
+
+      const params = batch.flatMap(row => [row.hash, row.height, row.identifier, row.count]);
+
+      await DB.query(query, params);
+    }
+  }
+
+  /**
+   * Store Rune Mint Activity in Batches.
+   */
+  async storeRuneMintActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
+    const data = Object
+      .entries(stats.runes.runeMintActivity)
+      .map(([identifier, count]) => ({
+        hash,
+        height,
+        identifier,
+        count
+      }));
+    await this.batchInsertActivity('ordpool_stats_rune_mint_activity', data);
+  }
+
+  /**
+   * Store BRC-20 Mint Activity in Batches.
+   */
+  async storeBrc20MintActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
+    const data = Object
+      .entries(stats.brc20.brc20MintActivity)
+      .map(([identifier, count]) => ({
+        hash,
+        height,
+        identifier,
+        count
+      }));
+    await this.batchInsertActivity('ordpool_stats_brc20_mint_activity', data);
+  }
+
+  /**
+   * Store SRC-20 Mint Activity in Batches.
+   */
+  async storeSrc20MintActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
+    const data = Object
+      .entries(stats.src20.src20MintActivity)
+      .map(([identifier, count]) => ({
+        hash,
+        height,
+        identifier,
+        count
+      }));
+    await this.batchInsertActivity('ordpool_stats_src20_mint_activity', data);
+  }
+
 }
 
 export default new OrdpoolBlocksRepository();

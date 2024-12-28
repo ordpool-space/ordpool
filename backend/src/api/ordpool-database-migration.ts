@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 2;
+  private static currentVersion = 1;
 
   private queryTimeout = 3600_000;
 
@@ -91,7 +91,7 @@ class OrdpoolDatabaseMigration {
   private getMigrationQueriesFromVersion(version: number): string[] {
     const queries: string[] = [];
 
-    if (version < 2) {
+    if (version <= 1) {
 
       // MANUAL CLEANUP ALL PREVIOUS ATTEMPTS 😅
       queries.push(`ALTER TABLE blocks
@@ -173,7 +173,7 @@ class OrdpoolDatabaseMigration {
         DROP COLUMN IF EXISTS src20_most_active_mint;`);
 
 
-       queries.push(`CREATE TABLE blocks_ordpool_stats (
+       queries.push(`CREATE TABLE ordpool_stats (
           hash                                         VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height                                       INT(10) UNSIGNED NOT NULL,
 
@@ -253,6 +253,36 @@ class OrdpoolDatabaseMigration {
           analyser_version                             INT UNSIGNED NOT NULL DEFAULT 0,
 
           PRIMARY KEY (hash)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_rune_mint_activity (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          identifier VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          count INT NOT NULL,
+          UNIQUE KEY (hash, identifier),
+          INDEX idx_height (height)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_brc20_mint_activity (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          count INT NOT NULL,
+          UNIQUE KEY (hash, identifier),
+          INDEX idx_height (height)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_src20_mint_activity (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          count INT NOT NULL,
+          UNIQUE KEY (hash, identifier),
+          INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
     }
 
