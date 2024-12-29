@@ -87,6 +87,17 @@ class OrdpoolDatabaseMigration {
 
   /**
    * Generate migration queries based on schema version
+   *
+   * Hint: Quick reset for development:
+   *
+   * DROP TABLE `ordpool_stats`;
+   * DROP TABLE `ordpool_stats_rune_mint_activity`;
+   * DROP TABLE `ordpool_stats_brc20_mint_activity`;
+   * DROP TABLE `ordpool_stats_src20_mint_activity`;
+   * DROP TABLE `ordpool_stats_rune_etch`;
+   * DROP TABLE `ordpool_stats_brc20_deploy`;
+   * DROP TABLE `ordpool_stats_src20_deploy`;
+   * DELETE FROM state where name = "ordpool_schema_version"
    */
   private getMigrationQueriesFromVersion(version: number): string[] {
     const queries: string[] = [];
@@ -259,6 +270,7 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
+          -- the identifier for Rune mints is the Rune ID, which is a composite string in the format blockId:txNumber
           identifier VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           count INT NOT NULL,
           UNIQUE KEY (hash, identifier),
@@ -289,7 +301,8 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          identifier VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          -- the identifier for etchings is the Rune name itself. The Spacers field requires unicode, 60 chars should be more than required
+          identifier VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           UNIQUE KEY (hash, identifier, txid),
           INDEX idx_height (height)
