@@ -111,7 +111,7 @@ class BlocksRepository {
 
     // HACK -- Ordpool Stats
     // storing ordpool stats before storing to the `blocks` table, ER_DUP_ENTRY could occur, but that would also skip our code
-    await OrdpoolBlocksRepository.$saveBlockOrdpoolStatsInDatabase(block);
+    await OrdpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase(block);
 
     try {
       const query = `INSERT INTO blocks(
@@ -500,6 +500,10 @@ class BlocksRepository {
       LEFT JOIN ordpool_stats_rune_mint_activity ra ON ra.hash = blocks.hash
       LEFT JOIN ordpool_stats_brc20_mint_activity ba ON ba.hash = blocks.hash
       LEFT JOIN ordpool_stats_src20_mint_activity sa ON sa.hash = blocks.hash
+      -- HACK -- Ordpool Stats Etch/Deploy Tables
+      LEFT JOIN ordpool_stats_rune_etch re ON re.hash = blocks.hash
+      LEFT JOIN ordpool_stats_brc20_deploy bd ON bd.hash = blocks.hash
+      LEFT JOIN ordpool_stats_src20_deploy sd ON sd.hash = blocks.hash
 
       WHERE pool_id = ?
       GROUP BY blocks.hash -- to combine activity rows`;
@@ -544,6 +548,10 @@ class BlocksRepository {
         LEFT JOIN ordpool_stats_rune_mint_activity ra ON ra.hash = blocks.hash
         LEFT JOIN ordpool_stats_brc20_mint_activity ba ON ba.hash = blocks.hash
         LEFT JOIN ordpool_stats_src20_mint_activity sa ON sa.hash = blocks.hash
+        -- HACK -- Ordpool Stats Etch/Deploy Tables
+        LEFT JOIN ordpool_stats_rune_etch re ON re.hash = blocks.hash
+        LEFT JOIN ordpool_stats_brc20_deploy bd ON bd.hash = blocks.hash
+        LEFT JOIN ordpool_stats_src20_deploy sd ON sd.hash = blocks.hash
 
         WHERE blocks.height = ?
         GROUP BY blocks.hash -- to combine activity rows`,

@@ -3,6 +3,7 @@ import { OrdpoolStats } from 'ordpool-parser';
 import DB from '../database';
 import logger from '../logger';
 import { BlockExtended } from '../mempool.interfaces';
+import { parseKeyToArrayMap, parseKeyValueMap } from './OrdpoolBlocksRepository.helper';
 
 
 export interface OrdpoolDatabaseBlock {
@@ -67,6 +68,10 @@ export interface OrdpoolDatabaseBlock {
   runeMintActivity: string;
   brc20MintActivity: string;
   src20MintActivity: string;
+
+  runeEtchAttempts: string;
+  brc20DeployAttempts: string;
+  src20DeployAttempts: string;
 }
 
 export const ORDPOOL_BLOCK_DB_FIELDS = `
@@ -129,7 +134,11 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
 
   GROUP_CONCAT(JSON_OBJECT('identifier', ra.identifier, 'count', ra.count)) AS runeMintActivity,
   GROUP_CONCAT(JSON_OBJECT('identifier', ba.identifier, 'count', ba.count)) AS brc20MintActivity,
-  GROUP_CONCAT(JSON_OBJECT('identifier', sa.identifier, 'count', sa.count)) AS src20MintActivity
+  GROUP_CONCAT(JSON_OBJECT('identifier', sa.identifier, 'count', sa.count)) AS src20MintActivity,
+
+  GROUP_CONCAT(JSON_OBJECT('identifier', re.identifier, 'txid', re.txid)) AS runeEtchAttempts,
+  GROUP_CONCAT(JSON_OBJECT('identifier', bd.identifier, 'txid', bd.txid)) AS brc20DeployAttempts,
+  GROUP_CONCAT(JSON_OBJECT('identifier', sd.identifier, 'txid', sd.txid)) AS src20DeployAttempts
 `;
 
 
@@ -137,7 +146,7 @@ class OrdpoolBlocksRepository {
   /**
    * Save indexed block data in the database
    */
-  public async $saveBlockOrdpoolStatsInDatabase(block: BlockExtended): Promise<void> {
+  public async saveBlockOrdpoolStatsInDatabase(block: BlockExtended): Promise<void> {
 
     if (!block.extras.ordpoolStats) {
       return;
@@ -325,9 +334,7 @@ class OrdpoolBlocksRepository {
 
       await DB.query(query, params);
 
-      await this.storeRuneMintActivity(block.id, block.height, block.extras.ordpoolStats);
-      await this.storeBrc20MintActivity(block.id, block.height, block.extras.ordpoolStats);
-      await this.storeSrc20MintActivity(block.id, block.height, block.extras.ordpoolStats);
+      await this.saveTokenActivity(block.id, block.height, block.extras.ordpoolStats);
 
       logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, logger.tags.mining);
 
@@ -347,99 +354,114 @@ class OrdpoolBlocksRepository {
       return undefined;
     }
 
-    const parseActivity = (activity: string | null): Record<string, number> => {
-      if (!activity) {
-        return {};
-      }
-
-      return JSON.parse(`[${activity}]`).reduce(
-        (acc, item) => {
-          acc[item.identifier] = item.count;
-          return acc;
-        },
-        {} as Record<string, number>
-      );
-    };
-
     return {
       amounts: {
-        atomical:             dbBlk.amountsAtomical,
-        atomicalMint:         dbBlk.amountsAtomicalMint,
-        atomicalTransfer:     dbBlk.amountsAtomicalTransfer,
-        atomicalUpdate:       dbBlk.amountsAtomicalUpdate,
+        atomical: dbBlk.amountsAtomical,
+        atomicalMint: dbBlk.amountsAtomicalMint,
+        atomicalTransfer: dbBlk.amountsAtomicalTransfer,
+        atomicalUpdate: dbBlk.amountsAtomicalUpdate,
 
-        cat21:                dbBlk.amountsCat21,
-        cat21Mint:            dbBlk.amountsCat21Mint,
-        cat21Transfer:        dbBlk.amountsCat21Transfer,
+        cat21: dbBlk.amountsCat21,
+        cat21Mint: dbBlk.amountsCat21Mint,
+        cat21Transfer: dbBlk.amountsCat21Transfer,
 
-        inscription:          dbBlk.amountsInscription,
-        inscriptionMint:      dbBlk.amountsInscriptionMint,
-        inscriptionTransfer:  dbBlk.amountsInscriptionTransfer,
-        inscriptionBurn:      dbBlk.amountsInscriptionBurn,
+        inscription: dbBlk.amountsInscription,
+        inscriptionMint: dbBlk.amountsInscriptionMint,
+        inscriptionTransfer: dbBlk.amountsInscriptionTransfer,
+        inscriptionBurn: dbBlk.amountsInscriptionBurn,
 
-        rune:                 dbBlk.amountsRune,
-        runeEtch:             dbBlk.amountsRuneEtch,
-        runeMint:             dbBlk.amountsRuneMint,
-        runeCenotaph:         dbBlk.amountsRuneCenotaph,
-        runeTransfer:         dbBlk.amountsRuneTransfer,
-        runeBurn:             dbBlk.amountsRuneBurn,
+        rune: dbBlk.amountsRune,
+        runeEtch: dbBlk.amountsRuneEtch,
+        runeMint: dbBlk.amountsRuneMint,
+        runeCenotaph: dbBlk.amountsRuneCenotaph,
+        runeTransfer: dbBlk.amountsRuneTransfer,
+        runeBurn: dbBlk.amountsRuneBurn,
 
-        brc20:                dbBlk.amountsBrc20,
-        brc20Deploy:          dbBlk.amountsBrc20Deploy,
-        brc20Mint:            dbBlk.amountsBrc20Mint,
-        brc20Transfer:        dbBlk.amountsBrc20Transfer,
+        brc20: dbBlk.amountsBrc20,
+        brc20Deploy: dbBlk.amountsBrc20Deploy,
+        brc20Mint: dbBlk.amountsBrc20Mint,
+        brc20Transfer: dbBlk.amountsBrc20Transfer,
 
-        src20:                dbBlk.amountsSrc20,
-        src20Deploy:          dbBlk.amountsSrc20Deploy,
-        src20Mint:            dbBlk.amountsSrc20Mint,
-        src20Transfer:        dbBlk.amountsSrc20Transfer
+        src20: dbBlk.amountsSrc20,
+        src20Deploy: dbBlk.amountsSrc20Deploy,
+        src20Mint: dbBlk.amountsSrc20Mint,
+        src20Transfer: dbBlk.amountsSrc20Transfer
       },
       fees: {
-        runeMints:                    dbBlk.feesRuneMints,
-        nonUncommonRuneMints:         dbBlk.feesNonUncommonRuneMints,
-        brc20Mints:                   dbBlk.feesBrc20Mints,
-        src20Mints:                   dbBlk.feesSrc20Mints,
-        cat21Mints:                   dbBlk.feesCat21Mints,
-        atomicals:                    dbBlk.feesAtomicals,
-        inscriptionMints:             dbBlk.feesInscriptionMints
+        runeMints: dbBlk.feesRuneMints,
+        nonUncommonRuneMints: dbBlk.feesNonUncommonRuneMints,
+        brc20Mints: dbBlk.feesBrc20Mints,
+        src20Mints: dbBlk.feesSrc20Mints,
+        cat21Mints: dbBlk.feesCat21Mints,
+        atomicals: dbBlk.feesAtomicals,
+        inscriptionMints: dbBlk.feesInscriptionMints
       },
       inscriptions: {
-        totalEnvelopeSize:            dbBlk.inscriptionsTotalEnvelopeSize,
-        totalContentSize:             dbBlk.inscriptionsTotalContentSize,
+        totalEnvelopeSize: dbBlk.inscriptionsTotalEnvelopeSize,
+        totalContentSize: dbBlk.inscriptionsTotalContentSize,
 
-        largestEnvelopeSize:          dbBlk.inscriptionsLargestEnvelopeSize,
-        largestContentSize:           dbBlk.inscriptionsLargestContentSize,
+        largestEnvelopeSize: dbBlk.inscriptionsLargestEnvelopeSize,
+        largestContentSize: dbBlk.inscriptionsLargestContentSize,
 
         largestEnvelopeInscriptionId: dbBlk.inscriptionsLargestEnvelopeInscriptionId,
-        largestContentInscriptionId:  dbBlk.inscriptionsLargestContentInscriptionId,
+        largestContentInscriptionId: dbBlk.inscriptionsLargestContentInscriptionId,
 
-        averageEnvelopeSize:          dbBlk.inscriptionsAverageEnvelopeSize,
-        averageContentSize:           dbBlk.inscriptionsAverageContentSize
+        averageEnvelopeSize: dbBlk.inscriptionsAverageEnvelopeSize,
+        averageContentSize: dbBlk.inscriptionsAverageContentSize
       },
       runes: {
-        mostActiveMint:               dbBlk.runesMostActiveMint,
-        mostActiveNonUncommonMint:    dbBlk.runesMostActiveNonUncommonMint,
-        runeMintActivity:             parseActivity(dbBlk.runeMintActivity),
+        mostActiveMint: dbBlk.runesMostActiveMint,
+        mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
+        runeMintActivity: parseKeyValueMap<number>(
+          dbBlk.runeMintActivity,
+          'identifier',
+          'count'
+        ),
+        runeEtchAttempts: parseKeyToArrayMap<string>(
+          dbBlk.runeEtchAttempts,
+          'identifier',
+          'txid'
+        )
       },
       brc20: {
-        mostActiveMint:               dbBlk.brc20MostActiveMint,
-        brc20MintActivity:            parseActivity(dbBlk.brc20MintActivity),
+        mostActiveMint: dbBlk.brc20MostActiveMint,
+        brc20MintActivity: parseKeyValueMap<number>(
+          dbBlk.brc20MintActivity,
+          'identifier',
+          'count'
+        ),
+        brc20DeployAttempts: parseKeyToArrayMap<string>(
+          dbBlk.brc20DeployAttempts,
+          'identifier',
+          'txid'
+        )
       },
       src20: {
-        mostActiveMint:               dbBlk.src20MostActiveMint,
-        src20MintActivity:            parseActivity(dbBlk.src20MintActivity),
+        mostActiveMint: dbBlk.src20MostActiveMint,
+        src20MintActivity: parseKeyValueMap<number>(
+          dbBlk.src20MintActivity,
+          'identifier',
+          'count'
+        ),
+        src20DeployAttempts: parseKeyToArrayMap<string>(
+          dbBlk.src20DeployAttempts,
+          'identifier',
+          'txid'
+        )
       },
-      version:                        dbBlk.analyserVersion
+      version: dbBlk.analyserVersion
     };
   }
 
   /**
-   * Inserts activity data in batches into the database.
+   * Inserts mint activity data in batches into the database.
+   * The identifier is always truncated to 20 chars
+   *
    * @param tableName - The target table name.
    * @param data - The data to insert, as an array of rows.
    * @param batchSize - The number of rows per batch.
    */
-  async batchInsertActivity(
+  async batchInsertMintActivity(
     tableName: string,
     data: { hash: string; height: number; identifier: string; count: number }[],
     batchSize = 100
@@ -461,50 +483,82 @@ class OrdpoolBlocksRepository {
   }
 
   /**
-   * Store Rune Mint Activity in Batches.
+   * Save mints, etchings and deployments into rdpool_stats_* tables.
+   * @param hash - The block hash.
+   * @param height - The block height.
+   * @param stats - The OrdpoolStats object containing the statistics to save.
    */
-  async storeRuneMintActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
-    const data = Object
-      .entries(stats.runes.runeMintActivity)
-      .map(([identifier, count]) => ({
-        hash,
-        height,
-        identifier,
-        count
-      }));
-    await this.batchInsertActivity('ordpool_stats_rune_mint_activity', data);
-  }
+  async saveTokenActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
 
-  /**
-   * Store BRC-20 Mint Activity in Batches.
-   */
-  async storeBrc20MintActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
-    const data = Object
-      .entries(stats.brc20.brc20MintActivity)
-      .map(([identifier, count]) => ({
-        hash,
-        height,
-        identifier,
-        count
-      }));
-    await this.batchInsertActivity('ordpool_stats_brc20_mint_activity', data);
-  }
+    // Store Rune Mint Activity in Batches
+    await this.batchInsertMintActivity('ordpool_stats_rune_mint_activity',
+      Object.entries(stats.runes.runeMintActivity)
+        .map(([identifier, count]) => ({
+          hash,
+          height,
+          identifier,
+          count
+        }))
+    );
 
-  /**
-   * Store SRC-20 Mint Activity in Batches.
-   */
-  async storeSrc20MintActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
-    const data = Object
-      .entries(stats.src20.src20MintActivity)
-      .map(([identifier, count]) => ({
-        hash,
-        height,
-        identifier,
-        count
-      }));
-    await this.batchInsertActivity('ordpool_stats_src20_mint_activity', data);
-  }
+    // Store BRC-20 Mint Activity in Batches
+    await this.batchInsertMintActivity('ordpool_stats_brc20_mint_activity',
+      Object.entries(stats.brc20.brc20MintActivity)
+        .map(([identifier, count]) => ({
+          hash,
+          height,
+          identifier,
+          count
+        }))
+    );
 
+    // Store SRC-20 Mint Activity in Batches
+    await this.batchInsertMintActivity('ordpool_stats_src20_mint_activity',
+      Object.entries(stats.src20.src20MintActivity)
+        .map(([identifier, count]) => ({
+          hash,
+          height,
+          identifier,
+          count
+        }))
+    );
+
+    // Insert Rune Etch Attempts
+    for (const [identifier, txIds] of Object.entries(stats.runes.runeEtchAttempts)) {
+      for (const txId of txIds) {
+        await DB.query(
+          `INSERT INTO ordpool_stats_rune_etch (hash, height, identifier, txid)
+           VALUES (?, ?, LEFT(?, 20), ?)
+           ON DUPLICATE KEY UPDATE txid = VALUES(txid)`,
+          [hash, height, identifier, txId]
+        );
+      }
+    }
+
+    // Insert BRC-20 Deploy Attempts
+    for (const [identifier, txIds] of Object.entries(stats.brc20.brc20DeployAttempts)) {
+      for (const txId of txIds) {
+        await DB.query(
+          `INSERT INTO ordpool_stats_brc20_deploy (hash, height, identifier, txid)
+          VALUES (?, ?, LEFT(?, 20), ?)
+          ON DUPLICATE KEY UPDATE txid = VALUES(txid)`,
+          [hash, height, identifier, txId]
+        );
+      }
+    }
+
+    // Insert SRC-20 Deploy Attempts
+    for (const [identifier, txIds] of Object.entries(stats.src20.src20DeployAttempts)) {
+      for (const txId of txIds) {
+        await DB.query(
+          `INSERT INTO ordpool_stats_src20_deploy (hash, height, identifier, txid)
+           VALUES (?, ?, LEFT(?, 20), ?)
+           ON DUPLICATE KEY UPDATE txid = VALUES(txid)`,
+          [hash, height, identifier, txId]
+        );
+      }
+    }
+  }
 }
 
 export default new OrdpoolBlocksRepository();

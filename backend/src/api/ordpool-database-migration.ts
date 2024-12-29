@@ -284,6 +284,36 @@ class OrdpoolDatabaseMigration {
           UNIQUE KEY (hash, identifier),
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_rune_etch (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          identifier VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          UNIQUE KEY (hash, identifier, txid),
+          INDEX idx_height (height)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_brc20_deploy (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          UNIQUE KEY (hash, identifier, txid),
+          INDEX idx_height (height)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_src20_deploy (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          UNIQUE KEY (hash, identifier, txid),
+          INDEX idx_height (height)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
     }
 
     return queries;
