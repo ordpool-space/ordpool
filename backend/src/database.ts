@@ -172,6 +172,9 @@ import { execSync } from 'child_process';
       this.pool = createPool(this.poolConfig);
       this.pool.on('connection', function (newConnection: PoolConnection) {
         newConnection.query(`SET time_zone='+00:00'`);
+
+        // HACK for Ordpool: increase the GROUP_CONCAT maximum length for the current session to 5MB
+        newConnection.query(`SET SESSION group_concat_max_len = 5120000`);
       });
     }
     return this.pool;

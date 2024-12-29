@@ -3,7 +3,7 @@ import { OrdpoolStats } from 'ordpool-parser';
 import DB from '../database';
 import logger from '../logger';
 import { BlockExtended } from '../mempool.interfaces';
-import { parseKeyToArrayMap, parseKeyValueMap } from './OrdpoolBlocksRepository.helper';
+import { parseActivity, parseAttempts } from './OrdpoolBlocksRepository.helper';
 
 
 export interface OrdpoolDatabaseBlock {
@@ -132,13 +132,15 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
 
   ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
 
-  GROUP_CONCAT(JSON_OBJECT('identifier', ra.identifier, 'count', ra.count)) AS runeMintActivity,
-  GROUP_CONCAT(JSON_OBJECT('identifier', ba.identifier, 'count', ba.count)) AS brc20MintActivity,
-  GROUP_CONCAT(JSON_OBJECT('identifier', sa.identifier, 'count', sa.count)) AS src20MintActivity,
+  -- Mint Activities
+  GROUP_CONCAT(CONCAT(ra.identifier, ',', ra.count)) AS runeMintActivity,
+  GROUP_CONCAT(CONCAT(ba.identifier, ',', ba.count)) AS brc20MintActivity,
+  GROUP_CONCAT(CONCAT(sa.identifier, ',', sa.count)) AS src20MintActivity,
 
-  GROUP_CONCAT(JSON_OBJECT('identifier', re.identifier, 'txid', re.txid)) AS runeEtchAttempts,
-  GROUP_CONCAT(JSON_OBJECT('identifier', bd.identifier, 'txid', bd.txid)) AS brc20DeployAttempts,
-  GROUP_CONCAT(JSON_OBJECT('identifier', sd.identifier, 'txid', sd.txid)) AS src20DeployAttempts
+  -- Etch/Deploy Attempts
+  GROUP_CONCAT(CONCAT(re.identifier, ',', re.txid)) AS runeEtchAttempts,
+  GROUP_CONCAT(CONCAT(bd.identifier, ',', bd.txid)) AS brc20DeployAttempts,
+  GROUP_CONCAT(CONCAT(sd.identifier, ',', sd.txid)) AS src20DeployAttempts
 `;
 
 
@@ -354,109 +356,80 @@ class OrdpoolBlocksRepository {
       return undefined;
     }
 
-    try {
+    return {
+      amounts: {
+        atomical: dbBlk.amountsAtomical,
+        atomicalMint: dbBlk.amountsAtomicalMint,
+        atomicalTransfer: dbBlk.amountsAtomicalTransfer,
+        atomicalUpdate: dbBlk.amountsAtomicalUpdate,
 
-      return {
-        amounts: {
-          atomical: dbBlk.amountsAtomical,
-          atomicalMint: dbBlk.amountsAtomicalMint,
-          atomicalTransfer: dbBlk.amountsAtomicalTransfer,
-          atomicalUpdate: dbBlk.amountsAtomicalUpdate,
+        cat21: dbBlk.amountsCat21,
+        cat21Mint: dbBlk.amountsCat21Mint,
+        cat21Transfer: dbBlk.amountsCat21Transfer,
 
-          cat21: dbBlk.amountsCat21,
-          cat21Mint: dbBlk.amountsCat21Mint,
-          cat21Transfer: dbBlk.amountsCat21Transfer,
+        inscription: dbBlk.amountsInscription,
+        inscriptionMint: dbBlk.amountsInscriptionMint,
+        inscriptionTransfer: dbBlk.amountsInscriptionTransfer,
+        inscriptionBurn: dbBlk.amountsInscriptionBurn,
 
-          inscription: dbBlk.amountsInscription,
-          inscriptionMint: dbBlk.amountsInscriptionMint,
-          inscriptionTransfer: dbBlk.amountsInscriptionTransfer,
-          inscriptionBurn: dbBlk.amountsInscriptionBurn,
+        rune: dbBlk.amountsRune,
+        runeEtch: dbBlk.amountsRuneEtch,
+        runeMint: dbBlk.amountsRuneMint,
+        runeCenotaph: dbBlk.amountsRuneCenotaph,
+        runeTransfer: dbBlk.amountsRuneTransfer,
+        runeBurn: dbBlk.amountsRuneBurn,
 
-          rune: dbBlk.amountsRune,
-          runeEtch: dbBlk.amountsRuneEtch,
-          runeMint: dbBlk.amountsRuneMint,
-          runeCenotaph: dbBlk.amountsRuneCenotaph,
-          runeTransfer: dbBlk.amountsRuneTransfer,
-          runeBurn: dbBlk.amountsRuneBurn,
+        brc20: dbBlk.amountsBrc20,
+        brc20Deploy: dbBlk.amountsBrc20Deploy,
+        brc20Mint: dbBlk.amountsBrc20Mint,
+        brc20Transfer: dbBlk.amountsBrc20Transfer,
 
-          brc20: dbBlk.amountsBrc20,
-          brc20Deploy: dbBlk.amountsBrc20Deploy,
-          brc20Mint: dbBlk.amountsBrc20Mint,
-          brc20Transfer: dbBlk.amountsBrc20Transfer,
+        src20: dbBlk.amountsSrc20,
+        src20Deploy: dbBlk.amountsSrc20Deploy,
+        src20Mint: dbBlk.amountsSrc20Mint,
+        src20Transfer: dbBlk.amountsSrc20Transfer
+      },
+      fees: {
+        runeMints: dbBlk.feesRuneMints,
+        nonUncommonRuneMints: dbBlk.feesNonUncommonRuneMints,
+        brc20Mints: dbBlk.feesBrc20Mints,
+        src20Mints: dbBlk.feesSrc20Mints,
+        cat21Mints: dbBlk.feesCat21Mints,
+        atomicals: dbBlk.feesAtomicals,
+        inscriptionMints: dbBlk.feesInscriptionMints
+      },
+      inscriptions: {
+        totalEnvelopeSize: dbBlk.inscriptionsTotalEnvelopeSize,
+        totalContentSize: dbBlk.inscriptionsTotalContentSize,
 
-          src20: dbBlk.amountsSrc20,
-          src20Deploy: dbBlk.amountsSrc20Deploy,
-          src20Mint: dbBlk.amountsSrc20Mint,
-          src20Transfer: dbBlk.amountsSrc20Transfer
-        },
-        fees: {
-          runeMints: dbBlk.feesRuneMints,
-          nonUncommonRuneMints: dbBlk.feesNonUncommonRuneMints,
-          brc20Mints: dbBlk.feesBrc20Mints,
-          src20Mints: dbBlk.feesSrc20Mints,
-          cat21Mints: dbBlk.feesCat21Mints,
-          atomicals: dbBlk.feesAtomicals,
-          inscriptionMints: dbBlk.feesInscriptionMints
-        },
-        inscriptions: {
-          totalEnvelopeSize: dbBlk.inscriptionsTotalEnvelopeSize,
-          totalContentSize: dbBlk.inscriptionsTotalContentSize,
+        largestEnvelopeSize: dbBlk.inscriptionsLargestEnvelopeSize,
+        largestContentSize: dbBlk.inscriptionsLargestContentSize,
 
-          largestEnvelopeSize: dbBlk.inscriptionsLargestEnvelopeSize,
-          largestContentSize: dbBlk.inscriptionsLargestContentSize,
+        largestEnvelopeInscriptionId: dbBlk.inscriptionsLargestEnvelopeInscriptionId,
+        largestContentInscriptionId: dbBlk.inscriptionsLargestContentInscriptionId,
 
-          largestEnvelopeInscriptionId: dbBlk.inscriptionsLargestEnvelopeInscriptionId,
-          largestContentInscriptionId: dbBlk.inscriptionsLargestContentInscriptionId,
+        averageEnvelopeSize: dbBlk.inscriptionsAverageEnvelopeSize,
+        averageContentSize: dbBlk.inscriptionsAverageContentSize
+      },
+      runes: {
+        mostActiveMint: dbBlk.runesMostActiveMint,
+        mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
+        runeMintActivity: parseActivity(dbBlk.runeMintActivity),
+        runeEtchAttempts: parseAttempts(dbBlk.runeEtchAttempts)
+      },
+      brc20: {
+        mostActiveMint: dbBlk.brc20MostActiveMint,
+        brc20MintActivity: parseActivity(dbBlk.brc20MintActivity),
+        brc20DeployAttempts: parseAttempts(dbBlk.brc20DeployAttempts)
+      },
+      src20: {
+        mostActiveMint: dbBlk.src20MostActiveMint,
+        src20MintActivity: parseActivity(dbBlk.src20MintActivity),
+        src20DeployAttempts: parseAttempts(dbBlk.src20DeployAttempts)
+      },
+      version: dbBlk.analyserVersion
+    };
 
-          averageEnvelopeSize: dbBlk.inscriptionsAverageEnvelopeSize,
-          averageContentSize: dbBlk.inscriptionsAverageContentSize
-        },
-        runes: {
-          mostActiveMint: dbBlk.runesMostActiveMint,
-          mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
-          runeMintActivity: parseKeyValueMap<number>(
-            dbBlk.runeMintActivity,
-            'identifier',
-            'count'
-          ),
-          runeEtchAttempts: parseKeyToArrayMap<string>(
-            dbBlk.runeEtchAttempts,
-            'identifier',
-            'txid'
-          )
-        },
-        brc20: {
-          mostActiveMint: dbBlk.brc20MostActiveMint,
-          brc20MintActivity: parseKeyValueMap<number>(
-            dbBlk.brc20MintActivity,
-            'identifier',
-            'count'
-          ),
-          brc20DeployAttempts: parseKeyToArrayMap<string>(
-            dbBlk.brc20DeployAttempts,
-            'identifier',
-            'txid'
-          )
-        },
-        src20: {
-          mostActiveMint: dbBlk.src20MostActiveMint,
-          src20MintActivity: parseKeyValueMap<number>(
-            dbBlk.src20MintActivity,
-            'identifier',
-            'count'
-          ),
-          src20DeployAttempts: parseKeyToArrayMap<string>(
-            dbBlk.src20DeployAttempts,
-            'identifier',
-            'txid'
-          )
-        },
-        version: dbBlk.analyserVersion
-      };
-    } catch (ex: any) {
-      console.log(ex);
-      throw ex;
-    }
   }
 
   /**

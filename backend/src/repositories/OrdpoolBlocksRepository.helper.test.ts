@@ -1,39 +1,63 @@
-import { parseKeyValueMap, parseKeyToArrayMap } from './OrdpoolBlocksRepository.helper';
+import { parseActivity, parseAttempts } from './OrdpoolBlocksRepository.helper';
 
-describe('parseKeyValueMap', () => {
-  it('should parse a valid JSON string into a key-value map', () => {
-    const jsonString = '{"identifier": "foo", "count": 42},{"identifier": "bar", "count": 7}';
-    const result = parseKeyValueMap<number>(jsonString, 'identifier', 'count');
-    expect(result).toEqual({ foo: 42, bar: 7 });
+describe('parseActivity', () => {
+  it('should parse a compact activity string into a key-value map', () => {
+    const data = '840686:2338,1,876937:1691,3113';
+    const result = parseActivity(data);
+    expect(result).toEqual({
+      '840686:2338': 1,
+      '876937:1691': 3113,
+    });
   });
 
-  it('should return an empty object for null input', () => {
-    const result = parseKeyValueMap<number>(null, 'identifier', 'count');
+  it('should handle an empty string gracefully', () => {
+    const data = '';
+    const result = parseActivity(data);
     expect(result).toEqual({});
   });
 
-  it('should ignore invalid items', () => {
-    const jsonString = '{"identifier": "valid", "count": 123},{"invalid": true}';
-    const result = parseKeyValueMap<number>(jsonString, 'identifier', 'count');
-    expect(result).toEqual({ valid: 123 });
+  it('should handle null input gracefully', () => {
+    const result = parseActivity(null);
+    expect(result).toEqual({});
+  });
+
+  it('should ignore malformed input and return an empty object', () => {
+    const data = 'invalid,data';
+    expect(() => parseActivity(data)).not.toThrow();
   });
 });
 
-describe('parseKeyToArrayMap', () => {
-  it('should parse a valid JSON string into a key-to-array map', () => {
-    const jsonString = '{"identifier": "foo", "txid": "txid1"},{"identifier": "foo", "txid": "txid2"},{"identifier": "bar", "txid": "txid3"}';
-    const result = parseKeyToArrayMap<string>(jsonString, 'identifier', 'txid');
-    expect(result).toEqual({ foo: ['txid1', 'txid2'], bar: ['txid3'] });
+describe('parseAttempts', () => {
+  it('should parse a compact attempts string into a key-to-array map', () => {
+    const data = '840686:2338,txid1,876937:1691,txid2';
+    const result = parseAttempts(data);
+    expect(result).toEqual({
+      '840686:2338': ['txid1'],
+      '876937:1691': ['txid2'],
+    });
   });
 
-  it('should return an empty object for null input', () => {
-    const result = parseKeyToArrayMap<string>(null, 'identifier', 'txid');
+  it('should handle multiple values for the same key', () => {
+    const data = '840686:2338,txid1,840686:2338,txid2';
+    const result = parseAttempts(data);
+    expect(result).toEqual({
+      '840686:2338': ['txid1', 'txid2'],
+    });
+  });
+
+  it('should handle an empty string gracefully', () => {
+    const data = '';
+    const result = parseAttempts(data);
     expect(result).toEqual({});
   });
 
-  it('should ignore invalid items', () => {
-    const jsonString = '{"identifier": "valid", "txid": "txid1"},{"invalid": true}';
-    const result = parseKeyToArrayMap<string>(jsonString, 'identifier', 'txid');
-    expect(result).toEqual({ valid: ['txid1'] });
+  it('should handle null input gracefully', () => {
+    const result = parseAttempts(null);
+    expect(result).toEqual({});
+  });
+
+  it('should ignore malformed input and return an empty object', () => {
+    const data = 'invalid,data';
+    expect(() => parseAttempts(data)).not.toThrow();
   });
 });
