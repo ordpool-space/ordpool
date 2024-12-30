@@ -1,9 +1,8 @@
-import { OrdpoolStats } from 'ordpool-parser';
+import { compactToBrc20DeployAttempts, compactToMintActivity, compactToRuneEtchAttempts, compactToSrc20DeployAttempts, OrdpoolStats } from 'ordpool-parser';
 
 import DB from '../database';
 import logger from '../logger';
 import { BlockExtended } from '../mempool.interfaces';
-import { parseActivity, parseAttempts } from './OrdpoolBlocksRepository.helper';
 
 
 export interface OrdpoolDatabaseBlock {
@@ -133,14 +132,48 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
 
   -- Mint Activities
-  GROUP_CONCAT(CONCAT(ra.identifier, ',', ra.count)) AS runeMintActivity,
-  GROUP_CONCAT(CONCAT(ba.identifier, ',', ba.count)) AS brc20MintActivity,
-  GROUP_CONCAT(CONCAT(sa.identifier, ',', sa.count)) AS src20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(ra.identifier, ',', ra.count) ORDER BY ra.count DESC) AS runeMintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(ba.identifier, ',', ba.count) ORDER BY ba.count DESC) AS brc20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(sa.identifier, ',', sa.count) ORDER BY sa.count DESC) AS src20MintActivity,
 
   -- Etch/Deploy Attempts
-  GROUP_CONCAT(CONCAT(re.identifier, ',', re.txid)) AS runeEtchAttempts,
-  GROUP_CONCAT(CONCAT(bd.identifier, ',', bd.txid)) AS brc20DeployAttempts,
-  GROUP_CONCAT(CONCAT(sd.identifier, ',', sd.txid)) AS src20DeployAttempts
+  GROUP_CONCAT(
+    DISTINCT CONCAT(
+      re.txId, ',',                       --  1
+      re.runeId, ',',                     --  2
+      COALESCE(re.rune_name, ''), ',',    --  3
+      COALESCE(re.divisibility, ''), ',', --  4
+      COALESCE(re.premine, ''), ',',      --  5
+      COALESCE(re.symbol, ''), ',',       --  6
+      COALESCE(re.cap, ''), ',',          --  7
+      COALESCE(re.amount, ''), ',',       --  8
+      COALESCE(re.offset_start, ''), ',', --  9
+      COALESCE(re.offset_end, ''), ',',   -- 10
+      COALESCE(re.height_start, ''), ',', -- 11
+      COALESCE(re.height_end, ''), ',',   -- 12
+      IF(re.turbo, '1', '')               -- 13
+    )
+  ) AS runeEtchAttempts
+
+  GROUP_CONCAT(
+    DISTINCT CONCAT(
+      COALESCE(bd.txid, ''), '|',
+      COALESCE(bd.ticker, ''), '|',
+      COALESCE(bd.max_supply, ''), '|',
+      COALESCE(bd.mint_limit, ''), '|',
+      COALESCE(bd.decimals, '')
+    )
+  ) AS brc20DeployAttempts,
+
+  GROUP_CONCAT(
+    DISTINCT CONCAT(
+      COALESCE(bd.txid, ''), '|',
+      COALESCE(bd.ticker, ''), '|',
+      COALESCE(bd.max_supply, ''), '|',
+      COALESCE(bd.mint_limit, ''), '|',
+      COALESCE(bd.decimals, '')
+    )
+  ) AS src20DeployAttempts
 `;
 
 
@@ -414,22 +447,21 @@ class OrdpoolBlocksRepository {
       runes: {
         mostActiveMint: dbBlk.runesMostActiveMint,
         mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
-        runeMintActivity: parseActivity(dbBlk.runeMintActivity),
-        runeEtchAttempts: parseAttempts(dbBlk.runeEtchAttempts)
+        runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity),
+        runeEtchAttempts: compactToRuneEtchAttempts(dbBlk.runeEtchAttempts)
       },
       brc20: {
         mostActiveMint: dbBlk.brc20MostActiveMint,
-        brc20MintActivity: parseActivity(dbBlk.brc20MintActivity),
-        brc20DeployAttempts: parseAttempts(dbBlk.brc20DeployAttempts)
+        brc20MintActivity: compactToMintActivity(dbBlk.brc20MintActivity),
+        brc20DeployAttempts: compactToBrc20DeployAttempts(dbBlk.brc20DeployAttempts)
       },
       src20: {
         mostActiveMint: dbBlk.src20MostActiveMint,
-        src20MintActivity: parseActivity(dbBlk.src20MintActivity),
-        src20DeployAttempts: parseAttempts(dbBlk.src20DeployAttempts)
+        src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity),
+        src20DeployAttempts: compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts)
       },
       version: dbBlk.analyserVersion
     };
-
   }
 
   /**
@@ -471,7 +503,7 @@ class OrdpoolBlocksRepository {
 
     // Store Rune Mint Activity in Batches
     await this.batchInsertMintActivity('ordpool_stats_rune_mint_activity',
-      Object.entries(stats.runes.runeMintActivity)
+      stats.runes.runeMintActivity
         .map(([identifier, count]) => ({
           hash,
           height,
@@ -482,7 +514,7 @@ class OrdpoolBlocksRepository {
 
     // Store BRC-20 Mint Activity in Batches
     await this.batchInsertMintActivity('ordpool_stats_brc20_mint_activity',
-      Object.entries(stats.brc20.brc20MintActivity)
+      stats.brc20.brc20MintActivity
         .map(([identifier, count]) => ({
           hash,
           height,
@@ -493,7 +525,7 @@ class OrdpoolBlocksRepository {
 
     // Store SRC-20 Mint Activity in Batches
     await this.batchInsertMintActivity('ordpool_stats_src20_mint_activity',
-      Object.entries(stats.src20.src20MintActivity)
+      stats.src20.src20MintActivity
         .map(([identifier, count]) => ({
           hash,
           height,
@@ -503,39 +535,114 @@ class OrdpoolBlocksRepository {
     );
 
     // Insert Rune Etch Attempts
-    for (const [identifier, txIds] of Object.entries(stats.runes.runeEtchAttempts)) {
-      for (const txId of txIds) {
-        await DB.query(
-          `INSERT INTO ordpool_stats_rune_etch (hash, height, identifier, txid)
-           VALUES (?, ?, LEFT(?, 60), ?)
-           ON DUPLICATE KEY UPDATE txid = VALUES(txid)`,
-          [hash, height, identifier, txId]
-        );
-      }
+     for (const {
+      txId,                 //  1
+      runeId,               //  2
+      runeName,             //  3
+      divisibility,         //  4
+      premine,              //  5
+      symbol,               //  6
+      cap,                  //  7
+      amount,               //  8
+      offsetStart,          //  9
+      offsetEnd,            // 10
+      heightStart,          // 11
+      heightEnd,            // 12
+      turbo                 // 13
+    } of stats.runes.runeEtchAttempts) {
+      await DB.query(
+        `INSERT INTO ordpool_stats_rune_etch (
+            hash,
+            height,
+            txid,           --  1
+            rune_id,        --  2
+            rune_name,      --  3
+            divisibility,   --  4
+            premine,        --  5
+            symbol,         --  6
+            cap,            --  7
+            amount,         --  8
+            offset_start,   --  9
+            offset_end,     -- 10
+            height_start,   -- 11
+            height_end,     -- 12
+            turbo           -- 13
+          ) VALUES (
+            ?,
+            ?,
+            ?,              --  1
+            ?,              --  2
+            LEFT(?, 60),    --  3 (rune_name)
+            ?,              --  4
+            ?,              --  5
+            LEFT(?, 10),    --  6 (symbol)
+            ?,              --  7
+            ?,              --  8
+            ?,              --  9
+            ?,              -- 10
+            ?,              -- 11
+            ?,              -- 12
+            ?               -- 13
+          )
+          ON DUPLICATE KEY UPDATE
+            txid = VALUES(txid),                 --  1
+            rune_name = VALUES(rune_name),       --  3
+            divisibility = VALUES(divisibility), --  4
+            premine = VALUES(premine),           --  5
+            symbol = VALUES(symbol),             --  6
+            cap = VALUES(cap),                   --  7
+            amount = VALUES(amount),             --  8
+            offset_start = VALUES(offset_start), --  9
+            offset_end = VALUES(offset_end),     -- 10
+            height_start = VALUES(height_start), -- 11
+            height_end = VALUES(height_end),     -- 12
+            turbo = VALUES(turbo)                -- 13
+          `,
+        [
+          hash,
+          height,
+          txId,
+          runeId,
+          runeName,
+          divisibility,
+          premine,
+          symbol,
+          cap,
+          amount,
+          offsetStart,
+          offsetEnd,
+          heightStart,
+          heightEnd,
+          turbo,
+        ]
+      );
     }
 
     // Insert BRC-20 Deploy Attempts
-    for (const [identifier, txIds] of Object.entries(stats.brc20.brc20DeployAttempts)) {
-      for (const txId of txIds) {
-        await DB.query(
-          `INSERT INTO ordpool_stats_brc20_deploy (hash, height, identifier, txid)
-          VALUES (?, ?, LEFT(?, 20), ?)
-          ON DUPLICATE KEY UPDATE txid = VALUES(txid)`,
-          [hash, height, identifier, txId]
-        );
-      }
+    for (const { txId, ticker, maxSupply, mintLimit, decimals } of stats.brc20.brc20DeployAttempts) {
+      await DB.query(
+        `INSERT INTO ordpool_stats_brc20_deploy (hash, height, txid, ticker, max_supply, mint_limit, decimals)
+        VALUES (?, ?, ?, LEFT(?, 20), ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          max_supply = VALUES(max_supply),
+          mint_limit = VALUES(mint_limit),
+          decimals = VALUES(decimals)`,
+        [hash, height, txId, ticker, maxSupply, mintLimit, decimals]
+      );
     }
 
     // Insert SRC-20 Deploy Attempts
-    for (const [identifier, txIds] of Object.entries(stats.src20.src20DeployAttempts)) {
-      for (const txId of txIds) {
-        await DB.query(
-          `INSERT INTO ordpool_stats_src20_deploy (hash, height, identifier, txid)
-           VALUES (?, ?, LEFT(?, 20), ?)
-           ON DUPLICATE KEY UPDATE txid = VALUES(txid)`,
-          [hash, height, identifier, txId]
-        );
-      }
+    for (const { txId, ticker, maxSupply, mintLimit, decimals } of stats.src20.src20DeployAttempts) {
+      await DB.query(
+        `INSERT INTO ordpool_stats_src20_deploy (hash, height, txid, ticker, max_supply, mint_limit, decimals)
+        VALUES (?, ?, ?, LEFT(?, 20), ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          max_supply = VALUES(max_supply),
+          mint_limit = VALUES(mint_limit),
+          decimals = VALUES(decimals)`,
+        [hash, height, txId, ticker, maxSupply, mintLimit, decimals]
+      );
+
     }
   }
 }

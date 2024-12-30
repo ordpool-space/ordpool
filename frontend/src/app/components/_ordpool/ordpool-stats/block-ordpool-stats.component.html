@@ -140,6 +140,27 @@
             <strong class="text-secondary">None</strong>
           }
       </tr>
+      <tr>
+        <td>Etchings</td>
+        <td class="small">
+          <ul class="list-unstyled">
+            <li *ngFor="let runeEtchAttempt of ordpoolStats.runes.runeEtchAttempts | keyvalueUnsorted">
+              <a *ngFor="let txId of runeEtchAttempt.value" [routerLink]="['/tx/' | relativeUrl, txId]">
+                {{ runeEtchAttempt.key }}
+              </a>
+            </li>
+          </ul>
+      </tr>
+      <tr>
+        <td>Mints</td>
+        <td>
+          <div class="table">
+            <div class="table-row" *ngFor="let runeMint of ordpoolStats.runes.runeMintActivity | keyvalueUnsorted">
+              <div class="table-cell value small">{{ runeMint.value | number }}</div>
+              <div class="table-cell text small">x <app-runestone-id-to-link [runeId]="runeMint.key"/></div>
+            </div>
+          </div>
+      </tr>
     </ng-container>
     <ng-template #skeletonRowsInscriptions>
       <tr *ngFor="let i of [].constructor(6)">

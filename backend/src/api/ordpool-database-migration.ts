@@ -281,6 +281,7 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
+          -- the identifier is the ticker of the token
           identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           count INT NOT NULL,
           UNIQUE KEY (hash, identifier),
@@ -291,6 +292,7 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
+          -- the identifier is the ticker of the token
           identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           count INT NOT NULL,
           UNIQUE KEY (hash, identifier),
@@ -301,10 +303,20 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          -- the identifier for etchings is the Rune name itself. The Spacers field requires unicode, 60 chars should be more than required
-          identifier VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-          UNIQUE KEY (hash, identifier, txid),
+          rune_id VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, -- Format: blockHeight:txIndex
+          rune_name VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+          divisibility TINYINT UNSIGNED DEFAULT NULL,
+          premine BIGINT UNSIGNED DEFAULT NULL,
+          symbol VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+          cap BIGINT UNSIGNED DEFAULT NULL,
+          amount BIGINT UNSIGNED DEFAULT NULL,
+          offset_start BIGINT UNSIGNED DEFAULT NULL,
+          offset_end BIGINT UNSIGNED DEFAULT NULL,
+          height_start BIGINT UNSIGNED DEFAULT NULL,
+          height_end BIGINT UNSIGNED DEFAULT NULL,
+          turbo BOOLEAN DEFAULT NULL,
+          UNIQUE KEY (hash, rune_id),
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
 
@@ -312,9 +324,12 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-          UNIQUE KEY (hash, identifier, txid),
+          ticker VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          max_supply VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          mint_limit VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+          decimals VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+          UNIQUE KEY (hash, ticker, txid),
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
 
@@ -322,9 +337,12 @@ class OrdpoolDatabaseMigration {
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           txid VARCHAR(65) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-          UNIQUE KEY (hash, identifier, txid),
+          ticker VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          max_supply VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          mint_limit VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          decimals VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+          UNIQUE KEY (hash, ticker, txid),
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
     }

@@ -9,3 +9,27 @@ small {
 .bg-box {
   background-color: var(--box-bg) !important;
 }
+
+.table {
+  display: table;
+  width: 100%;
+}
+
+.table-row {
+  display: table-row;
+}
+
+.table-cell {
+  display: table-cell;
+  white-space: nowrap; /* Prevent wrapping of numbers or text */
+  vertical-align: middle; /* Aligns text vertically */
+}
+
+.value {
+  text-align: right; /* Aligns the numbers to the right */
+  padding-right: 0.5rem; /* Adds spacing between number and text */
+}
+
+.text {
+  text-align: left;
+}
