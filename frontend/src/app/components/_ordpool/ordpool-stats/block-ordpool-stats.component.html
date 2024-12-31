@@ -140,24 +140,24 @@
             <strong class="text-secondary">None</strong>
           }
       </tr>
-      <tr>
-        <td>Etchings</td>
+      <tr *ngIf="ordpoolStats.runes.runeEtchAttempts.length">
+        <td>All Etchings</td>
         <td class="small">
           <ul class="list-unstyled">
-            <li *ngFor="let runeEtchAttempt of ordpoolStats.runes.runeEtchAttempts | keyvalueUnsorted">
-              <a *ngFor="let txId of runeEtchAttempt.value" [routerLink]="['/tx/' | relativeUrl, txId]">
-                {{ runeEtchAttempt.key }}
+            <li *ngFor="let runeEtchAttempt of ordpoolStats.runes.runeEtchAttempts">
+              <a [routerLink]="['/tx/' | relativeUrl, runeEtchAttempt.txId]">
+                <strong>{{ runeEtchAttempt.symbol }} {{ runeEtchAttempt.runeName }}</strong>
               </a>
             </li>
           </ul>
       </tr>
-      <tr>
-        <td>Mints</td>
+      <tr *ngIf="ordpoolStats.runes.runeMintActivity.length">
+        <td>All Mints</td>
         <td>
           <div class="table">
-            <div class="table-row" *ngFor="let runeMint of ordpoolStats.runes.runeMintActivity | keyvalueUnsorted">
-              <div class="table-cell value small">{{ runeMint.value | number }}</div>
-              <div class="table-cell text small">x <app-runestone-id-to-link [runeId]="runeMint.key"/></div>
+            <div class="table-row" *ngFor="let runeMint of ordpoolStats.runes.runeMintActivity">
+              <div class="table-cell value small">{{ runeMint[1] | number }} <span class="text-muted">x</span> </div>
+              <div class="table-cell text small"><app-runestone-id-to-link [runeId]="runeMint[0]"/></div>
             </div>
           </div>
       </tr>
@@ -209,6 +209,27 @@
           }
         </td>
       </tr>
+      <tr *ngIf="ordpoolStats.brc20.brc20DeployAttempts.length">
+        <td>All Deployments</td>
+        <td class="small">
+          <ul class="list-unstyled">
+            <li *ngFor="let brc20DeployAttempt of ordpoolStats.brc20.brc20DeployAttempts">
+              <a [routerLink]="['/tx/' | relativeUrl, brc20DeployAttempt.txId]">
+                <strong>{{ brc20DeployAttempt.ticker }}</strong>
+              </a>
+            </li>
+          </ul>
+      </tr>
+      <tr *ngIf="ordpoolStats.brc20.brc20MintActivity.length">
+        <td>All Mints</td>
+        <td>
+          <div class="table">
+            <div class="table-row" *ngFor="let brc20Mint of ordpoolStats.brc20.brc20MintActivity">
+              <div class="table-cell value small">{{ brc20Mint[1] | number }} <span class="text-muted">x</span> </div>
+              <div class="table-cell text small">{{ brc20Mint[0] }}</div>
+            </div>
+          </div>
+      </tr>
     </ng-container>
     <ng-template #skeletonRowsInscriptions>
       <tr *ngFor="let i of [].constructor(5)">
@@ -256,6 +277,27 @@
             <strong class="text-secondary">None</strong>
           }
           </td>
+      </tr>
+      <tr *ngIf="ordpoolStats.src20.src20DeployAttempts.length">
+        <td>All Deployments</td>
+        <td class="small">
+          <ul class="list-unstyled">
+            <li *ngFor="let src20DeployAttempt of ordpoolStats.src20.src20DeployAttempts">
+              <a [routerLink]="['/tx/' | relativeUrl, src20DeployAttempt.txId]">
+                <strong>{{ src20DeployAttempt.ticker }}</strong>
+              </a>
+            </li>
+          </ul>
+      </tr>
+      <tr *ngIf="ordpoolStats.src20.src20MintActivity.length">
+        <td>All Mints</td>
+        <td>
+          <div class="table">
+            <div class="table-row" *ngFor="let src20Mint of ordpoolStats.src20.src20MintActivity">
+              <div class="table-cell value small">{{ src20Mint[1] | number }} <span class="text-muted">x</span> </div>
+              <div class="table-cell text small">{{ src20Mint[0] }}</div>
+            </div>
+          </div>
       </tr>
     </ng-container>
     <ng-template #skeletonRowsInscriptions>

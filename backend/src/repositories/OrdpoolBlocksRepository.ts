@@ -132,33 +132,33 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
 
   -- Mint Activities
-  GROUP_CONCAT(DISTINCT CONCAT(ra.identifier, ',', ra.count) ORDER BY ra.count DESC) AS runeMintActivity,
-  GROUP_CONCAT(DISTINCT CONCAT(ba.identifier, ',', ba.count) ORDER BY ba.count DESC) AS brc20MintActivity,
-  GROUP_CONCAT(DISTINCT CONCAT(sa.identifier, ',', sa.count) ORDER BY sa.count DESC) AS src20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(ra.identifier, ',', ra.count)) AS runeMintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(ba.identifier, ',', ba.count)) AS brc20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(sa.identifier, ',', sa.count)) AS src20MintActivity,
 
   -- Etch/Deploy Attempts
   GROUP_CONCAT(
     DISTINCT CONCAT(
-      re.txId, ',',                       --  1
-      re.runeId, ',',                     --  2
-      COALESCE(re.rune_name, ''), ',',    --  3
-      COALESCE(re.divisibility, ''), ',', --  4
-      COALESCE(re.premine, ''), ',',      --  5
-      COALESCE(re.symbol, ''), ',',       --  6
-      COALESCE(re.cap, ''), ',',          --  7
-      COALESCE(re.amount, ''), ',',       --  8
-      COALESCE(re.offset_start, ''), ',', --  9
-      COALESCE(re.offset_end, ''), ',',   -- 10
-      COALESCE(re.height_start, ''), ',', -- 11
-      COALESCE(re.height_end, ''), ',',   -- 12
+      re.txid,                       '|', --  1
+      re.rune_id,                    '|', --  2
+      COALESCE(re.rune_name, ''),    '|', --  3
+      COALESCE(re.divisibility, ''), '|', --  4
+      COALESCE(re.premine, ''),      '|', --  5
+      COALESCE(re.symbol, ''),       '|', --  6
+      COALESCE(re.cap, ''),          '|', --  7
+      COALESCE(re.amount, ''),       '|', --  8
+      COALESCE(re.offset_start, ''), '|', --  9
+      COALESCE(re.offset_end, ''),   '|', -- 10
+      COALESCE(re.height_start, ''), '|', -- 11
+      COALESCE(re.height_end, ''),   '|', -- 12
       IF(re.turbo, '1', '')               -- 13
     )
-  ) AS runeEtchAttempts
+  ) AS runeEtchAttempts,
 
   GROUP_CONCAT(
     DISTINCT CONCAT(
-      COALESCE(bd.txid, ''), '|',
-      COALESCE(bd.ticker, ''), '|',
+      COALESCE(bd.txid, ''),       '|',
+      COALESCE(bd.ticker, ''),     '|',
       COALESCE(bd.max_supply, ''), '|',
       COALESCE(bd.mint_limit, ''), '|',
       COALESCE(bd.decimals, '')
@@ -167,11 +167,11 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
 
   GROUP_CONCAT(
     DISTINCT CONCAT(
-      COALESCE(bd.txid, ''), '|',
-      COALESCE(bd.ticker, ''), '|',
-      COALESCE(bd.max_supply, ''), '|',
-      COALESCE(bd.mint_limit, ''), '|',
-      COALESCE(bd.decimals, '')
+      COALESCE(sd.txid, ''),       '|',
+      COALESCE(sd.ticker, ''),     '|',
+      COALESCE(sd.max_supply, ''), '|',
+      COALESCE(sd.mint_limit, ''), '|',
+      COALESCE(sd.decimals, '')
     )
   ) AS src20DeployAttempts
 `;
@@ -447,17 +447,17 @@ class OrdpoolBlocksRepository {
       runes: {
         mostActiveMint: dbBlk.runesMostActiveMint,
         mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
-        runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity),
+        runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity).sort((a, b) => b[1] - a[1]),
         runeEtchAttempts: compactToRuneEtchAttempts(dbBlk.runeEtchAttempts)
       },
       brc20: {
         mostActiveMint: dbBlk.brc20MostActiveMint,
-        brc20MintActivity: compactToMintActivity(dbBlk.brc20MintActivity),
+        brc20MintActivity: compactToMintActivity(dbBlk.brc20MintActivity).sort((a, b) => b[1] - a[1]),
         brc20DeployAttempts: compactToBrc20DeployAttempts(dbBlk.brc20DeployAttempts)
       },
       src20: {
         mostActiveMint: dbBlk.src20MostActiveMint,
-        src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity),
+        src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity).sort((a, b) => b[1] - a[1]),
         src20DeployAttempts: compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts)
       },
       version: dbBlk.analyserVersion
