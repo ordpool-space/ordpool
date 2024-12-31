@@ -502,7 +502,7 @@ class OrdpoolBlocksRepository {
   async saveTokenActivity(hash: string, height: number, stats: OrdpoolStats): Promise<void> {
 
     // Store Rune Mint Activity in Batches
-    await this.batchInsertMintActivity('ordpool_stats_rune_mint_activity',
+    await this.batchInsertMintActivity('ordpool_stats_rune_mint',
       stats.runes.runeMintActivity
         .map(([identifier, count]) => ({
           hash,
@@ -513,7 +513,7 @@ class OrdpoolBlocksRepository {
     );
 
     // Store BRC-20 Mint Activity in Batches
-    await this.batchInsertMintActivity('ordpool_stats_brc20_mint_activity',
+    await this.batchInsertMintActivity('ordpool_stats_brc20_mint',
       stats.brc20.brc20MintActivity
         .map(([identifier, count]) => ({
           hash,
@@ -524,7 +524,7 @@ class OrdpoolBlocksRepository {
     );
 
     // Store SRC-20 Mint Activity in Batches
-    await this.batchInsertMintActivity('ordpool_stats_src20_mint_activity',
+    await this.batchInsertMintActivity('ordpool_stats_src20_mint',
       stats.src20.src20MintActivity
         .map(([identifier, count]) => ({
           hash,

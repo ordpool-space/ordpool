@@ -91,9 +91,9 @@ class OrdpoolDatabaseMigration {
    * Hint: Quick reset for development:
    *
    * DROP TABLE `ordpool_stats`;
-   * DROP TABLE `ordpool_stats_rune_mint_activity`;
-   * DROP TABLE `ordpool_stats_brc20_mint_activity`;
-   * DROP TABLE `ordpool_stats_src20_mint_activity`;
+   * DROP TABLE `ordpool_stats_rune_mint`;
+   * DROP TABLE `ordpool_stats_brc20_mint`;
+   * DROP TABLE `ordpool_stats_src20_mint`;
    * DROP TABLE `ordpool_stats_rune_etch`;
    * DROP TABLE `ordpool_stats_brc20_deploy`;
    * DROP TABLE `ordpool_stats_src20_deploy`;
@@ -266,7 +266,7 @@ class OrdpoolDatabaseMigration {
           PRIMARY KEY (hash)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
 
-        queries.push(`CREATE TABLE ordpool_stats_rune_mint_activity (
+        queries.push(`CREATE TABLE ordpool_stats_rune_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
@@ -277,7 +277,7 @@ class OrdpoolDatabaseMigration {
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
 
-        queries.push(`CREATE TABLE ordpool_stats_brc20_mint_activity (
+        queries.push(`CREATE TABLE ordpool_stats_brc20_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
@@ -288,7 +288,7 @@ class OrdpoolDatabaseMigration {
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
 
-        queries.push(`CREATE TABLE ordpool_stats_src20_mint_activity (
+        queries.push(`CREATE TABLE ordpool_stats_src20_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           height INT(10) UNSIGNED NOT NULL,

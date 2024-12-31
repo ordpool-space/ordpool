@@ -497,9 +497,9 @@ class BlocksRepository {
       -- HACK -- Ordpool Stats
       LEFT JOIN ordpool_stats ON blocks.hash = ordpool_stats.hash
       -- HACK -- Ordpool Stats Mint Activity Tables
-      LEFT JOIN ordpool_stats_rune_mint_activity ra ON ra.hash = blocks.hash
-      LEFT JOIN ordpool_stats_brc20_mint_activity ba ON ba.hash = blocks.hash
-      LEFT JOIN ordpool_stats_src20_mint_activity sa ON sa.hash = blocks.hash
+      LEFT JOIN ordpool_stats_rune_mint ra ON ra.hash = blocks.hash
+      LEFT JOIN ordpool_stats_brc20_mint ba ON ba.hash = blocks.hash
+      LEFT JOIN ordpool_stats_src20_mint sa ON sa.hash = blocks.hash
       -- HACK -- Ordpool Stats Etch/Deploy Tables
       LEFT JOIN ordpool_stats_rune_etch re ON re.hash = blocks.hash
       LEFT JOIN ordpool_stats_brc20_deploy bd ON bd.hash = blocks.hash
@@ -545,9 +545,9 @@ class BlocksRepository {
         -- HACK -- Ordpool Stats
         LEFT JOIN ordpool_stats ON blocks.hash = ordpool_stats.hash
         -- HACK -- Ordpool Stats Mint Activity Tables
-        LEFT JOIN ordpool_stats_rune_mint_activity ra ON ra.hash = blocks.hash
-        LEFT JOIN ordpool_stats_brc20_mint_activity ba ON ba.hash = blocks.hash
-        LEFT JOIN ordpool_stats_src20_mint_activity sa ON sa.hash = blocks.hash
+        LEFT JOIN ordpool_stats_rune_mint ra ON ra.hash = blocks.hash
+        LEFT JOIN ordpool_stats_brc20_mint ba ON ba.hash = blocks.hash
+        LEFT JOIN ordpool_stats_src20_mint sa ON sa.hash = blocks.hash
         -- HACK -- Ordpool Stats Etch/Deploy Tables
         LEFT JOIN ordpool_stats_rune_etch re ON re.hash = blocks.hash
         LEFT JOIN ordpool_stats_brc20_deploy bd ON bd.hash = blocks.hash
