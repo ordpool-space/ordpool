@@ -426,7 +426,8 @@ import { MiniInscriptionViewerComponent } from '../components/_ordpool/digital-a
     DigitalArtifactViewerComponent,
     InscriptionAcceleratorComponent,
     RunestoneIdToLinkComponent,
-    RunestoneIdToTextComponent
+    RunestoneIdToTextComponent,
+    Cat21ViewerComponent
   ]
 })
 export class SharedModule {

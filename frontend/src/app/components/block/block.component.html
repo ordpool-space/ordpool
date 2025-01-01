@@ -44,6 +44,7 @@
           <!-- HACK: START Ordpool Stats -->
           <app-block-ordpool-stats 
             [ordpoolStats]="block?.extras?.ordpoolStats"
+            [blockId]="block?.id"
             [showSkeleton]="block && !isLoadingBlock"
             [blockConversion]="blockConversion" />
           <!-- HACK: END Ordpool Stats -->

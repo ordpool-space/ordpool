@@ -1,5 +1,4 @@
 @if (ordpoolStats) {
-
   <thead class="text-primary">
     <tr><th colspan="2">CAT-21 Ordinals</th></tr>
   </thead>
@@ -16,6 +15,22 @@
           <span class="fiat">
             <app-fiat [blockConversion]="blockConversion" [value]="ordpoolStats.fees.cat21Mints" digitsInfo="1.0-0"></app-fiat>
           </span>
+        </td>
+      </tr>
+      <tr *ngIf="ordpoolStats.cat21?.minimalCat21MintActivity?.length">
+        <td>All Mints</td>
+        <td>        
+          <div *ngFor="let minimalCat21Mint of ordpoolStats.cat21?.minimalCat21MintActivity"
+            class="cat21-thumbnails">
+
+            <a [routerLink]="['/tx/' | relativeUrl, minimalCat21Mint.transactionId]">
+              <app-cat21-viewer 
+                [parsedCat21]="mintToParsedCat21(minimalCat21Mint)"
+                [minimal]="true" 
+              />
+            </a>
+
+          </div>
         </td>
       </tr>
     </ng-container>

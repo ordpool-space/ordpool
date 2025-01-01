@@ -41,6 +41,7 @@ export class Cat21ViewerComponent {
   traits: CatTraits | undefined | null = undefined;
 
   @Input() showDetails = false;
+  @Input() minimal = false;
 
   @Input()
   set parsedCat21(cat21: ParsedCat21 | undefined) {

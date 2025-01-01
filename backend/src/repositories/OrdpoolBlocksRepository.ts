@@ -133,9 +133,9 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
 
   -- Mint Activities
-  GROUP_CONCAT(DISTINCT CONCAT(rune_mint.identifier, ',',  rune_mint.count)) AS runeMintActivity,
-  GROUP_CONCAT(DISTINCT CONCAT(brc20_mint.identifier, ',', brc20_mint.count)) AS brc20MintActivity,
-  GROUP_CONCAT(DISTINCT CONCAT(src20_mint.identifier, ',', src20_mint.count)) AS src20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(rune_mint.identifier, ',',  rune_mint.count)  ORDER BY rune_mint.count DESC) AS runeMintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(brc20_mint.identifier, ',', brc20_mint.count) ORDER BY brc20_mint.count DESC) AS brc20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(src20_mint.identifier, ',', src20_mint.count) ORDER BY src20_mint.count DESC) AS src20MintActivity,
 
   GROUP_CONCAT(
     DISTINCT CONCAT(
@@ -456,17 +456,17 @@ class OrdpoolBlocksRepository {
       runes: {
         mostActiveMint: dbBlk.runesMostActiveMint,
         mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
-        runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity).sort((a, b) => b[1] - a[1]),
+        runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity),
         runeEtchAttempts: compactToRuneEtchAttempts(dbBlk.runeEtchAttempts)
       },
       brc20: {
         mostActiveMint: dbBlk.brc20MostActiveMint,
-        brc20MintActivity: compactToMintActivity(dbBlk.brc20MintActivity).sort((a, b) => b[1] - a[1]),
+        brc20MintActivity: compactToMintActivity(dbBlk.brc20MintActivity),
         brc20DeployAttempts: compactToBrc20DeployAttempts(dbBlk.brc20DeployAttempts)
       },
       src20: {
         mostActiveMint: dbBlk.src20MostActiveMint,
-        src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity).sort((a, b) => b[1] - a[1]),
+        src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity),
         src20DeployAttempts: compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts)
       },
       cat21: {

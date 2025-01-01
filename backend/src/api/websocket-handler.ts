@@ -34,6 +34,7 @@ interface AddressTransactions {
 }
 import bitcoinSecondClient from './bitcoin/bitcoin-second-client';
 import { calculateCpfp } from './cpfp';
+import { mapCat21MintsToMinimal } from '../repositories/OrdpoolBlocksRepository.helper';
 
 // valid 'want' subscriptions
 const wantable = [
@@ -88,7 +89,7 @@ class WebsocketHandler {
       'backend': config.MEMPOOL.BACKEND,
       'mempoolInfo': memPool.getMempoolInfo(),
       'vBytesPerSecond': memPool.getVBytesPerSecond(),
-      'blocks': _blocks,
+      'blocks': mapCat21MintsToMinimal(_blocks),
       'conversions': priceUpdater.getLatestPrices(),
       'mempool-blocks': mempoolBlocks.getMempoolBlocks(),
       'transactions': memPool.getLatestTransactions(),
@@ -492,7 +493,7 @@ class WebsocketHandler {
 
     // update init data
     this.updateSocketDataFields({
-      'blocks': blocks.getBlocks(),
+      'blocks': mapCat21MintsToMinimal(blocks.getBlocks()),
       'da': da?.previousTime ? da : undefined,
     });
 
@@ -919,7 +920,7 @@ class WebsocketHandler {
     });
     }
   }
- 
+
   async handleNewBlock(block: BlockExtended, txIds: string[], transactions: MempoolTransactionExtended[]): Promise<void> {
     if (!this.webSocketServers.length) {
       throw new Error('No WebSocket.Server have been set');
@@ -1049,7 +1050,7 @@ class WebsocketHandler {
     // update init data
     this.updateSocketDataFields({
       'mempoolInfo': mempoolInfo,
-      'blocks': [...blocks.getBlocks(), block].slice(-config.MEMPOOL.INITIAL_BLOCKS_AMOUNT),
+      'blocks': mapCat21MintsToMinimal([...blocks.getBlocks(), block].slice(-config.MEMPOOL.INITIAL_BLOCKS_AMOUNT)),
       'mempool-blocks': mBlocks,
       'loadingIndicators': loadingIndicators.getLoadingIndicators(),
       'da': da?.previousTime ? da : undefined,

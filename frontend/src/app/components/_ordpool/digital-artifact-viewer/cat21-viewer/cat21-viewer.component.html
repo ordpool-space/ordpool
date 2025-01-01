@@ -1,6 +1,6 @@
 <ng-container *ngIf="svg && enableCat21Mint">
 
-  <strong>😺 CAT-21 Ordinal</strong><br>
+  <strong *ngIf="!minimal">😺 CAT-21 Ordinal</strong><br *ngIf="!minimal">
   <br *ngIf="showDetails">
 
   <div class="cat-container" [innerHTML]="svg | noSanitize"></div>
