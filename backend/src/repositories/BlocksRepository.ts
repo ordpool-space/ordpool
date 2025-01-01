@@ -496,14 +496,17 @@ class BlocksRepository {
 
       -- HACK -- Ordpool Stats
       LEFT JOIN ordpool_stats ON blocks.hash = ordpool_stats.hash
+
       -- HACK -- Ordpool Stats Mint Activity Tables
-      LEFT JOIN ordpool_stats_rune_mint ra ON ra.hash = blocks.hash
-      LEFT JOIN ordpool_stats_brc20_mint ba ON ba.hash = blocks.hash
-      LEFT JOIN ordpool_stats_src20_mint sa ON sa.hash = blocks.hash
+      LEFT JOIN ordpool_stats_rune_mint    rune_mint    ON rune_mint.hash  = blocks.hash
+      LEFT JOIN ordpool_stats_brc20_mint   brc20_mint   ON brc20_mint.hash = blocks.hash
+      LEFT JOIN ordpool_stats_src20_mint   src20_mint   ON src20_mint.hash = blocks.hash
+      LEFT JOIN ordpool_stats_cat21_mint   cat21_mint   ON cat21_mint.hash = blocks.hash
+
       -- HACK -- Ordpool Stats Etch/Deploy Tables
-      LEFT JOIN ordpool_stats_rune_etch re ON re.hash = blocks.hash
-      LEFT JOIN ordpool_stats_brc20_deploy bd ON bd.hash = blocks.hash
-      LEFT JOIN ordpool_stats_src20_deploy sd ON sd.hash = blocks.hash
+      LEFT JOIN ordpool_stats_rune_etch    rune_etch    ON rune_etch.hash    = blocks.hash
+      LEFT JOIN ordpool_stats_brc20_deploy brc20_deploy ON brc20_deploy.hash = blocks.hash
+      LEFT JOIN ordpool_stats_src20_deploy src20_deploy ON src20_deploy.hash = blocks.hash
 
       WHERE pool_id = ?
       GROUP BY blocks.hash -- to combine activity rows`;
@@ -544,14 +547,17 @@ class BlocksRepository {
 
         -- HACK -- Ordpool Stats
         LEFT JOIN ordpool_stats ON blocks.hash = ordpool_stats.hash
+
         -- HACK -- Ordpool Stats Mint Activity Tables
-        LEFT JOIN ordpool_stats_rune_mint ra ON ra.hash = blocks.hash
-        LEFT JOIN ordpool_stats_brc20_mint ba ON ba.hash = blocks.hash
-        LEFT JOIN ordpool_stats_src20_mint sa ON sa.hash = blocks.hash
+        LEFT JOIN ordpool_stats_rune_mint    rune_mint    ON rune_mint.hash  = blocks.hash
+        LEFT JOIN ordpool_stats_brc20_mint   brc20_mint   ON brc20_mint.hash = blocks.hash
+        LEFT JOIN ordpool_stats_src20_mint   src20_mint   ON src20_mint.hash = blocks.hash
+        LEFT JOIN ordpool_stats_cat21_mint   cat21_mint   ON cat21_mint.hash = blocks.hash
+
         -- HACK -- Ordpool Stats Etch/Deploy Tables
-        LEFT JOIN ordpool_stats_rune_etch re ON re.hash = blocks.hash
-        LEFT JOIN ordpool_stats_brc20_deploy bd ON bd.hash = blocks.hash
-        LEFT JOIN ordpool_stats_src20_deploy sd ON sd.hash = blocks.hash
+        LEFT JOIN ordpool_stats_rune_etch    rune_etch    ON rune_etch.hash    = blocks.hash
+        LEFT JOIN ordpool_stats_brc20_deploy brc20_deploy ON brc20_deploy.hash = blocks.hash
+        LEFT JOIN ordpool_stats_src20_deploy src20_deploy ON src20_deploy.hash = blocks.hash
 
         WHERE blocks.height = ?
         GROUP BY blocks.hash -- to combine activity rows`,

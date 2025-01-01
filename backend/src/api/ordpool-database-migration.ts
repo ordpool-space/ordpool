@@ -94,6 +94,7 @@ class OrdpoolDatabaseMigration {
    * DROP TABLE `ordpool_stats_rune_mint`;
    * DROP TABLE `ordpool_stats_brc20_mint`;
    * DROP TABLE `ordpool_stats_src20_mint`;
+   * DROP TABLE `ordpool_stats_cat21_mint`;
    * DROP TABLE `ordpool_stats_rune_etch`;
    * DROP TABLE `ordpool_stats_brc20_deploy`;
    * DROP TABLE `ordpool_stats_src20_deploy`;
@@ -343,6 +344,39 @@ class OrdpoolDatabaseMigration {
           mint_limit VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           decimals VARCHAR(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
           UNIQUE KEY (hash, ticker, txid),
+          INDEX idx_height (height)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+        queries.push(`CREATE TABLE ordpool_stats_cat21_mint (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          height INT(10) UNSIGNED NOT NULL,
+          txid VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          tx_index INT UNSIGNED NOT NULL,
+          number INT UNSIGNED DEFAULT NULL,
+          fee_rate DOUBLE NOT NULL,
+          block_time timestamp NOT NULL,
+          fee BIGINT UNSIGNED NOT NULL,
+          size INT UNSIGNED NOT NULL,
+          weight INT UNSIGNED NOT NULL,
+          value BIGINT UNSIGNED NOT NULL,
+          sat BIGINT UNSIGNED DEFAULT NULL,
+          first_owner VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          genesis BOOLEAN NOT NULL,
+          cat_colors VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          gender ENUM('Male', 'Female') NOT NULL,
+          design_index INT UNSIGNED NOT NULL,
+          design_pose ENUM('Standing', 'Sleeping', 'Pouncing', 'Stalking') NOT NULL,
+          design_expression ENUM('Smile', 'Grumpy', 'Pouting', 'Shy') NOT NULL,
+          design_pattern ENUM('Solid', 'Striped', 'Eyepatch', 'Half/Half') NOT NULL,
+          design_facing ENUM('Left', 'Right') NOT NULL,
+          laser_eyes ENUM('Orange', 'Red', 'Green', 'Blue', 'None') NOT NULL,
+          background ENUM('Block9', 'Cyberpunk', 'Whitepaper', 'Orange') NOT NULL,
+          background_colors VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          crown ENUM('Gold', 'Diamond', 'None') NOT NULL,
+          glasses ENUM('Black', 'Cool', '3D', 'Nouns', 'None') NOT NULL,
+          glasses_colors VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+          UNIQUE KEY (hash, tx_index),
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
     }

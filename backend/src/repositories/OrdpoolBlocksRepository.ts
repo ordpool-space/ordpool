@@ -1,4 +1,4 @@
-import { compactToBrc20DeployAttempts, compactToMintActivity, compactToRuneEtchAttempts, compactToSrc20DeployAttempts, OrdpoolStats } from 'ordpool-parser';
+import { Cat21Mint, compactToBrc20DeployAttempts, compactToMinimalCat21Mints, compactToMintActivity, compactToRuneEtchAttempts, compactToSrc20DeployAttempts, OrdpoolStats, traitsToCompactColors } from 'ordpool-parser';
 
 import DB from '../database';
 import logger from '../logger';
@@ -67,6 +67,7 @@ export interface OrdpoolDatabaseBlock {
   runeMintActivity: string;
   brc20MintActivity: string;
   src20MintActivity: string;
+  cat21MintActivity: string;
 
   runeEtchAttempts: string;
   brc20DeployAttempts: string;
@@ -132,46 +133,54 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
 
   -- Mint Activities
-  GROUP_CONCAT(DISTINCT CONCAT(ra.identifier, ',', ra.count)) AS runeMintActivity,
-  GROUP_CONCAT(DISTINCT CONCAT(ba.identifier, ',', ba.count)) AS brc20MintActivity,
-  GROUP_CONCAT(DISTINCT CONCAT(sa.identifier, ',', sa.count)) AS src20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(rune_mint.identifier, ',',  rune_mint.count)) AS runeMintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(brc20_mint.identifier, ',', brc20_mint.count)) AS brc20MintActivity,
+  GROUP_CONCAT(DISTINCT CONCAT(src20_mint.identifier, ',', src20_mint.count)) AS src20MintActivity,
+
+  GROUP_CONCAT(
+    DISTINCT CONCAT(
+      cat21_mint.txid, '|',
+      cat21_mint.fee, '|',
+      cat21_mint.weight
+    ) SEPARATOR ','
+  ) AS cat21MintActivity,
 
   -- Etch/Deploy Attempts
   GROUP_CONCAT(
     DISTINCT CONCAT(
-      re.txid,                       '|', --  1
-      re.rune_id,                    '|', --  2
-      COALESCE(re.rune_name, ''),    '|', --  3
-      COALESCE(re.divisibility, ''), '|', --  4
-      COALESCE(re.premine, ''),      '|', --  5
-      COALESCE(re.symbol, ''),       '|', --  6
-      COALESCE(re.cap, ''),          '|', --  7
-      COALESCE(re.amount, ''),       '|', --  8
-      COALESCE(re.offset_start, ''), '|', --  9
-      COALESCE(re.offset_end, ''),   '|', -- 10
-      COALESCE(re.height_start, ''), '|', -- 11
-      COALESCE(re.height_end, ''),   '|', -- 12
-      IF(re.turbo, '1', '')               -- 13
+      rune_etch.txid,                       '|', --  1
+      rune_etch.rune_id,                    '|', --  2
+      COALESCE(rune_etch.rune_name, ''),    '|', --  3
+      COALESCE(rune_etch.divisibility, ''), '|', --  4
+      COALESCE(rune_etch.premine, ''),      '|', --  5
+      COALESCE(rune_etch.symbol, ''),       '|', --  6
+      COALESCE(rune_etch.cap, ''),          '|', --  7
+      COALESCE(rune_etch.amount, ''),       '|', --  8
+      COALESCE(rune_etch.offset_start, ''), '|', --  9
+      COALESCE(rune_etch.offset_end, ''),   '|', -- 10
+      COALESCE(rune_etch.height_start, ''), '|', -- 11
+      COALESCE(rune_etch.height_end, ''),   '|', -- 12
+      IF(rune_etch.turbo, '1', '')               -- 13
     )
   ) AS runeEtchAttempts,
 
   GROUP_CONCAT(
     DISTINCT CONCAT(
-      COALESCE(bd.txid, ''),       '|',
-      COALESCE(bd.ticker, ''),     '|',
-      COALESCE(bd.max_supply, ''), '|',
-      COALESCE(bd.mint_limit, ''), '|',
-      COALESCE(bd.decimals, '')
+      COALESCE(brc20_deploy.txid, ''),       '|',
+      COALESCE(brc20_deploy.ticker, ''),     '|',
+      COALESCE(brc20_deploy.max_supply, ''), '|',
+      COALESCE(brc20_deploy.mint_limit, ''), '|',
+      COALESCE(brc20_deploy.decimals, '')
     )
   ) AS brc20DeployAttempts,
 
   GROUP_CONCAT(
     DISTINCT CONCAT(
-      COALESCE(sd.txid, ''),       '|',
-      COALESCE(sd.ticker, ''),     '|',
-      COALESCE(sd.max_supply, ''), '|',
-      COALESCE(sd.mint_limit, ''), '|',
-      COALESCE(sd.decimals, '')
+      COALESCE(src20_deploy.txid, ''),       '|',
+      COALESCE(src20_deploy.ticker, ''),     '|',
+      COALESCE(src20_deploy.max_supply, ''), '|',
+      COALESCE(src20_deploy.mint_limit, ''), '|',
+      COALESCE(src20_deploy.decimals, '')
     )
   ) AS src20DeployAttempts
 `;
@@ -460,17 +469,24 @@ class OrdpoolBlocksRepository {
         src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity).sort((a, b) => b[1] - a[1]),
         src20DeployAttempts: compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts)
       },
+      cat21: {
+        minimalCat21MintActivity: compactToMinimalCat21Mints(dbBlk.cat21MintActivity)
+      },
       version: dbBlk.analyserVersion
     };
   }
 
   /**
-   * Inserts mint activity data in batches into the database.
+   * Inserts generic mint activity data in batches into the database.
    * The identifier is always truncated to 20 chars
+   *
+   * WARNING: Avoid setting the `batchSize` too high. A very large batch size may cause:
+   * - Queries exceeding `max_allowed_packet` size in MySQL.
+   * - Performance bottlenecks due to a single large insert operation.
    *
    * @param tableName - The target table name.
    * @param data - The data to insert, as an array of rows.
-   * @param batchSize - The number of rows per batch.
+   * @param batchSize - Number of rows to include in a single batch (default: 100).
    */
   async batchInsertMintActivity(
     tableName: string,
@@ -488,6 +504,99 @@ class OrdpoolBlocksRepository {
       `;
 
       const params = batch.flatMap(row => [row.hash, row.height, row.identifier, row.count]);
+
+      await DB.query(query, params);
+    }
+  }
+
+  /**
+   * Batch inserts CAT-21 mint activities into the database.
+   *
+   * WARNING: Avoid setting the `batchSize` too high. A very large batch size may cause:
+   * - Queries exceeding `max_allowed_packet` size in MySQL.
+   * - Performance bottlenecks due to a single large insert operation.
+   *
+   * @param mints - Array of Cat21Mint objects to insert.
+   * @param batchSize - Number of rows to include in a single batch (default: 100).
+   */
+  async batchInsertCat21MintActivity(
+    mints: Cat21Mint[],
+    batchSize: number = 100
+  ): Promise<void> {
+    for (let i = 0; i < mints.length; i += batchSize) {
+
+      const batch = mints.slice(i, i + batchSize);
+      const values = batch.map(() => `(?, ?, ?, ?, ?, ?, FROM_UNIXTIME(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).join(', ');
+
+      const params = batch.flatMap((mint) => {
+        const { blockId, blockHeight, transactionId, txIndex, number, feeRate, blockTime, fee, size, weight, value, sat, firstOwner, traits } = mint;
+        const { catColors, backgroundColors, glassesColors } = traitsToCompactColors(traits);
+
+        return [
+          blockId,
+          blockHeight,
+          transactionId,
+          txIndex,
+          number ?? null,
+          feeRate,
+          blockTime,
+          fee,
+          size,
+          weight,
+          value,
+          sat ?? null,
+          firstOwner,
+          traits.genesis,
+          catColors,
+          traits.gender,
+          traits.designIndex,
+          traits.designPose,
+          traits.designExpression,
+          traits.designPattern,
+          traits.designFacing,
+          traits.laserEyes,
+          traits.background,
+          backgroundColors,
+          traits.crown,
+          traits.glasses,
+          glassesColors,
+        ];
+      });
+
+      const query = `
+        INSERT INTO ordpool_stats_cat21_mint (
+          hash, height, txid, tx_index, number, fee_rate, block_time,
+          fee, size, weight, value, sat, first_owner,
+          genesis, cat_colors, gender, design_index, design_pose,
+          design_expression, design_pattern, design_facing,
+          laser_eyes, background, background_colors, crown, glasses, glasses_colors
+        )
+        VALUES ${values}
+        ON DUPLICATE KEY UPDATE
+          number = VALUES(number),
+          fee_rate = VALUES(fee_rate),
+          block_time = VALUES(block_time),
+          fee = VALUES(fee),
+          size = VALUES(size),
+          weight = VALUES(weight),
+          value = VALUES(value),
+          sat = VALUES(sat),
+          first_owner = VALUES(first_owner),
+          genesis = VALUES(genesis),
+          cat_colors = VALUES(cat_colors),
+          gender = VALUES(gender),
+          design_index = VALUES(design_index),
+          design_pose = VALUES(design_pose),
+          design_expression = VALUES(design_expression),
+          design_pattern = VALUES(design_pattern),
+          design_facing = VALUES(design_facing),
+          laser_eyes = VALUES(laser_eyes),
+          background = VALUES(background),
+          background_colors = VALUES(background_colors),
+          crown = VALUES(crown),
+          glasses = VALUES(glasses),
+          glasses_colors = VALUES(glasses_colors)
+      `;
 
       await DB.query(query, params);
     }
@@ -533,6 +642,12 @@ class OrdpoolBlocksRepository {
           count
         }))
     );
+
+    // 😻 Store CAT-21 Mint Activity in Batches
+    // should be always defined, for data from the analyser
+    if (stats.cat21.cat21MintActivity) {
+      await this.batchInsertCat21MintActivity(stats.cat21.cat21MintActivity);
+    }
 
     // Insert Rune Etch Attempts
      for (const {
