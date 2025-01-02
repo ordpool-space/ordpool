@@ -9,7 +9,13 @@ import { BlockExtended } from '../mempool.interfaces';
  * @returns A new array of BlockExtended with updated OrdpoolStats.
  */
 export function mapCat21MintsToMinimal(blocks: BlockExtended[]): BlockExtended[] {
+
   return blocks.map(block => {
+
+    if (!block.extras.ordpoolStats) {
+      return block;
+    }
+
     const cat21MintActivity = block.extras.ordpoolStats.cat21.cat21MintActivity;
 
     // Map Cat21Mint[] to MinimalCat21Mint[]

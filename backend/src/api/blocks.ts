@@ -30,7 +30,7 @@ import redisCache from './redis-cache';
 import rbfCache from './rbf-cache';
 import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
-import { DigitalArtifactAnalyserService, getEmptyStats, getFirstInscriptionHeight } from 'ordpool-parser';
+import { DigitalArtifactAnalyserService, getFirstInscriptionHeight } from 'ordpool-parser';
 
 // const debugBlock = 831802;
 const debugBlock = null;
