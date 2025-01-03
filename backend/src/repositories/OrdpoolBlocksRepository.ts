@@ -767,19 +767,34 @@ class OrdpoolBlocksRepository {
     }
   }
 
-  async getLowestBlockWithoutOrdpoolStats(startHeight: number): Promise<{ height: number } | null> {
+  /**
+   * Retrieves the lowest block from the `blocks` table (starting from a given height)
+   * that does not have corresponding data in the `ordpool_stats` table.
+   *
+   * @param startHeight - The height to start searching from.
+   * @returns A promise that resolves to the block information of the first block
+   * without stats, or `null` if all blocks have stats.
+   */
+  async getLowestBlockWithoutOrdpoolStats(startHeight: number): Promise<{
+    id: string;
+    height: number;
+    timestamp: number;
+  } | null> {
 
     const [row] = await DB.query(
-      `SELECT MIN(height) as height
-       FROM blocks
-       WHERE height >= ?
-       AND NOT EXISTS (
-         SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.id
-       )`,
+      `SELECT id, height, timestamp
+      FROM blocks
+      WHERE height >= ?
+      AND NOT EXISTS (
+        SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.id
+      )
+      ORDER BY height ASC
+      LIMIT 1
+      `,
       [startHeight]
     ) as any;
 
-    return row?.height ? { height: row.height } : null;
+    return row ? { id: row.id, height: row.height, timestamp: row.timestamp } : null;
   }
 }
 

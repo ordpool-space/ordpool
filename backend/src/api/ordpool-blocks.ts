@@ -1,13 +1,11 @@
 
 import logger from '../logger';
-import { DigitalArtifactAnalyserService, getFirstInscriptionHeight } from 'ordpool-parser';
+import { convertVerboseBlockToSimplePlus, DigitalArtifactAnalyserService, getFirstInscriptionHeight, TransactionSimplePlus } from 'ordpool-parser';
 import OrdpoolBlocksRepository from '../repositories/OrdpoolBlocksRepository';
 import config from '../config';
 import Blocks from './blocks';
+import bitcoinClient from './bitcoin/bitcoin-client';
 
-
-const BATCH_SIZE = 10; // Number of blocks to process in each run
-const BATCH_DELAY_MS = 5000; // Delay between batches in milliseconds
 
 class OrdpoolBlocks {
 
@@ -20,52 +18,42 @@ class OrdpoolBlocks {
     }
 
     this.isTaskRunning = true;
+    var useEsplora = false;
 
     try {
       const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
+      const block = await OrdpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
 
-      while (true) {
-        // Get the lowest missing block
-        const missingBlock = await OrdpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
-
-        if (!missingBlock) {
-          logger.info('No more blocks to process for Ordpool Stats. Task completed.');
-          break;
-        }
-
-        const { height: startHeight } = missingBlock;
-        const endHeight = startHeight + BATCH_SIZE - 1;
-
-        const blocksToProcess = await Blocks.$getBlocksBetweenHeight(startHeight, endHeight);
-
-        for (const block of blocksToProcess) {
-
-          const transactions = await Blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
-
-          const ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
-
-          await OrdpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase({
-            id: block.id,
-            height: block.height,
-            extras: {
-              ordpoolStats
-            }
-          });
-          logger.info(`Processed ordpool stats for block #${block.height}`);
-        }
-
-        // Delay before processing the next batch
-        logger.info(`Completed batch up to block #${endHeight}. Waiting ${BATCH_DELAY_MS}ms before the next batch.`);
-        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+      if (!block) {
+        // logger.info('No more blocks to process for Ordpool Stats. Task completed.');
+        return;
       }
+
+      let transactions: TransactionSimplePlus[];
+      if (useEsplora) {
+        transactions = await Blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
+      } else {
+        const verboseBlock = await bitcoinClient.getBlock(block.id, 2);
+        transactions = convertVerboseBlockToSimplePlus(verboseBlock);
+      }
+
+      const ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
+
+      await OrdpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase({
+        id: block.id,
+        height: block.height,
+        extras: {
+          ordpoolStats
+        }
+      });
+      logger.info(`Processed Ordpool Stats for block #${block.height}`);
+
     } catch (error) {
-      logger.err(`Error while processing ordpool stats: ${error instanceof Error ? error.message : error}`);
+      logger.err(`Error while processing Ordpool Stats: ${error instanceof Error ? error.message : error}`);
     } finally {
       this.isTaskRunning = false;
     }
   }
-
-
 }
 
 export default new OrdpoolBlocks();
