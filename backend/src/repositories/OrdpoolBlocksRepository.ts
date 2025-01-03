@@ -190,7 +190,13 @@ class OrdpoolBlocksRepository {
   /**
    * Save indexed block data in the database
    */
-  public async saveBlockOrdpoolStatsInDatabase(block: BlockExtended): Promise<void> {
+  public async saveBlockOrdpoolStatsInDatabase(block: {
+    id: string,
+    height: number,
+    extras: {
+      ordpoolStats: OrdpoolStats
+    }
+  }): Promise<void> {
 
     if (!block.extras.ordpoolStats) {
       return;
@@ -759,6 +765,21 @@ class OrdpoolBlocksRepository {
       );
 
     }
+  }
+
+  async getLowestBlockWithoutOrdpoolStats(startHeight: number): Promise<{ height: number } | null> {
+
+    const [row] = await DB.query(
+      `SELECT MIN(height) as height
+       FROM blocks
+       WHERE height >= ?
+       AND NOT EXISTS (
+         SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.id
+       )`,
+      [startHeight]
+    ) as any;
+
+    return row?.height ? { height: row.height } : null;
   }
 }
 
