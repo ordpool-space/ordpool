@@ -6,26 +6,39 @@ import config from '../config';
 import Blocks from './blocks';
 import bitcoinClient from './bitcoin/bitcoin-client';
 
-
+/**
+ * Processes ordpool stats for missing blocks in the database.
+ * Prefers the bitcoin RPC API over the esplora API
+ */
 class OrdpoolBlocks {
-  isTaskRunning = false;
-  useEsploraFallback = false;
-  lastSwitchTime: number | null = null;
-  switchCooldownMs = 5 * 60 * 1000; // 5 minutes cooldown
+  /**
+   * The timestamp until which the Esplora fallback is active.
+   * If null, Bitcoin RPC is used as the default data source.
+   */
+  fallbackUntil: number | null = null;
 
   /**
-   * Processes ordpool stats for missing blocks in the database.
-   * Dynamically retrieves and analyzes transactions for blocks without ordpool stats.
-   * Switches between Bitcoin RPC and Esplora upon errors.
+   * The cooldown period (in milliseconds) before switching back to Bitcoin RPC.
+   */
+  static readonly fallbackCooldownMs = 5 * 60 * 1000; // 5 minutes
+
+  /**
+   * Indicates whether a task is currently running.
+   * Prevents overlapping task executions.
+   */
+  isTaskRunning = false;
+
+  /**
+   * Processes ordpool statistics for blocks without ordpool stats.
+   * Respects batch size and switches between Bitcoin RPC and Esplora fallback as needed.
    *
    * @param batchSize - Number of blocks to process in a single run.
-   * @returns True if at least one block was processed, otherwise false.
-   * @throws Propagates critical errors for handling by the caller.
+   * @returns {Promise<boolean>} - True if at least one block was processed successfully, false otherwise.
    */
   async processOrdpoolStatsForOldBlocks(batchSize: number): Promise<boolean> {
 
     if (this.isTaskRunning) {
-      logger.info('Ordpool stats task is already running. Skipping new instance.');
+      logger.info('Ordpool Stats task is still running. Skipping new instance.');
       return false;
     }
 
@@ -33,30 +46,32 @@ class OrdpoolBlocks {
     let processedAtLeastOneBlock = false;
 
     try {
-      const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
-
       for (let i = 0; i < batchSize; i++) {
+
+        const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
         const block = await OrdpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
 
         if (!block) {
-          logger.info('No more blocks to process for Ordpool Stats. Task completed.');
+          logger.debug('No more blocks to process for Ordpool Stats.');
           break;
         }
 
-        let transactions: TransactionSimplePlus[];
+        const now = Date.now();
+
+        // Check if fallback period has expired
+        if (this.fallbackUntil !== null && now > this.fallbackUntil) {
+          logger.info('Fallback period expired. Switching back to Bitcoin RPC.');
+          this.fallbackUntil = null;
+        }
 
         try {
-          // Use Bitcoin RPC or Esplora based on the current state
-          if (this.useEsploraFallback) {
-            logger.debug(`Fetching transactions for block ${block.height} via Esplora.`);
-            transactions = await Blocks['$getTransactionsExtended'](
-              block.id,
-              block.height,
-              block.timestamp,
-              false
-            );
+          let transactions: TransactionSimplePlus[];
+
+          if (this.fallbackUntil !== null) {
+            logger.info(`Using Esplora API for block #${block.height}.`);
+            transactions = await Blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
           } else {
-            logger.debug(`Fetching transactions for block ${block.height} via Bitcoin RPC.`);
+            logger.info(`Using Bitcoin RPC for block #${block.height}.`);
             const verboseBlock = await bitcoinClient.getBlock(block.id, 2);
             transactions = convertVerboseBlockToSimplePlus(verboseBlock);
           }
@@ -73,10 +88,10 @@ class OrdpoolBlocks {
 
           logger.info(`Processed Ordpool Stats for block #${block.height}`);
           processedAtLeastOneBlock = true;
-        } catch (blockError) {
-          logger.err(`Error processing block #${block.height}: ${blockError}`);
-          this.handleDataSourceError();
-          throw blockError;
+        } catch (error) {
+          logger.info('Switching to Esplora fallback due to RPC failure.');
+          this.fallbackUntil = Date.now() + OrdpoolBlocks.fallbackCooldownMs;
+          throw error;
         }
       }
     } finally {
@@ -84,23 +99,6 @@ class OrdpoolBlocks {
     }
 
     return processedAtLeastOneBlock;
-  }
-
-  /**
-   * Handles data source errors by switching between Bitcoin RPC and Esplora.
-   */
-  private handleDataSourceError(): void {
-    const now = Date.now();
-
-    if (!this.useEsploraFallback && (!this.lastSwitchTime || now - this.lastSwitchTime >= this.switchCooldownMs)) {
-      logger.warn('Switching to Esplora due to Bitcoin RPC failures.');
-      this.useEsploraFallback = true;
-      this.lastSwitchTime = now;
-    } else if (this.useEsploraFallback && (!this.lastSwitchTime || now - this.lastSwitchTime >= this.switchCooldownMs)) {
-      logger.warn('Switching back to Bitcoin RPC after Esplora fallback.');
-      this.useEsploraFallback = false;
-      this.lastSwitchTime = now;
-    }
   }
 }
 
