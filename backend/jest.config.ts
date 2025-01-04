@@ -17,12 +17,12 @@ const config: Config.InitialOptions = {
     "./testSetup.ts",
   ],
   modulePathIgnorePatterns: ["<rootDir>/dist/"],
-  globals: {
-    "ts-jest": {
-      tsconfig: "./tsconfig.debug.json",
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", {
+      tsconfig: "./tsconfig.json",
       diagnostics: false,
-      sourceMap: true,
-    },
+      sourceMap: true
+    }],
   },
-}
+};
 export default config;
