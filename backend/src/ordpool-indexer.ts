@@ -31,11 +31,17 @@ class OrdpoolIndexer {
   /** Timestamp indicating when processing can resume after cooldown */
   private cooldownUntil: number = 0;
 
+  /** Timeout handler, overrideable for testing */
+  public setTimeoutFn: typeof setTimeout = setTimeout;
+
+  /** Date provider, overrideable for testing */
+  public dateProvider: { now: () => number } = { now: () => Date.now() };
+
   /**
    * Runs the indexing process. Dynamically adjusts workload based on performance and handles exceptions.
    */
   public async run(): Promise<void> {
-    const now = Date.now();
+    const now = this.dateProvider.now();
 
     // Check if the cooldown period is active
     if (this.cooldownUntil > now) {
@@ -46,11 +52,11 @@ class OrdpoolIndexer {
     let hasMoreTasks = true;
 
     while (hasMoreTasks) {
-      const startTime = Date.now();
+      const startTime = this.dateProvider.now();
 
       try {
         hasMoreTasks = await OrdpoolBlocks.processOrdpoolStatsForOldBlocks(this.batchSize);
-        const lastDuration = Date.now() - startTime;
+        const lastDuration = this.dateProvider.now() - startTime;
 
         // Reset failure count on success
         this.failureCount = 0;
@@ -86,7 +92,7 @@ class OrdpoolIndexer {
 
         // Halt processing after max failures
         if (this.failureCount >= this.maxFailures) {
-          this.cooldownUntil = Date.now() + 5 * 60 * 1000; // Cooldown for 5 minutes
+          this.cooldownUntil = this.dateProvider.now() + 5 * 60 * 1000; // Cooldown for 5 minutes
           logger.err(`Max failures reached. Halting processing until ${new Date(this.cooldownUntil).toISOString()}`);
           break;
         }
@@ -100,11 +106,12 @@ class OrdpoolIndexer {
 
   /**
    * Helper method to pause execution for a specified duration.
+   * Uses the overrideable setTimeout function.
    * @param ms - The duration to sleep in milliseconds.
    * @returns A promise that resolves after the specified duration.
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => this.setTimeoutFn(resolve, ms));
   }
 }
 
