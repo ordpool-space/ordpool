@@ -41,74 +41,73 @@ class OrdpoolIndexer {
    * Runs the indexing process. Dynamically adjusts workload based on performance and handles exceptions.
    */
   public async run(): Promise<void> {
-    const now = this.dateProvider.now();
+    const startTime = this.dateProvider.now();
 
     // Check if the cooldown period is active
-    if (this.cooldownUntil > now) {
+    if (this.cooldownUntil > startTime) {
       logger.warn(`Processing halted until ${new Date(this.cooldownUntil).toISOString()}`);
       return;
     }
 
-    let hasMoreTasks = true;
+    try {
+      const hasMoreTasks = await OrdpoolBlocks.processOrdpoolStatsForOldBlocks(this.batchSize);
 
-    while (hasMoreTasks) {
-      const startTime = this.dateProvider.now();
+      // Reset failure count on success
+      this.failureCount = 0;
 
-      try {
-        hasMoreTasks = await OrdpoolBlocks.processOrdpoolStatsForOldBlocks(this.batchSize);
-        const lastDuration = this.dateProvider.now() - startTime;
+      const endTime = this.dateProvider.now();
+      const duration = endTime - startTime;
 
-        // Reset failure count on success
-        this.failureCount = 0;
+      this.adjustBatchSize(duration);
 
-        // Adjust batch size based on processing time
-        if (lastDuration < this.minDuration) {
-          this.batchSize = Math.min(this.batchSize + Math.ceil(this.batchSize * 0.5), this.batchSize * 2);
-          logger.info(`Batch size increased to ${this.batchSize}. Last duration: ${lastDuration}ms.`);
-        } else if (lastDuration > this.maxDuration) {
-          this.batchSize = Math.max(Math.ceil(this.batchSize * 0.5), 1);
-          logger.info(`Batch size decreased to ${this.batchSize}. Last duration: ${lastDuration}ms.`);
-        } else {
-          logger.info(`Batch size maintained at ${this.batchSize}. Last duration: ${lastDuration}ms.`);
-        }
-
-        // Sleep to maintain the target duration
-        const sleepTime = Math.max(0, this.targetDuration - lastDuration);
-        if (sleepTime > 0) {
-          logger.info(`Sleeping for ${sleepTime}ms.`);
-          await this.sleep(sleepTime);
-        }
-      } catch (error) {
-        this.failureCount++;
-        logger.err(`Error during batch processing: ${error instanceof Error ? error.message : error}`);
-
-        // Reduce batch size on failure
-        this.batchSize = Math.max(Math.ceil(this.batchSize * 0.5), 1);
-
-        // Apply exponential backoff
-        const backoff = Math.min(this.backoffTime * (2 ** this.failureCount), 10 * 1000); // Cap at 10s
-        logger.warn(`Retrying in ${backoff / 1000}s. Consecutive failures: ${this.failureCount}`);
-        await this.sleep(backoff);
-
-        // Halt processing after max failures
-        if (this.failureCount >= this.maxFailures) {
-          this.cooldownUntil = this.dateProvider.now() + 5 * 60 * 1000; // Cooldown for 5 minutes
-          logger.err(`Max failures reached. Halting processing until ${new Date(this.cooldownUntil).toISOString()}`);
-          break;
-        }
+      if (!hasMoreTasks) {
+        logger.info('No more tasks to process for Ordpool Stats.');
       }
-    }
-
-    if (!hasMoreTasks) {
-      logger.info('No more tasks to process for Ordpool Stats.');
+    } catch (error) {
+      this.handleError(error);
     }
   }
 
   /**
-   * Helper method to pause execution for a specified duration.
-   * Uses the overrideable setTimeout function.
+   * Adjusts the batch size based on the processing duration.
+   * @param duration - The total time taken for processing the batch.
+   */
+  private adjustBatchSize(duration: number): void {
+    if (duration < this.minDuration) {
+      this.batchSize = Math.min(this.batchSize + Math.ceil(this.batchSize * 0.5), this.batchSize * 2);
+      logger.info(`Batch size increased to ${this.batchSize}. Duration: ${duration}ms.`);
+    } else if (duration > this.maxDuration) {
+      this.batchSize = Math.max(Math.ceil(this.batchSize * 0.5), 1);
+      logger.info(`Batch size decreased to ${this.batchSize}. Duration: ${duration}ms.`);
+    } else {
+      logger.info(`Batch size maintained at ${this.batchSize}. Duration: ${duration}ms.`);
+    }
+  }
+
+  /**
+   * Handles errors during processing by adjusting batch size and applying backoff/cooldown logic.
+   * @param error - The error encountered during processing.
+   */
+  private async handleError(error: unknown): Promise<void> {
+    this.failureCount++;
+    logger.err(`Error during batch processing: ${error instanceof Error ? error.message : error}`);
+
+    // Reduce batch size and apply exponential backoff
+    this.batchSize = Math.max(Math.ceil(this.batchSize * 0.5), 1);
+    const backoff = Math.min(this.backoffTime * (2 ** this.failureCount), 10 * 1000); // Cap at 10s
+    logger.warn(`Retrying in ${backoff / 1000}s. Consecutive failures: ${this.failureCount}`);
+    await this.sleep(backoff);
+
+    // Enter cooldown after max failures
+    if (this.failureCount >= this.maxFailures) {
+      this.cooldownUntil = this.dateProvider.now() + 5 * 60 * 1000; // Cooldown for 5 minutes
+      logger.err(`Max failures reached. Halting processing until ${new Date(this.cooldownUntil).toISOString()}`);
+    }
+  }
+
+  /**
+   * Pauses execution for the specified duration.
    * @param ms - The duration to sleep in milliseconds.
-   * @returns A promise that resolves after the specified duration.
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => this.setTimeoutFn(resolve, ms));
