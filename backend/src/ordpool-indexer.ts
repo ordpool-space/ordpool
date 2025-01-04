@@ -1,15 +1,5 @@
-import { Common } from './api/common';
-import blocks from './api/blocks';
-import mempool from './api/mempool';
-import mining from './api/mining/mining';
-import logger from './logger';
-import bitcoinClient from './api/bitcoin/bitcoin-client';
-import priceUpdater from './tasks/price-updater';
-import PricesRepository from './repositories/PricesRepository';
-import config from './config';
-import auditReplicator from './replication/AuditReplication';
-import AccelerationRepository from './repositories/AccelerationRepository';
 import OrdpoolBlocks from './api/ordpool-blocks';
+import logger from './logger';
 
 /**
  * Class responsible for indexing missing Ordpool statistics.

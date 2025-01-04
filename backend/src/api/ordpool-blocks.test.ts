@@ -1,9 +1,10 @@
+import { convertVerboseBlockToSimplePlus, DigitalArtifactAnalyserService } from 'ordpool-parser';
 
-import { convertVerboseBlockToSimplePlus, DigitalArtifactAnalyserService, getFirstInscriptionHeight, TransactionSimplePlus } from 'ordpool-parser';
 import OrdpoolBlocksRepository from '../repositories/OrdpoolBlocksRepository';
-import Blocks from './blocks';
 import bitcoinClient from './bitcoin/bitcoin-client';
+import Blocks from './blocks';
 import OrdpoolBlocks from './ordpool-blocks';
+
 
 jest.mock('./blocks');
 jest.mock('./bitcoin/bitcoin-client');
