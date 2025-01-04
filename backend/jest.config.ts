@@ -18,8 +18,8 @@ const config: Config.InitialOptions = {
   ],
   modulePathIgnorePatterns: ["<rootDir>/dist/"],
   transform: {
-    "^.+\\.tsx?$": ["ts-jest", {
-      tsconfig: "./tsconfig.json",
+    "^.+\\.ts?$": ["ts-jest", {
+      tsconfig: "./tsconfig.debug.json",
       diagnostics: false,
       sourceMap: true
     }],
