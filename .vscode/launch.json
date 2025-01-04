@@ -16,7 +16,7 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Frontend: Debug Jest Tests (Browser env)",
+      "name": "Frontend: Debug Jest Tests",
       "program": "${workspaceFolder}/frontend/node_modules/.bin/jest",
       "args": [
         "--runInBand",
@@ -26,13 +26,16 @@
     }, {
       "type": "node",
       "request": "launch",
-      "name": "Fontend: Debug Jest Tests (Node env)",
-      "program": "${workspaceFolder}/frontend/node_modules/.bin/jest",
+      "name": "Backend: Debug Jest Tests",
+      "program": "${workspaceFolder}/backend/node_modules/.bin/jest",
       "args": [
         "--runInBand",
         "--config",
-        "frontend/jest.config.node.js"
-      ]
+        "./jest.config.ts"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "outFiles": ["${workspaceFolder}/backend/src/**/*.js", "${workspaceFolder}/backend/src/**/*.map"]
     }
   ]
 }

@@ -16,6 +16,13 @@ const config: Config.InitialOptions = {
   setupFiles: [
     "./testSetup.ts",
   ],
-  modulePathIgnorePatterns: ["<rootDir>/dist/"]
+  modulePathIgnorePatterns: ["<rootDir>/dist/"],
+  globals: {
+    "ts-jest": {
+      tsconfig: "./tsconfig.debug.json",
+      diagnostics: false,
+      sourceMap: true,
+    },
+  },
 }
 export default config;
