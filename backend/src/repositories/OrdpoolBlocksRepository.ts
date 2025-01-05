@@ -2,7 +2,6 @@ import { Cat21Mint, compactToBrc20DeployAttempts, compactToMinimalCat21Mints, co
 
 import DB from '../database';
 import logger from '../logger';
-import { BlockExtended } from '../mempool.interfaces';
 
 
 export interface OrdpoolDatabaseBlock {

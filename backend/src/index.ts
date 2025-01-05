@@ -48,6 +48,8 @@ import accelerationRoutes from './api/acceleration/acceleration.routes';
 import aboutRoutes from './api/about.routes';
 
 import generalOrdpoolRoutes from './api/explorer/_ordpool/ordpool.routes';
+import ordpoolIndexer from './ordpool-indexer';
+
 
 
 class Server {
@@ -239,6 +241,8 @@ class Server {
         await memPool.$updateMempool(newMempool, newAccelerations, minFeeMempool, minFeeTip, pollRate);
       }
       indexer.$run();
+      await ordpoolIndexer.run();
+
       if (config.FIAT_PRICE.ENABLED) {
         priceUpdater.$run();
       }

@@ -1,9 +1,9 @@
 
 import logger from '../logger';
 import { convertVerboseBlockToSimplePlus, DigitalArtifactAnalyserService, getFirstInscriptionHeight, TransactionSimplePlus } from 'ordpool-parser';
-import OrdpoolBlocksRepository from '../repositories/OrdpoolBlocksRepository';
+import ordpoolBlocksRepository from '../repositories/OrdpoolBlocksRepository';
 import config from '../config';
-import Blocks from './blocks';
+import blocks from './blocks';
 import bitcoinClient from './bitcoin/bitcoin-client';
 
 /**
@@ -49,7 +49,7 @@ class OrdpoolBlocks {
       for (let i = 0; i < batchSize; i++) {
 
         const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
-        const block = await OrdpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
+        const block = await ordpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
 
         if (!block) {
           logger.debug('No more blocks to process for Ordpool Stats.');
@@ -69,7 +69,7 @@ class OrdpoolBlocks {
 
           if (this.fallbackUntil !== null) {
             logger.info(`Using Esplora API for block #${block.height}.`);
-            transactions = await Blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
+            transactions = await blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
           } else {
             logger.info(`Using Bitcoin RPC for block #${block.height}.`);
             const verboseBlock = await bitcoinClient.getBlock(block.id, 2);
@@ -78,7 +78,7 @@ class OrdpoolBlocks {
 
           const ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
 
-          await OrdpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase({
+          await ordpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase({
             id: block.id,
             height: block.height,
             extras: {
