@@ -21,7 +21,7 @@ jest.mock('../logger', () => ({
 
 describe('OrdpoolBlocks', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     OrdpoolBlocks.fallbackUntil = null;
     OrdpoolBlocks.isTaskRunning = false;
   });

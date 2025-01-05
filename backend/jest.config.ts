@@ -24,5 +24,6 @@ const config: Config.InitialOptions = {
       sourceMap: true
     }],
   },
+  maxWorkers: 1
 };
 export default config;
