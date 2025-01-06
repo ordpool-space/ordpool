@@ -68,10 +68,10 @@ class OrdpoolBlocks {
           let transactions: TransactionSimplePlus[];
 
           if (this.fallbackUntil !== null) {
-            logger.info(`Using Esplora API for block #${block.height}.`, 'Ordpool');
+            logger.debug(`Using Esplora API for block #${block.height}.`, 'Ordpool');
             transactions = await blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
           } else {
-            logger.info(`Using Bitcoin RPC for block #${block.height}.`, 'Ordpool');
+            logger.debug(`Using Bitcoin RPC for block #${block.height}.`, 'Ordpool');
             const verboseBlock = await bitcoinClient.getBlock(block.id, 2);
             transactions = convertVerboseBlockToSimplePlus(verboseBlock);
           }
