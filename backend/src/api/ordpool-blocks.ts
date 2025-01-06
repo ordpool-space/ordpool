@@ -38,7 +38,7 @@ class OrdpoolBlocks {
   async processOrdpoolStatsForOldBlocks(batchSize: number): Promise<boolean> {
 
     if (this.isTaskRunning) {
-      logger.info('Ordpool Stats task is still running. Skipping new instance.');
+      logger.info('Ordpool Stats task is still running. Skipping new instance.', 'Ordpool');
       return false;
     }
 
@@ -52,7 +52,7 @@ class OrdpoolBlocks {
         const block = await ordpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
 
         if (!block) {
-          logger.debug('No more blocks to process for Ordpool Stats.');
+          logger.debug('No more blocks to process for Ordpool Stats.', 'Ordpool');
           break;
         }
 
@@ -60,7 +60,7 @@ class OrdpoolBlocks {
 
         // Check if fallback period has expired
         if (this.fallbackUntil !== null && now > this.fallbackUntil) {
-          logger.info('Fallback period expired. Switching back to Bitcoin RPC.');
+          logger.info('Fallback period expired. Switching back to Bitcoin RPC.', 'Ordpool');
           this.fallbackUntil = null;
         }
 
@@ -68,10 +68,10 @@ class OrdpoolBlocks {
           let transactions: TransactionSimplePlus[];
 
           if (this.fallbackUntil !== null) {
-            logger.info(`Using Esplora API for block #${block.height}.`);
+            logger.info(`Using Esplora API for block #${block.height}.`, 'Ordpool');
             transactions = await blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
           } else {
-            logger.info(`Using Bitcoin RPC for block #${block.height}.`);
+            logger.info(`Using Bitcoin RPC for block #${block.height}.`, 'Ordpool');
             const verboseBlock = await bitcoinClient.getBlock(block.id, 2);
             transactions = convertVerboseBlockToSimplePlus(verboseBlock);
           }
@@ -86,10 +86,10 @@ class OrdpoolBlocks {
             },
           });
 
-          logger.debug(`Processed Ordpool Stats for block #${block.height}`);
+          logger.debug(`Processed Ordpool Stats for block #${block.height}`, 'Ordpool');
           processedAtLeastOneBlock = true;
         } catch (error) {
-          logger.debug('Switching to Esplora fallback due to RPC failure.');
+          logger.debug('Switching to Esplora fallback due to RPC failure.', 'Ordpool');
           this.fallbackUntil = Date.now() + OrdpoolBlocks.fallbackCooldownMs;
           throw error;
         }

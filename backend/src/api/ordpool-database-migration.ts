@@ -13,29 +13,29 @@ class OrdpoolDatabaseMigration {
    * Entry point
    */
   public async $initializeOrMigrateDatabase(): Promise<void> {
-    logger.debug('ORDPOOL MIGRATIONS: Running migrations');
+    logger.debug('ORDPOOL MIGRATIONS: Running migrations', 'Ordpool');
 
     const ordpoolDatabaseSchemaVersion = await this.$getOrdpoolSchemaVersionFromDatabase();
 
     if (ordpoolDatabaseSchemaVersion === 0) {
-      logger.info('Changing database to Ordpool schema!');
+      logger.info('Changing database to Ordpool schema!', 'Ordpool');
       await this.$executeQuery(`INSERT INTO state VALUES('ordpool_schema_version', 0, NULL);`);
     }
 
-    logger.debug('ORDPOOL MIGRATIONS: Current state.ordpool_schema_version ' + ordpoolDatabaseSchemaVersion);
-    logger.debug('ORDPOOL MIGRATIONS: Latest OrdpoolDatabaseMigration.currentVersion is ' + OrdpoolDatabaseMigration.currentVersion);
+    logger.debug('ORDPOOL MIGRATIONS: Current state.ordpool_schema_version ' + ordpoolDatabaseSchemaVersion, 'Ordpool');
+    logger.debug('ORDPOOL MIGRATIONS: Latest OrdpoolDatabaseMigration.currentVersion is ' + OrdpoolDatabaseMigration.currentVersion, 'Ordpool');
 
     if (ordpoolDatabaseSchemaVersion >= OrdpoolDatabaseMigration.currentVersion) {
-      logger.debug('ORDPOOL MIGRATIONS: Nothing to do.');
+      logger.debug('ORDPOOL MIGRATIONS: Nothing to do.', 'Ordpool');
       return;
     }
 
     if (OrdpoolDatabaseMigration.currentVersion > ordpoolDatabaseSchemaVersion) {
       try {
         await this.$migrateTableSchemaFromVersion(ordpoolDatabaseSchemaVersion);
-        logger.notice(`ORDPOOL MIGRATIONS: OK. Database schema have been migrated from version ${ordpoolDatabaseSchemaVersion} to ${OrdpoolDatabaseMigration.currentVersion} (latest version)`);
+        logger.notice(`ORDPOOL MIGRATIONS: OK. Database schema have been migrated from version ${ordpoolDatabaseSchemaVersion} to ${OrdpoolDatabaseMigration.currentVersion} (latest version)`, 'Ordpool');
       } catch (e) {
-        logger.err('ORDPOOL MIGRATIONS: Unable to migrate database, aborting. ' + e);
+        logger.err('ORDPOOL MIGRATIONS: Unable to migrate database, aborting. ' + e, 'Ordpool');
       }
     }
 
@@ -47,7 +47,7 @@ class OrdpoolDatabaseMigration {
    */
   private async $executeQuery(query: string, silent = false): Promise<any> {
     if (!silent) {
-      logger.debug('ORDPOOL MIGRATIONS: Execute query:\n' + query);
+      logger.debug('ORDPOOL MIGRATIONS: Execute query:\n' + query, 'Ordpool');
     }
     return DB.query({ sql: query, timeout: this.queryTimeout });
   }
@@ -70,7 +70,7 @@ class OrdpoolDatabaseMigration {
       transactionQueries.push(query);
     }
 
-    logger.notice(`ORDPOOL MIGRATIONS: ${version > 0 ? 'Upgrading' : 'Initializing'} database schema version number to ${OrdpoolDatabaseMigration.currentVersion}`);
+    logger.notice(`ORDPOOL MIGRATIONS: ${version > 0 ? 'Upgrading' : 'Initializing'} database schema version number to ${OrdpoolDatabaseMigration.currentVersion}`, 'Ordpool');
     transactionQueries.push(this.getUpdateToLatestSchemaVersionQuery());
 
     try {

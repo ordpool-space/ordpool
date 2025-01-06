@@ -49,7 +49,7 @@ class OrdpoolIndexer {
    */
   public async run(): Promise<void> {
     if (this.isRunning) {
-      logger.debug('Indexer is already running. Skipping new invocation.');
+      logger.debug('Indexer is already running. Skipping new invocation.', 'Ordpool');
       return;
     }
 
@@ -57,7 +57,7 @@ class OrdpoolIndexer {
 
     // Check if sleepUntil is active
     if (now < this.sleepUntil) {
-      logger.debug(`Processing paused until ${new Date(this.sleepUntil).toISOString()}`);
+      // logger.debug(`Processing paused until ${new Date(this.sleepUntil).toISOString()}`, 'Ordpool');
       this.scheduleNextRun(this.sleepUntil - now);
       return;
     }
@@ -71,7 +71,7 @@ class OrdpoolIndexer {
       const duration = this.dateProvider.now() - startTime;
 
       if (!hasMoreWork) {
-        logger.info('No more tasks to process. Entering rest state.');
+        logger.info('No more tasks to process. Entering rest state.', 'Ordpool');
         this.sleepUntil = this.dateProvider.now() + OrdpoolIndexer.REST_INTERVAL_WORK_DONE_MS;
         this.isRunning = false;
         return;
@@ -83,25 +83,25 @@ class OrdpoolIndexer {
       // Adjust batch size based on processing duration
       if (duration < OrdpoolIndexer.MIN_DURATION_MS) {
         this.batchSize = Math.min(this.batchSize + Math.ceil(this.batchSize * 0.5), this.batchSize * 2);
-        logger.info(`Batch size increased to ${this.batchSize}. Duration: ${duration}ms.`);
+        logger.info(`Batch size increased to ${this.batchSize}. Duration: ${duration}ms.`, 'Ordpool');
       } else if (duration > OrdpoolIndexer.MAX_DURATION_MS) {
         this.batchSize = Math.max(Math.ceil(this.batchSize * 0.5), 1);
-        logger.info(`Batch size decreased to ${this.batchSize}. Duration: ${duration}ms.`);
+        logger.info(`Batch size decreased to ${this.batchSize}. Duration: ${duration}ms.`, 'Ordpool');
       } else {
-        logger.info(`Batch size maintained at ${this.batchSize}. Duration: ${duration}ms.`);
+        logger.info(`Batch size maintained at ${this.batchSize}. Duration: ${duration}ms.`, 'Ordpool');
       }
     } catch (error) {
       this.failureCount++;
-      logger.err(`Error during batch processing: ${error instanceof Error ? error.message : error}`);
+      logger.err(`Error during batch processing: ${error instanceof Error ? error.message : error}`, 'Ordpool');
 
       // Reduce batch size on failure
       this.batchSize = Math.max(Math.ceil(this.batchSize * 0.5), 1);
-      logger.warn(`Batch size reduced to ${this.batchSize}. Consecutive failures: ${this.failureCount}`);
+      logger.warn(`Batch size reduced to ${this.batchSize}. Consecutive failures: ${this.failureCount}`, 'Ordpool');
 
       // Enter cooldown after max failures
       if (this.failureCount >= this.maxFailures) {
         this.sleepUntil = this.dateProvider.now() + OrdpoolIndexer.REST_INTERVAL_ERROR_MS;
-        logger.err(`Max failures reached. Pausing until ${new Date(this.sleepUntil).toISOString()}`);
+        logger.err(`Max failures reached. Pausing until ${new Date(this.sleepUntil).toISOString()}`, 'Ordpool');
       }
     } finally {
       this.isRunning = false;

@@ -398,13 +398,13 @@ class OrdpoolBlocksRepository {
 
       await DB.query(query, params);
 
-      logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, logger.tags.mining);
+      logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, 'Ordpool');
 
     } catch (e: any) {
       if (e.errno === 1062) {
-        logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} has already been indexed, ignoring`, logger.tags.mining);
+        logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} has already been indexed, ignoring`, 'Ordpool');
       } else {
-        logger.err('Cannot save indexed block into ordpool_stats. Reason: ' + (e instanceof Error ? e.message : e), logger.tags.mining);
+        logger.err('Cannot save indexed block into ordpool_stats. Reason: ' + (e instanceof Error ? e.message : e), 'Ordpool');
         throw e;
       }
     }

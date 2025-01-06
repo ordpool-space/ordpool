@@ -34,7 +34,7 @@ class OrdpoolStatisticsApi {
       const [rows] : any[] = await DB.query(query);
       return rows;
     } catch (error) {
-      logger.err(`Error executing query: ${error}`);
+      logger.err(`Error executing query: ${error}`, 'Ordpool');
       throw error;
     }
   }
