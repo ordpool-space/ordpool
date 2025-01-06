@@ -32,7 +32,7 @@ import { calcBitsDifference } from './difficulty-adjustment';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { DigitalArtifactAnalyserService, getFirstInscriptionHeight } from 'ordpool-parser';
 
-// const debugBlock = 831802;
+// const debugBlock = 839999;
 const debugBlock = null;
 
 class Blocks {

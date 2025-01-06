@@ -307,15 +307,15 @@ class OrdpoolDatabaseMigration {
           txid VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
           rune_id VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, -- Format: blockHeight:txIndex
           rune_name VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-          divisibility TINYINT UNSIGNED DEFAULT NULL,
-          premine BIGINT UNSIGNED DEFAULT NULL,
+          divisibility TINYINT UNSIGNED DEFAULT NULL, -- u8 range: 0-255
+          premine DECIMAL(39, 0) DEFAULT NULL, -- u128 range: 0-340282366920938463463374607431768211455
           symbol VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-          cap BIGINT UNSIGNED DEFAULT NULL,
-          amount BIGINT UNSIGNED DEFAULT NULL,
-          offset_start BIGINT UNSIGNED DEFAULT NULL,
-          offset_end BIGINT UNSIGNED DEFAULT NULL,
-          height_start BIGINT UNSIGNED DEFAULT NULL,
-          height_end BIGINT UNSIGNED DEFAULT NULL,
+          cap DECIMAL(39, 0) DEFAULT NULL, -- u128 range: 0-340282366920938463463374607431768211455
+          amount DECIMAL(39, 0) DEFAULT NULL, -- u128 range: 0-340282366920938463463374607431768211455
+          offset_start BIGINT UNSIGNED DEFAULT NULL, -- u64 range: 0-18446744073709551615
+          offset_end BIGINT UNSIGNED DEFAULT NULL, -- u64 range: 0-18446744073709551615
+          height_start BIGINT UNSIGNED DEFAULT NULL, -- u64 range: 0-18446744073709551615
+          height_end BIGINT UNSIGNED DEFAULT NULL, -- u64 range: 0-18446744073709551615
           turbo BOOLEAN DEFAULT NULL,
           UNIQUE KEY (hash, rune_id),
           INDEX idx_height (height)

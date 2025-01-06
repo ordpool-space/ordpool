@@ -1,4 +1,16 @@
-import { Cat21Mint, compactToBrc20DeployAttempts, compactToMinimalCat21Mints, compactToMintActivity, compactToRuneEtchAttempts, compactToSrc20DeployAttempts, OrdpoolStats, traitsToCompactColors } from 'ordpool-parser';
+import {
+  Cat21Mint,
+  compactToBrc20DeployAttempts,
+  compactToMinimalCat21Mints,
+  compactToMintActivity,
+  compactToRuneEtchAttempts,
+  compactToSrc20DeployAttempts,
+  OrdpoolStats,
+  sanitizeU128,
+  sanitizeU64,
+  sanitizeU8,
+  traitsToCompactColors,
+} from 'ordpool-parser';
 
 import DB from '../database';
 import logger from '../logger';
@@ -202,6 +214,9 @@ class OrdpoolBlocksRepository {
     }
 
     try {
+
+      await this.saveTokenActivity(block.id, block.height, block.extras.ordpoolStats);
+
       const query = `INSERT INTO ordpool_stats(
         hash,
         height,
@@ -382,8 +397,6 @@ class OrdpoolBlocksRepository {
       ];
 
       await DB.query(query, params);
-
-      await this.saveTokenActivity(block.id, block.height, block.extras.ordpoolStats);
 
       logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, logger.tags.mining);
 
@@ -655,7 +668,7 @@ class OrdpoolBlocksRepository {
     }
 
     // Insert Rune Etch Attempts
-     for (const {
+    for (const {
       txId,                 //  1
       runeId,               //  2
       runeName,             //  3
@@ -688,21 +701,21 @@ class OrdpoolBlocksRepository {
             height_end,     -- 12
             turbo           -- 13
           ) VALUES (
-            ?,
-            ?,
-            ?,              --  1
-            ?,              --  2
+            ?,              --  height
+            ?,              --  hash
+            ?,              --  1 (txid)
+            ?,              --  2 (rune_id)
             LEFT(?, 60),    --  3 (rune_name)
-            ?,              --  4
-            ?,              --  5
+            ?,              --  4 (divisibility)
+            ?,              --  5 (premine)
             LEFT(?, 10),    --  6 (symbol)
-            ?,              --  7
-            ?,              --  8
-            ?,              --  9
-            ?,              -- 10
-            ?,              -- 11
-            ?,              -- 12
-            ?               -- 13
+            ?,              --  7 (cap)
+            ?,              --  8 (amount)
+            ?,              --  9 (offset_start)
+            ?,              -- 10 (offset_end)
+            ?,              -- 11 (height_start)
+            ?,              -- 12 (height_end)
+            ?               -- 13 (turbo)
           )
           ON DUPLICATE KEY UPDATE
             txid = VALUES(txid),                 --  1
@@ -724,15 +737,15 @@ class OrdpoolBlocksRepository {
           txId,
           runeId,
           runeName,
-          divisibility,
-          premine,
+          sanitizeU8(divisibility),
+          sanitizeU128(premine),
           symbol,
-          cap,
-          amount,
-          offsetStart,
-          offsetEnd,
-          heightStart,
-          heightEnd,
+          sanitizeU128(cap),
+          sanitizeU128(amount),
+          sanitizeU64(offsetStart),
+          sanitizeU64(offsetEnd),
+          sanitizeU64(heightStart),
+          sanitizeU64(heightEnd),
           turbo,
         ]
       );
@@ -741,26 +754,76 @@ class OrdpoolBlocksRepository {
     // Insert BRC-20 Deploy Attempts
     for (const { txId, ticker, maxSupply, mintLimit, decimals } of stats.brc20.brc20DeployAttempts) {
       await DB.query(
-        `INSERT INTO ordpool_stats_brc20_deploy (hash, height, txid, ticker, max_supply, mint_limit, decimals)
-        VALUES (?, ?, ?, LEFT(?, 20), ?, ?, ?)
+        `INSERT INTO ordpool_stats_brc20_deploy (
+          hash,
+          height,
+          txid,       -- 1
+          ticker,     -- 2
+          max_supply, -- 3
+          mint_limit, -- 4
+          decimals    -- 5
+        )
+        VALUES (
+          ?,           -- hash
+          ?,           -- height
+          ?,           -- 1 (txid)
+          LEFT(?, 20), -- 2 (ticker)
+          LEFT(?, 50), -- 3 (max_supply)
+          LEFT(?, 50), -- 4 (mint_limit)
+          LEFT(?, 5)   -- 5 (decimals)
+        )
         ON DUPLICATE KEY UPDATE
-          max_supply = VALUES(max_supply),
-          mint_limit = VALUES(mint_limit),
-          decimals = VALUES(decimals)`,
-        [hash, height, txId, ticker, maxSupply, mintLimit, decimals]
+          max_supply = VALUES(max_supply), -- 3
+          mint_limit = VALUES(mint_limit), -- 4
+          decimals   = VALUES(decimals)    -- 5
+        `,
+        [
+          hash,
+          height,
+          txId,
+          ticker,
+          maxSupply,
+          mintLimit,
+          decimals
+        ]
       );
     }
 
     // Insert SRC-20 Deploy Attempts
     for (const { txId, ticker, maxSupply, mintLimit, decimals } of stats.src20.src20DeployAttempts) {
       await DB.query(
-        `INSERT INTO ordpool_stats_src20_deploy (hash, height, txid, ticker, max_supply, mint_limit, decimals)
-        VALUES (?, ?, ?, LEFT(?, 20), ?, ?, ?)
+        `INSERT INTO ordpool_stats_src20_deploy (
+          hash,
+          height,
+          txid,       -- 1
+          ticker,     -- 2
+          max_supply, -- 3
+          mint_limit, -- 4
+          decimals    -- 5
+        )
+        VALUES (
+          ?,           -- hash
+          ?,           -- height
+          ?,           -- 1 (txid)
+          LEFT(?, 20), -- 2 (ticker)
+          LEFT(?, 50), -- 3 (max_supply)
+          LEFT(?, 50), -- 4 (mint_limit)
+          LEFT(?, 5)   -- 5 (decimals)
+        )
         ON DUPLICATE KEY UPDATE
-          max_supply = VALUES(max_supply),
-          mint_limit = VALUES(mint_limit),
-          decimals = VALUES(decimals)`,
-        [hash, height, txId, ticker, maxSupply, mintLimit, decimals]
+          max_supply = VALUES(max_supply), -- 3
+          mint_limit = VALUES(mint_limit), -- 4
+          decimals   = VALUES(decimals)    -- 5
+        `,
+        [
+          hash,
+          height,
+          txId,
+          ticker,
+          maxSupply,
+          mintLimit,
+          decimals
+        ]
       );
 
     }
@@ -781,11 +844,14 @@ class OrdpoolBlocksRepository {
   } | null> {
 
     const [row] = await DB.query(
-      `SELECT id, height, timestamp
+      `SELECT
+        hash,
+        height,
+        UNIX_TIMESTAMP(blockTimestamp) as timestamp
       FROM blocks
       WHERE height >= ?
       AND NOT EXISTS (
-        SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.id
+        SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.hash
       )
       ORDER BY height ASC
       LIMIT 1
@@ -793,7 +859,17 @@ class OrdpoolBlocksRepository {
       [startHeight]
     ) as any;
 
-    return row ? { id: row.id, height: row.height, timestamp: row.timestamp } : null;
+    if (!row.length) {
+      return null;
+    }
+
+    const [result] = row;
+
+    return {
+      id: result.hash,
+      height: result.height,
+      timestamp: result.timestamp
+    };
   }
 }
 

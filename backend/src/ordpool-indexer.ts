@@ -49,7 +49,7 @@ class OrdpoolIndexer {
    */
   public async run(): Promise<void> {
     if (this.isRunning) {
-      logger.info('Indexer is already running. Skipping new invocation.');
+      logger.debug('Indexer is already running. Skipping new invocation.');
       return;
     }
 
@@ -57,7 +57,7 @@ class OrdpoolIndexer {
 
     // Check if sleepUntil is active
     if (now < this.sleepUntil) {
-      logger.info(`Processing paused until ${new Date(this.sleepUntil).toISOString()}`);
+      logger.debug(`Processing paused until ${new Date(this.sleepUntil).toISOString()}`);
       this.scheduleNextRun(this.sleepUntil - now);
       return;
     }

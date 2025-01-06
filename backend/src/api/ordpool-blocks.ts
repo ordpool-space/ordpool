@@ -86,10 +86,10 @@ class OrdpoolBlocks {
             },
           });
 
-          logger.info(`Processed Ordpool Stats for block #${block.height}`);
+          logger.debug(`Processed Ordpool Stats for block #${block.height}`);
           processedAtLeastOneBlock = true;
         } catch (error) {
-          logger.info('Switching to Esplora fallback due to RPC failure.');
+          logger.debug('Switching to Esplora fallback due to RPC failure.');
           this.fallbackUntil = Date.now() + OrdpoolBlocks.fallbackCooldownMs;
           throw error;
         }
