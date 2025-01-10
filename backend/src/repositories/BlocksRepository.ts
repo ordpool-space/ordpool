@@ -183,7 +183,7 @@ class BlocksRepository {
         truncatedCoinbaseSignatureAscii,
       ];
 
-      await DB.query(query, params);
+      await DB.query(query, params, 'silent');
 
     } catch (e: any) {
       if (e.errno === 1062) { // ER_DUP_ENTRY - This scenario is possible upon node backend restart

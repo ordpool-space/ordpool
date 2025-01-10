@@ -396,7 +396,7 @@ class OrdpoolBlocksRepository {
         block.extras.ordpoolStats.version                                     // 45
       ];
 
-      await DB.query(query, params);
+      await DB.query(query, params, 'silent');
 
       logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, 'Ordpool');
 

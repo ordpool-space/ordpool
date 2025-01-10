@@ -86,7 +86,7 @@ class OrdpoolBlocks {
             },
           });
 
-          logger.debug(`Processed Ordpool Stats for block #${block.height}`, 'Ordpool');
+          // logger.debug(`Processed Ordpool Stats for block #${block.height}`, 'Ordpool');
           processedAtLeastOneBlock = true;
         } catch (error) {
           logger.debug('Switching to Esplora fallback due to RPC failure.', 'Ordpool');
