@@ -5,6 +5,7 @@ import {
   compactToMintActivity,
   compactToRuneEtchAttempts,
   compactToSrc20DeployAttempts,
+  getFirstInscriptionHeight,
   OrdpoolStats,
   sanitizeU128,
   sanitizeU64,
@@ -14,6 +15,7 @@ import {
 
 import DB from '../database';
 import logger from '../logger';
+import config from '../config';
 
 
 export interface OrdpoolDatabaseBlock {
@@ -870,6 +872,32 @@ class OrdpoolBlocksRepository {
       height: result.height,
       timestamp: result.timestamp
     };
+  }
+
+  /**
+   * Returns the lowest missing block height >= first known ordinal block (checked in memory).
+   * Efficiently detects gaps in the `blocks` table using indexed access.
+   *
+   * @returns An object with the missing height, or `null` if no missing block is found.
+   */
+  async getLowestMissingBlockHeight(): Promise<number | null> {
+
+    const firstHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
+
+    const [row] = await DB.query(
+      `
+      SELECT t1.height + 1 AS height
+      FROM blocks t1
+      LEFT JOIN blocks t2 ON t1.height + 1 = t2.height
+      WHERE t1.height >= ?
+      AND t2.height IS NULL
+      ORDER BY t1.height
+      LIMIT 1
+      `,
+      [firstHeight]
+    ) as any[];
+
+    return row?.height ? row.height : null;
   }
 }
 

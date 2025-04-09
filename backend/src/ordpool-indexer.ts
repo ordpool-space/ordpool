@@ -1,4 +1,4 @@
-import OrdpoolBlocks from './api/ordpool-blocks';
+import OrdpoolMissingStats from './api/ordpool-missing-stats';
 import logger from './logger';
 
 
@@ -66,7 +66,7 @@ class OrdpoolIndexer {
     const startTime = now;
 
     try {
-      const hasMoreWork = await OrdpoolBlocks.processOrdpoolStatsForOldBlocks(this.batchSize);
+      const hasMoreWork = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(this.batchSize);
 
       const duration = this.dateProvider.now() - startTime;
 
