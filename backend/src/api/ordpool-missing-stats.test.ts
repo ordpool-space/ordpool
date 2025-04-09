@@ -38,7 +38,7 @@ describe('OrdpoolMissingStats', () => {
     (convertVerboseBlockToSimplePlus as jest.Mock).mockReturnValue([]);
     (DigitalArtifactAnalyserService.analyseTransactions as jest.Mock).mockResolvedValue({});
 
-    const result = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(5);
+    const result = await OrdpoolMissingStats.processMissingStats(5);
 
     expect(result).toBe(true);
     expect(bitcoinClient.getBlock).toHaveBeenCalledTimes(1);
@@ -57,7 +57,7 @@ describe('OrdpoolMissingStats', () => {
     (Blocks['$getTransactionsExtended'] as jest.Mock).mockResolvedValue([]);
     (DigitalArtifactAnalyserService.analyseTransactions as jest.Mock).mockResolvedValue({});
 
-    await expect(OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(5)).rejects.toThrow('RPC Error');
+    await expect(OrdpoolMissingStats.processMissingStats(5)).rejects.toThrow('RPC Error');
 
     expect(OrdpoolMissingStats.fallbackUntil).not.toBeNull();
     expect(Blocks['$getTransactionsExtended']).not.toHaveBeenCalled(); // No further calls after failure
@@ -76,7 +76,7 @@ describe('OrdpoolMissingStats', () => {
     (Blocks['$getTransactionsExtended'] as jest.Mock).mockResolvedValue([]);
     (DigitalArtifactAnalyserService.analyseTransactions as jest.Mock).mockResolvedValue({});
 
-    const result = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(5);
+    const result = await OrdpoolMissingStats.processMissingStats(5);
 
     expect(result).toBe(true);
     expect(Blocks['$getTransactionsExtended']).toHaveBeenCalledTimes(1);
@@ -97,7 +97,7 @@ describe('OrdpoolMissingStats', () => {
     (convertVerboseBlockToSimplePlus as jest.Mock).mockReturnValue([]);
     (DigitalArtifactAnalyserService.analyseTransactions as jest.Mock).mockResolvedValue({});
 
-    const result = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(5);
+    const result = await OrdpoolMissingStats.processMissingStats(5);
 
     expect(result).toBe(true);
     expect(bitcoinClient.getBlock).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe('OrdpoolMissingStats', () => {
   it('should stop processing if no blocks are found', async () => {
     (OrdpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats as jest.Mock).mockResolvedValue(null);
 
-    const result = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(5);
+    const result = await OrdpoolMissingStats.processMissingStats(5);
 
     expect(result).toBe(false);
     expect(bitcoinClient.getBlock).not.toHaveBeenCalled();
@@ -117,7 +117,7 @@ describe('OrdpoolMissingStats', () => {
   it('should respect isTaskRunning flag to prevent overlapping tasks', async () => {
     OrdpoolMissingStats.isTaskRunning = true;
 
-    const result = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(5);
+    const result = await OrdpoolMissingStats.processMissingStats(5);
 
     expect(result).toBe(false);
     expect(bitcoinClient.getBlock).not.toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe('OrdpoolMissingStats', () => {
     (convertVerboseBlockToSimplePlus as jest.Mock).mockReturnValue([]);
     (DigitalArtifactAnalyserService.analyseTransactions as jest.Mock).mockResolvedValue({});
 
-    const result = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(3);
+    const result = await OrdpoolMissingStats.processMissingStats(3);
 
     expect(result).toBe(true);
     expect(bitcoinClient.getBlock).toHaveBeenCalledTimes(3);

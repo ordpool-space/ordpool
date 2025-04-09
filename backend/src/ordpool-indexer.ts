@@ -1,9 +1,10 @@
 import OrdpoolMissingStats from './api/ordpool-missing-stats';
+import OrdpoolMissingBlocks from './api/ordpool-missing-blocks';
 import logger from './logger';
 
 
 /**
- * Class responsible for indexing missing Ordpool statistics.
+ * Class responsible for indexing missing blocks and missing Ordpool statistics.
  * Dynamically adjusts workload based on performance and handles exceptions.
  */
 class OrdpoolIndexer {
@@ -20,7 +21,7 @@ class OrdpoolIndexer {
   /** Cooldown time after consecutive errors */
   private static readonly REST_INTERVAL_ERROR_MS = 2 * 60 * 1000; // 2 minutes
 
-  /** Initial batch size for processing blocks */
+  /** Initial batch size for processing blocks / stats */
   private batchSize = 10;
 
   /** Counter for consecutive failures */
@@ -66,11 +67,12 @@ class OrdpoolIndexer {
     const startTime = now;
 
     try {
-      const hasMoreWork = await OrdpoolMissingStats.processOrdpoolStatsForOldBlocks(this.batchSize);
+      const hasMoreWork1 = await OrdpoolMissingBlocks.processMissingBlocks(this.batchSize);
+      const hasMoreWork2 = await OrdpoolMissingStats.processMissingStats(this.batchSize);
 
       const duration = this.dateProvider.now() - startTime;
 
-      if (!hasMoreWork) {
+      if (!hasMoreWork1 && !hasMoreWork2) {
         logger.info('No more tasks to process. Entering rest state.', 'Ordpool');
         this.sleepUntil = this.dateProvider.now() + OrdpoolIndexer.REST_INTERVAL_WORK_DONE_MS;
         this.isRunning = false;

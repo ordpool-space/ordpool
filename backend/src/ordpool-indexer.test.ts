@@ -1,7 +1,9 @@
 import OrdpoolIndexer from './ordpool-indexer';
+import OrdpoolMissingBlocks from './api/ordpool-missing-blocks';
 import OrdpoolMissingStats from './api/ordpool-missing-stats';
 import logger from './logger';
 
+jest.mock('./api/ordpool-missing-blocks');
 jest.mock('./api/ordpool-missing-stats');
 jest.mock('./logger', () => ({
   info: jest.fn(),
@@ -28,16 +30,19 @@ describe('OrdpoolIndexer', () => {
     OrdpoolIndexer.setTimeoutFn = mockSetTimeout as any;
 
     // Mock setTimeout behavior
+    // no automatic runs, because it returns a timeoutId
     mockSetTimeout.mockReturnValue(1);
   });
 
   it('processes tasks with initial batch size', async () => {
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-      .mockResolvedValueOnce(false);
+
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock).mockResolvedValueOnce(false);
+    (OrdpoolMissingStats.processMissingStats as jest.Mock).mockResolvedValueOnce(false);
 
     await OrdpoolIndexer.run();
 
-    expect(OrdpoolMissingStats.processOrdpoolStatsForOldBlocks).toHaveBeenCalledWith(10); // Initial batch size
+    expect(OrdpoolMissingBlocks.processMissingBlocks).toHaveBeenCalledWith(10); // Initial batch size
+    expect(OrdpoolMissingStats.processMissingStats).toHaveBeenCalledWith(10); // Initial batch size
     expect(OrdpoolIndexer['batchSize']).toBe(10);
     expect(mockSetTimeout).toHaveBeenCalled(); // scheduleNextRun
   });
@@ -47,8 +52,8 @@ describe('OrdpoolIndexer', () => {
       .mockReturnValueOnce(0) // Start time
       .mockReturnValueOnce(1000); // 1 second duration
 
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-      .mockResolvedValueOnce(true);
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock).mockResolvedValueOnce(true);
+    (OrdpoolMissingStats.processMissingStats as jest.Mock).mockResolvedValueOnce(true);
 
     await OrdpoolIndexer.run();
 
@@ -62,8 +67,8 @@ describe('OrdpoolIndexer', () => {
       .mockReturnValueOnce(0) // Start time
       .mockReturnValueOnce(16 * 60 * 1000); // 16 minutes duration
 
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-      .mockResolvedValueOnce(true); // Ensure termination
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock).mockResolvedValueOnce(true); // Ensure termination
+    (OrdpoolMissingStats.processMissingStats as jest.Mock).mockResolvedValueOnce(true); // Ensure termination
 
     await OrdpoolIndexer.run();
 
@@ -76,8 +81,8 @@ describe('OrdpoolIndexer', () => {
     mockDateProvider.now
       .mockReturnValueOnce(0); // Start time
 
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-      .mockRejectedValueOnce(new Error('Simulated failure'));
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock).mockRejectedValueOnce(new Error('Simulated failure'));
+    // call to OrdpoolMissingStats will not be reached
 
     await OrdpoolIndexer.run();
 
@@ -94,8 +99,8 @@ describe('OrdpoolIndexer', () => {
       .mockReturnValueOnce(0)  // Start time
       .mockReturnValueOnce(1000); // For the sleep until;
 
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-      .mockRejectedValueOnce(new Error('Simulated failure'));
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock) .mockRejectedValueOnce(new Error('Simulated failure'));
+    // call to OrdpoolMissingStats will not be reached
 
     await OrdpoolIndexer.run();
 
@@ -106,7 +111,7 @@ describe('OrdpoolIndexer', () => {
   });
 
   it('enters rest state after completion', async () => {
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processMissingStats as jest.Mock)
       .mockResolvedValueOnce(false); // No more tasks
 
     await OrdpoolIndexer.run();
@@ -128,23 +133,18 @@ describe('OrdpoolIndexer', () => {
   it('resets failure count on success', async () => {
     mockDateProvider.now.mockReturnValue(0);
 
-    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-      .mockRejectedValueOnce(new Error('Simulated failure'));
+    // prepare failing run
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock).mockRejectedValueOnce(new Error('Simulated failure'));
+    // call to OrdpoolMissingStats will not be reached
 
-    // one additional run
-    mockSetTimeout.mockImplementation((callback, ms) => {
+    await OrdpoolIndexer.run();
 
-      expect(OrdpoolIndexer['failureCount']).toBe(1); // Failure count reset on success
-      expect(OrdpoolIndexer['batchSize']).toBe(5); // Batch size decreased
+    expect(OrdpoolIndexer['failureCount']).toBe(1); // Failure count must reset on success
+    expect(OrdpoolIndexer['batchSize']).toBe(5); // Batch size decreased
 
-      (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
-        .mockResolvedValueOnce(true);
-
-      // no more runs
-      mockSetTimeout.mockReturnValue(1);
-
-      callback();
-    });
+    // prepare successfull run
+    (OrdpoolMissingBlocks.processMissingBlocks as jest.Mock).mockResolvedValueOnce(true);
+    (OrdpoolMissingStats.processMissingStats as jest.Mock).mockResolvedValueOnce(true);
 
     await OrdpoolIndexer.run();
 
