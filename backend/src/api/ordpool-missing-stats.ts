@@ -10,7 +10,7 @@ import bitcoinClient from './bitcoin/bitcoin-client';
  * Processes ordpool stats for missing blocks in the database.
  * Prefers the bitcoin RPC API over the esplora API
  */
-class OrdpoolBlocks {
+class OrdpoolMissingStats {
   /**
    * The timestamp until which the Esplora fallback is active.
    * If null, Bitcoin RPC is used as the default data source.
@@ -90,7 +90,7 @@ class OrdpoolBlocks {
           processedAtLeastOneBlock = true;
         } catch (error) {
           logger.debug('Switching to Esplora fallback due to RPC failure.', 'Ordpool');
-          this.fallbackUntil = Date.now() + OrdpoolBlocks.fallbackCooldownMs;
+          this.fallbackUntil = Date.now() + OrdpoolMissingStats.fallbackCooldownMs;
           throw error;
         }
       }
@@ -100,6 +100,37 @@ class OrdpoolBlocks {
 
     return processedAtLeastOneBlock;
   }
+
+  //  /**
+  //  * Processes missing blocks (header-only) starting from the first known ordinal block.
+  //  * Fills any gaps in the blocks table up to the current chain tip.
+  //  *
+  //  * @param batchSize - Maximum number of missing blocks to process in one run.
+  //  * @returns True if at least one block was added, false otherwise.
+  //  */
+  //  async processMissingBlocks(batchSize: number): Promise<boolean> {
+  //   const tip = await bitcoinClient.getBlockCount();
+  //   let count = 0;
+
+  //   for (let i = 0; i < batchSize; i++) {
+  //     const missingHeight = await ordpoolBlocksRepository.getLowestMissingBlockHeight();
+  //     if (missingHeight === null || missingHeight > tip) break;
+
+  //     try {
+  //       const blockHash = await bitcoinClient.getBlockHash(missingHeight);
+  //       const header = await bitcoinClient.getBlock(blockHash, 0); // verbosity 0 or 1 is enough
+  //       await blocks.$addBlockHeaderOnly(header, missingHeight);  // implement this as a lightweight insert
+  //       logger.info(`Added missing block header #${missingHeight}`, 'Ordpool');
+  //       count++;
+  //     } catch (e) {
+  //       logger.warn(`Failed to add missing block at height ${missingHeight}: ${e instanceof Error ? e.message : e}`, 'Ordpool');
+  //       break; // fail-fast so indexer can slow down
+  //     }
+  //   }
+
+  //   return count > 0;
+  // }
 }
 
-export default new OrdpoolBlocks();
+
+export default new OrdpoolMissingStats();

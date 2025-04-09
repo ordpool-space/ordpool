@@ -1,8 +1,8 @@
 import OrdpoolIndexer from './ordpool-indexer';
-import OrdpoolBlocks from './api/ordpool-blocks';
+import OrdpoolMissingStats from './api/ordpool-missing-stats';
 import logger from './logger';
 
-jest.mock('./api/ordpool-blocks');
+jest.mock('./api/ordpool-missing-stats');
 jest.mock('./logger', () => ({
   info: jest.fn(),
   warn: jest.fn(),
@@ -32,12 +32,12 @@ describe('OrdpoolIndexer', () => {
   });
 
   it('processes tasks with initial batch size', async () => {
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockResolvedValueOnce(false);
 
     await OrdpoolIndexer.run();
 
-    expect(OrdpoolBlocks.processOrdpoolStatsForOldBlocks).toHaveBeenCalledWith(10); // Initial batch size
+    expect(OrdpoolMissingStats.processOrdpoolStatsForOldBlocks).toHaveBeenCalledWith(10); // Initial batch size
     expect(OrdpoolIndexer['batchSize']).toBe(10);
     expect(mockSetTimeout).toHaveBeenCalled(); // scheduleNextRun
   });
@@ -47,13 +47,13 @@ describe('OrdpoolIndexer', () => {
       .mockReturnValueOnce(0) // Start time
       .mockReturnValueOnce(1000); // 1 second duration
 
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockResolvedValueOnce(true);
 
     await OrdpoolIndexer.run();
 
     expect(OrdpoolIndexer['batchSize']).toBe(15); // Batch size increased
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Batch size increased to 15'));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Batch size increased to 15'), 'Ordpool');
     expect(mockSetTimeout).toHaveBeenCalled(); // scheduleNextRun
   });
 
@@ -62,13 +62,13 @@ describe('OrdpoolIndexer', () => {
       .mockReturnValueOnce(0) // Start time
       .mockReturnValueOnce(16 * 60 * 1000); // 16 minutes duration
 
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockResolvedValueOnce(true); // Ensure termination
 
     await OrdpoolIndexer.run();
 
     expect(OrdpoolIndexer['batchSize']).toBe(5); // Batch size decreased
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Batch size decreased to 5'));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Batch size decreased to 5'), 'Ordpool');
     expect(mockSetTimeout).toHaveBeenCalled(); // scheduleNextRun
   });
 
@@ -76,7 +76,7 @@ describe('OrdpoolIndexer', () => {
     mockDateProvider.now
       .mockReturnValueOnce(0); // Start time
 
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockRejectedValueOnce(new Error('Simulated failure'));
 
     await OrdpoolIndexer.run();
@@ -94,7 +94,7 @@ describe('OrdpoolIndexer', () => {
       .mockReturnValueOnce(0)  // Start time
       .mockReturnValueOnce(1000); // For the sleep until;
 
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockRejectedValueOnce(new Error('Simulated failure'));
 
     await OrdpoolIndexer.run();
@@ -106,7 +106,7 @@ describe('OrdpoolIndexer', () => {
   });
 
   it('enters rest state after completion', async () => {
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockResolvedValueOnce(false); // No more tasks
 
     await OrdpoolIndexer.run();
@@ -128,7 +128,7 @@ describe('OrdpoolIndexer', () => {
   it('resets failure count on success', async () => {
     mockDateProvider.now.mockReturnValue(0);
 
-    (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+    (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
       .mockRejectedValueOnce(new Error('Simulated failure'));
 
     // one additional run
@@ -137,7 +137,7 @@ describe('OrdpoolIndexer', () => {
       expect(OrdpoolIndexer['failureCount']).toBe(1); // Failure count reset on success
       expect(OrdpoolIndexer['batchSize']).toBe(5); // Batch size decreased
 
-      (OrdpoolBlocks.processOrdpoolStatsForOldBlocks as jest.Mock)
+      (OrdpoolMissingStats.processOrdpoolStatsForOldBlocks as jest.Mock)
         .mockResolvedValueOnce(true);
 
       // no more runs
