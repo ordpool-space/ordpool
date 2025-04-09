@@ -64,7 +64,11 @@ class OrdpoolMissingBlocks {
     try {
       for (let i = 0; i < batchSize; i++) {
 
-        const height = await ordpoolBlocksRepository.getLowestMissingBlockHeight(firstInscriptionHeight);
+        const blockchainInfo = await bitcoinCore.getBlockchainInfo();
+        const currentBlockHeight = blockchainInfo.blocks;
+
+        const missing = await blocksRepository.$getMissingBlocksBetweenHeights(currentBlockHeight, firstInscriptionHeight);
+        const height = missing.length > 0 ? missing[missing.length - 1] : null;
 
         if (!height) {
           logger.debug('Missing Blocks: No more blocks to process.', 'Ordpool');
