@@ -873,42 +873,6 @@ class OrdpoolBlocksRepository {
       timestamp: result.timestamp
     };
   }
-
-  /**
-   * Returns the lowest missing block height >= startHeight from the blocks table.
-   * Generates range of numbers (1..N) to reliably detect missing values in the dataset.
-   * Requires MariaDB 10.2+ or MySQL 8+
-   *
-   * @returns An object with the missing height, or `null` if no missing block is found.
-   */
-  async getLowestMissingBlockHeight(startHeight: number): Promise<number | null> {
-
-    const [[maxRow]] = await DB.query(
-      `SELECT MAX(height) as maxHeight FROM blocks`
-    ) as any[];
-
-    if (!maxRow?.maxHeight || maxRow.maxHeight < startHeight) {
-      return startHeight;
-    }
-
-    const [[missingRow]] = await DB.query(
-      `
-      WITH RECURSIVE seq AS (
-        SELECT ? AS height
-        UNION ALL
-        SELECT height + 1 FROM seq WHERE height < ?
-      )
-      SELECT seq.height
-      FROM seq
-      LEFT JOIN blocks b ON seq.height = b.height
-      WHERE b.height IS NULL
-      LIMIT 1
-      `,
-      [startHeight, maxRow.maxHeight]
-    ) as any[];
-
-    return missingRow?.height ?? null;
-  }
 }
 
 export default new OrdpoolBlocksRepository();
