@@ -875,29 +875,39 @@ class OrdpoolBlocksRepository {
   }
 
   /**
-   * Returns the lowest missing block height >= first known ordinal block (checked in memory).
-   * Efficiently detects gaps in the `blocks` table using indexed access.
+   * Returns the lowest missing block height >= startHeight from the blocks table.
+   * Generates range of numbers (1..N) to reliably detect missing values in the dataset.
+   * Requires MariaDB 10.2+ or MySQL 8+
    *
    * @returns An object with the missing height, or `null` if no missing block is found.
    */
-  async getLowestMissingBlockHeight(): Promise<number | null> {
+  async getLowestMissingBlockHeight(startHeight: number): Promise<number | null> {
 
-    const firstHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
-
-    const [row] = await DB.query(
-      `
-      SELECT t1.height + 1 AS height
-      FROM blocks t1
-      LEFT JOIN blocks t2 ON t1.height + 1 = t2.height
-      WHERE t1.height >= ?
-      AND t2.height IS NULL
-      ORDER BY t1.height
-      LIMIT 1
-      `,
-      [firstHeight]
+    const [[maxRow]] = await DB.query(
+      `SELECT MAX(height) as maxHeight FROM blocks`
     ) as any[];
 
-    return row?.height ? row.height : null;
+    if (!maxRow?.maxHeight || maxRow.maxHeight < startHeight) {
+      return startHeight;
+    }
+
+    const [[missingRow]] = await DB.query(
+      `
+      WITH RECURSIVE seq AS (
+        SELECT ? AS height
+        UNION ALL
+        SELECT height + 1 FROM seq WHERE height < ?
+      )
+      SELECT seq.height
+      FROM seq
+      LEFT JOIN blocks b ON seq.height = b.height
+      WHERE b.height IS NULL
+      LIMIT 1
+      `,
+      [startHeight, maxRow.maxHeight]
+    ) as any[];
+
+    return missingRow?.height ?? null;
   }
 }
 
