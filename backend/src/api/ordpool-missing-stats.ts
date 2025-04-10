@@ -58,15 +58,17 @@ class OrdpoolMissingStats {
     const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
 
     try {
-      for (let i = 0; i < batchSize; i++) {
+      const blocksToProcess = await ordpoolBlocksRepository.getBlocksWithoutOrdpoolStatsInRange(
+        firstInscriptionHeight,
+        batchSize
+      );
 
-        const block = await ordpoolBlocksRepository.getLowestBlockWithoutOrdpoolStats(firstInscriptionHeight);
+      if (!blocksToProcess.length) {
+        logger.debug('Missing Stats: No more blocks to process.', 'Ordpool');
+        return false;
+      }
 
-        if (!block) {
-          logger.debug('Missing Stats: No more blocks to process.', 'Ordpool');
-          break;
-        }
-
+      for (const block of blocksToProcess) {
         const now = Date.now();
 
         // Check if fallback period has expired
@@ -99,9 +101,7 @@ class OrdpoolMissingStats {
           await ordpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase({
             id: block.id,
             height: block.height,
-            extras: {
-              ordpoolStats,
-            },
+            extras: { ordpoolStats },
           });
 
           processedAtLeastOneBlock = true;

@@ -835,6 +835,8 @@ class OrdpoolBlocksRepository {
    * Retrieves the lowest block from the `blocks` table (starting from a given height)
    * that does not have corresponding data in the `ordpool_stats` table.
    *
+   * This code is not used at the moment!
+   *
    * @param startHeight - The height to start searching from.
    * @returns A promise that resolves to the block information of the first block
    * without stats, or `null` if all blocks have stats.
@@ -873,6 +875,51 @@ class OrdpoolBlocksRepository {
       timestamp: result.timestamp
     };
   }
+
+  /**
+   * Retrieves a batch of blocks (starting from a given height)
+   * that do not have corresponding entries in the `ordpool_stats` table.
+   *
+   * Blocks are ordered by height in ascending order (oldest first).
+   *
+   * @param startHeight - The height to start scanning from.
+   * @param batchSize - The maximum number of blocks to return.
+   * @returns A list of blocks that are missing ordpool stats.
+   */
+  async getBlocksWithoutOrdpoolStatsInRange(
+    startHeight: number,
+    batchSize: number
+  ): Promise<
+    {
+      id: string;
+      height: number;
+      timestamp: number;
+    }[]
+  > {
+    const [rows] = await DB.query(
+      `
+      SELECT
+        hash,
+        height,
+        UNIX_TIMESTAMP(blockTimestamp) AS timestamp
+      FROM blocks
+      WHERE height >= ?
+        AND NOT EXISTS (
+          SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.hash
+        )
+      ORDER BY height ASC
+      LIMIT ?
+      `,
+      [startHeight, batchSize]
+    ) as any;
+
+    return rows.map((row: any) => ({
+      id: row.hash,
+      height: row.height,
+      timestamp: row.timestamp
+    }));
+  }
 }
+
 
 export default new OrdpoolBlocksRepository();

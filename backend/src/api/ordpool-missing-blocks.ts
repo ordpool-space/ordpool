@@ -5,7 +5,6 @@ import config from '../config';
 import logger from '../logger';
 import { BlockExtended, TransactionExtended } from '../mempool.interfaces';
 import blocksRepository from '../repositories/BlocksRepository';
-import ordpoolBlocksRepository from '../repositories/OrdpoolBlocksRepository';
 import BitcoinApi from './bitcoin/bitcoin-api';
 import bitcoinApi from './bitcoin/bitcoin-api-factory';
 import { IBitcoinApi } from './bitcoin/bitcoin-api.interface';
@@ -17,12 +16,13 @@ import blocks from './blocks';
  * Processes ordpool stats for missing blocks in the database (`blocks` table).
  * Prefers the bitcoin RPC API over the esplora API
  *
- * Unfortunately, the original mempool implementation does not recover from an empty or lagging `blocks` table,
+ * Unfortunately, the original mempool implementation does not recover from an empty or lagging `blocks` table.
  * Therefore, this service tries to save the situation by brute force.
  *
  * Prefers the bitcoin RPC API over the esplora API
  * This code assumes that MEMPOOL.BACKEND === 'esplora' is set,
  * otherwise the fallback has no effect because the RPC is always used
+ *
  */
 class OrdpoolMissingBlocks {
   /**
@@ -74,9 +74,9 @@ class OrdpoolMissingBlocks {
       }
 
       // Process up to batchSize
-      const toProcess = missingHeights.slice(-batchSize).reverse(); // process oldest missing first
+      const heightsToProcess = missingHeights.slice(-batchSize).reverse(); // process oldest missing first
 
-      for (const height of toProcess) {
+      for (const height of heightsToProcess) {
         const now = Date.now();
 
         // Check if fallback period has expired
@@ -85,7 +85,7 @@ class OrdpoolMissingBlocks {
           this.fallbackUntil = null;
         }
 
-        // the fallowing code is mimicking blocks.$indexBlock()
+        // the following code is mimicking blocks.$indexBlock()
         try {
           let block: IEsploraApi.Block;
           let coinbaseTransaction: TransactionExtended;
@@ -113,7 +113,7 @@ class OrdpoolMissingBlocks {
             const coinbaseTxnHash = rawBlock.tx[0] as unknown as string;
 
             // forceCore: is set to true here, so it calls bitcoin core underneath!
-            // will get query the RPC and convert the txn from `IBitcoinApi.Transaction` format to `IEsploraApi.Transaction` format via `$convertTransaction`
+            // will query the RPC and convert the txn from `IBitcoinApi.Transaction` format to `IEsploraApi.Transaction` format via `$convertTransaction`
             // and then to TransactionExtended format via `extendTransaction`
             coinbaseTransaction = await transactionUtils.$getTransactionExtended(coinbaseTxnHash, false, false, true);
           }
