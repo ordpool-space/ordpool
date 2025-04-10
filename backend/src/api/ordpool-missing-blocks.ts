@@ -62,19 +62,21 @@ class OrdpoolMissingBlocks {
     const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
 
     try {
-      for (let i = 0; i < batchSize; i++) {
+      const blockchainInfo = await bitcoinCore.getBlockchainInfo();
+      const currentBlockHeight = blockchainInfo.blocks;
 
-        const blockchainInfo = await bitcoinCore.getBlockchainInfo();
-        const currentBlockHeight = blockchainInfo.blocks;
+      // Get all missing heights once
+      const missingHeights = await blocksRepository.$getMissingBlocksBetweenHeights(currentBlockHeight, firstInscriptionHeight);
 
-        const missing = await blocksRepository.$getMissingBlocksBetweenHeights(currentBlockHeight, firstInscriptionHeight);
-        const height = missing.length > 0 ? missing[missing.length - 1] : null;
+      if (!missingHeights.length) {
+        logger.debug('Missing Blocks: No more blocks to process.', 'Ordpool');
+        return false;
+      }
 
-        if (!height) {
-          logger.debug('Missing Blocks: No more blocks to process.', 'Ordpool');
-          break;
-        }
+      // Process up to batchSize
+      const toProcess = missingHeights.slice(-batchSize).reverse(); // process oldest missing first
 
+      for (const height of toProcess) {
         const now = Date.now();
 
         // Check if fallback period has expired
