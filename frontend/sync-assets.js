@@ -122,6 +122,10 @@ function downloadMiningPoolLogos$() {
           }
           let downloadedCount = 0;
           for (const poolLogo of poolLogos) {
+            // HACK -- Ordpool: skip directory entries (download_url is null for dirs like .github)
+            if (!poolLogo.download_url) {
+              continue;
+            }
             if (verbose) {
               console.log(`${LOG_TAG} Processing ${poolLogo.name}`);
             }
@@ -390,11 +394,14 @@ if (configContent.BASE_MODULE && configContent.BASE_MODULE === 'liquid') {
   }
 }
 
+// HACK -- Ordpool: disabled downloadPromoVideoSubtiles$() and downloadPromoVideo$()
+// (mempool/mempool-promo is a private repo, downloads always fail)
 (() => {
   if (verbose) {
     console.log(`${LOG_TAG} Downloading mining pool logos`);
   }
   downloadMiningPoolLogos$()
+  /* HACK -- Ordpool: commented out (private repo)
   .then(() => {
     if (verbose) {
       console.log(`${LOG_TAG} Downloading promo video subtitles`);
@@ -407,6 +414,7 @@ if (configContent.BASE_MODULE && configContent.BASE_MODULE === 'liquid') {
     }
     downloadPromoVideo$();
   })
+  */
   .catch((error) => {
     throw new Error(error);
   });
