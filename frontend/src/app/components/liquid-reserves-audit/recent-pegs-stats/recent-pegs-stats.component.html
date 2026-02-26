@@ -1,7 +1,7 @@
 <div *ngIf="(pegsVolume$ | async) as pegsVolume; else loadingData">
   <div class="fee-estimation-container volume-header">
     <div class="item">
-      <h5>24h Volume</h5>
+      <h5 i18n="liquid.24h-volume">24h Volume</h5>
     </div>
   </div>
   <div class="fee-estimation-container">
@@ -23,7 +23,7 @@
 <ng-template #loadingData>
   <div class="fee-estimation-container loading-container volume-header">
     <div class="item">
-      <h5>24h Volume</h5>
+      <h5 i18n="liquid.24h-volume">24h Volume</h5>
     </div>
   </div>
   <div class="fee-estimation-container">
