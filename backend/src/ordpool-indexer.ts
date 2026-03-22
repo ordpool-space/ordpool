@@ -1,5 +1,6 @@
 import OrdpoolMissingStats from './api/ordpool-missing-stats';
-import OrdpoolMissingBlocks from './api/ordpool-missing-blocks';
+// OrdpoolMissingBlocks removed — mempool's $generateBlockDatabase() now indexes
+// from firstInscriptionHeight automatically (see blocks.ts HACK -- Ordpool).
 import logger from './logger';
 
 
@@ -67,12 +68,11 @@ class OrdpoolIndexer {
     const startTime = now;
 
     try {
-      const hasMoreWork1 = await OrdpoolMissingBlocks.processMissingBlocks(this.batchSize);
-      const hasMoreWork2 = await OrdpoolMissingStats.processMissingStats(this.batchSize);
+      const hasMoreWork = await OrdpoolMissingStats.processMissingStats(this.batchSize);
 
       const duration = this.dateProvider.now() - startTime;
 
-      if (!hasMoreWork1 && !hasMoreWork2) {
+      if (!hasMoreWork) {
         logger.info('No more tasks to process. Entering rest state.', 'Ordpool');
         this.sleepUntil = this.dateProvider.now() + OrdpoolIndexer.REST_INTERVAL_WORK_DONE_MS;
         this.isRunning = false;

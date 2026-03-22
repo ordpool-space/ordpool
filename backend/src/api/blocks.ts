@@ -727,6 +727,11 @@ class Blocks {
         indexingBlockAmount = currentBlockHeight + 1;
       }
 
+      // HACK -- Ordpool: ensure we index at least from firstInscriptionHeight
+      // This replaces the old OrdpoolMissingBlocks brute-force backfiller
+      const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
+      indexingBlockAmount = Math.max(indexingBlockAmount, currentBlockHeight - firstInscriptionHeight);
+
       const lastBlockToIndex = Math.max(0, currentBlockHeight - indexingBlockAmount + 1);
 
       logger.debug(`Indexing blocks from #${currentBlockHeight} to #${lastBlockToIndex}`, logger.tags.mining);
