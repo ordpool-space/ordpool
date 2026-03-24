@@ -79,6 +79,7 @@ class OrdpoolMissingStats {
 
         try {
           let transactions: TransactionSimplePlus[];
+          const t0 = Date.now();
 
           if (this.fallbackUntil !== null) {
             logger.debug(`Missing Stats: Using Esplora API for block #${block.height}.`, 'Ordpool');
@@ -88,12 +89,27 @@ class OrdpoolMissingStats {
             transactions = await blocks['$getTransactionsExtended'](block.id, block.height, block.timestamp, false);
 
           } else {
-            logger.debug(`Missing Stats: Using Bitcoin RPC for block #${block.height}.`, 'Ordpool');
-
             // uses the Bitcoin Core RPC's getblock method with verbosity level 2.
             // this will give us the block's raw data, including all transactions.
             const verboseBlock = await bitcoinCore.getBlock(block.id, 2);
+            const t1 = Date.now();
             transactions = convertVerboseBlockToSimplePlus(verboseBlock);
+            const t2 = Date.now();
+
+            const ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
+            const t3 = Date.now();
+
+            await ordpoolBlocksRepository.saveBlockOrdpoolStatsInDatabase({
+              id: block.id,
+              height: block.height,
+              extras: { ordpoolStats },
+            });
+            const t4 = Date.now();
+
+            logger.info(`Missing Stats: Block #${block.height} | ${transactions.length} txs | RPC: ${t1-t0}ms | convert: ${t2-t1}ms | analyse: ${t3-t2}ms | save: ${t4-t3}ms | total: ${t4-t0}ms`, 'Ordpool');
+
+            processedAtLeastOneBlock = true;
+            continue;
           }
 
           const ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
