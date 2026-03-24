@@ -126,10 +126,11 @@ export const TransactionFilters: { [key: string]: Filter } = {
     ordpool_rune:                 { key: 'ordpool_rune',                  label: 'Rune',                  flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
     ordpool_brc20:                { key: 'ordpool_brc20',                 label: 'BRC-20',                flag: OrdpoolTransactionFlags.ordpool_brc20, important: true, tooltip: true, txPage: true, },
     ordpool_src20:                { key: 'ordpool_src20',                 label: 'SRC-20',                flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
+    ordpool_labitbu:              { key: 'ordpool_labitbu',               label: 'Labitbu',               flag: OrdpoolTransactionFlags.ordpool_labitbu, important: true, tooltip: true, txPage: true, },
     
     ordpool_atomical_mint:        { key: 'ordpool_atomical_mint',         label: 'Atomical Mint',         flag: OrdpoolTransactionFlags.ordpool_atomical_mint, important: true, tooltip: true, txPage: true, },
     ordpool_atomical_transfer:    { key: 'ordpool_atomical_transfer',     label: 'Atomical Transfer',     flag: OrdpoolTransactionFlags.ordpool_atomical_transfer, important: true, tooltip: true, txPage: true, },
-    ordpool_atomcial_update:      { key: 'ordpool_atomcial_update',       label: 'Atomical Update',       flag: OrdpoolTransactionFlags.ordpool_atomcial_update, important: true, tooltip: true, txPage: true, },
+    ordpool_atomical_update:      { key: 'ordpool_atomical_update',       label: 'Atomical Update',       flag: OrdpoolTransactionFlags.ordpool_atomical_update, important: true, tooltip: true, txPage: true, },
 
     ordpool_cat21_mint:           { key: 'ordpool_cat21_mint',            label: 'CAT-21 Mint',           flag: OrdpoolTransactionFlags.ordpool_cat21_mint, important: true, tooltip: true, txPage: true, },
     ordpool_cat21_transfer:       { key: 'ordpool_cat21_transfer',        label: 'CAT-21 Transfer',       flag: OrdpoolTransactionFlags.ordpool_cat21_transfer, important: true, tooltip: true, txPage: true, },
