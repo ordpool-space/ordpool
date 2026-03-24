@@ -27,6 +27,8 @@ export interface OrdpoolDatabaseBlock {
   amountsAtomicalTransfer: number;
   amountsAtomicalUpdate: number;
 
+  amountsLabitbu: number;
+
   amountsCat21: number;
   amountsCat21Mint: number;
   amountsCat21Transfer: number;
@@ -59,6 +61,7 @@ export interface OrdpoolDatabaseBlock {
   feesSrc20Mints: number;
   feesCat21Mints: number;
   feesAtomicals: number;
+  feesLabitbus: number;
   feesInscriptionMints: number;
 
   inscriptionsTotalEnvelopeSize: number;
@@ -95,6 +98,8 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.amounts_atomical_transfer                    AS amountsAtomicalTransfer,                   /* 3 */
   ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,                     /* 4 */
 
+  ordpool_stats.amounts_labitbu                              AS amountsLabitbu,                            /* 4b */
+
   ordpool_stats.amounts_cat21                                AS amountsCat21,                              /* 5 */
   ordpool_stats.amounts_cat21_mint                           AS amountsCat21Mint,                          /* 6 */
   ordpool_stats.amounts_cat21_transfer                       AS amountsCat21Transfer,                      /* 7 */
@@ -127,6 +132,7 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.fees_src20_mints                             AS feesSrc20Mints,                            /* 29 */
   ordpool_stats.fees_cat21_mints                             AS feesCat21Mints,                            /* 30 */
   ordpool_stats.fees_atomicals                               AS feesAtomicals,                             /* 31 */
+  ordpool_stats.fees_labitbus                                AS feesLabitbus,                              /* 31b */
   ordpool_stats.fees_inscription_mints                       AS feesInscriptionMints,                      /* 32 */
 
   ordpool_stats.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,             /* 33 */
@@ -228,6 +234,8 @@ class OrdpoolBlocksRepository {
         amounts_atomical_transfer,                          /* 3 */
         amounts_atomical_update,                            /* 4 */
 
+        amounts_labitbu,                                    /* 4b */
+
         amounts_cat21,                                      /* 5 */
         amounts_cat21_mint,                                 /* 6 */
         amounts_cat21_transfer,                             /* 7 */
@@ -260,6 +268,7 @@ class OrdpoolBlocksRepository {
         fees_src20_mints,                                   /* 29 */
         fees_cat21_mints,                                   /* 30 */
         fees_atomicals,                                     /* 31 */
+        fees_labitbus,                                      /* 31b */
         fees_inscription_mints,                             /* 32 */
 
         inscriptions_total_envelope_size,                   /* 33 */
@@ -286,6 +295,8 @@ class OrdpoolBlocksRepository {
         ?,  /* 2 amounts_atomical_mint */
         ?,  /* 3 amounts_atomical_transfer */
         ?,  /* 4 amounts_atomical_update */
+
+        ?,  /* 4b amounts_labitbu */
 
         ?,  /* 5 amounts_cat21 */
         ?,  /* 6 amounts_cat21_mint */
@@ -319,6 +330,7 @@ class OrdpoolBlocksRepository {
         ?,  /* 29 fees_src20_mints */
         ?,  /* 30 fees_cat21_mints */
         ?,  /* 31 fees_atomicals */
+        ?,  /* 31b fees_labitbus */
         ?,  /* 32 fees_inscription_mints */
 
         ?,  /* 33 inscriptions_total_envelope_size */
@@ -346,6 +358,8 @@ class OrdpoolBlocksRepository {
         block.extras.ordpoolStats.amounts.atomicalMint,                       // 2
         block.extras.ordpoolStats.amounts.atomicalTransfer,                   // 3
         block.extras.ordpoolStats.amounts.atomicalUpdate,                     // 4
+
+        block.extras.ordpoolStats.amounts.labitbu,                           // 4b
 
         block.extras.ordpoolStats.amounts.cat21,                              // 5
         block.extras.ordpoolStats.amounts.cat21Mint,                          // 6
@@ -379,6 +393,7 @@ class OrdpoolBlocksRepository {
         block.extras.ordpoolStats.fees.src20Mints,                            // 29
         block.extras.ordpoolStats.fees.cat21Mints,                            // 30
         block.extras.ordpoolStats.fees.atomicals,                             // 31
+        block.extras.ordpoolStats.fees.labitbus,                             // 31b
         block.extras.ordpoolStats.fees.inscriptionMints,                      // 32
 
         block.extras.ordpoolStats.inscriptions.totalEnvelopeSize,             // 33
@@ -425,6 +440,8 @@ class OrdpoolBlocksRepository {
         atomicalTransfer: dbBlk.amountsAtomicalTransfer,
         atomicalUpdate: dbBlk.amountsAtomicalUpdate,
 
+        labitbu: dbBlk.amountsLabitbu,
+
         cat21: dbBlk.amountsCat21,
         cat21Mint: dbBlk.amountsCat21Mint,
         cat21Transfer: dbBlk.amountsCat21Transfer,
@@ -458,6 +475,7 @@ class OrdpoolBlocksRepository {
         src20Mints: dbBlk.feesSrc20Mints,
         cat21Mints: dbBlk.feesCat21Mints,
         atomicals: dbBlk.feesAtomicals,
+        labitbus: dbBlk.feesLabitbus,
         inscriptionMints: dbBlk.feesInscriptionMints
       },
       inscriptions: {

@@ -194,6 +194,8 @@ class OrdpoolDatabaseMigration {
           amounts_atomical_transfer                    INT UNSIGNED NOT NULL DEFAULT 0,
           amounts_atomical_update                      INT UNSIGNED NOT NULL DEFAULT 0,
 
+          amounts_labitbu                              INT UNSIGNED NOT NULL DEFAULT 0,
+
           amounts_cat21                                INT UNSIGNED NOT NULL DEFAULT 0,
           amounts_cat21_mint                           INT UNSIGNED NOT NULL DEFAULT 0,
           amounts_cat21_transfer                       INT UNSIGNED NOT NULL DEFAULT 0,
@@ -226,6 +228,7 @@ class OrdpoolDatabaseMigration {
           fees_src20_mints                             INT UNSIGNED NOT NULL DEFAULT 0,
           fees_cat21_mints                             INT UNSIGNED NOT NULL DEFAULT 0,
           fees_atomicals                               INT UNSIGNED NOT NULL DEFAULT 0,
+          fees_labitbus                                INT UNSIGNED NOT NULL DEFAULT 0,
           fees_inscription_mints                       INT UNSIGNED NOT NULL DEFAULT 0,
 
           inscriptions_total_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0,
