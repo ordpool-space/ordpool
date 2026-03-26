@@ -186,7 +186,7 @@ class OrdpoolDatabaseMigration {
 
 
        queries.push(`CREATE TABLE ordpool_stats (
-          hash                                         VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash                                         VARCHAR(65) NOT NULL,
           height                                       INT(10) UNSIGNED NOT NULL,
 
           amounts_atomical                             INT UNSIGNED NOT NULL DEFAULT 0,
@@ -272,7 +272,7 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_rune_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
           -- the identifier for Rune mints is the Rune ID, which is a composite string in the format blockId:txNumber
           identifier VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -283,7 +283,7 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_brc20_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
           -- the identifier is the ticker of the token
           identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
@@ -294,7 +294,7 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_src20_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
           -- the identifier is the ticker of the token
           identifier VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
@@ -305,9 +305,9 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_rune_etch (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          txid VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          txid VARCHAR(65) NOT NULL,
           rune_id VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, -- Format: blockHeight:txIndex
           rune_name VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
           divisibility TINYINT UNSIGNED DEFAULT NULL, -- u8 range: 0-255
@@ -326,9 +326,9 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_brc20_deploy (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          txid VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          txid VARCHAR(65) NOT NULL,
           ticker VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           max_supply VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           mint_limit VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -339,9 +339,9 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_src20_deploy (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          txid VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          txid VARCHAR(65) NOT NULL,
           ticker VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           max_supply VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
           mint_limit VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
@@ -352,9 +352,9 @@ class OrdpoolDatabaseMigration {
 
         queries.push(`CREATE TABLE ordpool_stats_cat21_mint (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-          hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          hash VARCHAR(65) NOT NULL,
           height INT(10) UNSIGNED NOT NULL,
-          txid VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          txid VARCHAR(65) NOT NULL,
           tx_index INT UNSIGNED NOT NULL,
           number INT UNSIGNED DEFAULT NULL,
           fee_rate DOUBLE NOT NULL,
