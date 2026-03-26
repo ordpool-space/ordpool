@@ -12,6 +12,21 @@ import bitcoinCore from './bitcoin/bitcoin-client';
 import blocks from './blocks';
 
 
+// HACK -- Ordpool: Hard timeout for RPC calls.
+// The built-in RPC timeout (60s) only covers "no response at all."
+// It does NOT cover slow responses where bitcoind starts sending data
+// but trickles it in slowly (e.g., when ord is hammering it).
+// This wraps any promise with a hard deadline.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: timeout after ${ms}ms`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
 /**
  * Processes ordpool stats for entries in the `blocks` table
  * that do not have corresponding data in the `ordpool_stats` table.
@@ -31,6 +46,12 @@ class OrdpoolMissingStats {
    * The cooldown period (in milliseconds) before switching back to Bitcoin RPC.
    */
   static readonly fallbackCooldownMs = 5 * 60 * 1000; // 5 minutes
+
+  /**
+   * Hard timeout for a single block's RPC call (2 minutes).
+   * Covers slow responses that the built-in 60s connection timeout misses.
+   */
+  static readonly rpcHardTimeoutMs = 2 * 60 * 1000;
 
   /**
    * Indicates whether a task is currently running.
@@ -91,7 +112,11 @@ class OrdpoolMissingStats {
           } else {
             // uses the Bitcoin Core RPC's getblock method with verbosity level 2.
             // this will give us the block's raw data, including all transactions.
-            const verboseBlock = await bitcoinCore.getBlock(block.id, 2);
+            // HACK -- Ordpool: wrapped with hard timeout to prevent hanging on slow responses.
+            // bitcoinCore is untyped JS (require'd) so getBlock() returns any.
+            // Assign to typed variable first so withTimeout<T> infers the correct T.
+            const rpcCall: Promise<Parameters<typeof convertVerboseBlockToSimplePlus>[0]> = bitcoinCore.getBlock(block.id, 2);
+            const verboseBlock = await withTimeout(rpcCall, OrdpoolMissingStats.rpcHardTimeoutMs, `RPC getblock #${block.height}`);
             const t1 = Date.now();
             transactions = convertVerboseBlockToSimplePlus(verboseBlock);
             const t2 = Date.now();

@@ -22,6 +22,9 @@ class OrdpoolIndexer {
   /** Cooldown time after consecutive errors */
   private static readonly REST_INTERVAL_ERROR_MS = 2 * 60 * 1000; // 2 minutes
 
+  /** Hard timeout for an entire batch run (5 minutes). Safety net if processMissingStats hangs. */
+  private static readonly BATCH_TIMEOUT_MS = 5 * 60 * 1000;
+
   /** Initial batch size for processing blocks / stats */
   private batchSize = 10;
 
@@ -68,7 +71,15 @@ class OrdpoolIndexer {
     const startTime = now;
 
     try {
-      const hasMoreWork = await OrdpoolMissingStats.processMissingStats(this.batchSize);
+      // HACK -- Ordpool: global batch timeout as safety net.
+      // If processMissingStats hangs (e.g., slow RPC response from overloaded bitcoind),
+      // this ensures the indexer always recovers and retries.
+      const hasMoreWork = await Promise.race([
+        OrdpoolMissingStats.processMissingStats(this.batchSize),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Batch timeout: processMissingStats exceeded 5 minutes')), OrdpoolIndexer.BATCH_TIMEOUT_MS)
+        ),
+      ]);
 
       const duration = this.dateProvider.now() - startTime;
 
