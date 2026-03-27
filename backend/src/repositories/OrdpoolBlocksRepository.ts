@@ -754,19 +754,19 @@ class OrdpoolBlocksRepository {
         [
           hash,
           height,
-          txId,
-          runeId,
-          runeName,
+          txId ?? null,
+          runeId ?? null,
+          runeName ?? null,
           sanitizeU8(divisibility),
           sanitizeU128(premine),
-          symbol,
+          symbol ?? null,
           sanitizeU128(cap),
           sanitizeU128(amount),
           sanitizeU64(offsetStart),
           sanitizeU64(offsetEnd),
           sanitizeU64(heightStart),
           sanitizeU64(heightEnd),
-          turbo,
+          turbo ?? null,
         ]
       );
     }
@@ -800,11 +800,11 @@ class OrdpoolBlocksRepository {
         [
           hash,
           height,
-          txId,
-          ticker,
-          maxSupply,
-          mintLimit,
-          decimals
+          txId ?? null,
+          ticker ?? null,
+          maxSupply ?? null,
+          mintLimit ?? null,
+          decimals ?? null
         ]
       );
     }
@@ -838,11 +838,11 @@ class OrdpoolBlocksRepository {
         [
           hash,
           height,
-          txId,
-          ticker,
-          maxSupply,
-          mintLimit,
-          decimals
+          txId ?? null,
+          ticker ?? null,
+          maxSupply ?? null,
+          mintLimit ?? null,
+          decimals ?? null
         ]
       );
 
