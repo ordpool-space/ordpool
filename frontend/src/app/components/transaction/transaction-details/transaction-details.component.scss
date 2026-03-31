@@ -133,6 +133,11 @@
 	}
 }
 
+.cpfp-toggle {
+  --bs-btn-active-color: var(--bs-btn-hover-color);
+  --bs-btn-active-bg: var(--bs-btn-hover-bg);
+}
+
 .eta {
   display: flex;
   flex-wrap: wrap;
@@ -158,6 +163,9 @@
 .accelerateDeepMempool {
   background-color: var(--tertiary);
   margin-left: 5px;
+  --bs-btn-active-bg: var(--tertiary);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-active-color: var(--fg);
 }
 
 .goggles-icon {
