@@ -133,6 +133,11 @@
 	}
 }
 
+.cpfp-toggle {
+  --bs-btn-active-color: var(--bs-btn-hover-color);
+  --bs-btn-active-bg: var(--bs-btn-hover-bg);
+}
+
 .eta {
   display: flex;
   flex-wrap: wrap;
