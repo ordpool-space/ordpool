@@ -19,10 +19,12 @@
     <div style="min-height: 295px">
       <table class="table table-borderless" [class.table-fixed]="widget">
         <thead>
-          <th class="filename text-start" [ngClass]="{'widget': widget}" i18n="simpleproof.filename">Filename</th>
-          <th class="hash text-start" [ngClass]="{'widget': widget}" i18n="simpleproof.hash">Hash</th>
-          <th class="verified text-end" [ngClass]="{'widget': widget}" i18n="simpleproof.verified">Verified</th>
-          <th class="proof text-end" [ngClass]="{'widget': widget}" i18n="simpleproof.proof">Proof</th>
+          <tr>
+            <th class="filename text-start" [ngClass]="{'widget': widget}" i18n="simpleproof.filename">Filename</th>
+            <th class="hash text-start" [ngClass]="{'widget': widget}" i18n="simpleproof.hash">Hash</th>
+            <th class="verified text-end" [ngClass]="{'widget': widget}" i18n="simpleproof.verified">Verified</th>
+            <th class="proof text-end" [ngClass]="{'widget': widget}" i18n="simpleproof.proof">Proof</th>
+          </tr>
         </thead>
         <tbody *ngIf="verifiedPage; else skeleton" [style]="isLoading ? 'opacity: 0.75' : ''">
           <tr *ngFor="let item of verifiedPage">
@@ -32,7 +34,7 @@
               <app-timestamp [unixTime]="item.block_time" [customFormat]="'yyyy-MM-dd'" [hideTimeSince]="true"></app-timestamp>
             </td>
             <td class="proof text-end" [class]="widget ? 'widget' : ''">
-              <a [href]="item.sanitized_url" target="_blank" class="badge bg-primary badge-verify">
+              <a [href]="item.sanitized_url" target="_blank" class="badge badge-verify">
                 <span class="icon">
                   <img class="icon-img" src="/resources/sp.svg">
                 </span>
