@@ -136,7 +136,7 @@ const defaultEnv: Env = {
   'ADDITIONAL_CURRENCIES': false,
   'STRATUM_ENABLED': false,
   'SERVICES_API': 'https://mempool.space/api/v1/services',
-  'TWIDGET_DOMAIN': 'mempool.ninja',
+  'TWIDGET_DOMAIN': 'https://mempool.ninja',
   'PROD_DOMAINS': [],
 };
 
