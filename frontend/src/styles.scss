@@ -1578,3 +1578,7 @@ button {
 .text-muted {
   color: var(--grey) !important;
 }
+
+form label:not(.form-check-label):not(.btn) {
+  margin-bottom: 0.5rem;
+}

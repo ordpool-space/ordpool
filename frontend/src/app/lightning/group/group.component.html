@@ -57,10 +57,10 @@
     <form [formGroup]="socketToggleForm" class="formRadioGroup">
       <div class="btn-group btn-group-toggle" name="radioBasic">
         <label class="btn btn-primary btn-sm" [class.active]="socketToggleForm.get('socket').value === 0">
-          <input type="radio" [value]="0" formControlName="socket">IPv4
+          <input type="radio" class="btn-check" [value]="0" formControlName="socket">IPv4
         </label>
         <label class="btn btn-primary btn-sm" [class.active]="socketToggleForm.get('socket').value === 1">
-          <input type="radio" [value]="1" formControlName="socket">IPv6
+          <input type="radio" class="btn-check" [value]="1" formControlName="socket">IPv6
         </label>
       </div>
     </form>
