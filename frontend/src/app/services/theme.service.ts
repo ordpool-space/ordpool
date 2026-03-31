@@ -24,11 +24,44 @@ export class ThemeService {
       theme = 'default';
       this.storageService.setValue('theme-preference', 'default');
     }
+    if (!this.stateService.env.customize?.theme) {
+      const aprilThemeState = this.storageService.getValue('april-theme');
+      if (this.isAprilFirst()) {
+        if (aprilThemeState !== 'dismissed') {
+          if (aprilThemeState !== 'active') {
+            this.storageService.setValue('april-theme-backup', this.storageService.getValue('theme-preference') || 'default');
+            this.storageService.setValue('april-theme', 'active');
+          }
+          theme = 'nymkappa';
+        }
+      } else if (aprilThemeState === 'active') {
+        theme = this.storageService.getValue('april-theme-backup') || 'default';
+        this.storageService.setValue('theme-preference', theme);
+        this.clearAprilTheme();
+      } else if (aprilThemeState === 'dismissed') {
+        this.clearAprilTheme();
+      }
+    }
     this.themeState$ = new BehaviorSubject({ theme, loading: false });
     this.apply(theme);
   }
 
-  apply(theme: string): void {
+  setTheme(theme: string): void {
+    if (!this.stateService.env.customize?.theme && this.isAprilFirst()) {
+      this.storageService.setValue('april-theme', 'dismissed');
+      this.storageService.removeItem('april-theme-backup');
+    } else {
+      this.clearAprilTheme();
+    }
+    this.apply(theme);
+  }
+
+  clearAprilTheme(): void {
+    this.storageService.removeItem('april-theme');
+    this.storageService.removeItem('april-theme-backup');
+  }
+
+  private apply(theme: string): void {
     if (this.theme === theme) {
       return;
     }
@@ -97,5 +130,10 @@ export class ThemeService {
       default:
         return defaultMempoolFeeColors;
     }
+  }
+
+  private isAprilFirst(): boolean {
+    const now = new Date();
+    return now.getMonth() === 3 && now.getDate() === 1;
   }
 }
