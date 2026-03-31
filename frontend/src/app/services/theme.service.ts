@@ -18,11 +18,14 @@ export class ThemeService {
     private storageService: StorageService,
     private stateService: StateService,
   ) {
-    let theme = this.stateService.env.customize?.theme || this.storageService.getValue('theme-preference') || 'default';
+    let theme = this.stateService.env.customize?.theme || (this.isAprilFirst() && this.storageService.getValue('april-theme')) || this.storageService.getValue('theme-preference') || 'default';
     // theme preference must be a valid known public theme
     if (!this.stateService.env.customize?.theme && !['default', 'contrast', 'softsimon', 'nymkappa'].includes(theme)) {
       theme = 'default';
       this.storageService.setValue('theme-preference', 'default');
+    }
+    if (this.turnOnLights()) {
+      theme = 'nymkappa';
     }
     this.themeState$ = new BehaviorSubject({ theme, loading: false });
     this.apply(theme);
@@ -32,6 +35,8 @@ export class ThemeService {
     if (this.theme === theme) {
       return;
     }
+    
+    let localStorageKey = this.isAprilFirst() ? 'april-theme' : 'theme-preference';
 
     this.theme = theme;
     if (theme === 'default') {
@@ -40,7 +45,7 @@ export class ThemeService {
         this.style = null;
       }
       if (!this.stateService.env.customize?.theme) {
-        this.storageService.setValue('theme-preference', theme);
+        this.storageService.setValue(localStorageKey, theme);
       }
       this.mempoolFeeColors = defaultMempoolFeeColors;
       this.themeState$.next({ theme, loading: false });
@@ -71,7 +76,7 @@ export class ThemeService {
       this.style.href = this.getThemeFile(theme);
 
       if (!this.stateService.env.customize?.theme) {
-        this.storageService.setValue('theme-preference', theme);
+        this.storageService.setValue(localStorageKey, theme);
       }
     } catch (err) {
       console.log('failed to apply theme stylesheet: ', err);
@@ -97,5 +102,17 @@ export class ThemeService {
       default:
         return defaultMempoolFeeColors;
     }
+  }
+
+  private turnOnLights(): boolean {
+    if (this.stateService.env.customize?.theme || !this.isAprilFirst()) {
+      return false;
+    }
+    return this.storageService.getValue('april-theme') === null;
+  }
+
+  private isAprilFirst(): boolean {
+    const now = new Date();
+    return now.getMonth() === 3 && now.getDate() === 1;
   }
 }
