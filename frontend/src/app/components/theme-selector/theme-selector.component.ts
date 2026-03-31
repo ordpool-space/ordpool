@@ -36,7 +36,7 @@ export class ThemeSelectorComponent implements OnInit, OnDestroy {
 
   changeTheme() {
     const newTheme = this.themeForm.get('theme')?.value;
-    this.themeService.apply(newTheme);
+    this.themeService.setTheme(newTheme);
   }
 
   ngOnDestroy() {
