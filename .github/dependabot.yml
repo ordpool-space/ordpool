@@ -6,6 +6,11 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 3
     ignore:
       - dependency-name: "*"
         update-types:
@@ -33,6 +38,11 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 3
     ignore:
       - dependency-name: "*"
         update-types:
@@ -44,6 +54,11 @@ updates:
     directory: "/docker/backend"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     ignore:
       - dependency-name: "*"
         update-types:
@@ -53,6 +68,11 @@ updates:
     directory: "/docker/frontend"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     ignore:
       - dependency-name: "*"
         update-types:
@@ -62,6 +82,11 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     ignore:
       - dependency-name: "*"
         update-types:
