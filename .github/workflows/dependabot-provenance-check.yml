@@ -69,20 +69,24 @@ jobs:
           FAILED_DEPS: ${{ steps.npm-provenance.outputs.failed-deps }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr comment "$PR_NUMBER" --body "## Provenance Attestation Check Failed
-
+          COMMENT_BODY_FILE="$(mktemp)"
+          cat > "$COMMENT_BODY_FILE" <<EOF
+          ## Provenance Attestation Check Failed
+          
           This pull request has been automatically closed because the following dependencies do not have [provenance attestation](https://docs.npmjs.com/generating-provenance-statements):
-
+          
           **Failed:** $FAILED_DEPS
-
+          
           ### What is provenance attestation?
-
+          
           Provenance attestation cryptographically proves that a package was built from a specific source repository using a specific build process. This helps protect against supply chain attacks by verifying the link between published packages and their source code.
-
+          
           ### What to do
-
+          
           - Check if a newer version of the dependency publishes provenance
           - Contact the package maintainer to request [npm provenance](https://docs.npmjs.com/generating-provenance-statements) support
-          - If this dependency is trusted and an exception is warranted, a maintainer can reopen this PR and add the \`provenance-exception\` label"
-
+          - If this dependency is trusted and an exception is warranted, a maintainer can reopen this PR and add the \`provenance-exception\` label
+          EOF
+          
+          gh pr comment "$PR_NUMBER" --body-file "$COMMENT_BODY_FILE"
           gh pr close "$PR_NUMBER"
