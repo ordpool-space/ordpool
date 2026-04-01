@@ -372,7 +372,7 @@
   <div class="liquid-indexing">
     <ng-container *ngIf="(auditStatus$ | async) as auditStatus; else auditSkeleton">
       <div class="liquid-indexing-banner" *ngIf="auditStatus.lastBlockAudit && auditStatus.bitcoinHeaders">
-        <span class="badge badge-pill badge-warning liquid-indexing-badge">
+        <span class="badge rounded-pill bg-warning liquid-indexing-badge">
           <span i18n="liquid.audit-in-progress">Audit in progress</span>
           ({{ ((auditStatus.lastBlockAudit / auditStatus.bitcoinHeaders * 100) > 99.9 ? 99.9 : (auditStatus.lastBlockAudit / auditStatus.bitcoinHeaders * 100)) | number:'1.0-1' }}%)
         </span>

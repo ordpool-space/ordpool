@@ -89,6 +89,7 @@ export interface Env {
   PACKAGE_JSON_VERSION_MEMPOOL_SPACE?: string;
   STRATUM_ENABLED: boolean;
   SERVICES_API?: string;
+  TWIDGET_API?: string;
   customize?: Customization;
   PROD_DOMAINS: string[];
 }
@@ -135,6 +136,7 @@ const defaultEnv: Env = {
   'ADDITIONAL_CURRENCIES': false,
   'STRATUM_ENABLED': false,
   'SERVICES_API': 'https://mempool.space/api/v1/services',
+  'TWIDGET_API': 'https://mempool.ninja',
   'PROD_DOMAINS': [],
 };
 

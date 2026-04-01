@@ -31,21 +31,23 @@
       </div>
       <table class="table table-borderless table-fixed">
         <thead>
-          <th class="student text-start sortable" [ngClass]="{'widget': widget}" (click)="$event.stopPropagation(); sortBy('student_name')" style="cursor: pointer;">
-            <span i18n="simpleproof.student_name">Student Name</span>
-            <div class="sort-icons ms-1">
-              <fa-icon [icon]="['fas', 'caret-up']" [fixedWidth]="true" [class.active]="sortField === 'student_name' && sortDirection === 'asc'" (click)="$event.stopPropagation(); sortBy('student_name', 'asc')"></fa-icon>
-              <fa-icon [icon]="['fas', 'caret-down']" [fixedWidth]="true" [class.active]="sortField === 'student_name' && sortDirection === 'desc'" (click)="$event.stopPropagation(); sortBy('student_name', 'desc')"></fa-icon>
-            </div>
-          </th>
-          <th class="id text-start sortable" [ngClass]="{'widget': widget}" (click)="$event.stopPropagation(); sortBy('id_code')" style="cursor: pointer;">
-            <span i18n="simpleproof.id_code">ID</span>
-            <div class="sort-icons ms-1">
-              <fa-icon [icon]="['fas', 'caret-up']" [fixedWidth]="true" [class.active]="sortField === 'id_code' && sortDirection === 'asc'" (click)="$event.stopPropagation(); sortBy('id_code', 'asc')"></fa-icon>
-              <fa-icon [icon]="['fas', 'caret-down']" [fixedWidth]="true" [class.active]="sortField === 'id_code' && sortDirection === 'desc'" (click)="$event.stopPropagation(); sortBy('id_code', 'desc')"></fa-icon>
-            </div>
-          </th>
-          <th class="proof text-end" [ngClass]="{'widget': widget}" i18n="simpleproof.proof">Proof</th>
+          <tr>
+            <th class="student text-start sortable" [ngClass]="{'widget': widget}" (click)="$event.stopPropagation(); sortBy('student_name')" style="cursor: pointer;">
+              <span i18n="simpleproof.student_name">Student Name</span>
+              <div class="sort-icons ms-1">
+                <fa-icon [icon]="['fas', 'caret-up']" [fixedWidth]="true" [class.active]="sortField === 'student_name' && sortDirection === 'asc'" (click)="$event.stopPropagation(); sortBy('student_name', 'asc')"></fa-icon>
+                <fa-icon [icon]="['fas', 'caret-down']" [fixedWidth]="true" [class.active]="sortField === 'student_name' && sortDirection === 'desc'" (click)="$event.stopPropagation(); sortBy('student_name', 'desc')"></fa-icon>
+              </div>
+            </th>
+            <th class="id text-start sortable" [ngClass]="{'widget': widget}" (click)="$event.stopPropagation(); sortBy('id_code')" style="cursor: pointer;">
+              <span i18n="simpleproof.id_code">ID</span>
+              <div class="sort-icons ms-1">
+                <fa-icon [icon]="['fas', 'caret-up']" [fixedWidth]="true" [class.active]="sortField === 'id_code' && sortDirection === 'asc'" (click)="$event.stopPropagation(); sortBy('id_code', 'asc')"></fa-icon>
+                <fa-icon [icon]="['fas', 'caret-down']" [fixedWidth]="true" [class.active]="sortField === 'id_code' && sortDirection === 'desc'" (click)="$event.stopPropagation(); sortBy('id_code', 'desc')"></fa-icon>
+              </div>
+            </th>
+            <th class="proof text-end" [ngClass]="{'widget': widget}" i18n="simpleproof.proof">Proof</th>
+          </tr>
         </thead>
         <tbody *ngIf="verifiedPage; else skeleton" [style]="isLoading ? 'opacity: 0.75' : ''">
           <tr *ngIf="widget" class="search-row">
@@ -91,7 +93,7 @@
               </td>
             }
             <td class="proof text-end" [class]="widget ? 'widget' : ''">
-              <a [href]="item.sanitized_simpleproof_url" target="_blank" class="badge bg-primary badge-verify" style="font-size: 1.035em;">
+              <a [href]="item.sanitized_simpleproof_url" target="_blank" class="badge badge-verify" style="font-size: 1.035em;">
                 <span class="icon">
                   <img class="icon-img" src="/resources/sp.svg">
                 </span>
