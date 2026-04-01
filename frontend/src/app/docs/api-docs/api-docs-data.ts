@@ -12459,7 +12459,18 @@ export const restApiDocsData = [
     fragment: 'accelerator-auto-accelerate',
     title: 'POST Auto-Accelerate A Transaction (Pro)',
     description: {
-      default: '<p>Sends a request to automatically accelerate a transaction based on specified trigger conditions.</p><p>The <code>type</code> parameter must be one of: <code>time_delay</code>, <code>block_height</code>, <code>timestamp</code>, or <code>next_block</code>.<br>The <code>value</code> parameter is required for types other than <code>next_block</code> and depends on the type: hours (floating point, min = 0.5) for <code>time_delay</code>, block height (min = next block height) for <code>block_height</code>, or Unix timestamp (min = now + 60 seconds) for <code>timestamp</code>.</p>'
+      default: `
+      <div class="pb-1">
+        <span>Sends a request to automatically accelerate a transaction based on specified trigger conditions.</span><br>
+        <span>The <code>type</code> parameter must be one of: <code>time_delay</code>, <code>block_height</code>, <code>timestamp</code>, or <code>next_block</code>.</span><br>
+        <span>The <code>value</code> parameter is required for types other than <code>next_block</code> and depends on the type:</span><br>
+      </div>
+      <ul>
+        <li><code>time_delay</code> - in hours, a floating point value >= 0.5</li>
+        <li><code>block_height</code> - a block height >= next block height</li>
+        <li><code>timestamp</code> - a Unix timestamp in seconds >= now + 60 seconds</li>
+      </ul>
+      `
     },
     urlString: '/v1/services/accelerator/auto-accelerate',
     showConditions: [''],
@@ -12489,7 +12500,11 @@ export const restApiDocsData = [
     fragment: 'accelerator-auto-accelerate-history',
     title: 'GET Auto-Acceleration History',
     description: {
-      default: '<p>Returns the user\'s auto-acceleration requests history.</p><p>Possible status values: <code>tracking</code>, <code>accelerated</code>, <code>confirmed</code>, <code>canceled</code>.</p>'
+      default: `
+      <p>
+        <span>Returns the user\'s auto-acceleration requests history.</span><br>
+        <span>Possible status values: <code>tracking</code>, <code>accelerated</code>, <code>confirmed</code>, <code>canceled</code>.</span>
+      </p>`
     },
     urlString: '/v1/services/accelerator/auto-accelerate/history',
     showConditions: [''],
@@ -12508,7 +12523,6 @@ export const restApiDocsData = [
           headers: 'X-Mempool-Auth: stacksats',
           response: `[
   {
-    "id": 15,
     "txid": "ee13ebb99632377c15c94980357f674d285ac413452050031ea6dcd3e9b2dc29",
     "status": "accelerated",
     "added": 1706378712,
@@ -12516,7 +12530,6 @@ export const restApiDocsData = [
     "trigger_value": 0.5
   },
   {
-    "id": 14,
     "txid": "c5840e89173331760e959a190b24e2a289121277ed7f8a095fe289b37cee9fde",
     "status": "confirmed",
     "added": 1706378704,
@@ -12524,7 +12537,6 @@ export const restApiDocsData = [
     "trigger_value": 827670
   },
   {
-    "id": 13,
     "txid": "178b5b9b310f0d667d7ea563a2cdcc17bc8cd15261b58b1653860a724ca83458",
     "status": "tracking",
     "added": 1706378684,
