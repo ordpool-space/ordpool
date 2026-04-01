@@ -37,11 +37,21 @@ jobs:
         id: npm-provenance
         run: |
           IFS=',' read -ra DEPS <<< "${{ steps.metadata.outputs.dependency-names }}"
-          NEW_VERSION="${{ steps.metadata.outputs.new-version }}"
+          UPDATED_DEPS_JSON='${{ steps.metadata.outputs.updated-dependencies-json }}'
 
           FAILED_DEPS=""
           for DEP in "${DEPS[@]}"; do
             DEP=$(echo "$DEP" | xargs)
+
+            NEW_VERSION=$(echo "$UPDATED_DEPS_JSON" | jq -r --arg name "$DEP" '
+              .[] | select(.dependency-name == $name) | .new-version
+            ' | head -n 1)
+
+            if [ -z "$NEW_VERSION" ] || [ "$NEW_VERSION" = "null" ]; then
+              echo "::error::Could not determine updated version for dependency $DEP from Dependabot metadata"
+              FAILED_DEPS="${FAILED_DEPS:+$FAILED_DEPS, }$DEP"
+              continue
+            fi
             echo "::group::Checking provenance for $DEP@$NEW_VERSION"
 
             ATTESTATIONS=$(npm view "$DEP@$NEW_VERSION" --json 2>/dev/null | jq -r '.dist.attestations // empty')
