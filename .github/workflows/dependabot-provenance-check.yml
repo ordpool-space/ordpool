@@ -11,7 +11,7 @@ permissions:
 jobs:
   check-provenance:
     if: >-
-      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
       !contains(github.event.pull_request.labels.*.name, 'provenance-exception')
     runs-on: ubuntu-latest
 
