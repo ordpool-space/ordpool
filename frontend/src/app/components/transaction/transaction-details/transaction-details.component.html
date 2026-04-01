@@ -169,7 +169,7 @@
                 }
                 @if (!tx?.acceleration && acceleratorAvailable && accelerateCtaType === 'button' && !showAccelerationSummary && notAcceleratedOnLoad) {
                   <div class="d-flex accelerate">
-                    <a class="btn btn-sm accelerateDeepMempool btn-small-height" [class.disabled]="!eligibleForAcceleration" i18n="transaction.accelerate|Accelerate button label" (click)="onAccelerateClicked()">Accelerate</a>
+                    <a class="btn btn-sm accelerateDeepMempool btn-small-height btn-purple" [class.disabled]="!eligibleForAcceleration" i18n="transaction.accelerate|Accelerate button label" (click)="onAccelerateClicked()">Accelerate</a>
                     <a *ngIf="!eligibleForAcceleration" href="https://mempool.space/accelerator#why-cant-accelerate" target="_blank" class="info-badges ms-1" i18n-ngbTooltip="Mempool Accelerator&reg; tooltip" ngbTooltip="This transaction cannot be accelerated">
                         <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"></fa-icon>
                     </a>
@@ -304,7 +304,7 @@
         <td class="td-width" i18n="block.miner">Miner</td>
         @if (pool) {
           <td class="wrap-cell">
-            <a placement="bottom" [routerLink]="['/mining/pool' | relativeUrl, pool.slug]" class="badge" style="color: #FFF;padding:0;">
+            <a placement="bottom" [routerLink]="['/mining/pool' | relativeUrl, pool.slug]" class="badge" style="color: var(--fg);padding:0;">
               <span class="miner-name" *ngIf="pool.minerNames?.length > 1 && pool.minerNames[1] != ''">
                 @if (pool.minerNames[1].length > 16) {
                   {{ pool.minerNames[1].slice(0, 15) }}…
@@ -312,8 +312,7 @@
                   {{ pool.minerNames[1] }}
                 }
               </span>
-              <img class="pool-logo" [src]="'/resources/mining-pools/' + pool.slug + '.svg'" onError="this.src = '/resources/mining-pools/default.svg'" [alt]="'Logo of ' + pool.name + ' mining pool'">
-              {{ pool.name }}
+              <app-mining-pool [slug]="pool.slug" [name]="pool.name"></app-mining-pool>
             </a>
           </td>
         } @else {

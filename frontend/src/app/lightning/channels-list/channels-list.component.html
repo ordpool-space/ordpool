@@ -1,6 +1,6 @@
 <div *ngIf="channels$ | async as response; else skeleton" style="position: relative;">
   <form [formGroup]="channelStatusForm" class="formRadioGroup">
-    <div class="btn-group btn-group-toggle" name="radioBasic">
+    <div class="btn-group" name="radioBasic">
       <label class="btn btn-primary btn-sm" [class.active]="channelStatusForm.get('status').value === 'open'">
         <input type="radio" class="btn-check" [value]="'open'" fragment="open" formControlName="status"><span i18n="open">Open</span>
       </label>
