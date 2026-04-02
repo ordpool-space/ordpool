@@ -12502,7 +12502,7 @@ export const restApiDocsData = [
     description: {
       default: `
       <p>
-        <span>Returns the user\'s auto-acceleration requests history.</span><br>
+        <span>Returns the user's auto-acceleration requests history.</span><br>
         <span>Possible status values: <code>tracking</code>, <code>accelerated</code>, <code>confirmed</code>, <code>canceled</code>.</span>
       </p>`
     },
