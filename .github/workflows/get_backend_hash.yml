@@ -2,6 +2,9 @@ name: 'Print backend hashes'
 
 on: [workflow_dispatch]
 
+permissions:
+  contents: read
+
 jobs:
   print-backend-sha:
     runs-on: mempool-ci
