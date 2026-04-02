@@ -6,6 +6,9 @@ on:
   issues:
     types: [opened]
 
+permissions:
+  contents: read
+
 jobs:
   project-automation:
     uses: mempool/.github/.github/workflows/project-board-automation.yml@master
