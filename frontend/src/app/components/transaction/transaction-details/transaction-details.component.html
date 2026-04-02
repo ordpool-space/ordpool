@@ -275,26 +275,12 @@
 </ng-template>
 
 <ng-template #acceleratingRow>
-  @if (accelerationInfo) {
-    <tr>
-      <td rowspan="2" colspan="2" style="padding: 0;">
-        <app-active-acceleration-box [acceleratedBy]="tx.acceleratedBy" [effectiveFeeRate]="tx.effectiveFeePerVsize" [accelerationInfo]="accelerationInfo" [miningStats]="miningStats" [hasCpfp]="hasCpfp" (toggleCpfp)="toggleCpfp()" [chartPositionLeft]="isMobile"></app-active-acceleration-box>
-      </td>
-    </tr>
-    <tr></tr>
-  } @else {
-    <tr>
-      <td rowspan="2" colspan="2"  style="padding: 0;">
-        <table style="width: 100%;">
-          <tbody>
-            <tr><td><span class="skeleton-loader"></span></td></tr>
-            <tr><td><span class="skeleton-loader"></span></td></tr>
-          </tbody>
-        </table>
-      </td>
-    </tr>
-    <tr></tr>
-  }
+  <tr>
+    <td rowspan="2" colspan="2" style="padding: 0;">
+      <app-active-acceleration-box [acceleratedBy]="tx.acceleratedBy" [effectiveFeeRate]="tx.effectiveFeePerVsize" [accelerationInfo]="accelerationInfo" [miningStats]="miningStats" [hasCpfp]="hasCpfp" (toggleCpfp)="toggleCpfp()" [chartPositionLeft]="isMobile"></app-active-acceleration-box>
+    </td>
+  </tr>
+  <tr></tr>
 </ng-template>
 
 <ng-template #minerRow>
