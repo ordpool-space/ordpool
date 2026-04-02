@@ -2,6 +2,9 @@ name: 'Check if servers are in sync'
 
 on: [workflow_dispatch]
 
+permissions:
+  contents: read
+
 jobs:
   print-backend-sha:
     runs-on: mempool-ci
