@@ -1515,6 +1515,12 @@ a {
   --bs-btn-active-border-color: var(--bs-btn-border-color);
 }
 
+.btn-outline-info {
+  --bs-btn-active-color: var(--bs-btn-hover-color);
+  --bs-btn-active-bg: var(--bs-btn-hover-bg);
+  --bs-btn-active-border-color: var(--bs-btn-hover-border-color);
+}
+
 .btn-primary {
   --bs-btn-color: var(--fg);
   --bs-btn-bg: var(--primary);
