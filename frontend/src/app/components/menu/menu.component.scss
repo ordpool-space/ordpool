@@ -47,7 +47,7 @@
 
 .sidenav a, .sidenav button{
   text-decoration: none;
-  color: lightgray;
+  color: var(--fg);
   margin-left: 20px;
 }
 
@@ -72,7 +72,8 @@
 }
 
 .badge-default {
-  background-color: black;
+  background-color: var(--secondary);
+  color: var(--fg);
 }
 
 .badge-og {

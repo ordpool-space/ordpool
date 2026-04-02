@@ -267,8 +267,8 @@ export class NodesChannelsMap implements OnInit {
         map: 'world',
         roam: this.style === 'widget' ? false : true,
         itemStyle: {
-          borderColor: 'black',
-          color: '#272b3f'
+          borderColor: this.resolveCssVariable('--world-map-border', '#000'),
+          color: this.resolveCssVariable('--world-map-bg', '#272b3f'),
         },
         scaleLimit: {
           min: 1.3,
@@ -351,6 +351,13 @@ export class NodesChannelsMap implements OnInit {
         }
       ]
     };
+  }
+
+  private resolveCssVariable(name: string, fallback: string): string {
+    if (typeof document === 'undefined') {
+      return fallback;
+    }
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
   }
 
   onChartInit(ec) {
