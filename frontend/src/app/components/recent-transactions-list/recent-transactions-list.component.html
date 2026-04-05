@@ -8,11 +8,12 @@
           type="button"
           class="btn btn-primary btn-sm"
           [class.active]="txLimit === limit"
+          [attr.data-cy]="'limit-' + limit"
           (click)="setLimit(limit)">
           {{ limit }}
         </button>
       </div>
-      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isPaused" (click)="togglePause()" title="Pause/Resume">
+      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isPaused" (click)="togglePause()" title="Pause/Resume" data-cy="btn-pause">
         <fa-icon [icon]="['fas', 'clock']" [fixedWidth]="true"></fa-icon>
       </button>
     </div>
@@ -26,7 +27,7 @@
       <th class="table-cell-vsize" i18n="transaction.vsize|Transaction Virtual Size">vSize</th>
       <th class="table-cell-fees" i18n="transaction.fee|Transaction fee">Fee</th>
     </thead>
-    <tbody *ngIf="transactions$ | async as transactions; else loadingSkeleton">
+    <tbody data-cy="transactions-list" *ngIf="transactions$ | async as transactions; else loadingSkeleton">
       <tr *ngFor="let transaction of transactions; trackBy: trackByTxid">
         <td class="table-cell-txid">
           <a [routerLink]="['/tx' | relativeUrl, transaction.txid]">
