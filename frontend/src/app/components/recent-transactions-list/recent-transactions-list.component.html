@@ -13,7 +13,7 @@
           {{ limit }}
         </button>
       </div>
-      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isPaused" (click)="togglePause()" title="Pause/Resume" data-cy="btn-pause">
+      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isPaused" (click)="togglePause()" title="Pause/Resume" i18n-title="recent-transactions.pause-toggle.title|Tooltip for the pause/resume updates button" aria-label="Pause/Resume" i18n-aria-label="recent-transactions.pause-toggle.aria-label|Accessible label for the pause/resume updates button" data-cy="btn-pause">
         <fa-icon [icon]="['fas', 'clock']" [fixedWidth]="true"></fa-icon>
       </button>
     </div>
