@@ -1,0 +1,62 @@
+<div class="container-xl" style="min-height: 335px">
+  <div class="title-row">
+    <h1 i18n="page.recent-transactions">Recent Transactions</h1>
+
+    <div class="controls">
+      <div class="btn-group" role="group">
+        <button *ngFor="let limit of limitOptions"
+          type="button"
+          class="btn btn-primary btn-sm"
+          [class.active]="txLimit === limit"
+          (click)="setLimit(limit)">
+          {{ limit }}
+        </button>
+      </div>
+      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isPaused" (click)="togglePause()" title="Pause/Resume">
+        <fa-icon [icon]="['fas', 'clock']" [fixedWidth]="true"></fa-icon>
+      </button>
+    </div>
+  </div>
+
+  <table class="table latest-transactions">
+    <thead>
+      <th class="table-cell-txid" i18n="dashboard.latest-transactions.txid">TXID</th>
+      <th class="table-cell-fiat" *ngIf="(network$ | async) === ''">{{ currency }}</th>
+      <th class="table-cell-satoshis" i18n="dashboard.latest-transactions.amount">Amount</th>
+      <th class="table-cell-vsize" i18n="transaction.vsize|Transaction Virtual Size">vSize</th>
+      <th class="table-cell-fees" i18n="transaction.fee|Transaction fee">Fee</th>
+    </thead>
+    <tbody *ngIf="transactions$ | async as transactions; else loadingSkeleton">
+      <tr *ngFor="let transaction of transactions; trackBy: trackByTxid">
+        <td class="table-cell-txid">
+          <a [routerLink]="['/tx' | relativeUrl, transaction.txid]">
+            <app-truncate [text]="transaction.txid" [lastChars]="5"></app-truncate>
+          </a>
+        </td>
+        <td class="table-cell-fiat" *ngIf="(network$ | async) === ''">
+          <app-fiat [value]="transaction.value" digitsInfo="1.0-0"></app-fiat>
+        </td>
+        <td class="table-cell-satoshis">
+          <app-amount *ngIf="(network$ | async) !== 'liquidtestnet'; else liquidAmount" [satoshis]="transaction.value" digitsInfo="1.2-4" [noFiat]="true"></app-amount>
+          <ng-template #liquidAmount i18n="shared.confidential">Confidential</ng-template>
+        </td>
+        <td class="table-cell-vsize" [innerHTML]="'&lrm;' + (transaction.vsize | vbytes: 2)"></td>
+        <td class="table-cell-fees">
+          <app-fee-rate [fee]="transaction.fee" [weight]="transaction.vsize * 4"></app-fee-rate>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<ng-template #loadingSkeleton>
+  <tbody>
+    <tr *ngFor="let item of [].constructor(10)">
+      <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
+      <td class="table-cell-fiat" *ngIf="(network$ | async) === ''"><span class="skeleton-loader"></span></td>
+      <td class="table-cell-satoshis"><span class="skeleton-loader"></span></td>
+      <td class="table-cell-vsize"><span class="skeleton-loader"></span></td>
+      <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
+    </tr>
+  </tbody>
+</ng-template>
