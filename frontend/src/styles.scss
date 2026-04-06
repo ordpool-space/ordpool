@@ -1652,3 +1652,8 @@ a.badge:hover, a.badge:focus {
 form label:not(.form-check-label):not(.btn) {
   margin-bottom: 0.5rem;
 }
+
+// Angular date picker
+.ngb-dp-header, .ngb-dp-week {
+  background-color: var(--bg) !important;
+}
