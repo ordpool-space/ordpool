@@ -211,13 +211,13 @@ export class ServicesApiServices {
     return this.httpClient.get<{txid: string}>(`${this.stateService.env.SERVICES_API}/testnet4/faucet/request?address=${address}&sats=${sats}`, { responseType: 'json' });
   }
 
-  generateBTCPayAcceleratorInvoice$(txid: string, sats: number, partnerCode: string | undefined): Observable<any> {
+  generateBTCPayAcceleratorInvoice$(txid: string, maxBidBoost: number, partnerCode: string | undefined): Observable<any> {
     const params = {
-      product: txid,
-      amount: sats,
+      txid: txid,
+      maxBidBoost: maxBidBoost,
       partnerCode: partnerCode
     };
-    return this.httpClient.post<any>(`${this.stateService.env.SERVICES_API}/payments/bitcoin`, params);
+    return this.httpClient.post<any>(`${this.stateService.env.SERVICES_API}/accelerator/invoice`, params);
   }
 
   retrieveInvoice$(invoiceId: string): Observable<any[]> {
