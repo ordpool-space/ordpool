@@ -1515,16 +1515,30 @@ a {
   --bs-btn-active-border-color: var(--bs-btn-border-color);
 }
 
+.btn-outline-info {
+  --bs-btn-active-color: var(--bs-btn-hover-color);
+  --bs-btn-active-bg: var(--bs-btn-hover-bg);
+  --bs-btn-active-border-color: var(--bs-btn-hover-border-color);
+}
+
+.btn-outline-secondary {
+  --bs-btn-hover-bg: var(--secondary);
+  --bs-btn-hover-border-color: var(--secondary);
+  --bs-btn-active-bg: var(--secondary);
+  --bs-btn-active-border-color: var(--secondary);
+  --bs-btn-hover-color: var(--fg);
+}
+
 .btn-primary {
   --bs-btn-color: var(--fg);
   --bs-btn-bg: var(--primary);
   --bs-btn-border-color: var(--bs-btn-bg);
   --bs-btn-hover-color: var(--bs-btn-color);
-  --bs-btn-hover-bg: #0069d4;
-  --bs-btn-hover-border-color: #0063c7;
+  --bs-btn-hover-bg: color-mix(in srgb, var(--primary) 85%, black);
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--primary) 80%, black);
   --bs-btn-active-color: var(--bs-btn-color);
-  --bs-btn-active-bg: var(--bs-btn-hover-border-color);
-  --bs-btn-active-border-color: #005cba;
+  --bs-btn-active-bg: color-mix(in srgb, var(--primary) 80%, black);
+  --bs-btn-active-border-color: color-mix(in srgb, var(--primary) 74%, black);
   --bs-btn-active-shadow: none;
   --bs-btn-disabled-color: var(--bs-btn-color);
   --bs-btn-disabled-bg: var(--bs-btn-bg);
@@ -1645,4 +1659,9 @@ a.badge:hover, a.badge:focus {
 
 form label:not(.form-check-label):not(.btn) {
   margin-bottom: 0.5rem;
+}
+
+// Angular date picker
+.ngb-dp-header, .ngb-dp-week {
+  background-color: var(--bg) !important;
 }
