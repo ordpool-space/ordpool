@@ -1521,6 +1521,14 @@ a {
   --bs-btn-active-border-color: var(--bs-btn-hover-border-color);
 }
 
+.btn-outline-secondary {
+  --bs-btn-hover-bg: var(--secondary);
+  --bs-btn-hover-border-color: var(--secondary);
+  --bs-btn-active-bg: var(--secondary);
+  --bs-btn-active-border-color: var(--secondary);
+  --bs-btn-hover-color: var(--fg);
+}
+
 .btn-primary {
   --bs-btn-color: var(--fg);
   --bs-btn-bg: var(--primary);
