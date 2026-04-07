@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, Input } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, merge, of } from 'rxjs';
 import { filter, scan, switchMap, tap } from 'rxjs/operators';
 import { StateService } from '@app/services/state.service';
@@ -16,6 +16,8 @@ import { seoDescriptionNetwork } from '@app/shared/common.utils';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RecentTransactionsList implements OnInit, OnDestroy {
+  @Input() widget: boolean = false;
+
   transactions$: Observable<TransactionStripped[]>;
   network$: Observable<string>;
   currency: string;
@@ -24,6 +26,7 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
   isPaused = false;
   txLimit = 50;
   limitOptions = [10, 50, 100, 500, 1000];
+  skeletonRows: number[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   private pausedTransactions: TransactionStripped[] = [];
   private limit$ = new BehaviorSubject<number>(50);
 
@@ -36,7 +39,13 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.websocketService.want(['stats', 'mempool-blocks']);
+    if (this.widget) {
+      this.txLimit = 6;
+      this.skeletonRows = [0, 1, 2, 3, 4, 5];
+      this.limit$.next(this.txLimit);
+    } else {
+      this.websocketService.want(['stats', 'mempool-blocks']);
+    }
     this.network$ = merge(of(''), this.stateService.networkChanged$);
 
     this.transactions$ = this.limit$.pipe(
@@ -61,8 +70,10 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
       this.currency = fiat;
     });
 
-    this.seoService.setTitle($localize`:@@recent-transactions-title:Recent Transactions`);
-    this.seoService.setDescription($localize`:@@meta.description.recent-transactions:See the most recent transactions on the Bitcoin${seoDescriptionNetwork(this.stateService.network)} network, updated in real-time.`);
+    if (!this.widget) {
+      this.seoService.setTitle($localize`:@@recent-transactions-title:Recent Transactions`);
+      this.seoService.setDescription($localize`:@@meta.description.recent-transactions:See the most recent transactions on the Bitcoin${seoDescriptionNetwork(this.stateService.network)} network, updated in real-time.`);
+    }
   }
 
   setLimit(limit: number): void {
