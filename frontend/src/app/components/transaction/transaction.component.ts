@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { Component, OnInit, AfterViewInit, OnDestroy, HostListener, ViewChild, ElementRef, Inject, ChangeDetectorRef } from '@angular/core';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
@@ -200,6 +201,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
+    private location: Location,
     private relativeUrlPipe: RelativeUrlPipe,
     private electrsApiService: ElectrsApiService,
     public stateService: StateService,
@@ -876,16 +878,14 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
 
   toggleDetailsFromTxPage(): void {
     this.isDetailsOpen = !this.isDetailsOpen;
-    this.router.navigate([], {
+    const urlTree = this.router.createUrlTree([], {
       relativeTo: this.route,
       queryParams: { showDetails: this.isDetailsOpen ? 'true' : null },
       queryParamsHandling: 'merge',
       preserveFragment: true,
-      replaceUrl: true,
     });
-    if (this.txList) {
-      this.txList.setDetailsOpen(this.isDetailsOpen);
-    }
+    this.location.replaceState(this.router.serializeUrl(urlTree));
+    this.txList?.setDetailsOpen(this.isDetailsOpen);
   }
 
   dismissAccelAlert(): void {
