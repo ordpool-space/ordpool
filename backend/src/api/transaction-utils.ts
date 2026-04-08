@@ -47,6 +47,7 @@ class TransactionUtils {
    * @param addPrevouts
    * @param lazyPrevouts
    * @param forceCore - See https://github.com/mempool/mempool/issues/2904
+   * @asyncUnsafe
    */
   public async $getTransactionExtended(txId: string, addPrevouts = false, lazyPrevouts = false, forceCore = false, addMempoolData = false): Promise<TransactionExtended> {
     let transaction: IEsploraApi.Transaction;
@@ -69,10 +70,12 @@ class TransactionUtils {
     }
   }
 
+  /** @asyncUnsafe */
   public async $getMempoolTransactionExtended(txId: string, addPrevouts = false, lazyPrevouts = false, forceCore = false): Promise<MempoolTransactionExtended> {
     return (await this.$getTransactionExtended(txId, addPrevouts, lazyPrevouts, forceCore, true)) as MempoolTransactionExtended;
   }
 
+  /** @asyncUnsafe */
   public async $getMempoolTransactionsExtended(txids: string[], addPrevouts = false, lazyPrevouts = false, forceCore = false): Promise<MempoolTransactionExtended[]> {
     if (forceCore || config.MEMPOOL.BACKEND !== 'esplora') {
       const limiter = pLimit(8); // Run 8 requests at a time
@@ -103,7 +106,7 @@ class TransactionUtils {
     }
     const feePerVbytes = (transaction.fee || 0) / (transaction.weight / 4);
     const transactionExtended: TransactionExtended = Object.assign({
-      vsize: Math.round(transaction.weight / 4),
+      vsize: transaction.weight / 4,
       feePerVsize: feePerVbytes,
       effectiveFeePerVsize: feePerVbytes,
     }, transaction);
@@ -116,19 +119,20 @@ class TransactionUtils {
   public extendMempoolTransaction(transaction: IEsploraApi.Transaction): MempoolTransactionExtended {
     const vsize = Math.ceil(transaction.weight / 4);
     const fractionalVsize = (transaction.weight / 4);
-    let sigops = Common.isLiquid() ? 0 : (transaction.sigops != null ? transaction.sigops : this.countSigops(transaction));
+    const sigops = Common.isLiquid() ? 0 : (transaction.sigops != null ? transaction.sigops : this.countSigops(transaction));
     // https://github.com/bitcoin/bitcoin/blob/e9262ea32a6e1d364fb7974844fadc36f931f8c6/src/policy/policy.cpp#L295-L298
     const adjustedVsize = Math.max(fractionalVsize, sigops *  5); // adjusted vsize = Max(weight, sigops * bytes_per_sigop) / witness_scale_factor
     const feePerVbytes = (transaction.fee || 0) / fractionalVsize;
     const adjustedFeePerVsize = (transaction.fee || 0) / adjustedVsize;
+    const effectiveFeePerVsize = transaction['effectiveFeePerVsize'] || adjustedFeePerVsize || feePerVbytes;
     const transactionExtended: MempoolTransactionExtended = Object.assign(transaction, {
       order: this.txidToOrdering(transaction.txid),
-      vsize: Math.round(transaction.weight / 4),
+      vsize,
       adjustedVsize,
       sigops,
       feePerVsize: feePerVbytes,
       adjustedFeePerVsize: adjustedFeePerVsize,
-      effectiveFeePerVsize: adjustedFeePerVsize,
+      effectiveFeePerVsize: effectiveFeePerVsize,
     });
     if (!transactionExtended?.status?.confirmed && !transactionExtended.firstSeen) {
       transactionExtended.firstSeen = Math.round((Date.now() / 1000));
@@ -144,6 +148,9 @@ class TransactionUtils {
     return str;
   }
 
+  /**
+   *  Calculate the witness-adjusted sigops cost of an asm script
+   */
   public countScriptSigops(script: string, isRawScript: boolean = false, witness: boolean = false): number {
     if (!script?.length) {
       return 0;
@@ -212,6 +219,41 @@ class TransactionUtils {
     return sigops;
   }
 
+    /**
+   * see https://github.com/bitcoin/bitcoin/blob/25c45bb0d0bd6618ec9296a1a43605657124e5de/src/policy/policy.cpp#L166-L193
+   * returns true if the transactions is permitted under bip54 sigops rules
+   *
+   * "Unlike the existing block wide sigop limit which counts sigops present in the block
+   * itself (including the scriptPubKey which is not executed until spending later), BIP54
+   * counts sigops in the block where they are potentially executed (only).
+   * This means sigops in the spent scriptPubKey count toward the limit.
+   * `fAccurate` means correctly accounting sigops for CHECKMULTISIGs(VERIFY) with 16 pubkeys
+   * or fewer. This method of accounting was introduced by BIP16, and BIP54 reuses it.
+   * The GetSigOpCount call on the previous scriptPubKey counts both bare and P2SH sigops."
+   */
+  public checkSigopsBIP54(tx: TransactionExtended, limit): boolean {
+    let sigops = 0;
+    for (const input of tx.vin) {
+      if (input.scriptsig_asm) {
+        sigops += this.countScriptSigops(input.scriptsig_asm);
+      }
+      if (input.prevout) {
+        // P2SH redeem script
+        if (input.prevout.scriptpubkey_type === 'p2sh' && input.inner_redeemscript_asm) {
+          sigops += this.countScriptSigops(input.inner_redeemscript_asm);
+        } else {
+          // prevout scriptpubkey
+          sigops += this.countScriptSigops(input.prevout.scriptpubkey_asm);
+        }
+      }
+
+      if (sigops > limit) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // returns the most significant 4 bytes of the txid as an integer
   public txidToOrdering(txid: string): number {
     return parseInt(
@@ -228,7 +270,7 @@ class TransactionUtils {
       return;
     }
 
-    if (vin.prevout.scriptpubkey_type === 'p2sh') {
+    if (vin.prevout.scriptpubkey_type === 'p2sh' && vin.scriptsig_asm?.length) {
       const redeemScript = vin.scriptsig_asm.split(' ').reverse()[0];
       vin.inner_redeemscript_asm = this.convertScriptSigAsm(redeemScript);
       if (vin.witness && vin.witness.length > 2) {
@@ -261,15 +303,15 @@ class TransactionUtils {
       if (op >= 0x01 && op <= 0x4e) {
         i++;
         let push: number;
-        if (op === 0x4c) {
+        if (op === 0x4c && buf.length > i) {
           push = buf.readUInt8(i);
           b.push('OP_PUSHDATA1');
           i += 1;
-        } else if (op === 0x4d) {
+        } else if (op === 0x4d && buf.length > i + 1) {
           push = buf.readUInt16LE(i);
           b.push('OP_PUSHDATA2');
           i += 2;
-        } else if (op === 0x4e) {
+        } else if (op === 0x4e && buf.length > i + 3) {
           push = buf.readUInt32LE(i);
           b.push('OP_PUSHDATA4');
           i += 4;
@@ -278,13 +320,15 @@ class TransactionUtils {
           b.push('OP_PUSHBYTES_' + push);
         }
 
-        const data = buf.slice(i, i + push);
+        if (i >= buf.length) {
+          break;
+        }
+        const data = buf.subarray(i, Math.min(i + push, buf.length));
+        b.push(data.toString('hex'));
+        i += data.length;
         if (data.length !== push) {
           break;
         }
-
-        b.push(data.toString('hex'));
-        i += data.length;
       } else {
         if (op === 0x00) {
           b.push('OP_0');
@@ -324,7 +368,7 @@ class TransactionUtils {
    *          the script item if it is a script spend.
    */
   public witnessToP2TRScript(witness: string[]): string | null {
-    if (witness.length < 2) return null;
+    if (witness.length < 2) {return null;}
     // Note: see BIP341 for parsing details of witness stack
 
     // If there are at least two witness elements, and the first byte of the
@@ -334,10 +378,114 @@ class TransactionUtils {
     // If there are at least two witness elements left, script path spending is used.
     // Call the second-to-last stack element s, the script.
     // (Note: this phrasing from BIP341 assumes we've *removed* the annex from the stack)
-    if (hasAnnex && witness.length < 3) return null;
+    if (hasAnnex && witness.length < 3) {return null;}
     const positionOfScript = hasAnnex ? witness.length - 3 : witness.length - 2;
     return witness[positionOfScript];
   }
+
+  // calculate the most parsimonious set of prioritizations given a list of block transactions
+  // (i.e. the most likely prioritizations and deprioritizations)
+  public identifyPrioritizedTransactions(transactions: any[], rateKey: string): { prioritized: string[], deprioritized: string[] } {
+    // find the longest increasing subsequence of transactions
+    // (adapted from https://en.wikipedia.org/wiki/Longest_increasing_subsequence#Efficient_algorithms)
+    // should be O(n log n)
+    const X = transactions.slice(1).reverse().map((tx) => ({ txid: tx.txid, rate: tx[rateKey] })); // standard block order is by *decreasing* effective fee rate, but we want to iterate in increasing order (and skip the coinbase)
+    if (X.length < 2) {
+      return { prioritized: [], deprioritized: [] };
+    }
+    const N = X.length;
+    const P: number[] = new Array(N);
+    const M: number[] = new Array(N + 1);
+    M[0] = -1; // undefined so can be set to any value
+
+    let L = 0;
+    for (let i = 0; i < N; i++) {
+      // Binary search for the smallest positive l ≤ L
+      // such that X[M[l]].effectiveFeePerVsize > X[i].effectiveFeePerVsize
+      let lo = 1;
+      let hi = L + 1;
+      while (lo < hi) {
+        const mid = lo + Math.floor((hi - lo) / 2); // lo <= mid < hi
+        if (X[M[mid]].rate > X[i].rate) {
+          hi = mid;
+        } else { // if X[M[mid]].effectiveFeePerVsize < X[i].effectiveFeePerVsize
+          lo = mid + 1;
+        }
+      }
+
+      // After searching, lo == hi is 1 greater than the
+      // length of the longest prefix of X[i]
+      const newL = lo;
+
+      // The predecessor of X[i] is the last index of
+      // the subsequence of length newL-1
+      P[i] = M[newL - 1];
+      M[newL] = i;
+
+      if (newL > L) {
+        // If we found a subsequence longer than any we've
+        // found yet, update L
+        L = newL;
+      }
+    }
+
+    // Reconstruct the longest increasing subsequence
+    // It consists of the values of X at the L indices:
+    // ..., P[P[M[L]]], P[M[L]], M[L]
+    const LIS: any[] = new Array(L);
+    let k = M[L];
+    for (let j = L - 1; j >= 0; j--) {
+      LIS[j] = X[k];
+      k = P[k];
+    }
+
+    const lisMap = new Map<string, number>();
+    LIS.forEach((tx, index) => lisMap.set(tx.txid, index));
+
+    const prioritized: string[] = [];
+    const deprioritized: string[] = [];
+
+    let lastRate = X[0].rate;
+
+    for (const tx of X) {
+      if (lisMap.has(tx.txid)) {
+        lastRate = tx.rate;
+      } else {
+        if (Math.abs(tx.rate - lastRate) < 0.1) {
+          // skip if the rate is almost the same as the previous transaction
+        } else if (tx.rate <= lastRate) {
+          prioritized.push(tx.txid);
+        } else {
+          deprioritized.push(tx.txid);
+        }
+      }
+    }
+
+    return { prioritized, deprioritized };
+  }
+
+  // Copied from https://github.com/mempool/mempool/blob/14e49126c3ca8416a8d7ad134a95c5e090324d69/backend/src/api/bitcoin/bitcoin-api.ts#L324
+  public translateScriptPubKeyType(outputType: string): string {
+    const map = {
+      'pubkey': 'p2pk',
+      'pubkeyhash': 'p2pkh',
+      'scripthash': 'p2sh',
+      'witness_v0_keyhash': 'v0_p2wpkh',
+      'witness_v0_scripthash': 'v0_p2wsh',
+      'witness_v1_taproot': 'v1_p2tr',
+      'nonstandard': 'nonstandard',
+      'multisig': 'multisig',
+      'anchor': 'anchor',
+      'nulldata': 'op_return'
+    };
+
+    if (map[outputType]) {
+      return map[outputType];
+    } else {
+      return 'unknown';
+    }
+  }
+
 }
 
 export default new TransactionUtils();

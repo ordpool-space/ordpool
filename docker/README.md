@@ -106,9 +106,10 @@ Below we list all settings from `mempool-config.json` and the corresponding over
     "EXTERNAL_ASSETS": [],
     "STDOUT_LOG_MIN_PRIORITY": "info",
     "INDEXING_BLOCKS_AMOUNT": false,
-    "AUTOMATIC_BLOCK_REINDEXING": false,
+    "AUTOMATIC_POOLS_UPDATE": false,
     "POOLS_JSON_URL": "https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json",
     "POOLS_JSON_TREE_URL": "https://api.github.com/repos/mempool/mining-pools/git/trees/master",
+    "POOLS_UPDATE_DELAY": 604800,
     "CPFP_INDEXING": false,
     "MAX_BLOCKS_BULK_QUERY": 0,
     "DISK_CACHE_BLOCK_INTERVAL": 6,
@@ -137,9 +138,10 @@ Corresponding `docker-compose.yml` overrides:
       MEMPOOL_EXTERNAL_ASSETS: ""
       MEMPOOL_STDOUT_LOG_MIN_PRIORITY: ""
       MEMPOOL_INDEXING_BLOCKS_AMOUNT: ""
-      MEMPOOL_AUTOMATIC_BLOCK_REINDEXING: ""
+      MEMPOOL_AUTOMATIC_POOLS_UPDATE: ""
       MEMPOOL_POOLS_JSON_URL: ""
       MEMPOOL_POOLS_JSON_TREE_URL: ""
+      MEMPOOL_POOLS_UPDATE_DELAY: ""
       MEMPOOL_CPFP_INDEXING: ""
       MEMPOOL_MAX_BLOCKS_BULK_QUERY: ""
       MEMPOOL_DISK_CACHE_BLOCK_INTERVAL: ""

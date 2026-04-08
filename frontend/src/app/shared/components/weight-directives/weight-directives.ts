@@ -1,6 +1,6 @@
 import { Directive, OnDestroy, TemplateRef, ViewContainerRef } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { StateService } from '../../../services/state.service';
+import { StateService } from '@app/services/state.service';
 
 function createRateUnitDirective(checkFn: (rateUnit: string) => boolean): any {
   @Directive()
@@ -38,8 +38,8 @@ function createRateUnitDirective(checkFn: (rateUnit: string) => boolean): any {
   return RateUnitDirective;
 }
 
-@Directive({ selector: '[only-vsize]' })
+@Directive({ selector: '[only-vsize]', standalone: false })
 export class OnlyVsizeDirective extends createRateUnitDirective(rateUnit => rateUnit !== 'wu') {}
 
-@Directive({ selector: '[only-weight]' })
+@Directive({ selector: '[only-weight]', standalone: false })
 export class OnlyWeightDirective extends createRateUnitDirective(rateUnit => rateUnit === 'wu') {}

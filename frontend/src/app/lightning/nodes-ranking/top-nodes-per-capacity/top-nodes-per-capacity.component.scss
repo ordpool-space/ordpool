@@ -19,13 +19,13 @@ tr, td, th {
 
 .pool {
   width: 15%;
-  @media (max-width: 575px) {
-    width: 75%;
-  }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 160px;
+  @media (max-width: 575px) {
+    width: 75%;
+  }
 }
 .pool-name {
   display: inline-block;
@@ -43,7 +43,7 @@ tr, td, th {
 
 .capacity-ratio {
   font-size: 12px;
-  color: darkgrey;
+  color: var(--transparent-fg);
 }
 
 .fiat {

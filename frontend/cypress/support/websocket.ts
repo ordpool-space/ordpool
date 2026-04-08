@@ -27,6 +27,37 @@ const createMock = (url: string) => {
 	return mocks[url];
 };
 
+export const mockWebSocketV2 = () => {
+	cy.on('window:before:load', (win) => {
+		const winWebSocket = win.WebSocket;
+		cy.stub(win, 'WebSocket').callsFake((url) => {
+			console.log(url);
+			if ((new URL(url).pathname.indexOf('/sockjs-node/') !== 0) && (new URL(url).pathname.indexOf('/ng-cli-ws') !== 0)) {
+				const { server, websocket } = createMock(url);
+
+				win.mockServer = server;
+				win.mockServer.on('connection', (socket) => {
+					win.mockSocket = socket;
+				});
+
+				win.mockServer.on('message', (message) => {
+					console.log(message);
+				});
+
+				return websocket;
+			} else {
+				return new winWebSocket(url);
+			}
+		});
+	});
+
+	cy.on('window:before:unload', () => {
+		for (const url in mocks) {
+			cleanupMock(url);
+		}
+	});
+};
+
 export const mockWebSocket = () => {
 	cy.on('window:before:load', (win) => {
 		const winWebSocket = win.WebSocket;
@@ -65,33 +96,65 @@ export const mockWebSocket = () => {
 	});
 };
 
-export const emitMempoolInfo = ({
+export const receiveWebSocketMessageFromServer = ({
 	params
 }: { params?: any } = {}) => {
 	cy.window().then((win) => {
+		if (params.message) {
+			console.log('sending message');
+			win.mockSocket.send(params.message.contents);
+		}
+
+		if (params.file) {
+			cy.readFile(`cypress/fixtures/${params.file.path}`, 'utf-8').then((fixture) => {
+				console.log('sending payload');
+				win.mockSocket.send(JSON.stringify(fixture));
+			});
+
+		}
+	});
+	return;
+};
+
+
+const MOCK_SOCKET_WAIT_TIMEOUT_MS = 5000;
+
+export const emitMempoolInfo = ({
+	params
+}: { params?: any } = {}) => {
+	cy.window({ timeout: MOCK_SOCKET_WAIT_TIMEOUT_MS })
+		.should((win) => {
+			expect(win.mockSocket, 'mockSocket to be set (app should open WebSocket within timeout)').to.not.be.undefined;
+		})
+		.then((win) => {
 		//TODO: Refactor to take into account different parameterized mocking scenarios
 		switch (params.network) {
 			//TODO: Use network specific mocks
-			case "signet":
-			case "testnet":
-			case "mainnet":
+			case 'signet':
+			case 'testnet':
+			case 'mainnet':
 			default:
 				break;
 		}
 
 		switch (params.command) {
-			case "init": {
-				win.mockSocket.send('{"conversions":{"USD":32365.338815782445}}');
-				cy.readFile('cypress/fixtures/mainnet_live2hchart.json', 'ascii').then((fixture) => {
+			case 'init': {
+				cy.readFile('cypress/fixtures/mainnet_live2hchart.json', 'utf-8').then((fixture) => {
 					win.mockSocket.send(JSON.stringify(fixture));
 				});
-				cy.readFile('cypress/fixtures/mainnet_mempoolInfo.json', 'ascii').then((fixture) => {
+				cy.readFile('cypress/fixtures/mainnet_mempoolInfo.json', 'utf-8').then((fixture) => {
 					win.mockSocket.send(JSON.stringify(fixture));
 				});
 				break;
 			}
-			case "rbfTransaction": {
-				cy.readFile('cypress/fixtures/mainnet_rbf.json', 'ascii').then((fixture) => {
+			case 'rbfTransaction': {
+				cy.readFile('cypress/fixtures/mainnet_rbf.json', 'utf-8').then((fixture) => {
+					win.mockSocket.send(JSON.stringify(fixture));
+				});
+				break;
+			}
+			case 'trackTx': {
+				cy.readFile('cypress/fixtures/track_tx.json', 'utf-8').then((fixture) => {
 					win.mockSocket.send(JSON.stringify(fixture));
 				});
 				break;
@@ -101,12 +164,16 @@ export const emitMempoolInfo = ({
 		}
 	});
     cy.waitForSkeletonGone();
-    return cy.get('#mempool-block-0');
+		if (!params.waitForMempoolBlocks) {
+			return
+		} else {
+			return cy.get('#mempool-block-0');
+		}
 };
 
 export const dropWebSocket = (() => {
     cy.window().then((win) => {
-        win.mockServer.simulate("error");
+        win.mockServer.simulate('error');
     });
     return cy.wait(500);
 });

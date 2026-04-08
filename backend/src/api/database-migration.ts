@@ -7,7 +7,7 @@ import cpfpRepository from '../repositories/CpfpRepository';
 import { RowDataPacket } from 'mysql2';
 
 class DatabaseMigration {
-  private static currentVersion = 78;
+  private static currentVersion = 109;
   private queryTimeout = 3600_000;
   private statisticsAddedIndexed = false;
   private uniqueLogs: string[] = [];
@@ -28,6 +28,7 @@ class DatabaseMigration {
 
   /**
    * Entry point
+   * @asyncUnsafe
    */
   public async $initializeOrMigrateDatabase(): Promise<void> {
     logger.debug('MIGRATIONS: Running migrations');
@@ -100,11 +101,12 @@ class DatabaseMigration {
 
   /**
    * Create all missing tables
+   * @asyncUnsafe
    */
   private async $createMissingTablesAndIndexes(databaseSchemaVersion: number) {
     await this.$setStatisticsAddedIndexedFlag(databaseSchemaVersion);
 
-    const isBitcoin = ['mainnet', 'testnet', 'signet'].includes(config.MEMPOOL.NETWORK);
+    const isBitcoin = ['mainnet', 'testnet', 'signet', 'testnet4', 'regtest'].includes(config.MEMPOOL.NETWORK);
 
     await this.$executeQuery(this.getCreateElementsTableQuery(), await this.$checkIfTableExists('elements_pegs'));
     await this.$executeQuery(this.getCreateStatisticsQuery(), await this.$checkIfTableExists('statistics'));
@@ -566,8 +568,8 @@ class DatabaseMigration {
       await this.$executeQuery('ALTER TABLE `blocks_templates` ADD INDEX `version` (`version`)');
       await this.updateToSchemaVersion(67);
     }
-    
-    if (databaseSchemaVersion < 68 && config.MEMPOOL.NETWORK === "liquid") {
+
+    if (databaseSchemaVersion < 68 && config.MEMPOOL.NETWORK === 'liquid') {
       await this.$executeQuery('TRUNCATE TABLE elements_pegs');
       await this.$executeQuery('ALTER TABLE elements_pegs ADD PRIMARY KEY (txid, txindex);');
       await this.$executeQuery(`UPDATE state SET number = 0 WHERE name = 'last_elements_block';`);
@@ -653,9 +655,11 @@ class DatabaseMigration {
       await this.$executeQuery('ALTER TABLE `prices` ADD `TRY` float DEFAULT "-1"');
       await this.$executeQuery('ALTER TABLE `prices` ADD `ZAR` float DEFAULT "-1"');
 
-      await this.$executeQuery('TRUNCATE hashrates');
-      await this.$executeQuery('TRUNCATE difficulty_adjustments');
-      await this.$executeQuery(`UPDATE state SET string = NULL WHERE name = 'pools_json_sha'`);
+      if (isBitcoin === true) {
+        await this.$executeQuery('TRUNCATE hashrates');
+        await this.$executeQuery('TRUNCATE difficulty_adjustments');
+        await this.$executeQuery(`UPDATE state SET string = NULL WHERE name = 'pools_json_sha'`);
+      }
 
       await this.updateToSchemaVersion(75);
     }
@@ -673,6 +677,574 @@ class DatabaseMigration {
     if (databaseSchemaVersion < 78) {
       await this.$executeQuery('ALTER TABLE `prices` CHANGE `time` `time` datetime NOT NULL');
       await this.updateToSchemaVersion(78);
+    }
+
+    if (databaseSchemaVersion < 79 && config.MEMPOOL.NETWORK === 'mainnet') {
+      // Clear bad data
+      await this.$executeQuery(`TRUNCATE accelerations`);
+      this.uniqueLog(logger.notice, `'accelerations' table has been truncated`);
+      await this.$executeQuery(`
+        UPDATE state
+        SET number = 0
+        WHERE name = 'last_acceleration_block'
+      `);
+      await this.updateToSchemaVersion(79);
+    }
+
+    if (databaseSchemaVersion < 80) {
+      await this.$executeQuery('ALTER TABLE `blocks` ADD coinbase_addresses JSON DEFAULT NULL');
+      await this.updateToSchemaVersion(80);
+    }
+
+    if (databaseSchemaVersion < 81 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `blocks_audits` ADD version INT NOT NULL DEFAULT 0');
+      await this.$executeQuery('ALTER TABLE `blocks_audits` ADD INDEX `version` (`version`)');
+      await this.$executeQuery('ALTER TABLE `blocks_audits` ADD unseen_txs JSON DEFAULT "[]"');
+      await this.updateToSchemaVersion(81);
+    }
+
+    if (databaseSchemaVersion < 82 && isBitcoin === true && config.MEMPOOL.NETWORK === 'mainnet') {
+      await this.$fixBadV1AuditBlocks();
+      await this.updateToSchemaVersion(82);
+    }
+
+    if (databaseSchemaVersion < 83 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `blocks` ADD first_seen datetime(6) DEFAULT NULL');
+      await this.updateToSchemaVersion(83);
+    }
+
+    // add new pools indexes
+    if (databaseSchemaVersion < 84 && isBitcoin === true) {
+      await this.$executeQuery(`
+        ALTER TABLE \`pools\`
+          ADD INDEX \`slug\` (\`slug\`),
+          ADD INDEX \`unique_id\` (\`unique_id\`)
+      `);
+      await this.updateToSchemaVersion(84);
+    }
+
+    // lightning channels indexes
+    if (databaseSchemaVersion < 85 && isBitcoin === true) {
+      await this.$executeQuery(`
+        ALTER TABLE \`channels\`
+          ADD INDEX \`created\` (\`created\`),
+          ADD INDEX \`capacity\` (\`capacity\`),
+          ADD INDEX \`closing_reason\` (\`closing_reason\`),
+          ADD INDEX \`closing_resolved\` (\`closing_resolved\`)
+      `);
+      await this.updateToSchemaVersion(85);
+    }
+
+    // lightning nodes indexes
+    if (databaseSchemaVersion < 86 && isBitcoin === true) {
+      await this.$executeQuery(`
+        ALTER TABLE \`nodes\`
+          ADD INDEX \`status\` (\`status\`),
+          ADD INDEX \`channels\` (\`channels\`),
+          ADD INDEX \`country_id\` (\`country_id\`),
+          ADD INDEX \`as_number\` (\`as_number\`),
+          ADD INDEX \`first_seen\` (\`first_seen\`)
+      `);
+      await this.updateToSchemaVersion(86);
+    }
+
+    // lightning node sockets indexes
+    if (databaseSchemaVersion < 87 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `nodes_sockets` ADD INDEX `type` (`type`)');
+      await this.updateToSchemaVersion(87);
+    }
+
+    // lightning stats indexes
+    if (databaseSchemaVersion < 88 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `lightning_stats` ADD INDEX `added` (`added`)');
+      await this.updateToSchemaVersion(88);
+    }
+
+    // geo names indexes
+    if (databaseSchemaVersion < 89 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `geo_names` ADD INDEX `names` (`names`)');
+      await this.updateToSchemaVersion(89);
+    }
+
+    // hashrates indexes
+    if (databaseSchemaVersion < 90 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `hashrates` ADD INDEX `type` (`type`)');
+      await this.updateToSchemaVersion(90);
+    }
+
+    // block audits indexes
+    if (databaseSchemaVersion < 91 && isBitcoin === true) {
+      await this.$executeQuery('ALTER TABLE `blocks_audits` ADD INDEX `time` (`time`)');
+      await this.updateToSchemaVersion(91);
+    }
+
+    // elements_pegs indexes
+    if (databaseSchemaVersion < 92 && config.MEMPOOL.NETWORK === 'liquid') {
+      await this.$executeQuery(`
+        ALTER TABLE \`elements_pegs\`
+          ADD INDEX \`block\` (\`block\`),
+          ADD INDEX \`datetime\` (\`datetime\`),
+          ADD INDEX \`amount\` (\`amount\`),
+          ADD INDEX \`bitcoinaddress\` (\`bitcoinaddress\`),
+          ADD INDEX \`bitcointxid\` (\`bitcointxid\`)
+      `);
+      await this.updateToSchemaVersion(92);
+    }
+
+    // federation_txos indexes
+    if (databaseSchemaVersion < 93 && config.MEMPOOL.NETWORK === 'liquid') {
+      await this.$executeQuery(`
+        ALTER TABLE \`federation_txos\`
+          ADD INDEX \`unspent\` (\`unspent\`),
+          ADD INDEX \`lastblockupdate\` (\`lastblockupdate\`),
+          ADD INDEX \`blocktime\` (\`blocktime\`),
+          ADD INDEX \`emergencyKey\` (\`emergencyKey\`),
+          ADD INDEX \`expiredAt\` (\`expiredAt\`)
+      `);
+      await this.updateToSchemaVersion(93);
+    }
+
+    // Unify database schema for all mempool netwoks
+    // versions above 94 should not use network-specific flags
+    if (databaseSchemaVersion < 94) {
+
+      if (!isBitcoin) {
+        // Apply all the bitcoin specific migrations to non-bitcoin networks: liquid, liquidtestnet and testnet4 (!)
+        // Version 5
+        await this.$executeQuery('ALTER TABLE blocks ADD `reward` double unsigned NOT NULL DEFAULT "0"');
+
+        // Version 6
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `height` integer unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `tx_count` smallint unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `size` integer unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `weight` integer unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `difficulty` double NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `blocks_ibfk_1`');
+        await this.$executeQuery('ALTER TABLE pools MODIFY `id` smallint unsigned AUTO_INCREMENT');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `pool_id` smallint unsigned NULL');
+        await this.$executeQuery('ALTER TABLE blocks ADD FOREIGN KEY (`pool_id`) REFERENCES `pools` (`id`)');
+        await this.$executeQuery('ALTER TABLE blocks ADD `version` integer unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks ADD `bits` integer unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks ADD `nonce` bigint unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks ADD `merkle_root` varchar(65) NOT NULL DEFAULT ""');
+        await this.$executeQuery('ALTER TABLE blocks ADD `previous_block_hash` varchar(65) NULL');
+
+        // Version 7
+        await this.$executeQuery('DROP table IF EXISTS hashrates;');
+        await this.$executeQuery(this.getCreateDailyStatsTableQuery(), await this.$checkIfTableExists('hashrates'));
+
+        // Version 8
+        await this.$executeQuery('ALTER TABLE `hashrates` DROP INDEX `PRIMARY`');
+        await this.$executeQuery('ALTER TABLE `hashrates` ADD `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST');
+        await this.$executeQuery('ALTER TABLE `hashrates` ADD `share` float NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `hashrates` ADD `type` enum("daily", "weekly") DEFAULT "daily"');
+
+        // Version 9
+        await this.$executeQuery('ALTER TABLE `state` CHANGE `name` `name` varchar(100)');
+        await this.$executeQuery('ALTER TABLE `hashrates` ADD UNIQUE `hashrate_timestamp_pool_id` (`hashrate_timestamp`, `pool_id`)');
+
+        // Version 10
+        await this.$executeQuery('ALTER TABLE `blocks` ADD INDEX `blockTimestamp` (`blockTimestamp`)');
+
+        // Version 11
+        await this.$executeQuery(`ALTER TABLE blocks
+          ADD avg_fee INT UNSIGNED NULL,
+          ADD avg_fee_rate INT UNSIGNED NULL
+        `);
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `reward` BIGINT UNSIGNED NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `median_fee` INT UNSIGNED NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `fees` INT UNSIGNED NOT NULL DEFAULT "0"');
+
+        // Version 12
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `fees` BIGINT UNSIGNED NOT NULL DEFAULT "0"');
+
+        // Version 13
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `difficulty` DOUBLE UNSIGNED NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `median_fee` BIGINT UNSIGNED NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `avg_fee` BIGINT UNSIGNED NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE blocks MODIFY `avg_fee_rate` BIGINT UNSIGNED NOT NULL DEFAULT "0"');
+
+        // Version 14
+        await this.$executeQuery('ALTER TABLE `hashrates` DROP FOREIGN KEY `hashrates_ibfk_1`');
+        await this.$executeQuery('ALTER TABLE `hashrates` MODIFY `pool_id` SMALLINT UNSIGNED NOT NULL DEFAULT "0"');
+
+        // Version 17
+        await this.$executeQuery('ALTER TABLE `pools` ADD `slug` CHAR(50) NULL');
+
+        // Version 18
+        await this.$executeQuery('ALTER TABLE `blocks` ADD INDEX `hash` (`hash`);');
+
+        // Version 20
+        await this.$executeQuery(this.getCreateBlocksSummariesTableQuery(), await this.$checkIfTableExists('blocks_summaries'));
+
+        // Version 22
+        await this.$executeQuery('DROP TABLE IF EXISTS `difficulty_adjustments`');
+        await this.$executeQuery(this.getCreateDifficultyAdjustmentsTableQuery(), await this.$checkIfTableExists('difficulty_adjustments'));
+
+        // Version 24
+        await this.$executeQuery('DROP TABLE IF EXISTS `blocks_audits`');
+        await this.$executeQuery(this.getCreateBlocksAuditsTableQuery(), await this.$checkIfTableExists('blocks_audits'));
+
+        // Version 25
+        await this.$executeQuery(this.getCreateLightningStatisticsQuery(), await this.$checkIfTableExists('lightning_stats'));
+        await this.$executeQuery(this.getCreateNodesQuery(), await this.$checkIfTableExists('nodes'));
+        await this.$executeQuery(this.getCreateChannelsQuery(), await this.$checkIfTableExists('channels'));
+        await this.$executeQuery(this.getCreateNodesStatsQuery(), await this.$checkIfTableExists('node_stats'));
+
+        // Version 26
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD tor_nodes int(11) NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD clearnet_nodes int(11) NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD unannounced_nodes int(11) NOT NULL DEFAULT "0"');
+
+        // Version 27
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD avg_capacity bigint(20) unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD avg_fee_rate int(11) unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD avg_base_fee_mtokens bigint(20) unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD med_capacity bigint(20) unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD med_fee_rate int(11) unsigned NOT NULL DEFAULT "0"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD med_base_fee_mtokens bigint(20) unsigned NOT NULL DEFAULT "0"');
+
+        // Version 28
+        await this.$executeQuery(`ALTER TABLE lightning_stats MODIFY added DATE`);
+
+        // Version 29
+        await this.$executeQuery(this.getCreateGeoNamesTableQuery(), await this.$checkIfTableExists('geo_names'));
+        await this.$executeQuery('ALTER TABLE `nodes` ADD as_number int(11) unsigned NULL DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD city_id int(11) unsigned NULL DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD country_id int(11) unsigned NULL DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD accuracy_radius int(11) unsigned NULL DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD subdivision_id int(11) unsigned NULL DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD longitude double NULL DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD latitude double NULL DEFAULT NULL');
+
+        // Version 30
+        await this.$executeQuery('ALTER TABLE `geo_names` CHANGE `type` `type` enum("city","country","division","continent","as_organization") NOT NULL');
+
+        // Version 31
+        await this.$executeQuery('ALTER TABLE `prices` ADD `id` int NULL AUTO_INCREMENT UNIQUE');
+        await this.$executeQuery('DROP TABLE IF EXISTS `blocks_prices`');
+        await this.$executeQuery(this.getCreateBlocksPricesTableQuery(), await this.$checkIfTableExists('blocks_prices'));
+
+        // Version 32
+        await this.$executeQuery('ALTER TABLE `blocks_summaries` ADD `template` JSON DEFAULT "[]"');
+
+        // Version 33
+        await this.$executeQuery('ALTER TABLE `geo_names` CHANGE `type` `type` enum("city","country","division","continent","as_organization", "country_iso_code") NOT NULL');
+
+        // Version 34
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD clearnet_tor_nodes int(11) NOT NULL DEFAULT "0"');
+
+        // Version 35
+        await this.$executeQuery('DELETE from `lightning_stats` WHERE added > "2021-09-19"');
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD CONSTRAINT added_unique UNIQUE (added);');
+
+        // Version 36
+        await this.$executeQuery('ALTER TABLE `nodes` ADD status TINYINT NOT NULL DEFAULT "1"');
+
+        // Version 37
+        await this.$executeQuery(this.getCreateLNNodesSocketsTableQuery(), await this.$checkIfTableExists('nodes_sockets'));
+
+        // Version 38
+        await this.$executeQuery(`TRUNCATE lightning_stats`);
+        await this.$executeQuery(`TRUNCATE node_stats`);
+        await this.$executeQuery('ALTER TABLE `lightning_stats` CHANGE `added` `added` timestamp NULL');
+        await this.$executeQuery('ALTER TABLE `node_stats` CHANGE `added` `added` timestamp NULL');
+        await this.updateToSchemaVersion(38);
+
+        // Version 39
+        await this.$executeQuery('ALTER TABLE `nodes` ADD alias_search TEXT NULL DEFAULT NULL AFTER `alias`');
+        await this.$executeQuery('ALTER TABLE nodes ADD FULLTEXT(alias_search)');
+
+        // Version 40
+        await this.$executeQuery('ALTER TABLE `nodes` ADD capacity bigint(20) unsigned DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD channels int(11) unsigned DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `nodes` ADD INDEX `capacity` (`capacity`);');
+
+        // Version 41
+        await this.$executeQuery('UPDATE channels SET closing_reason = NULL WHERE closing_reason = 1');
+
+        // Version 42
+        await this.$executeQuery('ALTER TABLE `channels` ADD closing_resolved tinyint(1) DEFAULT 0');
+
+        // Version 43
+        await this.$executeQuery(this.getCreateLNNodeRecordsTableQuery(), await this.$checkIfTableExists('nodes_records'));
+
+        // Version 44
+        await this.$executeQuery('UPDATE blocks_summaries SET template = NULL');
+
+        // Version 45
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD fresh_txs JSON DEFAULT "[]"');
+
+        // Version 48
+        await this.$executeQuery('ALTER TABLE `channels` ADD source_checked tinyint(1) DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD closing_fee bigint(20) unsigned DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD node1_funding_balance bigint(20) unsigned DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD node2_funding_balance bigint(20) unsigned DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD node1_closing_balance bigint(20) unsigned DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD node2_closing_balance bigint(20) unsigned DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD funding_ratio float unsigned DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `channels` ADD closed_by varchar(66) DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `channels` ADD single_funded tinyint(1) DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `channels` ADD outputs JSON DEFAULT "[]"');
+
+        // Version 57
+        await this.$executeQuery(`ALTER TABLE nodes MODIFY updated_at datetime NULL`);
+
+        // Version 60
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD sigop_txs JSON DEFAULT "[]"');
+
+        // Version 61
+        if (! await this.$checkIfTableExists('blocks_templates')) {
+          await this.$executeQuery('CREATE TABLE blocks_templates AS SELECT id, template FROM blocks_summaries WHERE template != "[]"');
+        }
+        await this.$executeQuery('ALTER TABLE blocks_templates MODIFY template JSON DEFAULT "[]"');
+        await this.$executeQuery('ALTER TABLE blocks_templates ADD PRIMARY KEY (id)');
+        await this.$executeQuery('ALTER TABLE blocks_summaries DROP COLUMN template');
+
+        // Version 62
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD expected_fees BIGINT UNSIGNED DEFAULT NULL');
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD expected_weight BIGINT UNSIGNED DEFAULT NULL');
+
+        // Version 63
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD fullrbf_txs JSON DEFAULT "[]"');
+
+        // Version 64
+        await this.$executeQuery('ALTER TABLE `nodes` ADD features text NULL');
+
+        // Version 65
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD accelerated_txs JSON DEFAULT "[]"');
+
+        // Version 67
+        await this.$executeQuery('ALTER TABLE `blocks_summaries` ADD version INT NOT NULL DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `blocks_summaries` ADD INDEX `version` (`version`)');
+        await this.$executeQuery('ALTER TABLE `blocks_templates` ADD version INT NOT NULL DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `blocks_templates` ADD INDEX `version` (`version`)');
+
+        // Version 76
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD prioritized_txs JSON DEFAULT "[]"');
+
+        // Version 81
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD version INT NOT NULL DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD INDEX `version` (`version`)');
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD unseen_txs JSON DEFAULT "[]"');
+
+        // Version 83
+        await this.$executeQuery('ALTER TABLE `blocks` ADD first_seen datetime(6) DEFAULT NULL');
+
+        // Version 84
+        await this.$executeQuery(`
+          ALTER TABLE \`pools\`
+            ADD INDEX \`slug\` (\`slug\`),
+            ADD INDEX \`unique_id\` (\`unique_id\`)
+        `);
+
+        // Version 85
+        await this.$executeQuery(`
+          ALTER TABLE \`channels\`
+            ADD INDEX \`created\` (\`created\`),
+            ADD INDEX \`capacity\` (\`capacity\`),
+            ADD INDEX \`closing_reason\` (\`closing_reason\`),
+            ADD INDEX \`closing_resolved\` (\`closing_resolved\`)
+        `);
+
+        // Version 86
+        await this.$executeQuery(`
+          ALTER TABLE \`nodes\`
+            ADD INDEX \`status\` (\`status\`),
+            ADD INDEX \`channels\` (\`channels\`),
+            ADD INDEX \`country_id\` (\`country_id\`),
+            ADD INDEX \`as_number\` (\`as_number\`),
+            ADD INDEX \`first_seen\` (\`first_seen\`)
+        `);
+
+        // Version 87
+        await this.$executeQuery('ALTER TABLE `nodes_sockets` ADD INDEX `type` (`type`)');
+        await this.updateToSchemaVersion(87);
+
+        // Version 88
+        await this.$executeQuery('ALTER TABLE `lightning_stats` ADD INDEX `added` (`added`)');
+
+        // Version 89
+        await this.$executeQuery('ALTER TABLE `geo_names` ADD INDEX `names` (`names`)');
+
+        // Version 90
+        await this.$executeQuery('ALTER TABLE `hashrates` ADD INDEX `type` (`type`)');
+
+        // Version 91
+        await this.$executeQuery('ALTER TABLE `blocks_audits` ADD INDEX `time` (`time`)');
+      }
+
+      if (config.MEMPOOL.NETWORK !== 'liquid') {
+        // Apply all the liquid specific migrations to all other networks
+        // Version 68
+        await this.$executeQuery('ALTER TABLE elements_pegs ADD PRIMARY KEY (txid, txindex);');
+        await this.$executeQuery(this.getCreateFederationAddressesTableQuery(), await this.$checkIfTableExists('federation_addresses'));
+        await this.$executeQuery(this.getCreateFederationTxosTableQuery(), await this.$checkIfTableExists('federation_txos'));
+
+        // Version 71
+        await this.$executeQuery('ALTER TABLE `federation_txos` ADD timelock INT NOT NULL DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `federation_txos` ADD expiredAt INT NOT NULL DEFAULT 0');
+        await this.$executeQuery('ALTER TABLE `federation_txos` ADD emergencyKey TINYINT NOT NULL DEFAULT 0');
+
+        // Version 92
+        await this.$executeQuery(`
+          ALTER TABLE \`elements_pegs\`
+            ADD INDEX \`block\` (\`block\`),
+            ADD INDEX \`datetime\` (\`datetime\`),
+            ADD INDEX \`amount\` (\`amount\`),
+            ADD INDEX \`bitcoinaddress\` (\`bitcoinaddress\`),
+            ADD INDEX \`bitcointxid\` (\`bitcointxid\`)
+        `);
+
+        // Version 93
+        await this.$executeQuery(`
+          ALTER TABLE \`federation_txos\`
+            ADD INDEX \`unspent\` (\`unspent\`),
+            ADD INDEX \`lastblockupdate\` (\`lastblockupdate\`),
+            ADD INDEX \`blocktime\` (\`blocktime\`),
+            ADD INDEX \`emergencyKey\` (\`emergencyKey\`),
+            ADD INDEX \`expiredAt\` (\`expiredAt\`)
+        `);
+      }
+
+      if (config.MEMPOOL.NETWORK !== 'mainnet') {
+        // Apply all the mainnet specific migrations to all other networks
+        // Version 69
+        await this.$executeQuery(this.getCreateAccelerationsTableQuery(), await this.$checkIfTableExists('accelerations'));
+
+        // Version 70
+        await this.$executeQuery('ALTER TABLE accelerations MODIFY COLUMN added DATETIME;');
+
+        // Version 77
+        await this.$executeQuery('ALTER TABLE `accelerations` ADD requested datetime DEFAULT NULL');
+      }
+      await this.updateToSchemaVersion(94);
+    }
+
+    // blocks pools-v2.json hash
+    if (databaseSchemaVersion < 95) {
+      let poolJsonSha = 'f737d86571d190cf1a1a3cf5fd86b33ba9624254'; // https://github.com/mempool/mining-pools/commit/f737d86571d190cf1a1a3cf5fd86b33ba9624254
+      const [poolJsonShaDb]: any[] = await DB.query(`SELECT string FROM state WHERE name = 'pools_json_sha'`);
+      if (poolJsonShaDb?.length > 0) {
+        poolJsonSha = poolJsonShaDb[0].string;
+      }
+      await this.$executeQuery(`ALTER TABLE blocks ADD definition_hash varchar(255) NOT NULL DEFAULT "${poolJsonSha}"`);
+      await this.$executeQuery('ALTER TABLE blocks ADD INDEX `definition_hash` (`definition_hash`)');
+      await this.updateToSchemaVersion(95);
+    }
+
+    if (databaseSchemaVersion < 96) {
+      await this.$executeQuery(`ALTER TABLE blocks_audits MODIFY time timestamp NOT NULL DEFAULT 0`);
+      await this.updateToSchemaVersion(96);
+    }
+
+    // Make definition_hash nullable
+    if (databaseSchemaVersion < 97) {
+      let poolJsonSha = '895cf0903e771beb647d0c1356bb4b8f4f123af7'; // https://github.com/mempool/mining-pools/commit/895cf0903e771beb647d0c1356bb4b8f4f123af7
+      const [poolJsonShaDb]: any[] = await DB.query(`SELECT string FROM state WHERE name = 'pools_json_sha'`);
+      if (poolJsonShaDb?.length > 0) {
+        poolJsonSha = poolJsonShaDb[0].string;
+      }
+      await this.$executeQuery(`ALTER TABLE blocks MODIFY COLUMN definition_hash varchar(255) NULL DEFAULT "${poolJsonSha}"`);
+      await this.updateToSchemaVersion(97);
+    }
+
+    // reindex mainnet Goggles flags for mined block templates above height 896070
+    // (since the first annex transaction at height 896071)
+    // (safe to make this conditional on the network since it doesn't change the database schema)
+    if (databaseSchemaVersion < 98 && config.MEMPOOL.NETWORK === 'mainnet') {
+      await this.$executeQuery('UPDATE blocks_summaries SET version = 0 WHERE height >= 896070;');
+      await this.updateToSchemaVersion(98);
+    }
+
+    // Add vsize_0 to statistics table
+    if (databaseSchemaVersion < 99) {
+      await this.$executeQuery('ALTER TABLE statistics ADD COLUMN vsize_0 int(11) NOT NULL DEFAULT 0');
+      await this.updateToSchemaVersion(99);
+    }
+
+    // Add "block indexed at version" index_version column to the blocks table
+    // to be used for lazy migrations & reindexing tasks
+    if (databaseSchemaVersion < 100) {
+      await this.$executeQuery('ALTER TABLE `blocks` ADD index_version INT NOT NULL DEFAULT 0');
+      await this.$executeQuery('ALTER TABLE `blocks` ADD INDEX `index_version` (`index_version`)');
+      await this.updateToSchemaVersion(100);
+    }
+
+    if (databaseSchemaVersion < 102) {
+      await this.$executeQuery('ALTER TABLE `blocks` ADD stale BOOL NOT NULL DEFAULT 0');
+      await this.updateToSchemaVersion(102);
+    }
+
+    if (databaseSchemaVersion < 103) {
+      await this.$executeQuery('ALTER TABLE `blocks` ADD INDEX `stale` (`stale`)');
+      await this.updateToSchemaVersion(103);
+    }
+
+    // reindex liquid federation addresses and txos when needed, and add hardcoded federation addresses
+    // (safe to make this conditional on the network since it doesn't change the database schema)
+    if (databaseSchemaVersion < 105 && config.MEMPOOL.NETWORK === 'liquid') {
+      // Hardcoded federation addresses
+      await this.$executeQuery(`INSERT IGNORE INTO federation_addresses (bitcoinaddress) VALUES ('3G6neksSBMp51kHJ2if8SeDUrzT8iVETWT')`);
+      await this.$executeQuery(`INSERT IGNORE INTO federation_addresses (bitcoinaddress) VALUES ('bc1qwnevjp8nsq7adu3hxlvdvslrf242q4vuavfg0y929jp2zntp3vgq7cq6z2')`);
+
+      // Rollback only on up to date instances
+      const [stateRows]: any[] = await DB.query(`SELECT name, number FROM state WHERE name IN ('last_elements_block', 'last_bitcoin_block_audit')`);
+      const lastElementsBlock = Number(stateRows?.find((row: any) => row.name === 'last_elements_block')?.number ?? 0);
+      const lastBlockAudit = Number(stateRows?.find((row: any) => row.name === 'last_bitcoin_block_audit')?.number ?? 0);
+      if (lastElementsBlock > 3686608 && lastBlockAudit > 929700) {
+        await this.$executeQuery('DELETE FROM elements_pegs WHERE block > 3686608');
+        await this.$executeQuery('DELETE FROM federation_txos WHERE blocknumber > 929701');
+        await this.$executeQuery(`UPDATE federation_txos SET lastblockupdate = 929700 WHERE unspent = 1;`);
+        await this.$executeQuery(`UPDATE state SET number = 3686608 WHERE name = 'last_elements_block';`);
+        await this.$executeQuery(`UPDATE state SET number = 929700 WHERE name = 'last_bitcoin_block_audit';`);
+      }
+      await this.updateToSchemaVersion(105);
+    }
+
+    // another liquid failure, fix bad timelocks on federation txos
+    // (safe to make this conditional on the network since it doesn't change the database schema)
+    if (databaseSchemaVersion < 106 && config.MEMPOOL.NETWORK === 'liquid') {
+      // In a specific setup it's possible that 3G6neksSBMp51kHJ2if8SeDUrzT8iVETWT and bc1qwnevjp8nsq7adu3hxlvdvslrf242q4vuavfg0y929jp2zntp3vgq7cq6z2
+      // were set with a timelock of 2016 instead of 4032
+      // This rollbacks the tables to before bc1qwnevjp8nsq7adu3hxlvdvslrf242q4vuavfg0y929jp2zntp3vgq7cq6z2 is used, and 
+      // manually fixes the timelock for 3G6neksSBMp51kHJ2if8SeDUrzT8iVETWT
+      const [stateRows]: any[] = await DB.query(`SELECT name, number FROM state WHERE name IN ('last_elements_block', 'last_bitcoin_block_audit')`);
+      const lastElementsBlock = Number(stateRows?.find((row: any) => row.name === 'last_elements_block')?.number ?? 0);
+      const lastBlockAudit = Number(stateRows?.find((row: any) => row.name === 'last_bitcoin_block_audit')?.number ?? 0);
+      if (lastElementsBlock > 3686608 && lastBlockAudit > 929700) {
+        await this.$executeQuery('DELETE FROM elements_pegs WHERE block > 3686608');
+        await this.$executeQuery('DELETE FROM federation_txos WHERE blocknumber > 929701');
+        await this.$executeQuery(`UPDATE federation_txos SET lastblockupdate = 929700 WHERE unspent = 1;`);
+        await this.$executeQuery(`UPDATE federation_txos SET timelock = 4032 WHERE bitcoinaddress = '3G6neksSBMp51kHJ2if8SeDUrzT8iVETWT';`);
+        await this.$executeQuery(`UPDATE state SET number = 3686608 WHERE name = 'last_elements_block';`);
+        await this.$executeQuery(`UPDATE state SET number = 929700 WHERE name = 'last_bitcoin_block_audit';`);
+      }
+      await this.updateToSchemaVersion(106);
+    }
+
+    if (databaseSchemaVersion < 107) {
+      await this.$executeQuery('ALTER TABLE `federation_txos` DROP FOREIGN KEY IF EXISTS `federation_txos_ibfk_1`');
+      await this.$executeQuery('DROP TABLE IF EXISTS `federation_addresses`');
+      await this.updateToSchemaVersion(107);
+    }
+
+    if (databaseSchemaVersion < 108) {
+      await this.$executeQuery(this.getCreateFederationPegScriptsTableQuery(), await this.$checkIfTableExists('federation_peg_scripts'),);
+      await this.updateToSchemaVersion(108);
+    }
+
+    // safe to make this conditional on the network since it doesn't change the database schema
+    if (databaseSchemaVersion < 109 && config.MEMPOOL.NETWORK === 'liquid') {
+      // hardcode current and past federation peg scripts to avoid reindexing existing instances
+      await this.$executeQuery(`
+          INSERT IGNORE INTO federation_peg_scripts (address, fedpegscript, timelock, blocknumber) VALUES
+            ('3G6neksSBMp51kHJ2if8SeDUrzT8iVETWT', '745c87635b21020e0338c96a8870479f2396c373cc7696ba124e8635d41b0ea581112b678172612102675333a4e4b8fb51d9d4e22fa5a8eaced3fdac8a8cbf9be8c030f75712e6af992102896807d54bc55c24981f24a453c60ad3e8993d693732288068a23df3d9f50d4821029e51a5ef5db3137051de8323b001749932f2ff0d34c82e96a2c2461de96ae56c2102a4e1a9638d46923272c266631d94d36bdb03a64ee0e14c7518e49d2f29bc40102102f8a00b269f8c5e59c67d36db3cdc11b11b21f64b4bffb2815e9100d9aa8daf072103079e252e85abffd3c401a69b087e590a9b86f33f574f08129ccbd3521ecf516b2103111cf405b627e22135b3b3733a4a34aa5723fb0f58379a16d32861bf576b0ec2210318f331b3e5d38156da6633b31929c5b220349859cc9ca3d33fb4e68aa08401742103230dae6b4ac93480aeab26d000841298e3b8f6157028e47b0897c1e025165de121035abff4281ff00660f99ab27bb53e6b33689c2cd8dcd364bc3c90ca5aea0d71a62103bd45cddfacf2083b14310ae4a84e25de61e451637346325222747b157446614c2103cc297026b06c71cbfa52089149157b5ff23de027ac5ab781800a578192d175462103d3bde5d63bdb3a6379b461be64dad45eabff42f758543a9645afd42f6d4248282103ed1e8d5109c9ed66f7941bc53cc71137baa76d50d274bda8d5e8ffbd6e61fe9a5f6702c00fb275522103aab896d53a8e7d6433137bbba940f9c521e085dd07e60994579b64a6d992cf79210291b7d0b1b692f8f524516ed950872e5da10fb1b808b5a526dedc6fed1cf29807210386aa9372fbab374593466bc5451dc59954e90787f08060964d95c87ef34ca5bb5368ae', 4032, 0),
+            ('3EiAcrzq1cELXScc98KeCswGWZaPGceT1d', '745c87635b21020e0338c96a8870479f2396c373cc7696ba124e8635d41b0ea581112b678172612102675333a4e4b8fb51d9d4e22fa5a8eaced3fdac8a8cbf9be8c030f75712e6af992102896807d54bc55c24981f24a453c60ad3e8993d693732288068a23df3d9f50d4821029e51a5ef5db3137051de8323b001749932f2ff0d34c82e96a2c2461de96ae56c2102a4e1a9638d46923272c266631d94d36bdb03a64ee0e14c7518e49d2f29bc40102102f8a00b269f8c5e59c67d36db3cdc11b11b21f64b4bffb2815e9100d9aa8daf072103079e252e85abffd3c401a69b087e590a9b86f33f574f08129ccbd3521ecf516b2103111cf405b627e22135b3b3733a4a34aa5723fb0f58379a16d32861bf576b0ec2210318f331b3e5d38156da6633b31929c5b220349859cc9ca3d33fb4e68aa08401742103230dae6b4ac93480aeab26d000841298e3b8f6157028e47b0897c1e025165de121035abff4281ff00660f99ab27bb53e6b33689c2cd8dcd364bc3c90ca5aea0d71a62103bd45cddfacf2083b14310ae4a84e25de61e451637346325222747b157446614c2103cc297026b06c71cbfa52089149157b5ff23de027ac5ab781800a578192d175462103d3bde5d63bdb3a6379b461be64dad45eabff42f758543a9645afd42f6d4248282103ed1e8d5109c9ed66f7941bc53cc71137baa76d50d274bda8d5e8ffbd6e61fe9a5f6702e007b275522103aab896d53a8e7d6433137bbba940f9c521e085dd07e60994579b64a6d992cf79210291b7d0b1b692f8f524516ed950872e5da10fb1b808b5a526dedc6fed1cf29807210386aa9372fbab374593466bc5451dc59954e90787f08060964d95c87ef34ca5bb5368ae', 2016, 0),
+            ('bc1qxvay4an52gcghxq5lavact7r6qe9l4laedsazz8fj2ee2cy47tlqff4aj4', '5b21020e0338c96a8870479f2396c373cc7696ba124e8635d41b0ea581112b678172612102675333a4e4b8fb51d9d4e22fa5a8eaced3fdac8a8cbf9be8c030f75712e6af992102896807d54bc55c24981f24a453c60ad3e8993d693732288068a23df3d9f50d4821029e51a5ef5db3137051de8323b001749932f2ff0d34c82e96a2c2461de96ae56c2102a4e1a9638d46923272c266631d94d36bdb03a64ee0e14c7518e49d2f29bc401021031c41fdbcebe17bec8d49816e00ca1b5ac34766b91c9f2ac37d39c63e5e008afb2103079e252e85abffd3c401a69b087e590a9b86f33f574f08129ccbd3521ecf516b2103111cf405b627e22135b3b3733a4a34aa5723fb0f58379a16d32861bf576b0ec2210318f331b3e5d38156da6633b31929c5b220349859cc9ca3d33fb4e68aa08401742103230dae6b4ac93480aeab26d000841298e3b8f6157028e47b0897c1e025165de121035abff4281ff00660f99ab27bb53e6b33689c2cd8dcd364bc3c90ca5aea0d71a62103bd45cddfacf2083b14310ae4a84e25de61e451637346325222747b157446614c2103cc297026b06c71cbfa52089149157b5ff23de027ac5ab781800a578192d175462103d3bde5d63bdb3a6379b461be64dad45eabff42f758543a9645afd42f6d4248282103ed1e8d5109c9ed66f7941bc53cc71137baa76d50d274bda8d5e8ffbd6e61fe9a5fae736402c00fb269522103aab896d53a8e7d6433137bbba940f9c521e085dd07e60994579b64a6d992cf79210291b7d0b1b692f8f524516ed950872e5da10fb1b808b5a526dedc6fed1cf29807210386aa9372fbab374593466bc5451dc59954e90787f08060964d95c87ef34ca5bb53ae68', 4032, 2197440),
+            ('bc1qwnevjp8nsq7adu3hxlvdvslrf242q4vuavfg0y929jp2zntp3vgq7cq6z2', '5b21020e0338c96a8870479f2396c373cc7696ba124e8635d41b0ea581112b678172612102675333a4e4b8fb51d9d4e22fa5a8eaced3fdac8a8cbf9be8c030f75712e6af9921021fad939f956beae2e6765b450552f1a75236c8b7314ec30474d8f4978b252ab221029e51a5ef5db3137051de8323b001749932f2ff0d34c82e96a2c2461de96ae56c2102a4e1a9638d46923272c266631d94d36bdb03a64ee0e14c7518e49d2f29bc401021031c41fdbcebe17bec8d49816e00ca1b5ac34766b91c9f2ac37d39c63e5e008afb2102e323a079079582cf6bb68583df94bd68c9590e5904062b503ef5476109ad739e2103111cf405b627e22135b3b3733a4a34aa5723fb0f58379a16d32861bf576b0ec2210318f331b3e5d38156da6633b31929c5b220349859cc9ca3d33fb4e68aa08401742103230dae6b4ac93480aeab26d000841298e3b8f6157028e47b0897c1e025165de121035abff4281ff00660f99ab27bb53e6b33689c2cd8dcd364bc3c90ca5aea0d71a62103bd45cddfacf2083b14310ae4a84e25de61e451637346325222747b157446614c2103cc297026b06c71cbfa52089149157b5ff23de027ac5ab781800a578192d175462103d3bde5d63bdb3a6379b461be64dad45eabff42f758543a9645afd42f6d4248282103ed1e8d5109c9ed66f7941bc53cc71137baa76d50d274bda8d5e8ffbd6e61fe9a5fae736402c00fb269522103aab896d53a8e7d6433137bbba940f9c521e085dd07e60994579b64a6d992cf79210291b7d0b1b692f8f524516ed950872e5da10fb1b808b5a526dedc6fed1cf29807210386aa9372fbab374593466bc5451dc59954e90787f08060964d95c87ef34ca5bb53ae68', 4032, 3729600);
+        `);
+      await this.updateToSchemaVersion(109);
     }
   }
 
@@ -720,6 +1292,7 @@ class DatabaseMigration {
 
   /**
    * Check if 'table' exists in the database
+   * @asyncUnsafe
    */
   private async $checkIfTableExists(table: string): Promise<boolean> {
     const query = `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${config.DATABASE.DATABASE}' AND TABLE_NAME = '${table}'`;
@@ -729,6 +1302,7 @@ class DatabaseMigration {
 
   /**
    * Get current database version
+   * @asyncUnsafe
    */
   private async $getSchemaVersionFromDatabase(): Promise<number> {
     const query = `SELECT number FROM state WHERE name = 'schema_version';`;
@@ -738,6 +1312,7 @@ class DatabaseMigration {
 
   /**
    * Create the `state` table
+   * @asyncUnsafe
    */
   private async $createMigrationStateTable(): Promise<void> {
     const query = `CREATE TABLE IF NOT EXISTS state (
@@ -755,6 +1330,7 @@ class DatabaseMigration {
 
   /**
    * We actually execute the migrations queries here
+   * @asyncUnsafe
    */
   private async $migrateTableSchemaFromVersion(version: number): Promise<void> {
     const transactionQueries: string[] = [];
@@ -782,7 +1358,7 @@ class DatabaseMigration {
    */
   private getMigrationQueriesFromVersion(version: number): string[] {
     const queries: string[] = [];
-    const isBitcoin = ['mainnet', 'testnet', 'signet'].includes(config.MEMPOOL.NETWORK);
+    const isBitcoin = ['mainnet', 'testnet', 'signet', 'testnet4', 'regtest'].includes(config.MEMPOOL.NETWORK);
 
     if (version < 1) {
       if (config.MEMPOOL.NETWORK !== 'liquid' && config.MEMPOOL.NETWORK !== 'liquidtestnet') {
@@ -806,16 +1382,28 @@ class DatabaseMigration {
       queries.push(`DELETE FROM state WHERE name = 'last_weekly_hashrates_indexing'`);
     }
 
+    if (version < 101) {
+      queries.push(`DELETE FROM prices WHERE USD = -1`);
+    }
+
+    if (version < 104) {
+      queries.push(`ALTER TABLE blocks DROP PRIMARY KEY`);
+      queries.push(`ALTER TABLE blocks ADD PRIMARY KEY (hash)`);
+      queries.push(`ALTER TABLE blocks ADD INDEX (height)`);
+    }
+
     return queries;
   }
 
   /**
    * Save the schema version in the database
+   * @asyncUnsafe
    */
   private getUpdateToLatestSchemaVersionQuery(): string {
     return `UPDATE state SET number = ${DatabaseMigration.currentVersion} WHERE name = 'schema_version';`;
   }
 
+  /** @asyncUnsafe */
   private async updateToSchemaVersion(version): Promise<void> {
     await this.$executeQuery(`UPDATE state SET number = ${version} WHERE name = 'schema_version';`);
   }
@@ -942,8 +1530,18 @@ class DatabaseMigration {
       pegtxid varchar(65) NOT NULL,
       pegindex int(11) NOT NULL,
       pegblocktime int(11) unsigned NOT NULL,
-      PRIMARY KEY (txid, txindex), 
+      PRIMARY KEY (txid, txindex),
       FOREIGN KEY (bitcoinaddress) REFERENCES federation_addresses (bitcoinaddress)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`;
+  }
+
+  private getCreateFederationPegScriptsTableQuery(): string {
+    return `CREATE TABLE IF NOT EXISTS federation_peg_scripts (
+      address varchar(100) NOT NULL,
+      fedpegscript text NOT NULL,
+      timelock int(11) unsigned NOT NULL,
+      blocknumber int(11) unsigned NOT NULL,
+      PRIMARY KEY (address)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`;
   }
 
@@ -1234,6 +1832,7 @@ class DatabaseMigration {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`;
   }
 
+  /** @asyncUnsafe */
   public async $blocksReindexingTruncate(): Promise<void> {
     logger.warn(`Truncating pools, blocks, hashrates and difficulty_adjustments tables for re-indexing (using '--reindex-blocks'). You can cancel this command within 5 seconds`);
     await Common.sleep$(5000);
@@ -1286,6 +1885,28 @@ class DatabaseMigration {
       }
     } catch (e) {
       logger.warn(`Failed to migrate cpfp transaction data`);
+    }
+  }
+
+  private async $fixBadV1AuditBlocks(): Promise<void> {
+    const badBlocks = [
+      '000000000000000000011ad49227fc8c9ba0ca96ad2ebce41a862f9a244478dc',
+      '000000000000000000010ac1f68b3080153f2826ffddc87ceffdd68ed97d6960',
+      '000000000000000000024cbdafeb2660ae8bd2947d166e7fe15d1689e86b2cf7',
+      '00000000000000000002e1dbfbf6ae057f331992a058b822644b368034f87286',
+      '0000000000000000000019973b2778f08ad6d21e083302ff0833d17066921ebb',
+    ];
+
+    for (const hash of badBlocks) {
+      try {
+        await this.$executeQuery(`
+          UPDATE blocks_audits
+          SET prioritized_txs = '[]'
+          WHERE hash = '${hash}'
+        `, true);
+      } catch (e) {
+        continue;
+      }
     }
   }
 }

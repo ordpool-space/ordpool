@@ -1,22 +1,23 @@
 import { Component, Inject, Input, LOCALE_ID, OnInit, HostBinding } from '@angular/core';
-import { EChartsOption } from '../../graphs/echarts';
+import { EChartsOption } from '@app/graphs/echarts';
 import { switchMap } from 'rxjs/operators';
-import { download } from '../../shared/graphs.utils';
-import { LightningApiService } from '../lightning-api.service';
+import { download } from '@app/shared/graphs.utils';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { AmountShortenerPipe } from '../../shared/pipes/amount-shortener.pipe';
-import { StateService } from '../../services/state.service';
+import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-node-fee-chart',
   templateUrl: './node-fee-chart.component.html',
   styleUrls: ['./node-fee-chart.component.scss'],
+  standalone: false,
   styles: [`
     .loadingGraphs {
       position: absolute;
       top: 50%;
       left: calc(50% - 15px);
-      z-index: 100;
+      z-index: 99;
     }
   `],
 })
@@ -179,7 +180,7 @@ export class NodeFeeChartComponent implements OnInit {
             name: $localize`Outgoing Fees`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -187,7 +188,7 @@ export class NodeFeeChartComponent implements OnInit {
             name: $localize`Incoming Fees`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },

@@ -1,7 +1,7 @@
 import { OrdpoolTransactionFlags, isFlagSetOnTransaction } from 'ordpool-parser';
-import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '../../app.constants';
-import { Color } from './sprite-types';
-import TxView from './tx-view';
+import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '@app/app.constants';
+import { Color } from '@components/block-overview-graph/sprite-types';
+import TxView from '@components/block-overview-graph/tx-view';
 
 export function hexToColor(hex: string): Color {
   return {
@@ -10,6 +10,10 @@ export function hexToColor(hex: string): Color {
     b: parseInt(hex.slice(4, 6), 16) / 255,
     a: hex.length > 6 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
   };
+}
+
+export function colorToHex(color: Color): string {
+  return [color.r, color.g, color.b].map(c => Math.max(0, Math.min(Math.round(c * 255), 255)).toString(16)).join('');
 }
 
 export function desaturate(color: Color, amount: number): Color {
@@ -28,6 +32,17 @@ export function darken(color: Color, amount: number): Color {
     g: color.g * amount,
     b: color.b * amount,
     a: color.a,
+  };
+}
+
+export function mix(color1: Color, color2: Color, amount: number): Color {
+  // clamp to 0-1
+  amount = Math.max(0, Math.min(amount, 1));
+  return {
+    r: color1.r * (1 - amount) + color2.r * amount,
+    g: color1.g * (1 - amount) + color2.g * amount,
+    b: color1.b * (1 - amount) + color2.b * amount,
+    a: color1.a * (1 - amount) + color2.a * amount,
   };
 }
 
@@ -51,9 +66,9 @@ const defaultColors: { [key: string]: ColorPalette } = {
     base: defaultMempoolFeeColors.map(hexToColor),
     audit: [],
     marginal: [],
-    baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(1, rate) < feeLvl) - 1
+    baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(0, rate) < feeLvl) - 1
   },
-}
+};
 for (const key in defaultColors) {
   const base = defaultColors[key].base;
   defaultColors[key].audit = base.map((color) => darken(desaturate(color, 0.3), 0.9));
@@ -72,6 +87,7 @@ export const defaultAuditColors = {
   censored: hexToColor('f344df'),
   missing: darken(desaturate(hexToColor('f344df'), 0.3), 0.7),
   added: hexToColor('0099ff'),
+  added_prioritized: darken(desaturate(hexToColor('0099ff'), 0.15), 0.85),
   prioritized: darken(desaturate(hexToColor('0099ff'), 0.3), 0.7),
   accelerated: hexToColor('8f5ff6'),
 };
@@ -86,9 +102,9 @@ const contrastColors: { [key: string]: ColorPalette } = {
     base: contrastMempoolFeeColors.map(hexToColor),
     audit: [],
     marginal: [],
-    baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(1, rate) < feeLvl) - 1
+    baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(0, rate) < feeLvl) - 1
   },
-}
+};
 for (const key in contrastColors) {
   const base = contrastColors[key].base;
   contrastColors[key].audit = base.map((color) => darken(desaturate(color, 0.3), 0.9));
@@ -107,6 +123,7 @@ export const contrastAuditColors = {
   censored: hexToColor('ffa8ff'),
   missing: darken(desaturate(hexToColor('ffa8ff'), 0.3), 0.7),
   added: hexToColor('00bb98'),
+  added_prioritized: darken(desaturate(hexToColor('00bb98'), 0.15), 0.85),
   prioritized: darken(desaturate(hexToColor('00bb98'), 0.3), 0.7),
   accelerated: hexToColor('8f5ff6'),
 };
@@ -129,7 +146,6 @@ export function defaultColorFunction(
     }
     return levelColor;
   }
-  
   // Block audit
   switch(tx.status) {
     case 'censored':
@@ -143,7 +159,13 @@ export function defaultColorFunction(
       return auditColors.missing;
     case 'added':
       return auditColors.added;
+    case 'added_prioritized':
+      return auditColors.added_prioritized;
     case 'prioritized':
+      return auditColors.prioritized;
+    case 'added_deprioritized':
+      return auditColors.added_prioritized;
+    case 'deprioritized':
       return auditColors.prioritized;
     case 'selected':
       return colors.marginal[levelIndex] || colors.marginal[defaultMempoolFeeColors.length - 1];
@@ -154,6 +176,12 @@ export function defaultColorFunction(
         return colors.audit[levelIndex] || colors.audit[defaultMempoolFeeColors.length - 1];
       } else {
         return levelColor;
+      }
+    case 'unmatched':
+      if (tx.context === 'stale') {
+        return auditColors.censored;
+      } else {
+        return auditColors.added;
       }
     default:
       if (tx.acc) {
@@ -208,15 +236,6 @@ export function ordpoolColorFunction(
   }
 
   if (hasMatch) {
-
-    // derive the cat colors from feeRate, by @Ethspresso & @HausHoppe
-    // const saturationSeed = 100;
-    // const { rgb, saturation } = feeRateToColor(feeRate, saturationSeed);
-    // const colors = derivePalette(rgb[0], rgb[1], rgb[2], saturation);
-    // const primaryColor = colors[3].replace('#', '');
-    // const catColor = hexToColor(primaryColor);
-    // // catColor.a = 0.8;
-    // return catColor;
 
     // defaultColors.unmatchedfee
     const colors = defaultColors.fee;

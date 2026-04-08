@@ -1,41 +1,42 @@
 import { Component, OnInit, OnDestroy, Input, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { Env, StateService } from '../../services/state.service';
+import { Env, StateService } from '@app/services/state.service';
 import { Observable, merge, of, Subscription } from 'rxjs';
-import { LanguageService } from '../../services/language.service';
-import { EnterpriseService } from '../../services/enterprise.service';
-import { NavigationService } from '../../services/navigation.service';
-import { MenuComponent } from '../menu/menu.component';
-import { StorageService } from '../../services/storage.service';
+import { LanguageService } from '@app/services/language.service';
+import { EnterpriseService } from '@app/services/enterprise.service';
+import { NavigationService } from '@app/services/navigation.service';
+import { MenuComponent } from '@components/menu/menu.component';
+import { StorageService } from '@app/services/storage.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-master-page',
   templateUrl: './master-page.component.html',
   styleUrls: ['./master-page.component.scss'],
+  standalone: false,
 })
 export class MasterPageComponent implements OnInit, OnDestroy {
   @Input() headerVisible = true;
   @Input() footerVisibleOverride: boolean | null = null;
-
-  enableCat21Mint = environment.enableCat21Mint;
 
   env: Env;
   network$: Observable<string>;
   connectionState$: Observable<number>;
   navCollapsed = false;
   isMobile = window.innerWidth <= 767.98;
+  enableCat21Mint = environment.enableCat21Mint;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
+  officialMempoolSpaceBuild = this.stateService.isMempoolSpaceBuild;
   urlLanguage: string;
   subdomain = '';
   networkPaths: { [network: string]: string };
   networkPaths$: Observable<Record<string, string>>;
-  lightningNetworks = ['', 'mainnet', 'bitcoin', 'testnet', 'signet'];
   footerVisible = true;
   user: any = undefined;
   servicesEnabled = false;
   menuOpen = false;
-  
+  isDropdownVisible: boolean;
+
   enterpriseInfo: any;
   enterpriseInfo$: Subscription;
 
@@ -67,7 +68,6 @@ export class MasterPageComponent implements OnInit, OnDestroy {
     this.network$ = merge(of(''), this.stateService.networkChanged$);
     this.urlLanguage = this.languageService.getLanguageForUrl();
     this.subdomain = this.enterpriseService.getSubdomain();
-
     /* HACK: this is sometimes null, and I also have no issue to always see the footer
     this.navigationService.subnetPaths.subscribe((paths) => {
       this.networkPaths = paths;
@@ -85,25 +85,38 @@ export class MasterPageComponent implements OnInit, OnDestroy {
     this.enterpriseInfo$ = this.enterpriseService.info$.subscribe(info => {
       this.enterpriseInfo = info;
     });
-    
+
     this.servicesEnabled = this.officialMempoolSpace && this.stateService.env.ACCELERATOR === true && this.stateService.network === '';
     this.refreshAuth();
 
     const isServicesPage = this.router.url.includes('/services/');
     this.menuOpen = isServicesPage && !this.isSmallScreen();
+    this.setDropdownVisibility();
   }
 
-  ngOnDestroy() {
-    if (this.enterpriseInfo$) {
-      this.enterpriseInfo$.unsubscribe();
-    }
+  get networkDisplayName(): string {
+    return this.stateService.networkDisplayName;
+  }
+
+  setDropdownVisibility(): void {
+    const networks = [
+      this.env.TESTNET_ENABLED,
+      this.env.TESTNET4_ENABLED,
+      this.env.SIGNET_ENABLED,
+      this.env.REGTEST_ENABLED,
+      this.env.LIQUID_ENABLED,
+      this.env.LIQUID_TESTNET_ENABLED,
+      this.env.MAINNET_ENABLED,
+    ];
+    const enabledNetworksCount = networks.filter((networkEnabled) => networkEnabled).length;
+    this.isDropdownVisible = enabledNetworksCount > 1;
   }
 
   collapse(): void {
     this.navCollapsed = !this.navCollapsed;
   }
 
-  isSmallScreen() {
+  isSmallScreen(): boolean {
     return window.innerWidth <= 767.98;
   }
 
@@ -134,4 +147,11 @@ export class MasterPageComponent implements OnInit, OnDestroy {
   menuToggled(isOpen: boolean): void {
     this.menuOpen = isOpen;
   }
+
+  ngOnDestroy(): void {
+    if (this.enterpriseInfo$) {
+      this.enterpriseInfo$.unsubscribe();
+    }
+  }
+
 }

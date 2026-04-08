@@ -17,6 +17,7 @@ class AuditReplication {
   inProgress: boolean = false;
   skip: Set<string> = new Set();
 
+  /** @asyncUnsafe */
   public async $sync(): Promise<void> {
     if (!config.REPLICATION.ENABLED || !config.REPLICATION.AUDIT) {
       // replication not enabled
@@ -31,11 +32,11 @@ class AuditReplication {
     const missingAudits = await this.$getMissingAuditBlocks();
 
     logger.debug(`Fetching missing audit data for ${missingAudits.length} blocks from trusted servers`, 'Replication');
-    
+
     let totalSynced = 0;
     let totalMissed = 0;
     let loggerTimer = Date.now();
-    // process missing audits in batches of 
+    // process missing audits in batches of BATCH_SIZE
     for (let i = 0; i < missingAudits.length; i += BATCH_SIZE) {
       const slice = missingAudits.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(slice.map(hash => this.$syncAudit(hash)));
@@ -54,6 +55,7 @@ class AuditReplication {
     this.inProgress = false;
   }
 
+  /** @asyncUnsafe */
   private async $syncAudit(hash: string): Promise<boolean> {
     if (this.skip.has(hash)) {
       // we already know none of our trusted servers have this audit
@@ -77,6 +79,8 @@ class AuditReplication {
     return success;
   }
 
+  
+  /** @asyncSafe */
   private async $getMissingAuditBlocks(): Promise<string[]> {
     try {
       const startHeight = config.REPLICATION.AUDIT_START_HEIGHT || 0;
@@ -109,9 +113,11 @@ class AuditReplication {
       version: 1,
     });
     await blocksAuditsRepository.$saveAudit({
+      version: auditSummary.version || 0,
       hash: blockHash,
       height: auditSummary.height,
       time: auditSummary.timestamp || auditSummary.time,
+      unseenTxs: auditSummary.unseenTxs || [],
       missingTxs: auditSummary.missingTxs || [],
       addedTxs: auditSummary.addedTxs || [],
       prioritizedTxs: auditSummary.prioritizedTxs || [],

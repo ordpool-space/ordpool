@@ -10,14 +10,9 @@
     margin: 25px;
     line-height: 32px;
   }
-  .unknown {
-    border: 1px solid #b4b4b4;
-  }
 
   .image.not-rounded {
     border-radius: 0;
-    width: 60px;
-    height: 60px;
   }
 
   .intro {
@@ -62,7 +57,8 @@
   .alliances,
   .enterprise-sponsor,
   .community-integrations-sponsor,
-  .maintainers {
+  .maintainers,
+  .managers {
     margin-top: 30px;
     margin-bottom: 68px;
     scroll-margin: 30px;
@@ -72,7 +68,8 @@
     }
   }
 
-  .maintainers {
+  .maintainers,
+  .managers {
     margin-bottom: 50px;
   }
 
@@ -94,6 +91,13 @@
     img {
       width: 57px;
       height: 57px;
+    }
+  }
+
+  .whale-sponsor {
+    img {
+      width: 70px;
+      height: 70px;
     }
   }
 
@@ -159,6 +163,11 @@
         }
         img, svg {
           margin: 40px 29px 10px;
+          &.image.coldcard {
+            border-radius: 0;
+            height: auto;
+            margin: 20px 29px 20px;
+          }
         }
       }
     }
@@ -189,7 +198,7 @@
     margin: auto;
     line-height: 1.8;
     font-size: 87.5%;
-    color: #e83e8c;
+    color: var(--pink);
     word-wrap: break-word;
     font-family: SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
     ul {
@@ -252,32 +261,17 @@
   height: 64px;
 }
 
+.wiz-logo {
+  width: 260px;
+  max-width: 90vw;
+  margin: auto;
+}
 
-// new
-
-.iframe-container {
-  position: relative;
-  width: 100%;
-  height: 300px;
-
-
-  iframe, img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    border: 0;
+.enterprise-sponsor {
+  .wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 1050px;
   }
 }
-
-
-img {
-  border: 1px solid transparent;
-}
-
-a:hover {
-
-  img {
-    border: 1px solid #FF9900;
-  }
-}
-

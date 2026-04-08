@@ -5,7 +5,7 @@ import { IEsploraApi } from './esplora-api.interface';
 import { IElectrumApi } from './electrum-api.interface';
 import BitcoinApi from './bitcoin-api';
 import logger from '../../logger';
-import crypto from "crypto-js";
+import crypto from 'crypto-js';
 import loadingIndicators from '../loading-indicators';
 import memoryCache from '../memory-cache';
 
@@ -40,26 +40,11 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
       });
   }
 
+  /** @asyncUnsafe */
   async $getAddress(address: string): Promise<IEsploraApi.Address> {
     const addressInfo = await this.bitcoindClient.validateAddress(address);
     if (!addressInfo || !addressInfo.isvalid) {
-      return ({
-        'address': address,
-        'chain_stats': {
-          'funded_txo_count': 0,
-          'funded_txo_sum': 0,
-          'spent_txo_count': 0,
-          'spent_txo_sum': 0,
-          'tx_count': 0
-        },
-        'mempool_stats': {
-          'funded_txo_count': 0,
-          'funded_txo_sum': 0,
-          'spent_txo_count': 0,
-          'spent_txo_sum': 0,
-          'tx_count': 0
-        }
-      });
+      throw new Error('Invalid Bitcoin address');
     }
 
     try {
@@ -91,10 +76,11 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
     }
   }
 
+  /** @asyncUnsafe */
   async $getAddressTransactions(address: string, lastSeenTxId: string): Promise<IEsploraApi.Transaction[]> {
     const addressInfo = await this.bitcoindClient.validateAddress(address);
     if (!addressInfo || !addressInfo.isvalid) {
-      return [];
+      throw new Error('Invalid Bitcoin address');
     }
 
     try {
@@ -160,6 +146,16 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
     }
   }
 
+  /** @asyncUnsafe */
+  async $getAddressUtxos(address: string): Promise<IEsploraApi.UTXO[]> {
+    const addressInfo = await this.bitcoindClient.validateAddress(address);
+    if (!addressInfo || !addressInfo.isvalid) {
+      throw new Error('Invalid Bitcoin address');
+    }
+    const scripthash = this.encodeScriptHash(addressInfo.scriptPubKey);
+    return this.$getScriptHashUtxos(scripthash);
+  }
+
   async $getScriptHashTransactions(scripthash: string, lastSeenTxId?: string): Promise<IEsploraApi.Transaction[]> {
     try {
       loadingIndicators.setProgress('address-' + scripthash, 0);
@@ -195,6 +191,51 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
       loadingIndicators.setProgress('address-' + scripthash, 100);
       throw new Error(typeof e === 'string' ? e : e && e.message || e);
     }
+  }
+
+  /** @asyncUnsafe */
+  async $getScriptHashUtxos(scripthash: string): Promise<IEsploraApi.UTXO[]> {
+    const utxos = await this.$getScriptHashUnspent(scripthash);
+    const result: IEsploraApi.UTXO[] = [];
+    for(const utxo of utxos) {
+      if(utxo.height===0) {
+        //Unconfirmed
+        result.push({
+          txid: utxo.tx_hash,
+          vout: utxo.tx_pos,
+          status: {
+            confirmed: false
+          },
+          value: utxo.value
+        });
+      } else {
+        //Confirmed
+        const blockHash = await this.$getBlockHash(utxo.height);
+        const block = await this.$getBlock(blockHash);
+        result.push({
+          txid: utxo.tx_hash,
+          vout: utxo.tx_pos,
+          status: {
+            confirmed: true,
+            block_height: utxo.height,
+            block_hash: blockHash,
+            block_time: block.timestamp
+          },
+          value: utxo.value
+        });
+      }
+    }
+    return result;
+  }
+
+  private $getScriptHashUnspent(scriptHash: string): Promise<IElectrumApi.ScriptHashUtxos[]> {
+    return this.electrumClient.blockchainScripthash_listunspent(scriptHash);
+  }
+
+  /** @asyncUnsafe */
+  async $getTransactionMerkleProof(txId: string): Promise<IEsploraApi.MerkleProof> {
+    const tx = await this.$getRawTransaction(txId);
+    return this.electrumClient.blockchainTransaction_getMerkle(txId, tx.status.block_height);
   }
 
   private $getScriptHashBalance(scriptHash: string): Promise<IElectrumApi.ScriptHashBalance> {

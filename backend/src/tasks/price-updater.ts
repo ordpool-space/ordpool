@@ -56,14 +56,16 @@ class PriceUpdater {
   private feeds: PriceFeed[] = [];
   private currencies: string[] = ['USD', 'EUR', 'GBP', 'CAD', 'CHF', 'AUD', 'JPY'];
   private latestPrices: ApiPrice;
+  private latestGoodPrices: ApiPrice;
   private currencyConversionFeed: ConversionFeed | undefined;
   private newCurrencies: string[] = ['BGN', 'BRL', 'CNY', 'CZK', 'DKK', 'HKD', 'HRK', 'HUF', 'IDR', 'ILS', 'INR', 'ISK', 'KRW', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'THB', 'TRY', 'ZAR'];
   private lastTimeConversionsRatesFetched: number = 0;
-  private latestConversionsRatesFromFeed: ConversionRates = {};
+  private latestConversionsRatesFromFeed: ConversionRates = { USD: -1 };
   private ratesChangedCallback: ((rates: ApiPrice) => void) | undefined;
 
   constructor() {
     this.latestPrices = this.getEmptyPricesObj();
+    this.latestGoodPrices = this.getEmptyPricesObj();
 
     this.feeds.push(new BitflyerApi()); // Does not have historical endpoint
     this.feeds.push(new KrakenApi());
@@ -76,7 +78,7 @@ class PriceUpdater {
   }
 
   public getLatestPrices(): ApiPrice {
-    return this.latestPrices;
+    return this.latestGoodPrices;
   }
 
   public getEmptyPricesObj(): ApiPrice {
@@ -125,13 +127,17 @@ class PriceUpdater {
   /**
    * We execute this function before the websocket initialization since
    * the websocket init is not done asyncronously
+   *
+   * @asyncUnsafe
    */
   public async $initializeLatestPriceWithDb(): Promise<void> {
     this.latestPrices = await PricesRepository.$getLatestConversionRates();
+    this.latestGoodPrices = JSON.parse(JSON.stringify(this.latestPrices));
   }
 
+  /** @asyncSafe */
   public async $run(): Promise<void> {
-    if (config.MEMPOOL.NETWORK === 'signet' || config.MEMPOOL.NETWORK === 'testnet') {
+    if (['testnet', 'signet', 'testnet4', 'regtest'].includes(config.MEMPOOL.NETWORK)) {
       // Coins have no value on testnet/signet, so we want to always show 0
       return;
     }
@@ -157,9 +163,9 @@ class PriceUpdater {
       try {
         this.latestConversionsRatesFromFeed = await this.currencyConversionFeed.$fetchLatestConversionRates();
         this.lastTimeConversionsRatesFetched = Math.round(new Date().getTime() / 1000);
-        logger.debug(`Fetched currencies conversion rates from external API: ${JSON.stringify(this.latestConversionsRatesFromFeed)}`);
+        logger.debug(`Fetched currencies conversion rates from conversions API: ${JSON.stringify(this.latestConversionsRatesFromFeed)}`);
       } catch (e) {
-        logger.err(`Cannot fetch conversion rates from the API. Reason: ${(e instanceof Error ? e.message : e)}`);
+        logger.err(`Cannot fetch conversion rates from conversions API. Reason: ${(e instanceof Error ? e.message : e)}`);
       }
     }
 
@@ -177,6 +183,14 @@ class PriceUpdater {
     }
 
     this.running = false;
+  }
+
+  private setLatestPrice(currency, price): void {
+    this.latestPrices[currency] = price;
+    if (price > 0) {
+      this.latestGoodPrices[currency] = price;
+      this.latestGoodPrices.time = Math.round(new Date().getTime() / 1000);
+    }
   }
 
   private getMillisecondsSinceBeginningOfHour(): number {
@@ -199,6 +213,7 @@ class PriceUpdater {
 
   /**
    * Fetch last BTC price from exchanges, average them, and save it in the database once every hour
+   * @asyncUnsafe
    */
   private async $updatePrice(): Promise<void> {
     let forceUpdate = false;
@@ -245,16 +260,16 @@ class PriceUpdater {
       // Compute average price, non weighted
       prices = prices.filter(price => price > 0);
       if (prices.length === 0) {
-        this.latestPrices[currency] = -1;
+        this.setLatestPrice(currency, -1);
       } else {
-        this.latestPrices[currency] = Math.round(getMedian(prices));
+        this.setLatestPrice(currency, Math.round(getMedian(prices)));
       }
     }
 
     if (config.FIAT_PRICE.API_KEY && this.latestPrices.USD > 0 && Object.keys(this.latestConversionsRatesFromFeed).length > 0) {
       for (const conversionCurrency of this.newCurrencies) {
         if (this.latestConversionsRatesFromFeed[conversionCurrency] > 0 && this.latestPrices.USD * this.latestConversionsRatesFromFeed[conversionCurrency] < MAX_PRICES[conversionCurrency]) {
-          this.latestPrices[conversionCurrency] = Math.round(this.latestPrices.USD * this.latestConversionsRatesFromFeed[conversionCurrency]);
+          this.setLatestPrice(conversionCurrency, Math.round(this.latestPrices.USD * this.latestConversionsRatesFromFeed[conversionCurrency]));
         }
       }
     }
@@ -271,18 +286,19 @@ class PriceUpdater {
     }
 
     this.latestPrices.time = Math.round(new Date().getTime() / 1000);
-    logger.info(`Latest BTC fiat averaged price: ${JSON.stringify(this.latestPrices)}`);
-
-    if (this.ratesChangedCallback) {
-      this.ratesChangedCallback(this.latestPrices);
-    }
 
     if (!forceUpdate) {
       this.cyclePosition++;
     }
 
     if (this.latestPrices.USD === -1) {
-      this.latestPrices = await PricesRepository.$getLatestConversionRates();
+      logger.warn(`No BTC price available, falling back to latest known price: ${JSON.stringify(this.latestGoodPrices)}`);
+    } else {
+      logger.info(`Latest BTC fiat averaged price: ${JSON.stringify(this.latestGoodPrices)}`);
+    }
+
+    if (this.ratesChangedCallback && this.latestGoodPrices.USD > 0) {
+      this.ratesChangedCallback(this.latestGoodPrices);
     }
   }
 
@@ -291,6 +307,8 @@ class PriceUpdater {
    * We use MtGox weekly price from July 19, 2010 to September 30, 2013
    * We use Kraken weekly price from October 3, 2013 up to last month
    * We use Kraken hourly price for the past month
+   *
+   * @asyncUnsafe
    */
   private async $insertHistoricalPrices(): Promise<void> {
     const existingPriceTimes = await PricesRepository.$getPricesTimes();
@@ -333,6 +351,8 @@ class PriceUpdater {
   /**
    * Find missing hourly prices and insert them in the database
    * It has a limited backward range and it depends on which API are available
+   *
+   * @asyncUnsafe
    */
   private async $insertMissingRecentPrices(type: 'hour' | 'day'): Promise<void> {
     const existingPriceTimes = await PricesRepository.$getPricesTimes();
@@ -398,6 +418,8 @@ class PriceUpdater {
   /**
    * Find missing prices for additional currencies and insert them in the database
    * We calculate the additional prices from the USD price and the conversion rates
+   *
+   * @asyncUnsafe
    */
   private async $insertMissingAdditionalPrices(): Promise<void> {
     this.lastFailedHistoricalRun = 0;
@@ -408,19 +430,19 @@ class PriceUpdater {
     try {
       const remainingQuota = await this.currencyConversionFeed?.$getQuota();
       if (remainingQuota['month']['remaining'] < 500) { // We need some calls left for the daily updates
-        logger.debug(`Not enough currency API credit to insert missing prices in ${priceTimesToFill.length} rows (${remainingQuota['month']['remaining']} calls left).`, logger.tags.mining);
+        logger.debug(`Not enough conversions API credit to insert missing prices in ${priceTimesToFill.length} rows (${remainingQuota['month']['remaining']} calls left).`, logger.tags.mining);
         this.additionalCurrenciesHistoryInserted = true; // Do not try again until next day
         return;
       }
     } catch (e) {
-      logger.err(`Cannot fetch currency API credit, insertion of missing prices aborted. Reason: ${(e instanceof Error ? e.message : e)}`);
+      logger.err(`Cannot fetch conversions API credit, insertion of missing prices aborted. Reason: ${(e instanceof Error ? e.message : e)}`);
       return;
     }
 
     this.additionalCurrenciesHistoryRunning = true;
-    logger.debug(`Fetching missing conversion rates from external API to fill ${priceTimesToFill.length} rows`, logger.tags.mining);
+    logger.debug(`Inserting missing historical conversion rates using conversions API to fill ${priceTimesToFill.length} rows`, logger.tags.mining);
 
-    let conversionRates: { [timestamp: number]: ConversionRates } = {};
+    const conversionRates: { [timestamp: number]: ConversionRates } = {};
     let totalInserted = 0;
 
     for (let i = 0; i < priceTimesToFill.length; i++) {
@@ -430,16 +452,29 @@ class PriceUpdater {
       const month = new Date(priceTime.time * 1000).getMonth();
       const yearMonthTimestamp = new Date(year, month, 1).getTime() / 1000;
       if (conversionRates[yearMonthTimestamp] === undefined) {
-        conversionRates[yearMonthTimestamp] = await this.currencyConversionFeed?.$fetchConversionRates(`${year}-${month + 1 < 10 ? `0${month + 1}` : `${month + 1}`}-01`) || { USD: -1 };
-        if (conversionRates[yearMonthTimestamp]['USD'] < 0) {
-          logger.err(`Cannot fetch conversion rates from the API for ${year}-${month + 1 < 10 ? `0${month + 1}` : `${month + 1}`}-01. Aborting insertion of missing prices.`, logger.tags.mining);
-          this.lastFailedHistoricalRun = Math.round(new Date().getTime() / 1000);
+        try {
+          if (year === new Date().getFullYear() && month === new Date().getMonth()) { // For rows in the current month, we use the latest conversion rates
+            conversionRates[yearMonthTimestamp] = this.latestConversionsRatesFromFeed;
+          } else {
+            conversionRates[yearMonthTimestamp] = await this.currencyConversionFeed?.$fetchConversionRates(`${year}-${month + 1 < 10 ? `0${month + 1}` : `${month + 1}`}-15`) || { USD: -1 };
+          }
+
+          if (conversionRates[yearMonthTimestamp]['USD'] < 0) {
+            throw new Error('Incorrect USD conversion rate');
+          }
+        } catch (e) {
+          if ((e instanceof Error ? e.message : '').includes('429')) { // Continue 60 seconds later if and only if error is 429
+            this.lastFailedHistoricalRun = Math.round(new Date().getTime() / 1000);
+            logger.info(`Got a 429 error from conversions API. This is expected to happen a few times during the initial historical price insertion, process will resume in 60 seconds.`, logger.tags.mining);
+          } else {
+            logger.err(`Cannot fetch conversion rates from conversions API for ${year}-${month + 1 < 10 ? `0${month + 1}` : `${month + 1}`}-01, trying again next day. Error: ${(e instanceof Error ? e.message : e)}`, logger.tags.mining);
+          }
           break;
         }
       }
 
       const prices: ApiPrice = this.getEmptyPricesObj();
-      
+
       let willInsert = false;
       for (const conversionCurrency of this.newCurrencies.concat(missingLegacyCurrencies)) {
         if (conversionRates[yearMonthTimestamp][conversionCurrency] > 0 && priceTime.USD * conversionRates[yearMonthTimestamp][conversionCurrency] < MAX_PRICES[conversionCurrency]) {
@@ -449,7 +484,7 @@ class PriceUpdater {
           prices[conversionCurrency] = 0;
         }
       }
-      
+
       if (willInsert) {
         await PricesRepository.$saveAdditionalCurrencyPrices(priceTime.time, prices, missingLegacyCurrencies);
         ++totalInserted;

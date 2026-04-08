@@ -14,8 +14,7 @@
 }
 
 .blockchain-wrapper {
-  height: 250px;
-
+  height: 260px;
   -webkit-user-select: none; /* Safari */
   -moz-user-select: none; /* Firefox */
   -ms-user-select: none; /* IE10+/Edge */
@@ -54,10 +53,10 @@
 }
 
 .time-toggle {
-  color: var(--fg);
+  color: var(--nav-icon);
   font-size: 0.8rem;
   position: absolute;
-  bottom: -1.8em;
+  bottom: -2.2em;
   left: 1px;
   transform: translateX(-50%);
   background: none;
@@ -68,10 +67,10 @@
 }
 
 .block-display-toggle {
-  color: var(--fg);
+  color: var(--nav-icon);
   font-size: 0.8rem;
   position: absolute;
-  bottom: 15.8em;
+  bottom: 16.1em;
   left: 1px;
   transform: translateX(-50%) rotate(90deg);
   background: none;

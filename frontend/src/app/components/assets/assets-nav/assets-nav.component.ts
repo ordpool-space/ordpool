@@ -4,17 +4,18 @@ import { Router } from '@angular/router';
 import { NgbTypeahead } from '@ng-bootstrap/ng-bootstrap';
 import { merge, Observable, of, Subject } from 'rxjs';
 import { distinctUntilChanged, filter, map, switchMap } from 'rxjs/operators';
-import { AssetExtended } from '../../../interfaces/electrs.interface';
-import { AssetsService } from '../../../services/assets.service';
-import { SeoService } from '../../../services/seo.service';
-import { StateService } from '../../../services/state.service';
-import { RelativeUrlPipe } from '../../../shared/pipes/relative-url/relative-url.pipe';
-import { environment } from '../../../../environments/environment';
+import { AssetExtended } from '@interfaces/electrs.interface';
+import { AssetsService } from '@app/services/assets.service';
+import { SeoService } from '@app/services/seo.service';
+import { StateService } from '@app/services/state.service';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { environment } from '@environments/environment';
 
 @Component({
   selector: 'app-assets-nav',
   templateUrl: './assets-nav.component.html',
-  styleUrls: ['./assets-nav.component.scss']
+  styleUrls: ['./assets-nav.component.scss'],
+  standalone: false,
 })
 export class AssetsNavComponent implements OnInit {
   @ViewChild('instance', {static: true}) instance: NgbTypeahead;
@@ -40,7 +41,7 @@ export class AssetsNavComponent implements OnInit {
 
   ngOnInit(): void {
     this.seoService.setTitle($localize`:@@ee8f8008bae6ce3a49840c4e1d39b4af23d4c263:Assets`);
-    this.seoService.setDescription($localize`:@@meta.description.liquid.assets:Explore all the assets issued on the Liquid network like L-BTC, L-CAD, USDT, and more.`);
+    this.seoService.setDescription($localize`:@@meta.description.liquid.assets:Explore all the assets issued on the Liquid network like LBTC, L-CAD, USDT, and more.`);
     this.typeaheadSearchFn = this.typeaheadSearch;
 
     this.searchForm = this.formBuilder.group({
@@ -72,10 +73,10 @@ export class AssetsNavComponent implements OnInit {
                 return assets.array.slice(0, this.itemsPerPage);
               }
             })
-          )
+          );
         }),
       );
-  }
+  };
 
   itemSelected() {
     setTimeout(() => this.search());

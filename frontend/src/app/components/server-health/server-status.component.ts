@@ -1,14 +1,15 @@
 import { Component, OnInit, ChangeDetectionStrategy, SecurityContext, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { WebsocketService } from '../../services/websocket.service';
+import { WebsocketService } from '@app/services/websocket.service';
 import { Observable, Subject, Subscription, map, tap } from 'rxjs';
-import { StateService } from '../../services/state.service';
-import { HealthCheckHost } from '../../interfaces/websocket.interface';
+import { StateService } from '@app/services/state.service';
+import { HealthCheckHost } from '@interfaces/websocket.interface';
 import { DomSanitizer } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-server-status',
   templateUrl: './server-status.component.html',
   styleUrls: ['./server-status.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ServerStatusComponent implements OnInit, OnDestroy {

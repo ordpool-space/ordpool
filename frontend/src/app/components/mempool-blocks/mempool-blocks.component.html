@@ -16,9 +16,9 @@
                 ~<app-fee-rate [fee]="projectedBlock.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
               </div>
               <div [attr.data-cy]="'mempool-block-' + i + '-fee-span'" class="fee-span">
-                <app-fee-rate [fee]="projectedBlock.feeRange[0]" [showUnit]="false" rounding="1.0-0" unitClass=""></app-fee-rate>
+                <app-fee-rate [fee]="projectedBlock.feeRange[0]" [showUnit]="false" unitClass=""></app-fee-rate>
                 -
-                <app-fee-rate [fee]="projectedBlock.feeRange[projectedBlock.feeRange.length - 1]" rounding="1.0-0" unitClass=""></app-fee-rate>
+                <app-fee-rate [fee]="projectedBlock.feeRange[projectedBlock.feeRange.length - 1]" unitClass=""></app-fee-rate>
               </div>
               <div *ngIf="blockDisplayMode === 'fees'; else noMiningInfo" class="block-size">
                 <app-amount [attr.data-cy]="'mempool-block-' + i + '-total-fees'" [satoshis]="projectedBlock.totalFees" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
@@ -51,7 +51,8 @@
         </div>
       </ng-template>
     </div>
-    <div *ngIf="arrowVisible" id="arrow-up" [ngStyle]="{'right': rightPosition + (blockWidth * 0.3) + containerOffset + 'px', transition: transition }" [class.blink]="txPosition?.accelerated"></div>
+    <app-acceleration-sparkles [style]="{ position: 'absolute', right: 0}" [arrow]="arrowElement" [run]="acceleratingArrow"></app-acceleration-sparkles>
+    <div *ngIf="arrowVisible" #arrowUp id="arrow-up" [ngStyle]="{'right': rightPosition + (blockWidth * 0.3) + containerOffset + 'px', transition: transition }" [class.blink]="txPosition?.accelerated"></div>
   </div>
 </ng-container>
 

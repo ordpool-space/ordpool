@@ -18,6 +18,7 @@
     line-height: 1;
   }
 }
+
 .tx-link {
   display: flex;
   flex-direction: row;
@@ -65,10 +66,6 @@
   color: white;
 }
 
-.btn-small-height {
-	line-height: 1;
-}
-
 .arrow-green {
 	color: var(--success);
 }
@@ -81,7 +78,7 @@
 	margin-bottom: 40px;
 }
 
-.row{
+.row {
 	flex-direction: column;
 	@media (min-width: 850px) {
 		flex-direction: row;
@@ -167,6 +164,12 @@
 	}
 }
 
+@media (max-width: 767px){
+  .hide-on-mobile {
+    display: none;
+  }
+}
+
 .effective-fee-rating {
   @media (max-width: 767px){
     margin-right: 0px !important;
@@ -177,7 +180,7 @@
   h2 {
     line-height: 1;
     margin: 0;
-    padding-bottom: 10px;
+    padding-bottom: 5px;
   }
 }
 
@@ -198,6 +201,11 @@
 	}
 }
 
+.accelerator-toggle, .details-button {
+  position: relative;
+  bottom: -13px;
+}
+
 .subtitle-block {
   display: flex;
   flex-direction: row;
@@ -215,18 +223,6 @@
       margin-top: 0;
       margin-bottom: 8px;
       margin-left: 8px;
-    }
-  }
-}
-
-.cpfp-details {
-  .txids {
-    width: 60%;
-  }
-
-  @media (max-width: 500px) {
-    .txids {
-      width: 40%;
     }
   }
 }
@@ -276,42 +272,56 @@
 }
 
 .accelerate {
-  display: flex !important;
-  align-self: auto;
-  margin-left: auto;
-  background-color: var(--tertiary);
-  @media (max-width: 849px) {
-    margin-left: 5px;
-  }
+  @media (min-width: 850px) {
+    margin-left: auto;
+  }  
 }
 
 .etaDeepMempool {
-  display: flex !important;
-  justify-content: flex-end;
   flex-wrap: wrap;
-  align-content: center;
-  @media (max-width: 995px) {
-    justify-content: left !important;
-  }
   @media (max-width: 849px) {
     justify-content: right !important;
   }
 }
 
 .accelerateDeepMempool {
-  align-self: auto;
-  margin-top: 3px;
-  margin-left: auto;
   background-color: var(--tertiary);
-  @media (max-width: 995px) {
-    margin-left: 0px;
-  }
-  @media (max-width: 849px) {
-    margin-left: 5px;
-  }
+  margin-left: 5px;
 }
 
 .goggles-icon {
   display: block;
-  width: 2.2em;
+  width: 2.7em;
+}
+
+.oobFees {
+  color: #905cf4;
+}
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.anchor {
+  scroll-margin-top: 105px;
+  @media (min-width: 564px) {
+    scroll-margin-top: 65px;
+  }
+}
+
+.duplicate-tx-alert {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-left: 3px solid var(--info);
+  margin-bottom: 1.5rem;
+
+  .icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--info);
+  }
 }

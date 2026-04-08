@@ -1,6 +1,7 @@
 import { getFirstInscriptionHeight } from 'ordpool-parser';
 
 export const defaultMempoolFeeColors = [
+  '007d3d',
   '557d00',
   '5d7d01',
   '637d02',
@@ -42,6 +43,7 @@ export const defaultMempoolFeeColors = [
 ];
 
 export const contrastMempoolFeeColors = [
+  '06adef',
   '0082e6',
   '0984df',
   '1285d9',
@@ -82,52 +84,96 @@ export const contrastMempoolFeeColors = [
   'ffb700',
  ];
 
-export const chartColors = [
-  "#D81B60",
-  "#8E24AA",
-  "#5E35B1",
-  "#3949AB",
-  "#1E88E5",
-  "#039BE5",
-  "#00ACC1",
-  "#00897B",
-  "#43A047",
-  "#7CB342",
-  "#C0CA33",
-  "#FDD835",
-  "#FFB300",
-  "#FB8C00",
-  "#F4511E",
-  "#6D4C41",
-  "#757575",
-  "#546E7A",
-  "#b71c1c",
-  "#880E4F",
-  "#4A148C",
-  "#311B92",
-  "#1A237E",
-  "#0D47A1",
-  "#01579B",
-  "#006064",
-  "#004D40",
-  "#1B5E20",
-  "#33691E",
-  "#827717",
-  "#F57F17",
-  "#FF6F00",
-  "#E65100",
-  "#BF360C",
-  "#3E2723",
-  "#212121",
-  "#263238",
-  "#801313",
+ export const lightMempoolFeeColors = [
+  '49c284',
+  '99c246',
+  'a0c343',
+  'a7c240',
+  'b0c13c',
+  'b8c03b',
+  'bebe3a',
+  'beb238',
+  'bcac37',
+  'bba336',
+  'b99e35',
+  'b79334',
+  'b68f33',
+  'b68a32',
+  'b48430',
+  'b17f30',
+  'b07b2f',
+  'ae722e',
+  'ad6b2d',
+  'ab652b',
+  'aa5b2a',
+  'a95629',
+  'a74c28',
+  'a34126',
+  'a13a25',
+  'a02d24',
+  '9e2423',
+  '9c222a',
+  '9c2132',
+  '9b203a',
+  '99203e',
+  '972043',
+  '951f45',
+  '931e48',
+  '921d49',
+  '921c4e',
+  '901b50',
+  '8e1a53',
+  '8b1954',
 ];
+
+export const chartColors = [
+  '#A81524',
+  '#D81B60',
+  '#8E24AA',
+  '#5E35B1',
+  '#3949AB',
+  '#1E88E5',
+  '#039BE5',
+  '#00ACC1',
+  '#00897B',
+  '#43A047',
+  '#7CB342',
+  '#C0CA33',
+  '#FDD835',
+  '#FFB300',
+  '#FB8C00',
+  '#F4511E',
+  '#6D4C41',
+  '#757575',
+  '#546E7A',
+  '#b71c1c',
+  '#880E4F',
+  '#4A148C',
+  '#311B92',
+  '#1A237E',
+  '#0D47A1',
+  '#01579B',
+  '#006064',
+  '#004D40',
+  '#1B5E20',
+  '#33691E',
+  '#827717',
+  '#F57F17',
+  '#FF6F00',
+  '#E65100',
+  '#BF360C',
+  '#3E2723',
+  '#212121',
+  '#263238',
+  '#801313',
+];
+export const originalChartColors = chartColors.slice(1);
 
 export const poolsColor = {
   'unknown': '#FDD835',
 };
 
-export const feeLevels = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200,
+export const feeLevels = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200,
   250, 300, 350, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000];
 
 export interface Language {
@@ -153,7 +199,7 @@ export const languages: Language[] = [
    { code: 'fr', name: 'Français' },        // French
 // { code: 'gl', name: 'Galego' },          // Galician
    { code: 'ko', name: '한국어' },          // Korean
-// { code: 'hr', name: 'Hrvatski' },        // Croatian
+   { code: 'hr', name: 'Hrvatski' },        // Croatian
 // { code: 'id', name: 'Bahasa Indonesia' },// Indonesian
    { code: 'hi', name: 'हिन्दी' },             // Hindi
    { code: 'ne', name: 'नेपाली' },            // Nepalese
@@ -272,7 +318,12 @@ export const specialBlocks = {
     labelEvent: 'Bitcoin\'s 15th Halving',
     labelEventCompleted: 'Block Subsidy has halved to 0.00152587 BTC per block',
     networks: ['mainnet', 'testnet', 'testnet4'],
-  }
+  },
+  '3477600': {
+    labelEvent: 'Simplicity activation',
+    labelEventCompleted: 'Simplicity has been activated!',
+    networks: ['liquid'],
+  },
 };
 
 const firstInscriptionHeight = getFirstInscriptionHeight('mainnet').toString();
@@ -455,3 +506,38 @@ export const fiatCurrencies = {
     indexed: true,
   },
 };
+
+export interface Timezone {
+  offset: string;
+  name: string;
+}
+
+export const timezones: Timezone[] = [
+  { offset: '-12', name: 'Anywhere on Earth (AoE)' },
+  { offset: '-11', name: 'Samoa Standard Time (SST)' },
+  { offset: '-10', name: 'Hawaii Standard Time (HST)' },
+  { offset: '-9', name: 'Alaska Standard Time (AKST)' },
+  { offset: '-8', name: 'Pacific Standard Time (PST)' },
+  { offset: '-7', name: 'Mountain Standard Time (MST)' },
+  { offset: '-6', name: 'Central Standard Time (CST)' },
+  { offset: '-5', name: 'Eastern Standard Time (EST)' },
+  { offset: '-4', name: 'Atlantic Standard Time (AST)' },
+  { offset: '-3', name: 'Argentina Time (ART)' },
+  { offset: '-2', name: 'Fernando de Noronha Time (FNT)' },
+  { offset: '-1', name: 'Azores Time (AZOT)' },
+  { offset: '+0', name: 'Greenwich Mean Time (GMT)' },
+  { offset: '+1', name: 'Central European Time (CET)' },
+  { offset: '+2', name: 'Eastern European Time (EET)' },
+  { offset: '+3', name: 'Moscow Standard Time (MSK)' },
+  { offset: '+4', name: 'Armenia Time (AMT)' },
+  { offset: '+5', name: 'Pakistan Standard Time (PKT)' },
+  { offset: '+6', name: 'Xinjiang Time (XJT)' },
+  { offset: '+7', name: 'Indochina Time (ICT)' },
+  { offset: '+8', name: 'Hong Kong Time (HKT)' },
+  { offset: '+9', name: 'Japan Standard Time (JST)' },
+  { offset: '+10', name: 'Australian Eastern Standard Time (AEST)' },
+  { offset: '+11', name: 'Norfolk Time (NFT)' },
+  { offset: '+12', name: 'New Zealand Standard Time (NZST)' },
+  { offset: '+13', name: 'Tonga Time (TOT)' },
+  { offset: '+14', name: 'Line Islands Time (LINT)' }
+];

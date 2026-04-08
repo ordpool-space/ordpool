@@ -11,9 +11,11 @@ class AccelerationRoutes {
   public initRoutes(app: Application): void {
     app
       .get(config.MEMPOOL.API_URL_PREFIX + 'services/accelerator/accelerations', this.$getAcceleratorAccelerations.bind(this))
+      .get(config.MEMPOOL.API_URL_PREFIX + 'services/accelerator/accelerations/:txid', this.$getAcceleratorAcceleration.bind(this))
       .get(config.MEMPOOL.API_URL_PREFIX + 'services/accelerator/accelerations/history', this.$getAcceleratorAccelerationsHistory.bind(this))
       .get(config.MEMPOOL.API_URL_PREFIX + 'services/accelerator/accelerations/history/aggregated', this.$getAcceleratorAccelerationsHistoryAggregated.bind(this))
       .get(config.MEMPOOL.API_URL_PREFIX + 'services/accelerator/accelerations/stats', this.$getAcceleratorAccelerationsStats.bind(this))
+      .post(config.MEMPOOL.API_URL_PREFIX + 'services/accelerator/estimate', this.$getAcceleratorEstimate.bind(this))
     ;
   }
 
@@ -22,6 +24,21 @@ class AccelerationRoutes {
     res.status(200).send(Object.values(accelerations));
   }
 
+  /** @asyncUnsafe */
+  private async $getAcceleratorAcceleration(req: Request, res: Response): Promise<void> {
+    if (req.params.txid) {
+      const acceleration = await AccelerationRepository.$getAccelerationInfoForTxid(req.params.txid);
+      if (acceleration) {
+        res.status(200).send(acceleration);
+      } else {
+        res.status(404).send('Acceleration not found');
+      }
+    } else {
+      res.status(400).send('txid is required');
+    }
+  }
+
+  /** @asyncUnsafe */
   private async $getAcceleratorAccelerationsHistory(req: Request, res: Response): Promise<void> {
     const history = await AccelerationRepository.$getAccelerationInfo(null, req.query.blockHeight ? parseInt(req.query.blockHeight as string, 10) : null);
     res.status(200).send(history.map(accel => ({
@@ -61,6 +78,20 @@ class AccelerationRoutes {
       response.data.pipe(res);
     } catch (e) {
       logger.err(`Unable to get acceleration stats from ${url} in $getAcceleratorAccelerationsStats(), ${e}`, this.tag);
+      res.status(500).end();
+    }
+  }
+
+  private async $getAcceleratorEstimate(req: Request, res: Response): Promise<void> {
+    const url = `${config.MEMPOOL_SERVICES.API}/${req.originalUrl.replace('/api/v1/services/', '')}`;
+    try {
+      const response = await axios.post(url, req.body, { responseType: 'stream', timeout: 10000 });
+      for (const key in response.headers) {
+        res.setHeader(key, response.headers[key]);
+      }
+      response.data.pipe(res);
+    } catch (e) {
+      logger.err(`Unable to get acceleration estimate from ${url} in $getAcceleratorEstimate(), ${e}`, this.tag);
       res.status(500).end();
     }
   }

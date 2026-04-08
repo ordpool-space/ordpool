@@ -1,16 +1,16 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, Input, LOCALE_ID, OnInit, HostBinding } from '@angular/core';
-import { EChartsOption } from '../../graphs/echarts';
+import { EChartsOption } from '@app/graphs/echarts';
 import { Observable } from 'rxjs';
 import { delay, map, retryWhen, share, startWith, switchMap, tap } from 'rxjs/operators';
-import { ApiService } from '../../services/api.service';
-import { SeoService } from '../../services/seo.service';
+import { ApiService } from '@app/services/api.service';
+import { SeoService } from '@app/services/seo.service';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
-import { chartColors, poolsColor } from '../../app.constants';
-import { StorageService } from '../../services/storage.service';
-import { MiningService } from '../../services/mining.service';
-import { download } from '../../shared/graphs.utils';
+import { originalChartColors as chartColors, poolsColor } from '@app/app.constants';
+import { StorageService } from '@app/services/storage.service';
+import { MiningService } from '@app/services/mining.service';
+import { download } from '@app/shared/graphs.utils';
 import { ActivatedRoute } from '@angular/router';
-import { StateService } from '../../services/state.service';
+import { StateService } from '@app/services/state.service';
 
 interface Hashrate {
   timestamp: number;
@@ -28,9 +28,10 @@ interface Hashrate {
       position: absolute;
       top: 50%;
       left: calc(50% - 15px);
-      z-index: 100;
+      z-index: 99;
     }
   `],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HashrateChartPoolsComponent implements OnInit {
@@ -109,7 +110,7 @@ export class HashrateChartPoolsComponent implements OnInit {
               map((response) => {
                 return {
                   blockCount: parseInt(response.headers.get('x-total-count'), 10),
-                }
+                };
               }),
               retryWhen((errors) => errors.pipe(
                 delay(60000)
@@ -173,11 +174,11 @@ export class HashrateChartPoolsComponent implements OnInit {
         name: name,
         inactiveColor: 'rgb(110, 112, 121)',
         textStyle: {
-          color: 'white',
+          color: 'var(--fg)',
         },
         icon: 'roundRect',
         itemStyle: {
-          color: poolsColor[name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()],
+          color: poolsColor[name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()],
         },
       });
     }

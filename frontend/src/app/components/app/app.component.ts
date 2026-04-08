@@ -1,16 +1,17 @@
 import { Location } from '@angular/common';
 import { Component, HostListener, OnInit, Inject, LOCALE_ID, HostBinding } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
-import { StateService } from '../../services/state.service';
-import { OpenGraphService } from '../../services/opengraph.service';
+import { StateService } from '@app/services/state.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
 import { NgbTooltipConfig } from '@ng-bootstrap/ng-bootstrap';
-import { ThemeService } from '../../services/theme.service';
-import { SeoService } from '../../services/seo.service';
+import { ThemeService } from '@app/services/theme.service';
+import { SeoService } from '@app/services/seo.service';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
+  standalone: false,
   providers: [NgbTooltipConfig]
 })
 export class AppComponent implements OnInit {
@@ -41,11 +42,11 @@ export class AppComponent implements OnInit {
 
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvents(event: KeyboardEvent) {
-    if (event.target instanceof HTMLInputElement) {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
       return;
     }
     // prevent arrow key horizontal scrolling
-    if(["ArrowLeft","ArrowRight"].indexOf(event.code) > -1) {
+    if(['ArrowLeft','ArrowRight'].indexOf(event.code) > -1) {
       event.preventDefault();
     }
     this.stateService.keyNavigation$.next(event);

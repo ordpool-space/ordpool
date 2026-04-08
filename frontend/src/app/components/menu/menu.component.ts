@@ -1,22 +1,24 @@
 import { Component, OnInit, Input, Output, EventEmitter, HostListener, OnDestroy } from '@angular/core';
 import { Observable } from 'rxjs';
-import { MenuGroup } from '../../interfaces/services.interface';
-import { StorageService } from '../../services/storage.service';
+import { MenuGroup } from '@interfaces/services.interface';
+import { StorageService } from '@app/services/storage.service';
 import { Router, NavigationStart } from '@angular/router';
-import { StateService } from '../../services/state.service';
-import { IUser, ServicesApiServices } from '../../services/services-api.service';
+import { StateService } from '@app/services/state.service';
+import { IUser, ServicesApiServices } from '@app/services/services-api.service';
+import { AuthServiceMempool } from '@app/services/auth.service';
 
 @Component({
   selector: 'app-menu',
   templateUrl: './menu.component.html',
-  styleUrls: ['./menu.component.scss']
+  styleUrls: ['./menu.component.scss'],
+  standalone: false,
 })
 
 export class MenuComponent implements OnInit, OnDestroy {
   @Input() navOpen: boolean = false;
   @Output() loggedOut = new EventEmitter<boolean>();
   @Output() menuToggled = new EventEmitter<boolean>();
-  
+
   userMenuGroups$: Observable<MenuGroup[]> | undefined;
   user$: Observable<IUser | null>;
   userAuth: any | undefined;
@@ -26,12 +28,13 @@ export class MenuComponent implements OnInit, OnDestroy {
     private servicesApiServices: ServicesApiServices,
     private storageService: StorageService,
     private router: Router,
-    private stateService: StateService
+    private stateService: StateService,
+    private authService: AuthServiceMempool
   ) {}
 
   ngOnInit(): void {
     this.userAuth = this.storageService.getAuth();
-    
+
     if (this.stateService.env.GIT_COMMIT_HASH_MEMPOOL_SPACE) {
       this.userMenuGroups$ = this.servicesApiServices.getUserMenuGroups$();
       this.user$ = this.servicesApiServices.userSubject$;
@@ -61,12 +64,19 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.loggedOut.emit(true);
       if (this.stateService.env.GIT_COMMIT_HASH_MEMPOOL_SPACE) {
         this.userMenuGroups$ = this.servicesApiServices.getUserMenuGroups$();
-        this.router.navigateByUrl('/');
+        this.authService.logout();
+        if (window.location.toString().includes('services')) {
+          this.router.navigateByUrl('/login');
+        }
       }
     });
   }
 
   onLinkClick(link) {
+    if (link === 'logout') {
+      this.toggleMenu(false);
+      return;
+    }
     if (!this.isServicesPage || this.isSmallScreen()) {
       this.toggleMenu(false);
     }

@@ -1,16 +1,17 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
 import { Observable, merge } from 'rxjs';
 import { share } from 'rxjs/operators';
-import { INodesRanking, INodesStatistics } from '../../interfaces/node-api.interface';
-import { SeoService } from '../../services/seo.service';
-import { OpenGraphService } from '../../services/opengraph.service';
-import { StateService } from '../../services/state.service';
-import { LightningApiService } from '../lightning-api.service';
+import { INodesRanking, INodesStatistics } from '@interfaces/node-api.interface';
+import { SeoService } from '@app/services/seo.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
+import { StateService } from '@app/services/state.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 
 @Component({
   selector: 'app-lightning-dashboard',
   templateUrl: './lightning-dashboard.component.html',
   styleUrls: ['./lightning-dashboard.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LightningDashboardComponent implements OnInit, AfterViewInit {

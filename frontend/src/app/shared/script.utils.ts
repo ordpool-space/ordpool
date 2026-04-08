@@ -1,3 +1,7 @@
+import { Vin } from '../interfaces/electrs.interface';
+import { AddressType, detectAddressType } from './address-utils';
+import { ParsedTaproot } from './transaction.utils';
+
 const opcodes = {
   OP_FALSE: 0,
   OP_0: 0,
@@ -145,8 +149,186 @@ for (let i = 187; i <= 255; i++) {
 
 export { opcodes };
 
+export type ScriptType = 'scriptpubkey'
+  | 'scriptsig'
+  | 'inner_witnessscript'
+  | 'inner_redeemscript'
+  | 'inner_simplicityscript'
+
+export interface ScriptTemplate {
+  type: string;
+  label: string;
+}
+
+export const ScriptTemplates: { [type: string]: (...args: any) => ScriptTemplate } = {
+  liquid_peg_out: () => ({ type: 'liquid_peg_out', label: 'Liquid Peg Out' }),
+  liquid_peg_out_emergency: () => ({ type: 'liquid_peg_out_emergency', label: 'Emergency Liquid Peg Out' }),
+  ln_force_close: () => ({ type: 'ln_force_close', label: 'Lightning Force Close' }),
+  ln_force_close_revoked: () => ({ type: 'ln_force_close_revoked', label: 'Revoked Lightning Force Close' }),
+  ln_htlc: () => ({ type: 'ln_htlc', label: 'Lightning HTLC' }),
+  ln_htlc_revoked: () => ({ type: 'ln_htlc_revoked', label: 'Revoked Lightning HTLC' }),
+  ln_htlc_expired: () => ({ type: 'ln_htlc_expired', label: 'Expired Lightning HTLC' }),
+  ln_anchor: () => ({ type: 'ln_anchor', label: 'Lightning Anchor' }),
+  ln_anchor_swept: () => ({ type: 'ln_anchor_swept', label: 'Swept Lightning Anchor' }),
+  multisig: (m: number, n: number) => ({ type: 'multisig', m, n, label: $localize`:@@address-label.multisig:Multisig ${m}:multisigM: of ${n}:multisigN:` }),
+  anchor: () => ({ type: 'anchor', label: 'anchor' }),
+};
+
+export class ScriptInfo {
+  type: ScriptType;
+  taprootInfo?: ParsedTaproot;
+  hex?: string;
+  asm?: string;
+  vinId?: string;
+  template: ScriptTemplate;
+
+  constructor(type: ScriptType, hex?: string, asm?: string, witness?: string[], taprootInfo?: ParsedTaproot, vinId?: string) {
+    this.type = type;
+    this.hex = hex;
+    this.asm = asm;
+    if (taprootInfo) {
+      this.taprootInfo = taprootInfo;
+    }
+    if (vinId) {
+      this.vinId = vinId;
+    }
+    if (this.asm) {
+      this.template = detectScriptTemplate(this.type, this.asm, witness);
+    }
+  }
+
+  public clone(): ScriptInfo {
+    const cloned = new ScriptInfo(this.type, this.hex, this.asm, undefined, this.taprootInfo, this.vinId);
+    if (this.template) {
+      cloned.template = this.template;
+    }
+    return cloned;
+  }
+
+  get key(): string {
+    return this.type + (this.taprootInfo?.controlBlock || '');
+  }
+}
+
+/** parses an inner_witnessscript + witness stack, and detects named script types */
+export function detectScriptTemplate(type: ScriptType, script_asm: string, witness?: string[]): ScriptTemplate | undefined {
+  if (type === 'inner_witnessscript' && witness?.length) {
+    if (script_asm.indexOf('OP_DEPTH OP_PUSHNUM_12 OP_EQUAL OP_IF OP_PUSHNUM_11') === 0 || script_asm.indexOf('OP_PUSHNUM_15 OP_CHECKMULTISIG OP_IFDUP OP_NOTIF OP_PUSHBYTES_2') === 1259) {
+      if (witness.length > 11) {
+        return ScriptTemplates.liquid_peg_out();
+      } else {
+        return ScriptTemplates.liquid_peg_out_emergency();
+      }
+    }
+
+    const topElement = witness[witness.length - 2];
+    if (/^OP_IF OP_PUSHBYTES_33 \w{66} OP_ELSE OP_PUSH(NUM_\d+|BYTES_(1 \w{2}|2 \w{4})) OP_CSV OP_DROP OP_PUSHBYTES_33 \w{66} OP_ENDIF OP_CHECKSIG$/.test(script_asm)) {
+      // https://github.com/lightning/bolts/blob/master/03-transactions.md#commitment-transaction-outputs
+      if (topElement === '01') {
+        // top element is '01' to get in the revocation path
+        return ScriptTemplates.ln_force_close_revoked();
+      } else {
+        // top element is '', this is a delayed to_local output
+        return ScriptTemplates.ln_force_close();
+      }
+    } else if (
+      /^OP_DUP OP_HASH160 OP_PUSHBYTES_20 \w{40} OP_EQUAL OP_IF OP_CHECKSIG OP_ELSE OP_PUSHBYTES_33 \w{66} OP_SWAP OP_SIZE OP_PUSHBYTES_1 20 OP_EQUAL OP_NOTIF OP_DROP OP_PUSHNUM_2 OP_SWAP OP_PUSHBYTES_33 \w{66} OP_PUSHNUM_2 OP_CHECKMULTISIG OP_ELSE OP_HASH160 OP_PUSHBYTES_20 \w{40} OP_EQUALVERIFY OP_CHECKSIG OP_ENDIF (OP_PUSHNUM_1 OP_CSV OP_DROP |)OP_ENDIF$/.test(script_asm) ||
+      /^OP_DUP OP_HASH160 OP_PUSHBYTES_20 \w{40} OP_EQUAL OP_IF OP_CHECKSIG OP_ELSE OP_PUSHBYTES_33 \w{66} OP_SWAP OP_SIZE OP_PUSHBYTES_1 20 OP_EQUAL OP_IF OP_HASH160 OP_PUSHBYTES_20 \w{40} OP_EQUALVERIFY OP_PUSHNUM_2 OP_SWAP OP_PUSHBYTES_33 \w{66} OP_PUSHNUM_2 OP_CHECKMULTISIG OP_ELSE OP_DROP OP_PUSHBYTES_3 \w{6} OP_CLTV OP_DROP OP_CHECKSIG OP_ENDIF (OP_PUSHNUM_1 OP_CSV OP_DROP |)OP_ENDIF$/.test(script_asm)
+    ) {
+      // https://github.com/lightning/bolts/blob/master/03-transactions.md#offered-htlc-outputs
+      // https://github.com/lightning/bolts/blob/master/03-transactions.md#received-htlc-outputs
+      if (topElement.length === 66) {
+        // top element is a public key
+        return ScriptTemplates.ln_htlc_revoked();
+      } else if (topElement) {
+        // top element is a preimage
+        return ScriptTemplates.ln_htlc();
+      } else {
+        // top element is '' to get in the expiry of the script
+        return ScriptTemplates.ln_htlc_expired();
+      }
+    } else if (/^OP_PUSHBYTES_33 \w{66} OP_CHECKSIG OP_IFDUP OP_NOTIF OP_PUSHNUM_16 OP_CSV OP_ENDIF$/.test(script_asm)) {
+      // https://github.com/lightning/bolts/blob/master/03-transactions.md#to_local_anchor-and-to_remote_anchor-output-option_anchors
+      if (topElement) {
+        // top element is a signature
+        return ScriptTemplates.ln_anchor();
+      } else {
+        // top element is '', it has been swept after 16 blocks
+        return ScriptTemplates.ln_anchor_swept();
+      }
+    }
+  }
+
+  const multisig = parseMultisigScript(script_asm);
+  if (multisig) {
+    return ScriptTemplates.multisig(multisig.m, multisig.n);
+  }
+
+  const tapscriptMultisig = parseTapscriptMultisig(script_asm);
+  if (tapscriptMultisig) {
+    return ScriptTemplates.multisig(tapscriptMultisig.m, tapscriptMultisig.n);
+  }
+
+  const tapscriptUnanimousMultisig = parseTapscriptUnanimousMultisig(script_asm);
+  if (tapscriptUnanimousMultisig) {
+    return ScriptTemplates.multisig(tapscriptUnanimousMultisig, tapscriptUnanimousMultisig);
+  }
+
+  return;
+}
+
+/** Returns the last push of a script as a number, the push can be OP_0, OP_PUSHNUM_<1-16>, or OP_PUSHBYTES_<1-75> */
+function popScriptNumberOperand(ops: string[]): number | undefined {
+  if (!ops.length) {
+    return;
+  }
+
+  const token = ops.pop();
+  if (!token) {
+    return;
+  }
+
+  if (token === 'OP_0') {
+    return 0;
+  }
+
+  if (token.startsWith('OP_PUSHNUM_')) {
+    const digits = token.match(/[0-9]+/);
+    if (!digits) {
+      return;
+    }
+    return parseInt(digits[0], 10);
+  }
+
+  if (!token.startsWith('OP_')) {
+    const pushOp = ops.pop();
+    const pushBytes = pushOp?.match(/^OP_PUSHBYTES_(\d+)$/);
+    if (!pushBytes) {
+      return;
+    }
+
+    const byteCount = parseInt(pushBytes[1], 10);
+    if (!byteCount || !/^[0-9a-fA-F]+$/.test(token) || token.length !== byteCount * 2) {
+      return;
+    }
+
+    let value = 0;
+    for (let i = 0; i < byteCount; i++) {
+      const byteHex = token.slice(i * 2, i * 2 + 2);
+      const byte = parseInt(byteHex, 16);
+      if (Number.isNaN(byte)) {
+        return;
+      }
+      value |= byte << (8 * i);
+    }
+    return value;
+  }
+
+  return;
+}
+
 /** extracts m and n from a multisig script (asm), returns nothing if it is not a multisig script */
-export function parseMultisigScript(script: string): void | { m: number, n: number } {
+export function parseMultisigScript(script: string): undefined | { m: number, n: number } {
   if (!script) {
     return;
   }
@@ -154,14 +336,10 @@ export function parseMultisigScript(script: string): void | { m: number, n: numb
   if (ops.length < 3 || ops.pop() !== 'OP_CHECKMULTISIG') {
     return;
   }
-  const opN = ops.pop();
-  if (!opN) {
+  const n = popScriptNumberOperand(ops);
+  if (n === undefined) {
     return;
   }
-  if (!opN.startsWith('OP_PUSHNUM_')) {
-    return;
-  }
-  const n = parseInt(opN.match(/[0-9]+/)?.[0] || '', 10);
   if (ops.length < n * 2 + 1) {
     return;
   }
@@ -174,20 +352,119 @@ export function parseMultisigScript(script: string): void | { m: number, n: numb
       return;
     }
   }
-  const opM = ops.pop();
-  if (!opM) {
+  const m = popScriptNumberOperand(ops);
+  if (m === undefined) {
     return;
   }
-  if (!opM.startsWith('OP_PUSHNUM_')) {
-    return;
-  }
-  const m = parseInt(opM.match(/[0-9]+/)?.[0] || '', 10);
 
   if (ops.length) {
     return;
   }
 
   return { m, n };
+}
+
+export function parseTapscriptMultisig(script: string): undefined | { m: number, n: number } {
+  if (!script) {
+    return;
+  }
+
+  const ops = script.split(' ');
+  // At minimum, 2 pubkey group (3 tokens) + m push + final opcode = 8 tokens
+  if (ops.length < 8) {
+    return;
+  }
+
+  const finalOp = ops.pop();
+  if (!['OP_NUMEQUAL', 'OP_NUMEQUALVERIFY', 'OP_GREATERTHANOREQUAL', 'OP_GREATERTHAN', 'OP_EQUAL', 'OP_EQUALVERIFY'].includes(finalOp)) {
+    return;
+  }
+
+  let m = popScriptNumberOperand(ops);
+  if (m === undefined) {
+    return;
+  }
+
+  if (finalOp === 'OP_GREATERTHAN') {
+    m += 1;
+  }
+
+  if (ops.length % 3 !== 0) {
+    return;
+  }
+  const n = ops.length / 3;
+  if (n < 1) {
+    return;
+  }
+
+  for (let i = 0; i < n; i++) {
+    const push = ops.shift();
+    const pubkey = ops.shift();
+    const sigOp = ops.shift();
+
+    if (push !== 'OP_PUSHBYTES_32') {
+      return;
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) {
+      return;
+    }
+    if (sigOp !== (i === 0 ? 'OP_CHECKSIG' : 'OP_CHECKSIGADD')) {
+      return;
+    }
+  }
+
+  if (ops.length) {
+    return;
+  }
+
+  return { m, n };
+}
+
+export function parseTapscriptUnanimousMultisig(script: string): undefined | number {
+  if (!script) {
+    return;
+  }
+
+  const ops = script.split(' ');
+  // At minimum, 2 pubkey group (3 tokens) = 6 tokens
+  if (ops.length < 6) {
+    return;
+  }
+
+  if (ops.length % 3 !== 0) {
+    return;
+  }
+
+  const n = ops.length / 3;
+
+  for (let i = 0; i < n; i++) {
+    const pushOp = ops.shift();
+    const pubkey = ops.shift();
+    const sigOp = ops.shift();
+
+    if (pushOp !== 'OP_PUSHBYTES_32') {
+      return;
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) {
+      return;
+    }
+    if (i < n - 1) {
+      if (sigOp !== 'OP_CHECKSIGVERIFY') {
+        return;
+      }
+    } else {
+      // Last opcode can be either CHECKSIG or CHECKSIGVERIFY
+      if (!(sigOp === 'OP_CHECKSIGVERIFY' || sigOp === 'OP_CHECKSIG')) {
+        return;
+      }
+    }
+  }
+
+  if (ops.length) {
+    return;
+  }
+
+  return n;
 }
 
 export function getVarIntLength(n: number): number {
@@ -253,7 +530,7 @@ export function isPoint(pointHex: string): boolean {
   }
 
   // Function modified slightly from noble-curves
-  
+
 
   // Now we know that pointHex is a 33 or 65 byte hex string.
   const isCompressed = pointHex.length === 66;

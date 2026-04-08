@@ -1,16 +1,17 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, Input, OnInit } from '@angular/core';
 import { Observable, Subscription, of, switchMap, tap } from 'rxjs';
-import { StateService } from '../../services/state.service';
-import { BlockExtended } from '../../interfaces/node-api.interface';
-import { WebsocketService } from '../../services/websocket.service';
-import { MempoolInfo, Recommendedfees } from '../../interfaces/websocket.interface';
+import { StateService } from '@app/services/state.service';
+import { BlockExtended } from '@interfaces/node-api.interface';
+import { WebsocketService } from '@app/services/websocket.service';
+import { MempoolInfo, Recommendedfees } from '@interfaces/websocket.interface';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
 
 @Component({
   selector: 'app-clock',
   templateUrl: './clock.component.html',
   styleUrls: ['./clock.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClockComponent implements OnInit {
@@ -38,6 +39,7 @@ export class ClockComponent implements OnInit {
     testnet: ['var(--testnet)', 'var(--testnet-alt)'],
     testnet4: ['var(--testnet)', 'var(--testnet-alt)'],
     signet: ['var(--signet)', 'var(--signet-alt)'],
+    regtest: ['var(--regtest)', 'var(--regtest-alt)'],
   };
 
   constructor(
@@ -107,7 +109,7 @@ export class ClockComponent implements OnInit {
       )`,
     };
   }
-  
+
   @HostListener('window:resize', ['$event'])
   resizeCanvas(): void {
     const windowWidth = this.limitWidth || window.innerWidth || 800;

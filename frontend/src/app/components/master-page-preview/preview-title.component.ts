@@ -1,11 +1,12 @@
 import { Component, OnInit } from '@angular/core';
-import { StateService } from '../../services/state.service';
+import { StateService } from '@app/services/state.service';
 import { Observable, merge, of } from 'rxjs';
 
 @Component({
   selector: 'app-preview-title',
   templateUrl: './preview-title.component.html',
   styleUrls: [],
+  standalone: false,
 })
 export class PreviewTitleComponent implements OnInit {
   network$: Observable<string>;

@@ -1,9 +1,10 @@
 import { Component, OnInit } from '@angular/core';
-import { WebsocketService } from '../../services/websocket.service';
+import { WebsocketService } from '@app/services/websocket.service';
 
 @Component({
   selector: 'app-status-view',
-  templateUrl: './status-view.component.html'
+  templateUrl: './status-view.component.html',
+  standalone: false,
 })
 export class StatusViewComponent implements OnInit {
   constructor(

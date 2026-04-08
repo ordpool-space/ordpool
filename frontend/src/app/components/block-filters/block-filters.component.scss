@@ -24,7 +24,6 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    float: right;
 
     &:hover, &:active {
       text-decoration: none;
@@ -32,16 +31,18 @@
   }
 
   .menu-toggle {
-    width: 2em;
-    height: 2em;
+    width: 3em;
+    min-width: 3em;
+    height: 1.8em;
     padding: 0px 1px;
     opacity: 0;
     cursor: pointer;
     color: white;
     background: none;
-    border: solid 2px white;
+    border: none;
     border-radius: 0.35em;
     pointer-events: all;
+    align-self: normal;
   }
 
   .filter-menu {
@@ -54,7 +55,7 @@
 
     h5 {
       font-size: 0.8rem;
-      color: white;
+      color: var(--fg);
       margin: 0;
       margin-top: 0.5em;
     }
@@ -96,6 +97,15 @@
   //   }
   // }
 
+  &.none-mode {
+    .filter-tag {
+      border: solid 1px var(--red);
+      &.selected {
+        background-color: var(--red);
+      }
+    }
+  }
+
   .btn-group {
     font-size: 0.9em;
     margin-right: 0.25em;
@@ -106,6 +116,7 @@
     pointer-events: all;
     line-height: 1.5;
     background: #181b2daf;
+    color: #fff;
 
     &:first-child {
       border-top-left-radius: 0.2rem;
@@ -128,6 +139,12 @@
         background: var(--success);
       }
     }
+    &.red {
+      border: solid 1px var(--red);
+      &.active {
+        background: var(--red);
+      }
+    }
     &.yellow {
       border: solid 1px #bf7815;
       &.active {
@@ -143,7 +160,7 @@
 
       &:hover {
         opacity: 1;
-        background: #181b2d7f;
+        background: var(--block-goggles-overlay);
       }
     }
 
@@ -153,7 +170,7 @@
         background: none;
 
         &:hover {
-          background: #181b2d7f;
+          background: var(--block-goggles-overlay);
         }
       }
     }
@@ -165,14 +182,14 @@
       background: none;
 
       &:hover {
-        background: #181b2d7f;
+        background: var(--block-goggles-overlay);
       }
     }
   }
 
   &.menu-open {
     pointer-events: all;
-    background: #181b2d7f;
+    background: var(--block-goggles-overlay);
   }
 
   &.small {

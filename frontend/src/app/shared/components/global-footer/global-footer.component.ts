@@ -1,29 +1,29 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, Inject, LOCALE_ID, HostListener, OnDestroy } from '@angular/core';
+import { Input, ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, OnChanges, SimpleChanges, Inject, LOCALE_ID, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Observable, merge, of, Subject, Subscription } from 'rxjs';
 import { tap, takeUntil } from 'rxjs/operators';
-import { Env, StateService } from '../../../services/state.service';
-import { IBackendInfo } from '../../../interfaces/websocket.interface';
-import { LanguageService } from '../../../services/language.service';
-import { NavigationService } from '../../../services/navigation.service';
-import { StorageService } from '../../../services/storage.service';
-import { WebsocketService } from '../../../services/websocket.service';
-import { EnterpriseService } from '../../../services/enterprise.service';
-import { environment } from '../../../../environments/environment';
+import { Env, StateService } from '@app/services/state.service';
+import { IBackendInfo } from '@interfaces/websocket.interface';
+import { LanguageService } from '@app/services/language.service';
+import { NavigationService } from '@app/services/navigation.service';
+import { StorageService } from '@app/services/storage.service';
+import { WebsocketService } from '@app/services/websocket.service';
+import { EnterpriseService } from '@app/services/enterprise.service';
 
 @Component({
   selector: 'app-global-footer',
   templateUrl: './global-footer.component.html',
   styleUrls: ['./global-footer.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class GlobalFooterComponent implements OnInit, OnDestroy {
-    
-  enableCat21Mint = environment.enableCat21Mint;
-  
+export class GlobalFooterComponent implements OnInit, OnDestroy, OnChanges {
+  @Input() user: any = undefined;
+
   private destroy$: Subject<any> = new Subject<any>();
   env: Env;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
+  mempoolSpaceBuild = window['isMempoolSpaceBuild'];
   backendInfo$: Observable<IBackendInfo>;
   servicesBackendInfo$: Observable<IBackendInfo>;
   frontendGitCommitHash = this.stateService.env.GIT_COMMIT_HASH;
@@ -32,8 +32,6 @@ export class GlobalFooterComponent implements OnInit, OnDestroy {
   network$: Observable<string>;
   networkPaths: { [network: string]: string };
   currentNetwork = '';
-  lightningNetworks = ['', 'mainnet', 'bitcoin', 'testnet', 'signet'];
-  loggedIn = false;
   urlSubscription: Subscription;
   isServicesPage = false;
 
@@ -76,9 +74,15 @@ export class GlobalFooterComponent implements OnInit, OnDestroy {
     });
 
     this.urlSubscription = this.route.url.subscribe((url) => {
-      this.loggedIn = this.storageService.getAuth() !== null;
+      this.user = this.storageService.getAuth();
       this.cd.markForCheck();
-    })
+    });
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.user) {
+      this.user = this.storageService.getAuth();
+    }
   }
 
   ngOnDestroy(): void {

@@ -1,14 +1,18 @@
 import { ChangeDetectionStrategy, Component, Inject, Input, LOCALE_ID, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { echarts, EChartsOption } from '../../graphs/echarts';
-import { BehaviorSubject, Observable, combineLatest, of, timer } from 'rxjs';
+import { echarts, EChartsOption } from '@app/graphs/echarts';
+import { BehaviorSubject, Observable, Subscription, combineLatest, of } from 'rxjs';
 import { catchError, distinctUntilChanged, filter, map, share, switchMap, tap } from 'rxjs/operators';
-import { BlockExtended, PoolStat } from '../../interfaces/node-api.interface';
-import { ApiService } from '../../services/api.service';
-import { StateService } from '../../services/state.service';
-import { selectPowerOfTen } from '../../bitcoin.utils';
+import { BlockExtended, PoolStat } from '@interfaces/node-api.interface';
+import { ApiService } from '@app/services/api.service';
+import { StateService } from '@app/services/state.service';
+import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
 import { formatNumber } from '@angular/common';
-import { SeoService } from '../../services/seo.service';
+import { SeoService } from '@app/services/seo.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import { StratumJob } from '@interfaces/websocket.interface';
+import { WebsocketService } from '@app/services/websocket.service';
+import { MiningService } from '@app/services/mining.service';
 
 interface AccelerationTotal {
   cost: number,
@@ -19,6 +23,7 @@ interface AccelerationTotal {
   selector: 'app-pool',
   templateUrl: './pool.component.html',
   styleUrls: ['./pool.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PoolComponent implements OnInit {
@@ -26,12 +31,18 @@ export class PoolComponent implements OnInit {
   @Input() left: number | string = 75;
 
   gfg = true;
+  stratumEnabled = this.stateService.env.STRATUM_ENABLED;
 
   formatNumber = formatNumber;
+  Math = Math;
+  slugSubscription: Subscription;
   poolStats$: Observable<PoolStat>;
   blocks$: Observable<BlockExtended[]>;
   oobFees$: Observable<AccelerationTotal[]>;
+  job$: Observable<StratumJob | null>;
+  expectedBlockTime$: Observable<number>;
   isLoading = true;
+  error: HttpErrorResponse | null = null;
 
   chartOptions: EChartsOption = {};
   chartInitOptions = {
@@ -50,44 +61,33 @@ export class PoolComponent implements OnInit {
     private apiService: ApiService,
     private route: ActivatedRoute,
     public stateService: StateService,
+    private websocketService: WebsocketService,
+    private miningService: MiningService,
     private seoService: SeoService,
+    public amountShortenerPipe: AmountShortenerPipe,
   ) {
     this.auditAvailable = this.stateService.env.AUDIT;
   }
 
   ngOnInit(): void {
-    this.poolStats$ = this.route.params.pipe(map((params) => params.slug))
+    this.slugSubscription = this.route.params.pipe(map((params) => params.slug)).subscribe((slug) => {
+      this.isLoading = true;
+      this.blocks = [];
+      this.chartOptions = {};
+      this.slug = slug;
+      this.initializeObservables();
+    });
+  }
+
+  initializeObservables(): void {
+    this.poolStats$ = this.apiService.getPoolHashrate$(this.slug)
       .pipe(
-        switchMap((slug: any) => {
-          this.isLoading = true;
-          this.slug = slug;
-          return this.apiService.getPoolHashrate$(this.slug)
-            .pipe(
-              switchMap((data) => {
-                this.isLoading = false;
-                const hashrate = data.map(val => [val.timestamp * 1000, val.avgHashrate]);
-                const share = data.map(val => [val.timestamp * 1000, val.share * 100]);
-                this.prepareChartOptions(hashrate, share);
-                return [slug];
-              }),
-              catchError(() => {
-                this.isLoading = false;
-                this.seoService.logSoft404();
-                return of([slug]);
-              })
-            );
-        }),
-        switchMap((slug) => {
-          return this.apiService.getPoolStats$(slug).pipe(
-            catchError(() => {
-              this.isLoading = false;
-              this.seoService.logSoft404();
-              return of(null);
-            })
-          );
-        }),
-        tap(() => {
-          this.loadMoreSubject.next(this.blocks[0]?.height);
+        switchMap((data) => {
+          this.isLoading = false;
+          const hashrate = data.map(val => [val.timestamp * 1000, val.avgHashrate]);
+          const share = data.map(val => [val.timestamp * 1000, val.share * 100]);
+          this.prepareChartOptions(hashrate, share);
+          return this.apiService.getPoolStats$(this.slug);
         }),
         map((poolStats) => {
           this.seoService.setTitle(poolStats.pool.name);
@@ -101,7 +101,12 @@ export class PoolComponent implements OnInit {
           return Object.assign({
             logo: `/resources/mining-pools/` + poolStats.pool.slug + '.svg'
           }, poolStats);
-        })
+        }),
+        catchError(() => {
+          this.isLoading = false;
+          this.seoService.logSoft404();
+          return of(null);
+        }),
       );
 
     this.blocks$ = this.loadMoreSubject
@@ -112,6 +117,10 @@ export class PoolComponent implements OnInit {
             return [];
           }
           return this.apiService.getPoolBlocks$(this.slug, this.blocks[this.blocks.length - 1]?.height);
+        }),
+        catchError((err) => {
+          this.error = err;
+          return of([]);
         }),
         tap((newBlocks) => {
           this.blocks = this.blocks.concat(newBlocks);
@@ -131,6 +140,31 @@ export class PoolComponent implements OnInit {
       }),
       filter(oob => oob.length === 3 && oob[2].count > 0)
     );
+
+    if (this.stratumEnabled) {
+      this.job$ = combineLatest([
+        this.poolStats$.pipe(
+          tap((poolStats) => {
+            this.websocketService.startTrackStratum(poolStats.pool.unique_id);
+          })
+        ),
+        this.stateService.stratumJobs$
+      ]).pipe(
+        map(([poolStats, jobs]) => {
+          return jobs[poolStats.pool.unique_id];
+        })
+      );
+
+      this.expectedBlockTime$ = combineLatest([
+        this.miningService.getMiningStats('1w'),
+        this.poolStats$,
+        this.stateService.difficultyAdjustment$
+      ]).pipe(
+        map(([miningStats, poolStat, da]) => {
+          return (da.timeAvg / ((poolStat.estimatedHashrate || 0) / (miningStats.lastEstimatedHashrate * 1_000_000_000_000_000_000))) + Date.now() + da.timeOffset;
+        })
+      );
+    }
   }
 
   prepareChartOptions(hashrate, share) {
@@ -185,14 +219,12 @@ export class PoolComponent implements OnInit {
 
           for (const tick of ticks) {
             if (tick.seriesIndex === 0) {
-              let hashratePowerOfTen = selectPowerOfTen(tick.data[1], 10);
-              let hashrateData = tick.data[1] / hashratePowerOfTen.divider;
-              hashrateString = `${tick.marker} ${tick.seriesName}: ${formatNumber(hashrateData, this.locale, '1.0-0')} ${hashratePowerOfTen.unit}H/s<br>`;
+              hashrateString = `${tick.marker} ${tick.seriesName}: ${this.amountShortenerPipe.transform(tick.data[1], 3, 'H/s', false, true)}<br>`;
             } else if (tick.seriesIndex === 1) {
               dominanceString = `${tick.marker} ${tick.seriesName}: ${formatNumber(tick.data[1], this.locale, '1.0-2')}%`;
-            }             
+            }
           }
-          
+
           return `
             <b style="color: white; margin-left: 18px">${ticks[0].axisValueLabel}</b><br>
             <span>${hashrateString}</span>
@@ -213,7 +245,7 @@ export class PoolComponent implements OnInit {
             name: $localize`:@@79a9dc5b1caca3cbeb1733a19515edacc5fc7920:Hashrate`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
             itemStyle: {
@@ -224,7 +256,7 @@ export class PoolComponent implements OnInit {
             name: $localize`:mining.pool-dominance:Pool Dominance`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -239,9 +271,7 @@ export class PoolComponent implements OnInit {
           axisLabel: {
             color: 'rgb(110, 112, 121)',
             formatter: (val) => {
-              const selectedPowerOfTen: any = selectPowerOfTen(val);
-              const newVal = Math.round(val / selectedPowerOfTen.divider);
-              return `${newVal} ${selectedPowerOfTen.unit}H/s`
+              return this.amountShortenerPipe.transform(val, 3, 'H/s', false, true).toString();
             }
           },
           splitLine: {
@@ -253,7 +283,7 @@ export class PoolComponent implements OnInit {
           axisLabel: {
             color: 'rgb(110, 112, 121)',
             formatter: (val) => {
-              return `${val}%`
+              return `${val}%`;
             }
           },
           splitLine: {
@@ -295,7 +325,7 @@ export class PoolComponent implements OnInit {
         moveOnMouseMove: false,
       }, {
         fillerColor: '#aaaaff15',
-        borderColor: '#ffffff88',
+        borderColor: 'var(--transparent-fg)',
         showDetail: false,
         show: true,
         type: 'slider',
@@ -306,7 +336,7 @@ export class PoolComponent implements OnInit {
         right: 15,
         selectedDataBackground: {
           lineStyle: {
-            color: '#fff',
+            color: 'var(--fg)',
             opacity: 0.45,
           },
           areaStyle: {
@@ -327,5 +357,13 @@ export class PoolComponent implements OnInit {
 
   trackByBlock(index: number, block: BlockExtended) {
     return block.height;
+  }
+
+  reverseHash(hash: string) {
+    return hash.match(/../g).reverse().join('');
+  }
+
+  ngOnDestroy(): void {
+    this.slugSubscription.unsubscribe();
   }
 }

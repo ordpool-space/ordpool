@@ -1,26 +1,27 @@
 import { ChangeDetectionStrategy, Component, Input, OnInit } from '@angular/core';
 import { combineLatest, map, Observable } from 'rxjs';
-import { INodesRanking, INodesStatistics, ITopNodesPerChannels } from '../../../interfaces/node-api.interface';
-import { SeoService } from '../../../services/seo.service';
-import { StateService } from '../../../services/state.service';
-import { GeolocationData } from '../../../shared/components/geolocation/geolocation.component';
-import { LightningApiService } from '../../lightning-api.service';
+import { INodesRanking, INodesStatistics, ITopNodesPerChannels } from '@interfaces/node-api.interface';
+import { SeoService } from '@app/services/seo.service';
+import { StateService } from '@app/services/state.service';
+import { GeolocationData } from '@app/shared/components/geolocation/geolocation.component';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 
 @Component({
   selector: 'app-top-nodes-per-channels',
   templateUrl: './top-nodes-per-channels.component.html',
   styleUrls: ['./top-nodes-per-channels.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopNodesPerChannels implements OnInit {
   @Input() nodes$: Observable<INodesRanking>;
   @Input() statistics$: Observable<INodesStatistics>;
   @Input() widget: boolean = false;
-  
+
   topNodesPerChannels$: Observable<{ nodes: ITopNodesPerChannels[]; statistics: { totalChannels: number; totalCapacity?: number; } }>;
   skeletonRows: number[] = [];
   currency$: Observable<string>;
-  
+
   constructor(
     private apiService: LightningApiService,
     private stateService: StateService,
@@ -29,7 +30,7 @@ export class TopNodesPerChannels implements OnInit {
 
   ngOnInit(): void {
     this.currency$ = this.stateService.fiatCurrency$;
-    
+
     for (let i = 1; i <= (this.widget ? 6 : 100); ++i) {
       this.skeletonRows.push(i);
     }
@@ -58,7 +59,7 @@ export class TopNodesPerChannels implements OnInit {
               totalChannels: statistics.latest.channel_count,
               totalCapacity: statistics.latest.total_capacity,
             }
-          }
+          };
         })
       );
     } else {
@@ -81,7 +82,7 @@ export class TopNodesPerChannels implements OnInit {
             statistics: {
               totalChannels: statistics.latest.channel_count,
             }
-          }
+          };
         })
       );
     }

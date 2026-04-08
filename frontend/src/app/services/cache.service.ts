@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
 import { firstValueFrom, Subject, Subscription} from 'rxjs';
-import { Transaction } from '../interfaces/electrs.interface';
-import { BlockExtended } from '../interfaces/node-api.interface';
-import { StateService } from './state.service';
-import { ApiService } from './api.service';
+import { Transaction } from '@interfaces/electrs.interface';
+import { BlockExtended } from '@interfaces/node-api.interface';
+import { StateService } from '@app/services/state.service';
+import { ApiService } from '@app/services/api.service';
 
 const BLOCK_CACHE_SIZE = 500;
 const KEEP_RECENT_BLOCKS = 50;
@@ -50,7 +50,7 @@ export class CacheService {
       this.txCache[tx.txid] = tx;
     });
   }
- 
+
   getTxFromCache(txid) {
     if (this.txCache && this.txCache[txid]) {
       return this.txCache[txid];
@@ -78,7 +78,7 @@ export class CacheService {
       try {
         result = await firstValueFrom(this.apiService.getBlocks$(maxHeight));
       } catch (e) {
-        console.log("failed to load blocks: ", e.message);
+        console.log('failed to load blocks: ', e.message);
       }
       if (result && result.length) {
         result.forEach(block => {
@@ -124,6 +124,7 @@ export class CacheService {
   resetBlockCache() {
     this.blockHashCache = {};
     this.blockCache = {};
+    this.apiService.blockAuditLoaded = {};
     this.blockLoading = {};
     this.copiesInBlockQueue = {};
     this.blockPriorities = [];

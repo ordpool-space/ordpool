@@ -1,20 +1,21 @@
 import { ChangeDetectionStrategy, Component, Inject, Input, Output, EventEmitter, LOCALE_ID, NgZone, OnDestroy, OnInit, OnChanges } from '@angular/core';
-import { SeoService } from '../../services/seo.service';
-import { ApiService } from '../../services/api.service';
+import { SeoService } from '@app/services/seo.service';
+import { ApiService } from '@app/services/api.service';
 import { Observable, BehaviorSubject, switchMap, tap, combineLatest } from 'rxjs';
-import { AssetsService } from '../../services/assets.service';
-import { EChartsOption, echarts } from '../../graphs/echarts';
-import { lerpColor } from '../../shared/graphs.utils';
+import { AssetsService } from '@app/services/assets.service';
+import { EChartsOption, echarts } from '@app/graphs/echarts';
+import { lerpColor } from '@app/shared/graphs.utils';
 import { Router } from '@angular/router';
-import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
-import { StateService } from '../../services/state.service';
-import { AmountShortenerPipe } from '../../shared/pipes/amount-shortener.pipe';
-import { getFlagEmoji } from '../../shared/common.utils';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { StateService } from '@app/services/state.service';
+import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
+import { getFlagEmoji } from '@app/shared/common.utils';
 
 @Component({
   selector: 'app-nodes-map',
   templateUrl: './nodes-map.component.html',
   styleUrls: ['./nodes-map.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodesMap implements OnInit, OnChanges {
@@ -164,8 +165,8 @@ export class NodesMap implements OnInit, OnChanges {
         map: 'world',
         roam: true,
         itemStyle: {
-          borderColor: 'black',
-          color: '#272b3f'
+          borderColor: 'var(--world-map-border)',
+          color: 'var(--world-map-bg)',
         },
         scaleLimit: {
           min: 1.3,

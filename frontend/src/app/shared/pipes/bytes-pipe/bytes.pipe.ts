@@ -1,11 +1,12 @@
 /* tslint:disable */
 import { Pipe, PipeTransform } from '@angular/core';
-import { isNumberFinite, isPositive, isInteger, toDecimal, toSigFigs } from './utils';
+import { isNumberFinite, isPositive, isInteger, toDecimal, toSigFigs } from '@app/shared/pipes/bytes-pipe/utils';
 
 export type ByteUnit = 'B' | 'kB' | 'MB' | 'GB' | 'TB';
 
 @Pipe({
-    name: 'bytes'
+    name: 'bytes',
+    standalone: false,
 })
 export class BytesPipe implements PipeTransform {
 
@@ -33,7 +34,7 @@ export class BytesPipe implements PipeTransform {
             unit = BytesPipe.formats[unit].prev!;
         }
 
-        let numberFormat = sigfigs == null ?
+        const numberFormat = sigfigs == null ?
             (number) => toDecimal(number, decimal).toString() :
             (number) => toSigFigs(number, sigfigs);
 

@@ -1,7 +1,9 @@
 .spinner-border {
   height: 25px;
   width: 25px;
-  margin-top: 13px;
+  margin-top: -10px;
+  margin-left: -13px;
+  flex-shrink: 0;
 }
 
 .container-xl {
@@ -37,7 +39,7 @@ tr, td, th {
 }
 
 .clear-link {
-  color: white;
+  color: var(--fg);
 }
 
 .disabled {
@@ -51,13 +53,13 @@ tr, td, th {
 
 .pool {
   width: 17%;
-  @media (max-width: 576px) {
-    width: 34%;
-  }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 160px;
+  @media (max-width: 576px) {
+    width: 34%;
+  }
 }
 .pool.widget {
   width: 40%;
@@ -71,16 +73,6 @@ tr, td, th {
     width: 60%;
   }
 }
-.pool-name {
-  display: inline-block;
-  vertical-align: text-top;
-  padding-left: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;
-}
-
 .height {
   width: 8%;
 }
@@ -136,16 +128,16 @@ tr, td, th {
 .txs {
   padding-right: 20px;
   width: 6%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
   @media (max-width: 1100px) {
     padding-right: 10px;
   }
   @media (max-width: 875px) {
     display: none;
   }
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100px;
 }
 .txs.widget {
   padding-right: 0;
@@ -184,14 +176,14 @@ tr, td, th {
 
 .reward {
   width: 8%;
-  @media (max-width: 576px) {
-    width: 7%;
-    padding-right: 30px;
-  }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 130px;
+  @media (max-width: 576px) {
+    width: 7%;
+    padding-right: 30px;
+  }
 }
 .reward.widget {
   width: 20%;

@@ -1,17 +1,17 @@
 import { ChangeDetectionStrategy, Component, Inject, Input, LOCALE_ID, OnInit, HostBinding, OnChanges, SimpleChanges } from '@angular/core';
-import { echarts, EChartsOption, LineSeriesOption } from '../../graphs/echarts';
+import { echarts, EChartsOption, LineSeriesOption } from '@app/graphs/echarts';
 import { Observable } from 'rxjs';
 import { map, share, startWith, switchMap, tap } from 'rxjs/operators';
 import { formatNumber } from '@angular/common';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
-import { StorageService } from '../../services/storage.service';
-import { MiningService } from '../../services/mining.service';
-import { download } from '../../shared/graphs.utils';
-import { SeoService } from '../../services/seo.service';
-import { LightningApiService } from '../lightning-api.service';
-import { AmountShortenerPipe } from '../../shared/pipes/amount-shortener.pipe';
-import { isMobile } from '../../shared/common.utils';
-import { StateService } from '../../services/state.service';
+import { StorageService } from '@app/services/storage.service';
+import { MiningService } from '@app/services/mining.service';
+import { download } from '@app/shared/graphs.utils';
+import { SeoService } from '@app/services/seo.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
+import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
+import { isMobile } from '@app/shared/common.utils';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-nodes-networks-chart',
@@ -22,9 +22,10 @@ import { StateService } from '../../services/state.service';
       position: absolute;
       top: 50%;
       left: calc(50% - 15px);
-      z-index: 100;
+      z-index: 99;
     }
   `],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodesNetworksChartComponent implements OnInit, OnChanges {
@@ -130,7 +131,7 @@ export class NodesNetworksChartComponent implements OnInit, OnChanges {
           color: 'grey',
           fontSize: 15
         },
-        text: $localize`Indexing in progress`,
+        text: $localize`:@@af1176facd00a0580509fb2900ab0cf7f9b39ae7:Indexing in progress`,
         left: 'center',
         top: 'center',
       };
@@ -299,7 +300,7 @@ export class NodesNetworksChartComponent implements OnInit, OnChanges {
             name: $localize`Darknet Only (Tor, I2P, cjdns)`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -307,7 +308,7 @@ export class NodesNetworksChartComponent implements OnInit, OnChanges {
             name: $localize`Clearnet Only (IPv4, IPv6)`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -315,7 +316,7 @@ export class NodesNetworksChartComponent implements OnInit, OnChanges {
             name: $localize`Clearnet and Darknet`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -323,7 +324,7 @@ export class NodesNetworksChartComponent implements OnInit, OnChanges {
             name: $localize`:@@e5d8bb389c702588877f039d72178f219453a72d:Unknown`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },

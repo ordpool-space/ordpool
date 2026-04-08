@@ -1,20 +1,18 @@
-import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Position } from '../../components/block-overview-graph/sprite-types.js';
-import { Price } from '../../services/price.service';
-import { TransactionStripped } from '../../interfaces/node-api.interface.js';
-import { Filter, FilterMode, TransactionFlags, toFilters } from '../../shared/filters.utils';
-import { Block } from '../../interfaces/electrs.interface.js';
+import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
+import { Position } from '@components/block-overview-graph/sprite-types.js';
+import { Price } from '@app/services/price.service';
+import { TransactionStripped } from '@interfaces/node-api.interface.js';
+import { Filter, FilterMode, TransactionFlags, toFilters } from '@app/shared/filters.utils';
+import { Block } from '@interfaces/electrs.interface.js';
 import { DigitalArtifact, DigitalArtifactAnalyserService } from 'ordpool-parser';
 import { Observable, catchError, of, startWith } from 'rxjs';
-import { DigitalArtifactsFetcherService } from '../../services/ordinals/digital-artifacts-fetcher.service';
-import { inject } from '@angular/core';
-
-// DEBUGGING HINT: Temp. Remove [style.visibility] in template for easier HTML/CSS work
+import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
 
 @Component({
   selector: 'app-block-overview-tooltip',
   templateUrl: './block-overview-tooltip.component.html',
   styleUrls: ['./block-overview-tooltip.component.scss'],
+  standalone: false,
 })
 export class BlockOverviewTooltipComponent implements OnChanges {
   @Input() tx: TransactionStripped | void;
@@ -77,10 +75,10 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       this.effectiveRate = this.tx.rate;
       const txFlags = BigInt(this.tx.flags) || 0n;
       this.acceleration = this.tx.acc || (txFlags & TransactionFlags.acceleration);
-      this.hasEffectiveRate = this.tx.acc || Math.abs((this.fee / this.vsize) - this.effectiveRate) > 0.05
+      this.hasEffectiveRate = this.tx.acc || !(Math.abs((this.fee / this.vsize) - this.effectiveRate) <= 0.1 && Math.abs((this.fee / Math.ceil(this.vsize)) - this.effectiveRate) <= 0.1)
         || (txFlags && (txFlags & (TransactionFlags.cpfp_child | TransactionFlags.cpfp_parent)) > 0n);
       this.filters = this.tx.flags ? toFilters(txFlags).filter(f => f.tooltip) : [];
-      this.activeFilters = {}
+      this.activeFilters = {};
       for (const filter of this.filters) {
         if (this.filterFlags && (this.filterFlags & BigInt(filter.flag))) {
           this.activeFilters[filter.key] = true;

@@ -1,18 +1,19 @@
-import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
-import { ThemeService } from '../../services/theme.service';
+import { ThemeService } from '@app/services/theme.service';
 import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-theme-selector',
   templateUrl: './theme-selector.component.html',
   styleUrls: ['./theme-selector.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ThemeSelectorComponent implements OnInit {
+export class ThemeSelectorComponent implements OnInit, OnDestroy {
   themeForm: UntypedFormGroup;
-  themes = ['default', 'contrast', 'wiz', 'bukele'];
-  themeSubscription: Subscription;
+  themes = ['default', 'contrast', 'softsimon', 'bukele', 'nymkappa'];
+  themeStateSubscription: Subscription;
 
   constructor(
     private formBuilder: UntypedFormBuilder,
@@ -23,21 +24,22 @@ export class ThemeSelectorComponent implements OnInit {
     this.themeForm = this.formBuilder.group({
       theme: ['default']
     });
-    this.themeForm.get('theme')?.setValue(this.themeService.theme);
-    // Subscribe to theme changes because two instances of this component exist
-    this.themeSubscription = this.themeService.themeChanged$.subscribe(() => {
-      if (this.themeForm.get('theme')?.value !== this.themeService.theme){
-        this.themeForm.get('theme')?.setValue(this.themeService.theme);
+    this.themeStateSubscription = this.themeService.themeState$.subscribe(({ theme, loading }) => {
+      this.themeForm.get('theme')?.setValue(theme, { emitEvent: false });
+      if (loading) {
+        this.themeForm.get('theme')?.disable({ emitEvent: false });
+      } else {
+        this.themeForm.get('theme')?.enable({ emitEvent: false });
       }
     });
   }
 
   changeTheme() {
     const newTheme = this.themeForm.get('theme')?.value;
-    this.themeService.apply(newTheme);
+    this.themeService.setTheme(newTheme);
   }
 
   ngOnDestroy() {
-    this.themeSubscription.unsubscribe();
+    this.themeStateSubscription.unsubscribe();
   }
 }

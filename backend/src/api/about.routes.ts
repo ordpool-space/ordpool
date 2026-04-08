@@ -1,7 +1,7 @@
-import { Application } from "express";
-import config from "../config";
-import axios from "axios";
-import logger from "../logger";
+import { Application } from 'express';
+import config from '../config';
+import axios from 'axios';
+import logger from '../logger';
 
 class AboutRoutes {
   public initRoutes(app: Application) {
@@ -70,7 +70,7 @@ class AboutRoutes {
           res.status(500).end();
         }
       })
-      .get(config.MEMPOOL.API_URL_PREFIX + 'services/account/images/:username', async (req, res) => {
+      .get(config.MEMPOOL.API_URL_PREFIX + 'services/account/images/:username/:md5', async (req, res) => {
         const url = `${config.MEMPOOL_SERVICES.API}/${req.originalUrl.replace('/api/v1/services/', '')}`;
         try {
           const response = await axios.get(url, { responseType: 'stream', timeout: 10000 });

@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { map, Observable, of, Subject, Subscription, switchMap, tap, zip } from 'rxjs';
-import { IChannel } from '../../interfaces/node-api.interface';
-import { LightningApiService } from '../lightning-api.service';
-import { Transaction } from '../../interfaces/electrs.interface';
-import { ElectrsApiService } from '../../services/electrs-api.service';
+import { IChannel } from '@interfaces/node-api.interface';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
+import { Transaction } from '@interfaces/electrs.interface';
+import { ElectrsApiService } from '@app/services/electrs-api.service';
 
 @Component({
   selector: 'app-justice-list',
   templateUrl: './justice-list.component.html',
   styleUrls: ['./justice-list.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class JusticeList implements OnInit, OnDestroy {

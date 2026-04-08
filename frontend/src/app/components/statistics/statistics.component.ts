@@ -4,21 +4,22 @@ import { UntypedFormGroup, UntypedFormBuilder } from '@angular/forms';
 import { of, merge} from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
-import { OptimizedMempoolStats } from '../../interfaces/node-api.interface';
-import { WebsocketService } from '../../services/websocket.service';
-import { ApiService } from '../../services/api.service';
+import { OptimizedMempoolStats } from '@interfaces/node-api.interface';
+import { WebsocketService } from '@app/services/websocket.service';
+import { ApiService } from '@app/services/api.service';
 
-import { StateService } from '../../services/state.service';
-import { SeoService } from '../../services/seo.service';
-import { StorageService } from '../../services/storage.service';
-import { feeLevels, chartColors } from '../../app.constants';
-import { MempoolGraphComponent } from '../mempool-graph/mempool-graph.component';
-import { IncomingTransactionsGraphComponent } from '../incoming-transactions-graph/incoming-transactions-graph.component';
+import { StateService } from '@app/services/state.service';
+import { SeoService } from '@app/services/seo.service';
+import { StorageService } from '@app/services/storage.service';
+import { feeLevels, chartColors } from '@app/app.constants';
+import { MempoolGraphComponent } from '@components/mempool-graph/mempool-graph.component';
+import { IncomingTransactionsGraphComponent } from '@components/incoming-transactions-graph/incoming-transactions-graph.component';
 
 @Component({
   selector: 'app-statistics',
   templateUrl: './statistics.component.html',
-  styleUrls: ['./statistics.component.scss']
+  styleUrls: ['./statistics.component.scss'],
+  standalone: false,
 })
 export class StatisticsComponent implements OnInit {
   @ViewChild('mempoolgraph') mempoolGraph: MempoolGraphComponent;
@@ -26,12 +27,11 @@ export class StatisticsComponent implements OnInit {
 
   network = '';
 
-  loading = true;
-  spinnerLoading = false;
+  isLoading = true;
   feeLevels = feeLevels;
   chartColors = chartColors;
   filterSize = 100000;
-  filterFeeIndex = 1;
+  filterFeeIndex = 0;
   showCount = false;
   maxFeeIndex: number;
   dropDownOpen = false;
@@ -90,7 +90,7 @@ export class StatisticsComponent implements OnInit {
     .pipe(
       switchMap(() => {
         this.timespan = this.radioGroupForm.controls.dateSpan.value;
-        this.spinnerLoading = true;
+        this.isLoading = true;
         if (this.radioGroupForm.controls.dateSpan.value === '2h') {
           this.websocketService.want(['blocks', 'live-2h-chart']);
           return this.apiService.list2HStatistics$();
@@ -131,8 +131,7 @@ export class StatisticsComponent implements OnInit {
     .subscribe((mempoolStats: any) => {
       this.mempoolStats = mempoolStats;
       this.handleNewMempoolData(this.mempoolStats.concat([]));
-      this.loading = false;
-      this.spinnerLoading = false;
+      this.isLoading = false;
     });
 
     this.stateService.live2Chart$
@@ -148,7 +147,7 @@ export class StatisticsComponent implements OnInit {
     const labels = mempoolStats.map(stats => stats.added);
 
     let maxTier = 0;
-    for (let index = 37; index > -1; index--) {
+    for (let index = 38; index > -1; index--) {
       mempoolStats.forEach((stats) => {
         if (stats.vsizes[index] >= this.filterSize) {
           maxTier = Math.max(maxTier, index);
@@ -210,7 +209,7 @@ export class StatisticsComponent implements OnInit {
       }
     });
   }
-  
+
   onOutlierToggleChange(e): void {
     this.outlierCappingEnabled = e.target.checked;
     this.storageService.setValue('cap-outliers', e.target.checked);

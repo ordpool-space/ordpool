@@ -1,0 +1,483 @@
+name: CI Pipeline for the Backend and Frontend
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
+    strategy:
+      matrix:
+        node: ["24.13.0"]
+        flavor: ["dev", "prod"]
+      fail-fast: false
+    runs-on: mempool-ci
+
+    name: Backend (${{ matrix.flavor }}) - node ${{ matrix.node }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ${{ matrix.node }}/${{ matrix.flavor }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: "https://registry.npmjs.org"
+          cache: 'npm'
+          cache-dependency-path: '${{ matrix.node }}/${{ matrix.flavor }}/backend/package-lock.json'
+
+      - name: Install npm 11.12.0
+        run: npm install -g npm@11.12.0
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.node }}/${{ matrix.flavor }}/backend/node_modules
+          key: ${{ runner.os }}-backend-${{ matrix.flavor }}-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.node }}/${{ matrix.flavor }}/backend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-${{ matrix.flavor }}-node-${{ matrix.node }}-
+            ${{ runner.os }}-backend-${{ matrix.flavor }}-
+
+      - name: Read rust-toolchain file from repository
+        id: gettoolchain
+        run: echo "::set-output name=toolchain::$(cat ./rust/gbt/rust-toolchain)"
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ${{ matrix.node }}/${{ matrix.flavor }}/rust/gbt/target/
+          key: ${{ runner.os }}-cargo-${{ matrix.flavor }}-${{ hashFiles('${{ matrix.node }}/${{ matrix.flavor }}/rust/gbt/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.flavor }}-
+            ${{ runner.os }}-cargo-
+
+      - name: Install ${{ steps.gettoolchain.outputs.toolchain }} Rust toolchain
+        # Latest version available on this commit is 1.71.1
+        # Commit date is Aug 3, 2023
+        uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561
+        with:
+          toolchain: ${{ steps.gettoolchain.outputs.toolchain }}
+
+      - name: Install
+        if: ${{ matrix.flavor == 'dev'}}
+        run: npm ci
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
+
+      - name: Install (Prod dependencies only)
+        if: ${{ matrix.flavor == 'prod'}}
+        run: npm ci --omit=dev --omit=optional
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
+
+      - name: Lint
+        if: ${{ matrix.flavor == 'dev'}}
+        run: npm run lint
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
+
+      - name: Unit Tests
+        if: ${{ matrix.flavor == 'dev'}}
+        run: npm run test:ci
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
+
+      - name: Build
+        run: npm run build
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
+
+
+  cache:
+    name: "Cache assets for builds"
+    strategy:
+      matrix:
+        node: ["24.13.0"]
+    runs-on: mempool-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: assets
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: "https://registry.npmjs.org"
+          cache: 'npm'
+          cache-dependency-path: 'assets/frontend/package-lock.json'
+
+      - name: Install npm 11.12.0
+        run: npm install -g npm@11.12.0
+
+      - name: Cache node modules for frontend
+        uses: actions/cache@v4
+        with:
+          path: assets/frontend/node_modules
+          key: ${{ runner.os }}-cache-frontend-node-${{ matrix.node }}-${{ hashFiles('assets/frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-cache-frontend-node-${{ matrix.node }}-
+            ${{ runner.os }}-cache-frontend-
+
+      - name: Install (Prod dependencies only)
+        run: npm ci --omit=dev --omit=optional
+        working-directory: assets/frontend
+
+      - name: Restore cached mining pool assets
+        continue-on-error: true
+        id: cache-mining-pool-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            mining-pool-assets.zip
+          key: mining-pool-assets-cache
+
+      - name: Restore promo video assets
+        continue-on-error: true
+        id: cache-promo-video-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            promo-video-assets.zip
+          key: promo-video-assets-cache
+
+      - name: Unzip assets before building (src/resources)
+        continue-on-error: true
+        run: unzip -o mining-pool-assets.zip -d assets/frontend/src/resources/mining-pools
+
+      - name: Unzip assets before building (src/resources)
+        continue-on-error: true
+        run: unzip -o promo-video-assets.zip -d assets/frontend/src/resources/promo-video
+
+      # - name: Unzip assets before building (dist)
+      #   continue-on-error: true
+      #   run: unzip assets.zip -d assets/frontend/dist/mempool/browser/resources
+
+      - name: Sync-assets
+        run: npm run sync-assets-dev
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MEMPOOL_CDN: 1
+          VERBOSE: 1
+        working-directory: assets/frontend
+
+      - name: Zip mining-pool assets
+        run: zip -jrq mining-pool-assets.zip assets/frontend/src/resources/mining-pools/*
+
+      - name: Zip promo-video assets
+        run: zip -jrq promo-video-assets.zip assets/frontend/src/resources/promo-video/*
+
+      - name: Upload mining pool assets as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mining-pool-assets
+          path: mining-pool-assets.zip
+
+      - name: Upload promo video assets as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: promo-video-assets
+          path: promo-video-assets.zip
+
+      - name: Save mining pool assets cache
+        id: cache-mining-pool-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            mining-pool-assets.zip
+          key: mining-pool-assets-cache
+
+      - name: Save promo video assets cache
+        id: cache-promo-video-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            promo-video-assets.zip
+          key: promo-video-assets-cache
+
+  frontend:
+    needs: cache
+    if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
+    strategy:
+      matrix:
+        node: ["24.13.0"]
+        flavor: ["dev", "prod"]
+      fail-fast: false
+    runs-on: mempool-ci
+
+    name: Frontend (${{ matrix.flavor }}) - node ${{ matrix.node }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ${{ matrix.node }}/${{ matrix.flavor }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: "https://registry.npmjs.org"
+          cache: 'npm'
+          cache-dependency-path: '${{ matrix.node }}/${{ matrix.flavor }}/frontend/package-lock.json'
+
+      - name: Install npm 11.12.0
+        run: npm install -g npm@11.12.0
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.node }}/${{ matrix.flavor }}/frontend/node_modules
+          key: ${{ runner.os }}-frontend-${{ matrix.flavor }}-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.node }}/${{ matrix.flavor }}/frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-${{ matrix.flavor }}-node-${{ matrix.node }}-
+            ${{ runner.os }}-frontend-${{ matrix.flavor }}-
+
+      - name: Install (Prod dependencies only)
+        run: npm ci --omit=dev --omit=optional
+        if: ${{ matrix.flavor == 'prod'}}
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/frontend
+
+      - name: Install
+        if: ${{ matrix.flavor == 'dev'}}
+        run: npm ci
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/frontend
+
+      - name: Lint
+        if: ${{ matrix.flavor == 'dev'}}
+        run: npm run lint
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/frontend
+
+      # - name: Test
+      #   run: npm run test
+
+      - name: Restore cached mining pool assets
+        continue-on-error: true
+        id: cache-mining-pool-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            mining-pool-assets.zip
+          key: mining-pool-assets-cache
+
+      - name: Restore promo video assets
+        continue-on-error: true
+        id: cache-promo-video-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            promo-video-assets.zip
+          key: promo-video-assets-cache
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mining-pool-assets
+
+      - name: Unzip assets before building (src/resources)
+        run: unzip -o mining-pool-assets.zip -d ${{ matrix.node }}/${{ matrix.flavor }}/frontend/src/resources/mining-pools
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: promo-video-assets
+
+      - name: Unzip assets before building (src/resources)
+        run: unzip -o promo-video-assets.zip -d ${{ matrix.node }}/${{ matrix.flavor }}/frontend/src/resources/promo-video
+
+      # - name: Unzip assets before building (dist)
+      #   run: unzip assets.zip -d ${{ matrix.node }}/${{ matrix.flavor }}/frontend/dist/mempool/browser/resources
+
+      - name: Display resulting source tree
+        run: ls -R
+
+      - name: Build
+        run: npm run build
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/frontend
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MEMPOOL_CDN: 1
+          VERBOSE: 1
+  
+  e2e:
+    if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
+    runs-on: mempool-ci
+    needs: frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["24.13.0"]
+        module: ["mempool", "liquid", "testnet4"]
+
+    name: E2E tests for ${{ matrix.module }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ${{ matrix.module }}
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+          cache-dependency-path: ${{ matrix.module }}/frontend/package-lock.json
+
+      - name: Install npm 11.12.0
+        run: npm install -g npm@11.12.0
+
+      - name: Cache node modules for e2e
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.module }}/frontend/node_modules
+          key: ${{ runner.os }}-e2e-${{ matrix.module }}-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.module }}/frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-${{ matrix.module }}-node-${{ matrix.node }}-
+            ${{ runner.os }}-e2e-${{ matrix.module }}-
+
+      - name: Restore cached mining pool assets
+        continue-on-error: true
+        id: cache-mining-pool-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            mining-pool-assets.zip
+          key: mining-pool-assets-cache
+  
+      - name: Restore cached promo video assets
+        continue-on-error: true
+        id: cache-promo-video-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            promo-video-assets.zip
+          key: promo-video-assets-cache
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mining-pool-assets
+
+      - name: Unzip assets before building (src/resources)
+        run: unzip -o mining-pool-assets.zip -d ${{ matrix.module }}/frontend/src/resources/mining-pools
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: promo-video-assets
+
+      - name: Unzip assets before building (src/resources)
+        run: unzip -o promo-video-assets.zip -d ${{ matrix.module }}/frontend/src/resources/promo-video
+
+      # mempool
+      - name: Chrome browser tests (${{ matrix.module }})
+        if: ${{ matrix.module == 'mempool' }}
+        uses: cypress-io/github-action@v5
+        with:
+          tag: ${{ github.event_name }}
+          working-directory: ${{ matrix.module }}/frontend
+          build: npm run config:defaults:${{ matrix.module }}
+          start: npm run start:parameterized
+          wait-on: "http://localhost:4200"
+          wait-on-timeout: 120
+          record: true
+          parallel: true
+          spec: |
+            cypress/e2e/mainnet/*.spec.ts
+            cypress/e2e/signet/*.spec.ts
+          group: Tests on Chrome (${{ matrix.module }})
+          browser: "chrome"
+          ci-build-id: "${{ github.sha }}-${{ github.workflow }}-${{ github.event_name }}"
+        env:
+          COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
+
+      # liquid
+      - name: Chrome browser tests (${{ matrix.module }})
+        if: ${{ matrix.module == 'liquid' }}
+        uses: cypress-io/github-action@v5
+        with:
+          tag: ${{ github.event_name }}
+          working-directory: ${{ matrix.module }}/frontend
+          build: npm run config:defaults:${{ matrix.module }}
+          start: npm run start:parameterized
+          wait-on: "http://localhost:4200"
+          wait-on-timeout: 120
+          record: true
+          parallel: true
+          spec: |
+            cypress/e2e/liquid/liquid.spec.ts
+            cypress/e2e/liquidtestnet/liquidtestnet.spec.ts
+          group: Tests on Chrome (${{ matrix.module }})
+          browser: "chrome"
+          ci-build-id: "${{ github.sha }}-${{ github.workflow }}-${{ github.event_name }}"
+        env:
+          COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
+
+      # testnet
+      - name: Chrome browser tests (${{ matrix.module }})
+        if: ${{ matrix.module == 'testnet4' }}
+        uses: cypress-io/github-action@v5
+        with:
+          tag: ${{ github.event_name }}
+          working-directory: ${{ matrix.module }}/frontend
+          build: npm run config:defaults:mempool
+          start: npm run start:parameterized
+          wait-on: "http://localhost:4200"
+          wait-on-timeout: 120
+          record: true
+          parallel: true
+          spec: |
+            cypress/e2e/testnet4/*.spec.ts
+          group: Tests on Chrome (${{ matrix.module }})
+          browser: "chrome"
+          ci-build-id: "${{ github.sha }}-${{ github.workflow }}-${{ github.event_name }}"
+        env:
+          CYPRESS_REROUTE_TESTNET: true
+          COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
+  validate_docker_json:
+    if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
+    runs-on: mempool-ci
+    name: Validate generated backend Docker JSON
+
+    steps: 
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: docker
+      
+      - name: Install jq
+        run: sudo apt-get install jq -y
+
+      - name: Create new start script to run on CI
+        run: |
+          sed '$d' start.sh > start_ci.sh
+        working-directory: docker/docker/backend
+
+      - name: Run the script to generate the sample JSON
+        run: |
+          sh start_ci.sh
+        working-directory: docker/docker/backend
+
+      - name: Validate JSON syntax
+        run: |
+          cat mempool-config.json | jq
+        working-directory: docker/docker/backend

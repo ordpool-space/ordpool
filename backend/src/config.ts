@@ -6,7 +6,7 @@ interface IConfig {
   MEMPOOL: {
     ENABLED: boolean;
     OFFICIAL: boolean;
-    NETWORK: 'mainnet' | 'testnet' | 'signet' | 'liquid' | 'liquidtestnet';
+    NETWORK: 'mainnet' | 'testnet' | 'testnet4' | 'signet' | 'liquid' | 'liquidtestnet' | 'regtest';
     BACKEND: 'esplora' | 'electrum' | 'none';
     HTTP_PORT: number;
     UNIX_SOCKET_PATH: string;
@@ -29,9 +29,10 @@ interface IConfig {
     EXTERNAL_RETRY_INTERVAL: number;
     USER_AGENT: string;
     STDOUT_LOG_MIN_PRIORITY: 'emerg' | 'alert' | 'crit' | 'err' | 'warn' | 'notice' | 'info' | 'debug';
-    AUTOMATIC_BLOCK_REINDEXING: boolean;
+    AUTOMATIC_POOLS_UPDATE: boolean;
     POOLS_JSON_URL: string,
     POOLS_JSON_TREE_URL: string,
+    POOLS_UPDATE_DELAY: number,
     AUDIT: boolean;
     RUST_GBT: boolean;
     LIMIT_GBT: boolean;
@@ -51,6 +52,7 @@ interface IConfig {
     REQUEST_TIMEOUT: number;
     FALLBACK_TIMEOUT: number;
     FALLBACK: string[];
+    MAX_BEHIND_TIP: number;
   };
   LIGHTNING: {
     ENABLED: boolean;
@@ -84,6 +86,7 @@ interface IConfig {
     TIMEOUT: number;
     COOKIE: boolean;
     COOKIE_PATH: string;
+    DEBUG_LOG_PATH: string;
   };
   SECOND_CORE_RPC: {
     HOST: string;
@@ -141,6 +144,8 @@ interface IConfig {
     ENABLED: boolean;
     AUDIT: boolean;
     AUDIT_START_HEIGHT: number;
+    STATISTICS: boolean;
+    STATISTICS_START_TIME: number | string;
     SERVERS: string[];
   },
   MEMPOOL_SERVICES: {
@@ -160,6 +165,15 @@ interface IConfig {
     PAID: boolean;
     API_KEY: string;
   },
+  WALLETS: {
+    ENABLED: boolean;
+    AUTO: boolean;
+    WALLETS: string[];
+  },
+  STRATUM: {
+    ENABLED: boolean;
+    API: string;
+  }
 }
 
 const defaults: IConfig = {
@@ -189,11 +203,12 @@ const defaults: IConfig = {
     'EXTERNAL_RETRY_INTERVAL': 0,
     'USER_AGENT': 'mempool',
     'STDOUT_LOG_MIN_PRIORITY': 'debug',
-    'AUTOMATIC_BLOCK_REINDEXING': false,
+    'AUTOMATIC_POOLS_UPDATE': false,
     'POOLS_JSON_URL': 'https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json',
     'POOLS_JSON_TREE_URL': 'https://api.github.com/repos/mempool/mining-pools/git/trees/master',
+    'POOLS_UPDATE_DELAY': 604800, // in seconds, default is one week
     'AUDIT': false,
-    'RUST_GBT': false,
+    'RUST_GBT': true,
     'LIMIT_GBT': false,
     'CPFP_INDEXING': false,
     'MAX_BLOCKS_BULK_QUERY': 0,
@@ -211,6 +226,7 @@ const defaults: IConfig = {
     'REQUEST_TIMEOUT': 10000,
     'FALLBACK_TIMEOUT': 5000,
     'FALLBACK': [],
+    'MAX_BEHIND_TIP': 2,
   },
   'ELECTRUM': {
     'HOST': '127.0.0.1',
@@ -224,7 +240,8 @@ const defaults: IConfig = {
     'PASSWORD': 'mempool',
     'TIMEOUT': 60000,
     'COOKIE': false,
-    'COOKIE_PATH': '/bitcoin/.cookie'
+    'COOKIE_PATH': '/bitcoin/.cookie',
+    'DEBUG_LOG_PATH': '',
   },
   'SECOND_CORE_RPC': {
     'HOST': '127.0.0.1',
@@ -301,6 +318,8 @@ const defaults: IConfig = {
     'ENABLED': false,
     'AUDIT': false,
     'AUDIT_START_HEIGHT': 774000,
+    'STATISTICS': false,
+    'STATISTICS_START_TIME': 1481932800,
     'SERVERS': [],
   },
   'MEMPOOL_SERVICES': {
@@ -320,6 +339,15 @@ const defaults: IConfig = {
     'PAID': false,
     'API_KEY': '',
   },
+  'WALLETS': {
+    'ENABLED': false,
+    'AUTO': false,
+    'WALLETS': [],
+  },
+  'STRATUM': {
+    'ENABLED': false,
+    'API': 'http://localhost:1234',
+  }
 };
 
 class Config implements IConfig {
@@ -341,6 +369,8 @@ class Config implements IConfig {
   MEMPOOL_SERVICES: IConfig['MEMPOOL_SERVICES'];
   REDIS: IConfig['REDIS'];
   FIAT_PRICE: IConfig['FIAT_PRICE'];
+  WALLETS: IConfig['WALLETS'];
+  STRATUM: IConfig['STRATUM'];
 
   constructor() {
     const configs = this.merge(configFromFile, defaults);
@@ -362,6 +392,8 @@ class Config implements IConfig {
     this.MEMPOOL_SERVICES = configs.MEMPOOL_SERVICES;
     this.REDIS = configs.REDIS;
     this.FIAT_PRICE = configs.FIAT_PRICE;
+    this.WALLETS = configs.WALLETS;
+    this.STRATUM = configs.STRATUM;
   }
 
   merge = (...objects: object[]): IConfig => {
@@ -372,7 +404,7 @@ class Config implements IConfig {
       });
       return next;
     });
-  }
+  };
 }
 
 export default new Config();

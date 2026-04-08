@@ -1,18 +1,19 @@
 import { formatNumber } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Inject, Input, LOCALE_ID, NgZone, OnChanges } from '@angular/core';
 import { Router } from '@angular/router';
-import { EChartsOption, TreemapSeriesOption } from '../../graphs/echarts';
+import { EChartsOption, TreemapSeriesOption } from '@app/graphs/echarts';
 import { Observable, share, switchMap, tap } from 'rxjs';
-import { lerpColor } from '../../shared/graphs.utils';
-import { AmountShortenerPipe } from '../../shared/pipes/amount-shortener.pipe';
-import { LightningApiService } from '../lightning-api.service';
-import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
-import { StateService } from '../../services/state.service';
+import { lerpColor } from '@app/shared/graphs.utils';
+import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-node-channels',
   templateUrl: './node-channels.component.html',
   styleUrls: ['./node-channels.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodeChannels implements OnChanges {
@@ -126,7 +127,7 @@ export class NodeChannels implements OnChanges {
           }
         }
       ]
-    };    
+    };
   }
 
   onChartInit(ec: any): void {

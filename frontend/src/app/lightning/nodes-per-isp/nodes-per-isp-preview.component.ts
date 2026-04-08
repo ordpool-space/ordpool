@@ -1,16 +1,17 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { catchError, map, switchMap, Observable, share, of } from 'rxjs';
-import { ApiService } from '../../services/api.service';
-import { SeoService } from '../../services/seo.service';
-import { OpenGraphService } from '../../services/opengraph.service';
-import { getFlagEmoji } from '../../shared/common.utils';
-import { GeolocationData } from '../../shared/components/geolocation/geolocation.component';
+import { ApiService } from '@app/services/api.service';
+import { SeoService } from '@app/services/seo.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
+import { getFlagEmoji } from '@app/shared/common.utils';
+import { GeolocationData } from '@app/shared/components/geolocation/geolocation.component';
 
 @Component({
   selector: 'app-nodes-per-isp-preview',
   templateUrl: './nodes-per-isp-preview.component.html',
   styleUrls: ['./nodes-per-isp-preview.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodesPerISPPreview implements OnInit {
@@ -18,6 +19,8 @@ export class NodesPerISPPreview implements OnInit {
   isp: {name: string, id: number};
   id: string;
   error: Error;
+
+  ogSession: number;
 
   constructor(
     private apiService: ApiService,
@@ -32,8 +35,8 @@ export class NodesPerISPPreview implements OnInit {
         switchMap((params: ParamMap) => {
           this.id = params.get('isp');
           this.isp = null;
-          this.openGraphService.waitFor('isp-map-' + this.id);
-          this.openGraphService.waitFor('isp-data-' + this.id);
+          this.ogSession = this.openGraphService.waitFor('isp-map-' + this.id);
+          this.ogSession = this.openGraphService.waitFor('isp-data-' + this.id);
           return this.apiService.getNodeForISP$(params.get('isp'));
         }),
         map(response => {
@@ -75,7 +78,7 @@ export class NodesPerISPPreview implements OnInit {
           }
           topCountry.flag = getFlagEmoji(topCountry.iso);
 
-          this.openGraphService.waitOver('isp-data-' + this.id);
+          this.openGraphService.waitOver({ event: 'isp-data-' + this.id, sessionId: this.ogSession });
 
           return {
             nodes: response.nodes,
@@ -87,8 +90,8 @@ export class NodesPerISPPreview implements OnInit {
         catchError(err => {
           this.error = err;
           this.seoService.logSoft404();
-          this.openGraphService.fail('isp-map-' + this.id);
-          this.openGraphService.fail('isp-data-' + this.id);
+          this.openGraphService.fail({ event: 'isp-map-' + this.id, sessionId: this.ogSession });
+          this.openGraphService.fail({ event: 'isp-data-' + this.id, sessionId: this.ogSession });
           return of({
             nodes: [],
             sumLiquidity: 0,
@@ -100,6 +103,6 @@ export class NodesPerISPPreview implements OnInit {
   }
 
   onMapReady() {
-    this.openGraphService.waitOver('isp-map-' + this.id);
+    this.openGraphService.waitOver({ event: 'isp-map-' + this.id, sessionId: this.ogSession });
   }
 }

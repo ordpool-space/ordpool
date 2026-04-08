@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, OnI
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
 import { BehaviorSubject, merge, Observable } from 'rxjs';
 import { map, switchMap, tap } from 'rxjs/operators';
-import { isMobile } from '../../shared/common.utils';
-import { LightningApiService } from '../lightning-api.service';
+import { isMobile } from '@app/shared/common.utils';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 
 @Component({
   selector: 'app-channels-list',
   templateUrl: './channels-list.component.html',
   styleUrls: ['./channels-list.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelsListComponent implements OnInit, OnChanges {
@@ -32,7 +33,7 @@ export class ChannelsListComponent implements OnInit, OnChanges {
   constructor(
     private lightningApiService: LightningApiService,
     private formBuilder: UntypedFormBuilder,
-  ) { 
+  ) {
     this.channelStatusForm = this.formBuilder.group({
       status: [this.defaultStatus],
     });

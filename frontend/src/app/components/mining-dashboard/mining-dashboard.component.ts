@@ -1,18 +1,20 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, HostListener, OnInit } from '@angular/core';
-import { SeoService } from '../../services/seo.service';
-import { OpenGraphService } from '../../services/opengraph.service';
-import { WebsocketService } from '../../services/websocket.service';
-import { StateService } from '../../services/state.service';
+import { SeoService } from '@app/services/seo.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
+import { WebsocketService } from '@app/services/websocket.service';
+import { StateService } from '@app/services/state.service';
 import { EventType, NavigationStart, Router } from '@angular/router';
 
 @Component({
   selector: 'app-mining-dashboard',
   templateUrl: './mining-dashboard.component.html',
   styleUrls: ['./mining-dashboard.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MiningDashboardComponent implements OnInit, AfterViewInit {
-  graphHeight = 375;
+  hashrateGraphHeight = 335;
+  poolGraphHeight = 375;
 
   constructor(
     private seoService: SeoService,
@@ -44,11 +46,14 @@ export class MiningDashboardComponent implements OnInit, AfterViewInit {
   @HostListener('window:resize', ['$event'])
   onResize(): void {
     if (window.innerWidth >= 992) {
-      this.graphHeight = 335;
+      this.hashrateGraphHeight = 335;
+      this.poolGraphHeight = 375;
     } else if (window.innerWidth >= 768) {
-      this.graphHeight = 245;
+      this.hashrateGraphHeight = 245;
+      this.poolGraphHeight = 265;
     } else {
-      this.graphHeight = 240;
+      this.hashrateGraphHeight = 240;
+      this.poolGraphHeight = 240;
     }
   }
 }

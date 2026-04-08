@@ -1,14 +1,14 @@
-import { Env } from '../services/state.service';
+import { Env } from '@app/services/state.service';
 
 // all base58 characters
-const BASE58_CHARS = `[a-km-zA-HJ-NP-Z1-9]`;
+export const BASE58_CHARS = `[a-km-zA-HJ-NP-Z1-9]`;
 
 // all bech32 characters (after the separator)
-const BECH32_CHARS_LW = `[ac-hj-np-z02-9]`;
+export const BECH32_CHARS_LW = `[ac-hj-np-z02-9]`;
 const BECH32_CHARS_UP = `[AC-HJ-NP-Z02-9]`;
 
 // Hex characters
-const HEX_CHARS = `[a-fA-F0-9]`;
+export const HEX_CHARS = `[a-fA-F0-9]`;
 
 // A regex to say "A single 0 OR any number with no leading zeroes"
 // Capped at 9 digits so as to not be confused with lightning channel IDs (which are around 17 digits)
@@ -41,11 +41,11 @@ const ADDRESS_CHARS: {
     bech32: `(?:`
         + `bc1` // Starts with bc1
         + BECH32_CHARS_LW
-        + `{20,100}` // As per bech32, 6 char checksum is minimum
+        + `{6,100}` // As per bech32, 6 char checksum is minimum
       + `|`
         + `BC1` // All upper case version
         + BECH32_CHARS_UP
-        + `{20,100}`
+        + `{6,100}`
       + `)`,
   },
   testnet: {
@@ -55,11 +55,11 @@ const ADDRESS_CHARS: {
     bech32: `(?:`
         + `tb1` // Starts with tb1
         + BECH32_CHARS_LW
-        + `{20,100}` // As per bech32, 6 char checksum is minimum
+        + `{6,100}` // As per bech32, 6 char checksum is minimum
       + `|`
         + `TB1` // All upper case version
         + BECH32_CHARS_UP
-        + `{20,100}`
+        + `{6,100}`
       + `)`,
   },
   testnet4: {
@@ -69,11 +69,11 @@ const ADDRESS_CHARS: {
     bech32: `(?:`
         + `tb1` // Starts with tb1
         + BECH32_CHARS_LW
-        + `{20,100}` // As per bech32, 6 char checksum is minimum
+        + `{6,100}` // As per bech32, 6 char checksum is minimum
       + `|`
         + `TB1` // All upper case version
         + BECH32_CHARS_UP
-        + `{20,100}`
+        + `{6,100}`
       + `)`,
   },
   signet: {
@@ -83,11 +83,25 @@ const ADDRESS_CHARS: {
     bech32: `(?:`
         + `tb1` // Starts with tb1
         + BECH32_CHARS_LW
-        + `{20,100}`
+        + `{6,100}`
       + `|`
         + `TB1` // All upper case version
         + BECH32_CHARS_UP
-        + `{20,100}`
+        + `{6,100}`
+      + `)`,
+  },
+  regtest: {
+    base58: `[mn2]` // Same as testnet
+      + BASE58_CHARS
+      + `{33,34}`,
+    bech32: `(?:`
+        + `bcrt1` // Starts with bcrt1
+        + BECH32_CHARS_LW
+        + `{6,100}`
+      + `|`
+        + `BCRT1` // All upper case version
+        + BECH32_CHARS_UP
+        + `{6,100}`
       + `)`,
   },
   liquid: {
@@ -97,7 +111,7 @@ const ADDRESS_CHARS: {
       + `|`
         + `[V][TJ]` // Confidential P2PKH or P2SH starts with VT or VJ
         + BASE58_CHARS
-        + `{78}`, 
+        + `{78}`,
     bech32: `(?:`
         + `(?:` // bech32 liquid starts with ex1 (unconfidential) or lq1 (confidential)
           + `ex1`
@@ -105,7 +119,7 @@ const ADDRESS_CHARS: {
           + `lq1`
         + `)`
         + BECH32_CHARS_LW // blech32 and bech32 are the same alphabet and protocol, different checksums.
-        + `{20,100}`
+        + `{6,100}`
       + `|`
         + `(?:` // Same as above but all upper case
           + `EX1`
@@ -113,7 +127,7 @@ const ADDRESS_CHARS: {
           + `LQ1`
         + `)`
         + BECH32_CHARS_UP
-        + `{20,100}`
+        + `{6,100}`
       + `)`,
   },
   liquidtestnet: {
@@ -127,7 +141,7 @@ const ADDRESS_CHARS: {
           + `tlq1` // TODO: does this exist?
         + `)`
         + BECH32_CHARS_LW // blech32 and bech32 are the same alphabet and protocol, different checksums.
-        + `{20,100}`
+        + `{6,100}`
       + `|`
         + `(?:` // Same as above but all upper case
           + `TEX1`
@@ -135,18 +149,18 @@ const ADDRESS_CHARS: {
           + `TLQ1`
         + `)`
         + BECH32_CHARS_UP
-        + `{20,100}`
+        + `{6,100}`
       + `)`,
   },
-}
+};
 type RegexTypeNoAddrNoBlockHash = | `transaction` | `blockheight` | `date` | `timestamp`;
 export type RegexType = `address` | `blockhash` | RegexTypeNoAddrNoBlockHash;
 
-export const NETWORKS = [`testnet`, `testnet4`, `signet`, `liquid`, `liquidtestnet`, `mainnet`] as const;
+export const NETWORKS = [`mainnet`, `testnet4`, `testnet`, `signet`, `regtest`, `liquid`, `liquidtestnet`] as const;
 export type Network = typeof NETWORKS[number]; // Turn const array into union type
 
 export const ADDRESS_REGEXES: [RegExp, Network][] = NETWORKS
-  .map(network => [getRegex('address', network), network])
+  .map(network => [getRegex('address', network), network]);
 
 export function findOtherNetworks(address: string, skipNetwork: Network, env: Env): { network: Network, address: string, isNetworkAvailable: boolean }[] {
   return ADDRESS_REGEXES
@@ -162,6 +176,8 @@ function isNetworkAvailable(network: Network, env: Env): boolean {
       return env.TESTNET4_ENABLED === true;
     case 'signet':
       return env.SIGNET_ENABLED === true;
+    case 'regtest':
+      return env.REGTEST_ENABLED === true;
     case 'liquid':
       return env.LIQUID_ENABLED === true;
     case 'liquidtestnet':
@@ -174,9 +190,9 @@ function isNetworkAvailable(network: Network, env: Env): boolean {
 }
 
 export function needBaseModuleChange(fromBaseModule: 'mempool' | 'liquid', toNetwork: Network): boolean {
-  if (!toNetwork) return false; // No target network means no change needed
+  if (!toNetwork) {return false;} // No target network means no change needed
   if (fromBaseModule === 'mempool') {
-    return toNetwork !== 'mainnet' && toNetwork !== 'testnet' && toNetwork !== 'testnet4' && toNetwork !== 'signet';
+    return toNetwork !== 'mainnet' && toNetwork !== 'testnet' && toNetwork !== 'testnet4' && toNetwork !== 'signet' && toNetwork !== 'regtest';
   }
   if (fromBaseModule === 'liquid') {
     return toNetwork !== 'liquid' && toNetwork !== 'liquidtestnet';
@@ -191,7 +207,7 @@ export function getTargetUrl(toNetwork: Network, address: string, env: Env): str
     targetUrl += '/address/';
     targetUrl += address;
   }
-  if (toNetwork === 'mainnet' || toNetwork === 'testnet' || toNetwork === 'testnet4' || toNetwork === 'signet') {
+  if (toNetwork === 'mainnet' || toNetwork === 'testnet' || toNetwork === 'testnet4' || toNetwork === 'signet' || toNetwork === 'regtest') {
     targetUrl = env.MEMPOOL_WEBSITE_URL;
     targetUrl += (toNetwork === 'mainnet' ? '' : `/${toNetwork}`);
     targetUrl += '/address/';
@@ -230,6 +246,9 @@ export function getRegex(type: RegexType, network?: Network): RegExp {
           break;
         case `signet`:
           leadingZeroes = 5;
+          break;
+        case `regtest`:
+          leadingZeroes = 1; // Regtest has very low difficulty
           break;
         case `liquid`:
           leadingZeroes = 8; // We are not interested in Liquid block hashes
@@ -298,6 +317,15 @@ export function getRegex(type: RegexType, network?: Network): RegExp {
           regex += `|`; // OR
           regex += `(?:02|03)${HEX_CHARS}{64}`; // Compressed pubkey
           break;
+        case `regtest`:
+          regex += ADDRESS_CHARS.regtest.base58;
+          regex += `|`; // OR
+          regex += ADDRESS_CHARS.regtest.bech32;
+          regex += `|`; // OR
+          regex += `04${HEX_CHARS}{128}`; // Uncompressed pubkey
+          regex += `|`; // OR
+          regex += `(?:02|03)${HEX_CHARS}{64}`; // Compressed pubkey
+          break;
         case `liquid`:
           regex += ADDRESS_CHARS.liquid.base58;
           regex += `|`; // OR
@@ -313,20 +341,24 @@ export function getRegex(type: RegexType, network?: Network): RegExp {
       }
       regex += `)`; // End the non-capturing group
       break;
-    // Match a date in the format YYYY-MM-DD (optional: HH:MM)
+    // Match a date in the format YYYY-MM-DD (optional: HH:MM or HH:MM:SS)
     // [Testing Order]: any order is fine
     case `date`:
       regex += `(?:`;                  // Start a non-capturing group
       regex += `${NUMBER_CHARS}{4}`;   // Exactly 4 digits
       regex += `[-/]`;                 // 1 instance of the symbol "-" or "/"
-      regex += `${NUMBER_CHARS}{1,2}`; // Exactly 4 digits
+      regex += `${NUMBER_CHARS}{1,2}`; // 1 or 2 digits
       regex += `[-/]`;                 // 1 instance of the symbol "-" or "/"
-      regex += `${NUMBER_CHARS}{1,2}`; // Exactly 4 digits
+      regex += `${NUMBER_CHARS}{1,2}`; // 1 or 2 digits
       regex += `(?:`;                  // Start a non-capturing group
       regex += ` `;                    // 1 instance of the symbol " "
-      regex += `${NUMBER_CHARS}{1,2}`; // Exactly 4 digits
+      regex += `${NUMBER_CHARS}{1,2}`; // 1 or 2 digits
       regex += `:`;                    // 1 instance of the symbol ":"
-      regex += `${NUMBER_CHARS}{1,2}`; // Exactly 4 digits
+      regex += `${NUMBER_CHARS}{1,2}`; // 1 or 2 digits
+      regex += `(?:`;                  // Start a non-capturing group for optional seconds
+      regex += `:`;                    // 1 instance of the symbol ":"
+      regex += `${NUMBER_CHARS}{1,2}`; // 1 or 2 digits
+      regex += `)?`;                   // End the non-capturing group
       regex += `)?`;                   // End the non-capturing group. This group appears 0 or 1 times
       regex += `)`;                    // End the non-capturing group
       break;

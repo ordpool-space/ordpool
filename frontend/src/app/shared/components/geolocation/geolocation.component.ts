@@ -1,5 +1,5 @@
 import { Component, Input, OnChanges } from '@angular/core';
-import { convertRegion, getFlagEmoji } from '../../common.utils';
+import { convertRegion, getFlagEmoji } from '@app/shared/common.utils';
 
 export interface GeolocationData {
   country: string;
@@ -11,7 +11,8 @@ export interface GeolocationData {
 @Component({
   selector: 'app-geolocation',
   templateUrl: './geolocation.component.html',
-  styleUrls: ['./geolocation.component.scss']
+  styleUrls: ['./geolocation.component.scss'],
+  standalone: false,
 })
 export class GeolocationComponent implements OnChanges {
   @Input() data: GeolocationData;
@@ -66,9 +67,15 @@ export class GeolocationComponent implements OnChanges {
         }
       }
     }
-    
+
     if (this.type === 'node') {
       const city = this.data.city ? this.data.city : '';
+
+      // Handle city-states like Singapore or Hong Kong
+      if (city && city === this.data?.country) {
+        this.formattedLocation = `${this.data.country} ${getFlagEmoji(this.data.iso)}`;
+        return;
+      }
 
       // City
       this.formattedLocation = `${city}`;

@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { DocsComponent } from './docs/docs.component';
+import { DocsComponent } from '@app/docs/docs/docs.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -52,7 +52,7 @@ if (browserWindowEnv.BASE_MODULE && browserWindowEnv.BASE_MODULE === 'liquid') {
     },
     {
       path: '**',
-      redirectTo: 'api/faq'
+      redirectTo: 'faq'
     }
   ];
 }

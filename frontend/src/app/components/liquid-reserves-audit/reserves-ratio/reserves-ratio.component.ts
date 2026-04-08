@@ -1,17 +1,19 @@
 import { Component, ChangeDetectionStrategy, Input, OnChanges, OnInit, HostListener } from '@angular/core';
-import { EChartsOption } from '../../../graphs/echarts';
-import { CurrentPegs } from '../../../interfaces/node-api.interface';
+import { EChartsOption } from '@app/graphs/echarts';
+import { CurrentPegs } from '@interfaces/node-api.interface';
 
 
 @Component({
   selector: 'app-reserves-ratio',
   templateUrl: './reserves-ratio.component.html',
   styleUrls: ['./reserves-ratio.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReservesRatioComponent implements OnInit, OnChanges {
   @Input() currentPeg: CurrentPegs;
   @Input() currentReserves: CurrentPegs;
+  @Input() auditInProgress = false;
   ratioChartOptions: EChartsOption;
 
   height: number | string = '200';
@@ -102,9 +104,9 @@ export class ReservesRatioComponent implements OnInit, OnChanges {
             }
           },
           axisLabel: {
-            color: 'inherit',        
-            fontFamily: 'inherit',  
-            fontSize: axisFontSize,  
+            color: 'inherit',
+            fontFamily: 'inherit',
+            fontSize: axisFontSize,
             formatter: function (value) {
               if (value === 0.999) {
                 return hideMinAxisLabels ? '' : '99.9%';

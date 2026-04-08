@@ -1,14 +1,15 @@
 import { Component, OnInit } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
 import { map, Observable, share } from 'rxjs';
-import { SeoService } from '../../services/seo.service';
-import { GeolocationData } from '../../shared/components/geolocation/geolocation.component';
-import { LightningApiService } from '../lightning-api.service';
+import { SeoService } from '@app/services/seo.service';
+import { GeolocationData } from '@app/shared/components/geolocation/geolocation.component';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 
 @Component({
   selector: 'app-group',
   templateUrl: './group.component.html',
-  styleUrls: ['./group.component.scss']
+  styleUrls: ['./group.component.scss'],
+  standalone: false,
 })
 export class GroupComponent implements OnInit {
   nodes$: Observable<any>;
@@ -80,9 +81,15 @@ export class GroupComponent implements OnInit {
               };
             }
           }
+
+          nodes.map((node) => {
+            node.channels = node.opened_channel_count;
+            return node;
+          });
+
           const sumLiquidity = nodes.reduce((partialSum, a) => partialSum + parseInt(a.capacity, 10), 0);
           const sumChannels = nodes.reduce((partialSum, a) => partialSum + a.opened_channel_count, 0);
-          
+
           return {
             nodes: nodes,
             sumLiquidity: sumLiquidity,

@@ -1,11 +1,12 @@
 /* tslint:disable */
 import { Pipe, PipeTransform } from '@angular/core';
-import { isNumberFinite, isPositive, isInteger, toDecimal } from './utils';
+import { isNumberFinite, isPositive, isInteger, toDecimal } from '@app/shared/pipes/bytes-pipe/utils';
 
 export type ByteUnit = 'WU' | 'kWU' | 'MWU' | 'GWU' | 'TWU';
 
 @Pipe({
-    name: 'wuBytes'
+    name: 'wuBytes',
+    standalone: false,
 })
 export class WuBytesPipe implements PipeTransform {
 

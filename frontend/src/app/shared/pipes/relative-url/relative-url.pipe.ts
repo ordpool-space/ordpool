@@ -1,8 +1,9 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import { StateService } from '../../../services/state.service';
+import { StateService } from '@app/services/state.service';
 
 @Pipe({
-  name: 'relativeUrl'
+  name: 'relativeUrl',
+  standalone: false,
 })
 export class RelativeUrlPipe implements PipeTransform {
 
@@ -12,7 +13,9 @@ export class RelativeUrlPipe implements PipeTransform {
 
   transform(value: string, swapNetwork?: string): string {
     let network = swapNetwork || this.stateService.network;
-    if (network === 'mainnet') network = '';
+    if (network === 'mainnet' || network === this.stateService.env.ROOT_NETWORK) {
+      network = '';
+    }
     if (this.stateService.env.BASE_MODULE === 'liquid' && network === 'liquidtestnet') {
       network = 'testnet';
     } else if (this.stateService.env.BASE_MODULE !== 'mempool') {

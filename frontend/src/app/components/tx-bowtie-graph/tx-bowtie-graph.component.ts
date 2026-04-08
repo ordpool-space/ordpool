@@ -1,14 +1,14 @@
 import { Component, OnInit, Input, OnChanges, HostListener, Inject, LOCALE_ID } from '@angular/core';
-import { StateService } from '../../services/state.service';
-import { Outspend, Transaction, Vin, Vout } from '../../interfaces/electrs.interface';
+import { StateService } from '@app/services/state.service';
+import { Outspend, Transaction, Vin, Vout } from '@interfaces/electrs.interface';
 import { Router } from '@angular/router';
 import { ReplaySubject, merge, Subscription, of } from 'rxjs';
 import { tap, switchMap } from 'rxjs/operators';
-import { ApiService } from '../../services/api.service';
-import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
-import { AssetsService } from '../../services/assets.service';
-import { environment } from '../../../environments/environment';
-import { ElectrsApiService } from '../../services/electrs-api.service';
+import { ApiService } from '@app/services/api.service';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { AssetsService } from '@app/services/assets.service';
+import { environment } from '@environments/environment';
+import { ElectrsApiService } from '@app/services/electrs-api.service';
 
 interface SvgLine {
   path: string;
@@ -42,6 +42,7 @@ interface Xput {
   selector: 'tx-bowtie-graph',
   templateUrl: './tx-bowtie-graph.component.html',
   styleUrls: ['./tx-bowtie-graph.component.scss'],
+  standalone: false,
 })
 export class TxBowtieGraphComponent implements OnInit, OnChanges {
   @Input() tx: Transaction;
@@ -94,6 +95,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
     testnet4: ['#4edf77', '#10a0af', '#4edf7700'],
     // signet: ['#6f1d5d', '#471850'],
     signet: ['#d24fc8', '#a84fd2', '#d24fc800'],
+    regtest: ['var(--regtest)', 'var(--regtest-alt)', '#7d7d7d00'],
   };
 
   gradient: string[] = ['var(--primary)', 'var(--primary)'];
@@ -238,7 +240,7 @@ export class TxBowtieGraphComponent implements OnInit, OnChanges {
   }
 
   calcTotalValue(tx: Transaction): number {
-    let totalOutput = this.tx.vout.reduce((acc, v) => (this.getOutputValue(v) || 0) + acc, 0);
+    const totalOutput = this.tx.vout.reduce((acc, v) => (this.getOutputValue(v) || 0) + acc, 0);
     // simple sum of outputs + fee for bitcoin
     if (!this.isLiquid) {
       return this.tx.fee ? totalOutput + this.tx.fee : totalOutput;

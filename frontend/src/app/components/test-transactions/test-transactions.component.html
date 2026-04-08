@@ -1,5 +1,8 @@
 <div class="container-xl">
-  <h1 class="text-left" i18n="shared.test-transactions|Test Transactions">Test Transactions</h1>
+  <div style="display: flex; width: 100%; align-items: center; flex-wrap: wrap;">
+    <h1 class="text-start" i18n="shared.test-transactions|Test Transactions">Test Transactions</h1>
+    <app-svg-images name="blocks-3-2" style="width: 275px; max-width: 90%; margin-top: -9px"></app-svg-images>
+  </div>
 
   <form [formGroup]="testTxsForm" (submit)="testTxsForm.valid && testTxs()" novalidate>
     <label for="maxfeerate" i18n="test.tx.raw-hex">Raw hex</label>
@@ -10,7 +13,7 @@
     <input type="number" class="form-control input-dark" formControlName="maxfeerate" id="maxfeerate"
         [value]="10000" placeholder="10,000 s/vb" [class]="{invalid: invalidMaxfeerate}">
     <br>
-    <button [disabled]="isLoading" type="submit" class="btn btn-primary mr-2" i18n="shared.test-transactions|Test Transactions">Test Transactions</button>
+    <button [disabled]="isLoading" type="submit" class="btn btn-primary me-2" i18n="shared.test-transactions|Test Transactions">Test Transactions</button>
     <p class="red-color d-inline">{{ error }}</p>
   </form>
 

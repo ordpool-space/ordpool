@@ -2,15 +2,16 @@ import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { Observable, of, zip } from 'rxjs';
 import { catchError, map, shareReplay, switchMap, tap } from 'rxjs/operators';
-import { IChannel } from '../../interfaces/node-api.interface';
-import { ElectrsApiService } from '../../services/electrs-api.service';
-import { SeoService } from '../../services/seo.service';
-import { LightningApiService } from '../lightning-api.service';
+import { IChannel } from '@interfaces/node-api.interface';
+import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { SeoService } from '@app/services/seo.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 
 @Component({
   selector: 'app-channel',
   templateUrl: './channel.component.html',
   styleUrls: ['./channel.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelComponent implements OnInit {
@@ -83,7 +84,7 @@ export class ChannelComponent implements OnInit {
   }
 
   showCloseBoxes(channel: IChannel): boolean {
-    return !!(channel.node_left.funding_balance || channel.node_left.closing_balance 
+    return !!(channel.node_left.funding_balance || channel.node_left.closing_balance
       || channel.node_right.funding_balance || channel.node_right.closing_balance);
   }
 

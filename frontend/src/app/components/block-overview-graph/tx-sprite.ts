@@ -1,6 +1,6 @@
-import { FastVertexArray } from './fast-vertex-array';
-import { InterpolatedAttribute, Attributes, OptionalAttributes, SpriteUpdateParams, Update } from './sprite-types';
-import { ordpoolColors } from './utils';
+import { FastVertexArray } from '@components/block-overview-graph/fast-vertex-array';
+import { InterpolatedAttribute, Attributes, OptionalAttributes, SpriteUpdateParams, Update } from '@components/block-overview-graph/sprite-types';
+import { ordpoolColors } from '@components/block-overview-graph/utils';
 
 const attribKeys = ['a', 'b', 't', 'v'];
 const updateKeys = ['x', 'y', 's', 'r', 'g', 'b', 'a'];
@@ -147,9 +147,8 @@ export default class TxSprite {
         ...this.tempAttributes
       };
     }
-    
     //const size = attributes.s;
-  
+
     // HACK -- special sprite for CAT-21 transactions (2/3)
 
     // update vertex data in place
@@ -206,27 +205,13 @@ function interpolateAttributeStart(attribute: InterpolatedAttribute, start: DOMH
   }
 }
 
-/*
-
-(0,1) *-------------* (1,1)
-      |           / |
-      |   2.    /   |
-      |       /     |
-      |     /       |
-      |   /   1.    |
-      | /           |
-(0,0) *-------------* (1,0)
-
-*/
-
 const vertexOffsetFactors = [
-  [0, 0], // Bottom-left corner of the first triangle
-  [1, 1], // Top-right corner of the first triangle
-  [1, 0], // Bottom-right corner of the first triangle
-
-  [0, 0], // Bottom-left corner for the second triangle
-  [1, 1], // Top-right corner for the second triangle
-  [0, 1]  // Top-left corner of the second triangle
+  [0, 0],
+  [1, 1],
+  [1, 0],
+  [0, 0],
+  [1, 1],
+  [0, 1]
 ];
 
 // HACK -- special sprite for CAT-21 transactions (3/3)
