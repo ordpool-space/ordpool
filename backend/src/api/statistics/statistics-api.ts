@@ -16,6 +16,7 @@ class StatisticsApi {
               fee_data,
               total_fee,
               min_fee,
+              vsize_0,
               vsize_1,
               vsize_2,
               vsize_3,
@@ -55,7 +56,7 @@ class StatisticsApi {
               vsize_1800,
               vsize_2000
             )
-            VALUES (NOW(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            VALUES (NOW(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)`;
       const [result]: any = await DB.query(query);
       return result.insertId;
@@ -64,7 +65,7 @@ class StatisticsApi {
     }
   }
 
-  public async $create(statistics: Statistic): Promise<number | undefined> {
+  public async $create(statistics: Statistic, convertToDatetime = false): Promise<number | undefined> {
     try {
       const query = `INSERT INTO statistics(
               added,
@@ -75,6 +76,7 @@ class StatisticsApi {
               fee_data,
               total_fee,
               min_fee,
+              vsize_0,
               vsize_1,
               vsize_2,
               vsize_3,
@@ -114,8 +116,8 @@ class StatisticsApi {
               vsize_1800,
               vsize_2000
             )
-            VALUES (${statistics.added}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            VALUES (${convertToDatetime ? `FROM_UNIXTIME(${statistics.added})` : statistics.added}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
       const params: (string | number)[] = [
         statistics.unconfirmed_transactions,
@@ -125,6 +127,7 @@ class StatisticsApi {
         statistics.fee_data,
         statistics.total_fee,
         statistics.min_fee,
+        statistics.vsize_0,
         statistics.vsize_1,
         statistics.vsize_2,
         statistics.vsize_3,
@@ -177,6 +180,7 @@ class StatisticsApi {
       CAST(avg(unconfirmed_transactions) as DOUBLE) as unconfirmed_transactions,
       CAST(avg(vbytes_per_second) as DOUBLE) as vbytes_per_second,
       CAST(avg(min_fee) as DOUBLE) as min_fee,
+      CAST(avg(vsize_0) as DOUBLE) as vsize_0,
       CAST(avg(vsize_1) as DOUBLE) as vsize_1,
       CAST(avg(vsize_2) as DOUBLE) as vsize_2,
       CAST(avg(vsize_3) as DOUBLE) as vsize_3,
@@ -227,6 +231,7 @@ class StatisticsApi {
       CAST(avg(unconfirmed_transactions) as DOUBLE) as unconfirmed_transactions,
       CAST(avg(vbytes_per_second) as DOUBLE) as vbytes_per_second,
       CAST(avg(min_fee) as DOUBLE) as min_fee,
+      vsize_0,
       vsize_1,
       vsize_2,
       vsize_3,
@@ -414,6 +419,7 @@ class StatisticsApi {
         total_fee: s.total_fee,
         min_fee: s.min_fee,
         vsizes: [
+          s.vsize_0,
           s.vsize_1,
           s.vsize_2,
           s.vsize_3,
@@ -453,6 +459,61 @@ class StatisticsApi {
           s.vsize_1800,
           s.vsize_2000,
         ]
+      };
+    });
+  }
+
+  public mapOptimizedStatisticToStatistic(statistic: OptimizedStatistic[]): Statistic[] {
+    return statistic.map((s) => {
+      const completeVsizes = s.vsizes.length === 37 ? [0, ...s.vsizes] : s.vsizes;
+      return {
+        added: s.added,
+        unconfirmed_transactions: s.count,
+        tx_per_second: 0,
+        vbytes_per_second: s.vbytes_per_second,
+        mempool_byte_weight: s.mempool_byte_weight || 0,
+        total_fee: s.total_fee || 0,
+        min_fee: s.min_fee,
+        fee_data: '',
+        vsize_0: completeVsizes[0],
+        vsize_1: completeVsizes[1],
+        vsize_2: completeVsizes[2],
+        vsize_3: completeVsizes[3],
+        vsize_4: completeVsizes[4],
+        vsize_5: completeVsizes[5],
+        vsize_6: completeVsizes[6],
+        vsize_8: completeVsizes[7],
+        vsize_10: completeVsizes[8],
+        vsize_12: completeVsizes[9],
+        vsize_15: completeVsizes[10],
+        vsize_20: completeVsizes[11],
+        vsize_30: completeVsizes[12],
+        vsize_40: completeVsizes[13],
+        vsize_50: completeVsizes[14],
+        vsize_60: completeVsizes[15],
+        vsize_70: completeVsizes[16],
+        vsize_80: completeVsizes[17],
+        vsize_90: completeVsizes[18],
+        vsize_100: completeVsizes[19],
+        vsize_125: completeVsizes[20],
+        vsize_150: completeVsizes[21],
+        vsize_175: completeVsizes[22],
+        vsize_200: completeVsizes[23],
+        vsize_250: completeVsizes[24],
+        vsize_300: completeVsizes[25],
+        vsize_350: completeVsizes[26],
+        vsize_400: completeVsizes[27],
+        vsize_500: completeVsizes[28],
+        vsize_600: completeVsizes[29],
+        vsize_700: completeVsizes[30],
+        vsize_800: completeVsizes[31],
+        vsize_900: completeVsizes[32],
+        vsize_1000: completeVsizes[33],
+        vsize_1200: completeVsizes[34],
+        vsize_1400: completeVsizes[35],
+        vsize_1600: completeVsizes[36],
+        vsize_1800: completeVsizes[37],
+        vsize_2000: completeVsizes[38],
       };
     });
   }

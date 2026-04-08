@@ -23,7 +23,7 @@ describe('Mempool Backend Config', () => {
         UNIX_SOCKET_PATH: '',
         SPAWN_CLUSTER_PROCS: 0,
         API_URL_PREFIX: '/api/v1/',
-        AUTOMATIC_BLOCK_REINDEXING: false,
+        AUTOMATIC_POOLS_UPDATE: false,
         POLL_RATE_MS: 2000,
         CACHE_DIR: './cache',
         CACHE_ENABLED: true,
@@ -41,8 +41,9 @@ describe('Mempool Backend Config', () => {
         STDOUT_LOG_MIN_PRIORITY: 'debug',
         POOLS_JSON_TREE_URL: 'https://api.github.com/repos/mempool/mining-pools/git/trees/master',
         POOLS_JSON_URL: 'https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json',
+        POOLS_UPDATE_DELAY: 604800,
         AUDIT: false,
-        RUST_GBT: false,
+        RUST_GBT: true,
         LIMIT_GBT: false,
         CPFP_INDEXING: false,
         MAX_BLOCKS_BULK_QUERY: 0,
@@ -50,7 +51,7 @@ describe('Mempool Backend Config', () => {
         MAX_PUSH_TX_SIZE_WEIGHT: 400000,
         ALLOW_UNREACHABLE: true,
         PRICE_UPDATES_PER_HOUR: 1,
-        MAX_TRACKED_ADDRESSES: 1,
+        MAX_TRACKED_ADDRESSES: 1
       });
 
       expect(config.ELECTRUM).toStrictEqual({ HOST: '127.0.0.1', PORT: 3306, TLS_ENABLED: true });
@@ -63,6 +64,7 @@ describe('Mempool Backend Config', () => {
         REQUEST_TIMEOUT: 10000,
         FALLBACK_TIMEOUT: 5000,
         FALLBACK: [],
+        MAX_BEHIND_TIP: 2,
        });
 
       expect(config.CORE_RPC).toStrictEqual({
@@ -72,7 +74,8 @@ describe('Mempool Backend Config', () => {
         PASSWORD: 'mempool',
         TIMEOUT: 60000,
         COOKIE: false,
-        COOKIE_PATH: '/bitcoin/.cookie'
+        COOKIE_PATH: '/bitcoin/.cookie',
+        DEBUG_LOG_PATH: '',
       });
 
       expect(config.SECOND_CORE_RPC).toStrictEqual({
@@ -135,11 +138,13 @@ describe('Mempool Backend Config', () => {
         ENABLED: false,
         AUDIT: false,
         AUDIT_START_HEIGHT: 774000,
+        STATISTICS: false,
+        STATISTICS_START_TIME: 1481932800,
         SERVERS: []
       });
 
       expect(config.MEMPOOL_SERVICES).toStrictEqual({
-        API: "",
+        API: '',
         ACCELERATIONS: false,
       });
 
@@ -157,6 +162,11 @@ describe('Mempool Backend Config', () => {
         ENABLED: true,
         PAID: false,
         API_KEY: '',
+      });
+
+      expect(config.STRATUM).toStrictEqual({
+        ENABLED: false,
+        API: 'http://localhost:1234',
       });
     });
   });

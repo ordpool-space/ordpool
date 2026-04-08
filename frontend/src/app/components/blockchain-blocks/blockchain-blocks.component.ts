@@ -1,11 +1,10 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { Observable, Subscription, delay, filter, tap } from 'rxjs';
-import { StateService } from '../../services/state.service';
-import { specialBlocks } from '../../app.constants';
-import { BlockExtended } from '../../interfaces/node-api.interface';
+import { StateService } from '@app/services/state.service';
+import { specialBlocks } from '@app/app.constants';
+import { BlockExtended } from '@interfaces/node-api.interface';
 import { Location } from '@angular/common';
-import { CacheService } from '../../services/cache.service';
-import { getFirstInscriptionHeight } from 'ordpool-parser';
+import { CacheService } from '@app/services/cache.service';
 
 interface BlockchainBlock extends BlockExtended {
   placeholder?: boolean;
@@ -16,10 +15,10 @@ interface BlockchainBlock extends BlockExtended {
   selector: 'app-blockchain-blocks',
   templateUrl: './blockchain-blocks.component.html',
   styleUrls: ['./blockchain-blocks.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
-
   @Input() static: boolean = false;
   @Input() offset: number = 0;
   @Input() height: number = 0; // max height of blocks in chunk (dynamic blocks only)
@@ -31,7 +30,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   @Input() spotlight: number = 0;
   @Input() showPools: boolean = true;
   @Input() getHref?: (index, block) => string = (index, block) => `/block/${block.id}`;
-  
+
   specialBlocks = specialBlocks;
   network = '';
   blocks: BlockchainBlock[] = [];
@@ -74,6 +73,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
     testnet: ['var(--testnet)', 'var(--testnet-alt)'],
     testnet4: ['var(--testnet)', 'var(--testnet-alt)'],
     signet: ['var(--signet)', 'var(--signet-alt)'],
+    regtest: ['var(--regtest)', 'var(--regtest-alt)'],
   };
 
   constructor(
@@ -83,8 +83,6 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
     private location: Location,
   ) {
   }
-
-  firstInscriptionHeight = getFirstInscriptionHeight(this.stateService.network || 'mainnet');
 
   ngOnInit() {
     this.dynamicBlocksAmount = Math.min(8, this.stateService.env.KEEP_BLOCKS_AMOUNT);
@@ -177,7 +175,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
         } else {
           this.moveArrowToPosition(true, false);
         }
-      })
+      });
     } else {
       this.blockPageSubscription = this.cacheService.loadedBlocks$.subscribe((block) => {
         if (block.height <= this.height && block.height > this.height - this.count) {
@@ -366,7 +364,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   convertStyleForLoadingBlock(style) {
     return {
       ...style,
-      background: "var(--secondary)",
+      background: 'var(--secondary)',
     };
   }
 
@@ -375,7 +373,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
 
     return {
       left: addLeft + (this.blockOffset * index) + 'px',
-      background: "var(--secondary)",
+      background: 'var(--secondary)',
     };
   }
 
@@ -391,7 +389,7 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
 
     return {
       left: addLeft + this.blockOffset * this.emptyBlocks.indexOf(block) + 'px',
-      background: "var(--secondary)",
+      background: 'var(--secondary)',
     };
   }
 
@@ -434,5 +432,19 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
       return block.extras.feeRange[block.extras.feeRange.length - 1];
     }
     return 0;
+  }
+
+  showIsEarlierThanParent(index: number): boolean {
+    const block = this.blocks[index];
+    const parent = this.blocks[index + 1];
+
+    if (!block || !parent) {
+      return false;
+    }
+
+    // Only show FAQ icon for blocks mined in the last 2 hours
+    const recentBlock = (Date.now() / 1000 - block.timestamp) < 7200;
+
+    return recentBlock && block.timestamp < parent.timestamp;
   }
 }

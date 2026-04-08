@@ -53,6 +53,7 @@ export namespace IBitcoinApi {
     nTx: number;                     //  (numeric) The number of transactions in the block
     previousblockhash: string;       //  (string) The hash of the previous block
     nextblockhash: string;           //  (string) The hash of the next block
+    dynamic_parameters?: any;        //  (object) Elements only: dynamic parameters at this block
   }
 
   export interface Transaction {
@@ -90,6 +91,7 @@ export namespace IBitcoinApi {
     };
     sequence: number;                //  (numeric) The script sequence number
     txinwitness?: string[];          //  (string) hex-encoded witness data
+    pegin_witness?: string[];        //  (string) Elements peg-in witness
     coinbase?: string;
     is_pegin?: boolean;              //  (boolean) Elements peg-in
   }
@@ -165,44 +167,44 @@ export namespace IBitcoinApi {
     timeout: number;                 // (numeric) the median time past of a block at which the deployment is considered failed if not yet locked in
     since: number;                   // (numeric) height of the first block to which the status applies
     statistics: {                    // (object) numeric statistics about BIP9 signalling for a softfork (only for started status)
-      period: number;                // (numeric) the length in blocks of the BIP9 signalling period 
-      threshold: number;             // (numeric) the number of blocks with the version bit set required to activate the feature 
-      elapsed: number;               // (numeric) the number of blocks elapsed since the beginning of the current period 
-      count: number;                 // (numeric) the number of blocks with the version bit set in the current period 
-      possible: boolean;             // (boolean) returns false if there are not enough blocks left in this period to pass activation threshold 
+      period: number;                // (numeric) the length in blocks of the BIP9 signalling period
+      threshold: number;             // (numeric) the number of blocks with the version bit set required to activate the feature
+      elapsed: number;               // (numeric) the number of blocks elapsed since the beginning of the current period
+      count: number;                 // (numeric) the number of blocks with the version bit set in the current period
+      possible: boolean;             // (boolean) returns false if there are not enough blocks left in this period to pass activation threshold
     }
   }
 
   export interface BlockStats {
-    "avgfee": number;
-    "avgfeerate": number;
-    "avgtxsize": number;
-    "blockhash": string;
-    "feerate_percentiles": [number, number, number, number, number];
-    "height": number;
-    "ins": number;
-    "maxfee": number;
-    "maxfeerate": number;
-    "maxtxsize": number;
-    "medianfee": number;
-    "mediantime": number;
-    "mediantxsize": number;
-    "minfee": number;
-    "minfeerate": number;
-    "mintxsize": number;
-    "outs": number;
-    "subsidy": number;
-    "swtotal_size": number;
-    "swtotal_weight": number;
-    "swtxs": number;
-    "time": number;
-    "total_out": number;
-    "total_size": number;
-    "total_weight": number;
-    "totalfee": number;
-    "txs": number;
-    "utxo_increase": number;
-    "utxo_size_inc": number;
+    'avgfee': number;
+    'avgfeerate': number;
+    'avgtxsize': number;
+    'blockhash': string;
+    'feerate_percentiles': [number, number, number, number, number];
+    'height': number;
+    'ins': number;
+    'maxfee': number;
+    'maxfeerate': number;
+    'maxtxsize': number;
+    'medianfee': number;
+    'mediantime': number;
+    'mediantxsize': number;
+    'minfee': number;
+    'minfeerate': number;
+    'mintxsize': number;
+    'outs': number;
+    'subsidy': number;
+    'swtotal_size': number;
+    'swtotal_weight': number;
+    'swtxs': number;
+    'time': number;
+    'total_out': number;
+    'total_size': number;
+    'total_weight': number;
+    'totalfee': number;
+    'txs': number;
+    'utxo_increase': number;
+    'utxo_size_inc': number;
   }
 }
 
@@ -213,8 +215,26 @@ export interface TestMempoolAcceptResult {
   vsize?: number,
   fees?: {
     base: number,
-    "effective-feerate": number,
-    "effective-includes": string[],
+    'effective-feerate': number,
+    'effective-includes': string[],
   },
   ['reject-reason']?: string,
+}
+
+export interface SubmitPackageResult {
+  package_msg: string;
+  'tx-results': { [wtxid: string]: TxResult };
+  'replaced-transactions'?: string[];
+}
+
+export interface TxResult {
+  txid: string;
+  'other-wtxid'?: string;
+  vsize?: number;
+  fees?: {
+    base: number;
+    'effective-feerate'?: number;
+    'effective-includes'?: string[];
+  };
+  error?: string;
 }

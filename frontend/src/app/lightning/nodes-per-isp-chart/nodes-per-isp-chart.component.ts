@@ -1,20 +1,21 @@
 import { ChangeDetectionStrategy, Component, OnInit, HostBinding, NgZone, Input } from '@angular/core';
 import { Router } from '@angular/router';
-import { EChartsOption, PieSeriesOption } from '../../graphs/echarts';
+import { EChartsOption, PieSeriesOption } from '@app/graphs/echarts';
 import { combineLatest, map, Observable, share, startWith, Subject, switchMap, tap } from 'rxjs';
-import { chartColors } from '../../app.constants';
-import { ApiService } from '../../services/api.service';
-import { SeoService } from '../../services/seo.service';
-import { StateService } from '../../services/state.service';
-import { isMobile } from '../../shared/common.utils';
-import { download } from '../../shared/graphs.utils';
-import { AmountShortenerPipe } from '../../shared/pipes/amount-shortener.pipe';
-import { RelativeUrlPipe } from '../../shared/pipes/relative-url/relative-url.pipe';
+import { originalChartColors as chartColors } from '@app/app.constants';
+import { ApiService } from '@app/services/api.service';
+import { SeoService } from '@app/services/seo.service';
+import { StateService } from '@app/services/state.service';
+import { isMobile } from '@app/shared/common.utils';
+import { download } from '@app/shared/graphs.utils';
+import { AmountShortenerPipe } from '@app/shared/pipes/amount-shortener.pipe';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
 
 @Component({
   selector: 'app-nodes-per-isp-chart',
   templateUrl: './nodes-per-isp-chart.component.html',
   styleUrls: ['./nodes-per-isp-chart.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodesPerISPChartComponent implements OnInit {
@@ -144,7 +145,7 @@ export class NodesPerISPChartComponent implements OnInit {
         label: {
           overflow: 'truncate',
           width: isMobile() ? 75 : this.widget ? 125 : 250,
-          color: 'var(--tooltip-grey)',
+          color: 'var(--grey)',
           alignTo: 'edge',
           edgeDistance: edgeDistance,
         },
@@ -178,7 +179,7 @@ export class NodesPerISPChartComponent implements OnInit {
       name: $localize`Other (${totalShareOther.toFixed(2) + '%'})`,
       label: {
         overflow: 'truncate',
-        color: 'var(--tooltip-grey)',
+        color: 'var(--grey)',
         alignTo: 'edge',
         edgeDistance: edgeDistance
       },
@@ -238,12 +239,12 @@ export class NodesPerISPChartComponent implements OnInit {
           itemStyle: {
             borderRadius: 1,
             borderWidth: 1,
-            borderColor: '#000',
+            borderColor: 'var(--bg)',
           },
           emphasis: {
             itemStyle: {
               shadowBlur: 40,
-              shadowColor: 'rgba(0, 0, 0, 0.75)',
+              shadowColor: 'var(--bg)',
             },
             labelLine: {
               lineStyle: {

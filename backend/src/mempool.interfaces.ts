@@ -30,9 +30,11 @@ export interface PoolStats extends PoolInfo {
 }
 
 export interface BlockAudit {
+  version: number,
   time: number,
   height: number,
   hash: string,
+  unseenTxs: string[],
   missingTxs: string[],
   freshTxs: string[],
   sigopTxs: string[],
@@ -43,6 +45,19 @@ export interface BlockAudit {
   matchRate: number,
   expectedFees?: number,
   expectedWeight?: number,
+  template?: any[];
+}
+
+export interface TransactionAudit {
+  seen?: boolean;
+  expected?: boolean;
+  added?: boolean;
+  prioritized?: boolean;
+  delayed?: number;
+  accelerated?: boolean;
+  conflict?: boolean;
+  coinbase?: boolean;
+  firstSeen?: number;
 }
 
 export interface AuditScore {
@@ -112,6 +127,9 @@ export interface TransactionExtended extends IEsploraApi.Transaction {
     vsize: number,
   };
   acceleration?: boolean;
+  acceleratedBy?: number[];
+  acceleratedAt?: number;
+  feeDelta?: number;
   replacement?: boolean;
   uid?: number;
   flags?: number;
@@ -209,6 +227,7 @@ export interface CpfpInfo {
   sigops?: number;
   adjustedVsize?: number,
   acceleration?: boolean,
+  fee?: number;
 }
 
 export interface TransactionStripped {
@@ -256,6 +275,7 @@ export const TransactionFlags = {
   fake_pubkey:                      0b00000010_00000000_00000000_00000000n,
   inscription:                      0b00000100_00000000_00000000_00000000n,
   fake_scripthash:                  0b00001000_00000000_00000000_00000000n,
+  annex:                            0b00010000_00000000_00000000_00000000n,
   // heuristics
   coinjoin:                0b00000001_00000000_00000000_00000000_00000000n,
   consolidation:           0b00000010_00000000_00000000_00000000_00000000n,
@@ -285,12 +305,14 @@ export interface BlockExtension {
     id: number; // Note - This is the `unique_id`, not to mix with the auto increment `id`
     name: string;
     slug: string;
+    minerNames: string[] | null;
   };
   avgFee: number;
   avgFeeRate: number;
   coinbaseRaw: string;
   orphans: OrphanedBlock[] | null;
   coinbaseAddress: string | null;
+  coinbaseAddresses: string[] | null;
   coinbaseSignature: string | null;
   coinbaseSignatureAscii: string | null;
   virtualSize: number;
@@ -304,10 +326,13 @@ export interface BlockExtension {
   segwitTotalSize: number;
   segwitTotalWeight: number;
   header: string;
+  firstSeen: number | null;
   utxoSetChange: number;
   // Requires coinstatsindex, will be set to NULL otherwise
   utxoSetSize: number | null;
   totalInputAmt: number | null;
+  // pools-v2.json git hash
+  definitionHash: string | undefined;
 
   // HACK -- Ordpool stats
   ordpoolStats: OrdpoolStats;
@@ -320,6 +345,7 @@ export interface BlockExtension {
 export interface BlockExtended extends IEsploraApi.Block {
   extras: BlockExtension;
   canonical?: string;
+  indexVersion?: number;
 }
 
 export interface BlockSummary {
@@ -373,8 +399,9 @@ export interface CpfpCluster {
 }
 
 export interface CpfpSummary {
-  transactions: TransactionExtended[];
+  transactions: MempoolTransactionExtended[];
   clusters: CpfpCluster[];
+  version: number;
 }
 
 export interface Statistic {
@@ -388,6 +415,7 @@ export interface Statistic {
   fee_data: string;
   min_fee: number;
 
+  vsize_0: number;
   vsize_1: number;
   vsize_2: number;
   vsize_3: number;
@@ -430,6 +458,7 @@ export interface Statistic {
 
 export interface OptimizedStatistic {
   added: string;
+  count: number;
   vbytes_per_second: number;
   total_fee: number;
   mempool_byte_weight: number;
@@ -439,7 +468,7 @@ export interface OptimizedStatistic {
 
 export interface TxTrackingInfo {
   replacedBy?: string,
-  position?: { block: number, vsize: number, accelerated?: boolean },
+  position?: { block: number, vsize: number, accelerated?: boolean, acceleratedBy?: number[], acceleratedAt?: number, feeDelta?: number },
   cpfp?: {
     ancestors?: Ancestor[],
     bestDescendant?: Ancestor | null,
@@ -450,6 +479,9 @@ export interface TxTrackingInfo {
   },
   utxoSpent?: { [vout: number]: { vin: number, txid: string } },
   accelerated?: boolean,
+  acceleratedBy?: number[],
+  acceleratedAt?: number,
+  feeDelta?: number,
   confirmed?: boolean
 }
 
@@ -480,7 +512,34 @@ export interface IBackendInfo {
   gitCommit: string;
   version: string;
   lightning: boolean;
+  coreVersion: string;
+  osVersion: string;
   backend: 'esplora' | 'electrum' | 'none';
+}
+
+export interface INetworkInfo {
+    version: number;
+    subversion: string;
+    protocolversion: number;
+    localservices: string;
+    localrelay: boolean;
+    timeoffset: number;
+    networkactive: boolean;
+    networks: {
+      name: string;
+      limited: boolean;
+      reachable: boolean;
+      proxy: string;
+      proxy_randomize_credentials: boolean;
+    }[];
+    relayfee: number;
+    incrementalfee: number;
+    localaddresses: {
+      address: string;
+      port: number;
+      score: number;
+    }[];
+    warnings: string;
 }
 
 export interface IDifficultyAdjustment {

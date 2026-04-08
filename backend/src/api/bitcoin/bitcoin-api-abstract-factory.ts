@@ -1,4 +1,4 @@
-import { IBitcoinApi, TestMempoolAcceptResult } from './bitcoin-api.interface';
+import { IBitcoinApi, SubmitPackageResult, TestMempoolAcceptResult } from './bitcoin-api.interface';
 import { IEsploraApi } from './esplora-api.interface';
 
 export interface AbstractBitcoinApi {
@@ -8,26 +8,32 @@ export interface AbstractBitcoinApi {
   $getMempoolTransactions(txids: string[]): Promise<IEsploraApi.Transaction[]>;
   $getAllMempoolTransactions(lastTxid?: string, max_txs?: number);
   $getTransactionHex(txId: string): Promise<string>;
+  $getTransactionMerkleProof(txId: string): Promise<IEsploraApi.MerkleProof>;
   $getBlockHeightTip(): Promise<number>;
   $getBlockHashTip(): Promise<string>;
-  $getTxIdsForBlock(hash: string): Promise<string[]>;
-  $getTxsForBlock(hash: string): Promise<IEsploraApi.Transaction[]>;
+  $getTxIdsForBlock(hash: string, fallbackToCore?: boolean): Promise<string[]>;
+  $getTxsForBlock(hash: string, fallbackToCore?: boolean): Promise<IEsploraApi.Transaction[]>;
   $getBlockHash(height: number): Promise<string>;
   $getBlockHeader(hash: string): Promise<string>;
   $getBlock(hash: string): Promise<IEsploraApi.Block>;
   $getRawBlock(hash: string): Promise<Buffer>;
   $getAddress(address: string): Promise<IEsploraApi.Address>;
   $getAddressTransactions(address: string, lastSeenTxId: string): Promise<IEsploraApi.Transaction[]>;
+  $getAddressUtxos(address: string): Promise<IEsploraApi.UTXO[]>;
   $getAddressPrefix(prefix: string): string[];
   $getScriptHash(scripthash: string): Promise<IEsploraApi.ScriptHash>;
   $getScriptHashTransactions(address: string, lastSeenTxId: string): Promise<IEsploraApi.Transaction[]>;
+  $getScriptHashUtxos(scripthash: string): Promise<IEsploraApi.UTXO[]>;
   $sendRawTransaction(rawTransaction: string): Promise<string>;
   $testMempoolAccept(rawTransactions: string[], maxfeerate?: number): Promise<TestMempoolAcceptResult[]>;
+  $submitPackage(rawTransactions: string[], maxfeerate?: number, maxburnamount?: number): Promise<SubmitPackageResult>;
   $getOutspend(txId: string, vout: number): Promise<IEsploraApi.Outspend>;
   $getOutspends(txId: string): Promise<IEsploraApi.Outspend[]>;
   $getBatchedOutspends(txId: string[]): Promise<IEsploraApi.Outspend[][]>;
   $getBatchedOutspendsInternal(txId: string[]): Promise<IEsploraApi.Outspend[][]>;
   $getOutSpendsByOutpoint(outpoints: { txid: string, vout: number }[]): Promise<IEsploraApi.Outspend[]>;
+  $getCoinbaseTx(blockhash: string): Promise<IEsploraApi.Transaction>;
+  $getAddressTransactionSummary(address: string): Promise<IEsploraApi.AddressTxSummary[]>;
 
   startHealthChecks(): void;
   getHealthStatus(): HealthCheckHost[];
@@ -51,4 +57,19 @@ export interface HealthCheckHost {
   unreachable: boolean;
   checked: boolean;
   lastChecked: number;
+  hashes?: {
+    frontend?: string;
+    hybrid?: string;
+    backend?: string;
+    electrs?: string;
+    ssr?: string;
+    core?: string;
+    os?: string;
+    lastUpdated?: number;
+  };
+  liquidAudit?: {
+    pegRatio: number;
+    bitcoinLastBlockUpdate: number;
+    liquidLastBlockUpdate: number;
+  };
 }

@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { concat, Observable } from 'rxjs';
 import { map, switchMap, tap } from 'rxjs/operators';
-import { ApiService } from '../../services/api.service';
-import { StateService } from '../../services/state.service';
+import { ApiService } from '@app/services/api.service';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-reward-stats',
   templateUrl: './reward-stats.component.html',
   styleUrls: ['./reward-stats.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class RewardStatsComponent implements OnInit {
   public $rewardStats: Observable<any>;

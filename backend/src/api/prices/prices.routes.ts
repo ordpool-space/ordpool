@@ -4,7 +4,9 @@ import pricesUpdater from '../../tasks/price-updater';
 
 class PricesRoutes {
   public initRoutes(app: Application): void {
-    app.get(config.MEMPOOL.API_URL_PREFIX + 'prices', this.$getCurrentPrices.bind(this));
+    app
+      .get(config.MEMPOOL.API_URL_PREFIX + 'prices', this.$getCurrentPrices.bind(this))
+    ;
   }
 
   private $getCurrentPrices(req: Request, res: Response): void {

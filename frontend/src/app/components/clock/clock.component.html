@@ -40,13 +40,13 @@
     <div class="stats top left">
       <p class="label" i18n>Price</p>
       <p>
-        <app-fiat [value]="100000000" digitsInfo="1.2-2" colorClass="white-color"></app-fiat>
+        <app-fiat [value]="100000000" digitsInfo="1.2-2" colorClass="fg-color"></app-fiat>
       </p>
     </div>
     <div class="stats top right">
       <p class="label" i18n="fees-box.high-priority">High Priority</p>
       <p *ngIf="recommendedFees$ | async as recommendedFees;">
-        <app-fee-rate [fee]="recommendedFees.fastestFee" unitClass="" rounding="1.0-0"></app-fee-rate>
+        <app-fee-rate [fee]="recommendedFees.fastestFee" unitClass="" rounding="1.0-2"></app-fee-rate>
       </p>
     </div>
     <div *ngIf="mode !== 'mempool' && blocks?.length" class="stats bottom left">

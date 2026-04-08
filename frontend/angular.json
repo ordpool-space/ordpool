@@ -54,6 +54,10 @@
             "translation": "src/locale/messages.fr.xlf",
             "baseHref": "/fr/"
           },
+          "hr": {
+            "translation": "src/locale/messages.hr.xlf",
+            "baseHref": "/hr/"
+          },
           "ja": {
             "translation": "src/locale/messages.ja.xlf",
             "baseHref": "/ja/"
@@ -167,25 +171,15 @@
               "src/robots.txt",
               "src/config.js",
               "src/customize.js",
-              "src/config.template.js"
+              "src/config.template.js",
+              {
+                "glob": "*.css",
+                "input": ".theme-build",
+                "output": "/"
+              }
             ],
             "styles": [
               "src/styles.scss",
-              {
-                "input": "src/theme-contrast.scss",
-                "bundleName": "contrast",
-                "inject": false
-              },
-              {
-                "input": "src/theme-wiz.scss",
-                "bundleName": "wiz",
-                "inject": false
-              },
-              {
-                "input": "src/theme-bukele.scss",
-                "bundleName": "bukele",
-                "inject": false
-              },
               "node_modules/@fortawesome/fontawesome-svg-core/styles.css"
             ],
             "vendorChunk": true,
@@ -193,7 +187,10 @@
             "buildOptimizer": false,
             "sourceMap": true,
             "optimization": false,
-            "namedChunks": true
+            "namedChunks": true,
+            "allowedCommonJsDependencies": [
+              "qrcode"
+            ]
           },
           "configurations": {
             "production": {
@@ -245,8 +242,28 @@
             "production": {
               "buildTarget": "mempool:build:production"
             },
+            "local": {
+              "proxyConfig": "proxy.conf.local.js",
+              "verbose": true
+            },
             "local-esplora": {
               "proxyConfig": "proxy.conf.local-esplora.js",
+              "verbose": true
+            },
+            "mixed": {
+              "proxyConfig": "proxy.conf.mixed.js",
+              "verbose": true
+            },
+            "local-prod": {
+              "proxyConfig": "proxy.conf.js",
+              "disableHostCheck": true,
+              "host": "0.0.0.0",
+              "verbose": false
+            },
+            "parameterized": {
+              "proxyConfig": "proxy.conf.parameterized.js",
+              "disableHostCheck": true,
+              "host": "0.0.0.0",
               "verbose": false
             }
           }

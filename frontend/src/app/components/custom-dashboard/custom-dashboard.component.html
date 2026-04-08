@@ -21,17 +21,19 @@
         @case ('goggles') {
           <div class="col" [style.order]="isMobile && widget.mobileOrder || 8">
             <div class="card graph-card">
-              <div class="card-body pl-lg-3 pr-lg-3 pl-2 pr-2">
+              <div class="card-body ps-lg-3 pe-lg-3 ps-2 pe-2">
                 <a class="title-link mb-0" style="margin-top: -2px" href="" [routerLink]="['/mempool-block/0' | relativeUrl]">
-                  <h5 class="card-title d-inline"><span>Mempool Goggles&trade;</span> : {{ goggleCycle[goggleIndex].name }}</h5>
+                  <h5 class="card-title d-inline"><span>Mempool Goggles&reg;</span> : {{ goggleCycle[goggleIndex].name }}</h5>
                   <span>&nbsp;</span>
                   <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
                 </a>
                 <div class="quick-filter">
-                  <div class="btn-group btn-group-toggle">
-                    <label class="btn btn-primary btn-xs" [class.active]="filter.index === goggleIndex"  *ngFor="let filter of goggleCycle">
-                      <input type="radio" [value]="'3m'" fragment="3m" (click)="setFilter(filter.index)" [attr.data-cy]="'3m'"> {{ filter.name }}
-                    </label>
+                  <div class="btn-group" role="group">
+                    <ng-container *ngFor="let filter of goggleCycle">
+                      <input type="radio" class="btn-check" [value]="'3m'" [id]="'btn-radio-' + filter.index"
+                        [checked]="filter.index === goggleIndex" (click)="setFilter(filter.index)" [attr.data-cy]="'3m'">
+                      <label class="btn btn-primary btn-xs" [for]="'btn-radio-' + filter.index">{{ filter.name }}</label>
+                    </ng-container>
                   </div>
                 </div>
                 <div class="mempool-block-wrapper" *ngIf="webGlEnabled">
@@ -118,9 +120,9 @@
                       <td class="table-cell-old-fee"><app-fee-rate [fee]="replacement.oldFee" [weight]="replacement.oldVsize * 4"></app-fee-rate></td>
                       <td class="table-cell-new-fee"><app-fee-rate [fee]="replacement.newFee" [weight]="replacement.newVsize * 4"></app-fee-rate></td>
                       <td class="table-cell-badges">
-                        <span *ngIf="replacement.mined" class="badge badge-success" i18n="transaction.rbf.mined">Mined</span>
-                        <span *ngIf="replacement.fullRbf" class="badge badge-info" i18n="transaction.full-rbf">Full RBF</span>
-                        <span *ngIf="!replacement.fullRbf" class="badge badge-success" i18n="tx-features.tag.rbf|RBF">RBF</span>
+                        <span *ngIf="replacement.mined" class="badge bg-success" i18n="transaction.rbf.mined">Mined</span>
+                        <span *ngIf="replacement.fullRbf" class="badge bg-info" i18n="transaction.full-rbf">Full RBF</span>
+                        <span *ngIf="!replacement.fullRbf" class="badge bg-success" i18n="tx-features.tag.rbf|RBF">RBF</span>
                       </td>
                     </tr>
                   </tbody>
@@ -158,7 +160,7 @@
                   <tbody *ngIf="blocks$ | async as blocks; else blocksSkeleton">
                     <tr *ngFor="let block of blocks; let i = index; trackBy: trackByBlock">
                       <td class="table-cell-height" ><a [routerLink]="['/block' | relativeUrl, block.id]" [state]="{ data: { block: block } }">{{ block.height }}</a></td>
-                      <td class="table-cell-mined" ><app-time kind="since" [time]="block.timestamp" [fastRender]="true"></app-time></td>
+                      <td class="table-cell-mined" ><app-time kind="since" [time]="block.timestamp" [fastRender]="true" [showTooltip]="true"></app-time></td>
                       <td class="table-cell-transaction-count">{{ block.tx_count | number }}</td>
                       <td class="table-cell-size">
                         <div class="progress">
@@ -238,7 +240,7 @@
                   <span>&nbsp;</span>
                   <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
                 </a>
-                <app-address-graph [address]="widget.props.address" [addressSummary$]="addressSummary$" [period]="widget.props.period || 'all'" [stats]="address ? address.chain_stats : null" [widget]="true" [height]="graphHeight"></app-address-graph>
+                <app-address-graph [address]="widget.props.address" [addressSummary$]="addressSummary$" [period]="widget.props.period || 'all'" [stats]="address ? address.chain_stats : null" [widget]="true" [defaultFiat]="true" [height]="graphHeight" [label]="widget.props.label"></app-address-graph>
               </div>
             </div>
           </div>
@@ -257,10 +259,44 @@
             </div>
           </div>
         }
+        @case ('walletBalance') {
+          <div class="col card-wrapper" [style.order]="isMobile && widget.mobileOrder || 8">
+            <div class="main-title" i18n="dashboard.treasury">Treasury</div>
+            <app-balance-widget [addressSummary$]="walletSummary$"></app-balance-widget>
+          </div>
+        }
+        @case ('wallet') {
+          <div class="col" style="max-height: 410px" [style.order]="isMobile && widget.mobileOrder || 8">
+            <div class="card graph-card">
+              <div class="card-body">
+                <a class="title-link mb-0" style="margin-top: -2px" href="" [routerLink]="['/wallet/' + widget.props.wallet | relativeUrl]">
+                  <h5 class="card-title d-inline" i18n="dashboard.balance-history">Balance History</h5>
+                  <span>&nbsp;</span>
+                  <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
+                </a>
+                <app-address-graph [addressSummary$]="walletSummary$" [period]="widget.props.period || 'all'" [widget]="true" [height]="graphHeight" [label]="widget.props.label" [image]="widget.props.image"></app-address-graph>
+              </div>
+            </div>
+          </div>
+        }
+        @case ('walletTransactions') {
+          <div class="col" style="max-height: 410px" [style.order]="isMobile && widget.mobileOrder || 8">
+            <div class="card">
+              <div class="card-body">
+                <a class="title-link mb-0" style="margin-top: -2px" href="" [routerLink]="['/wallet/' + widget.props.wallet | relativeUrl]">
+                  <h5 class="card-title d-inline" i18n="dashboard.treasury-transactions">Treasury Transactions</h5>
+                  <span>&nbsp;</span>
+                  <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
+                </a>
+                <app-address-transactions-widget [addressSummary$]="walletSummary$"></app-address-transactions-widget>
+              </div>
+            </div>
+          </div>
+        }
         @case ('twitter') {
           <div class="col" style="min-height:410px" [style.order]="isMobile && widget.mobileOrder || 8">
             <div class="card graph-card">
-              <div class="card-body pl-lg-3 pr-lg-3 pl-2 pr-2 d-flex flex-column">
+              <div class="card-body ps-lg-3 pe-lg-3 ps-2 pe-2 d-flex flex-column">
                 <a class="title-link" [href]="'https://x.com/' + widget.props?.handle" target="_blank">
                   <h5 class="card-title d-inline" i18n="dashboard.x-timeline">X Timeline</h5>
                   <span>&nbsp;</span>
@@ -269,6 +305,38 @@
                 @defer {
                   <app-twitter-widget [handle]="widget.props?.handle" style="flex-grow: 1"></app-twitter-widget>
                 }
+              </div>
+            </div>
+          </div>
+        }
+        @case ('simpleproof') {
+          <div class="col" style="max-height: 410px" [style.order]="isMobile && widget.mobileOrder || 8">
+            <div class="card">
+              <div class="card-body">
+                <a class="title-link" href="" [routerLink]="['/sp/verified' | relativeUrl]">
+                  <h5 class="card-title d-inline">{{ widget.props?.label }}</h5>
+                  <span>&nbsp;</span>
+                  <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
+                </a>
+                <app-simpleproof-widget [label]="widget.props.label" [key]="widget.props.key" [widget]="true"></app-simpleproof-widget>
+              </div>
+            </div>
+          </div>
+        }
+        @case ('simpleproof_cubo') {
+          <div class="col" style="max-height: 410px" [style.order]="isMobile && widget.mobileOrder || 8">
+            <div class="card">
+              <div class="card-body">
+                <a class="title-link" style="margin-bottom: 0;" href="" [routerLink]="['/sp/cubo' | relativeUrl]">
+                  <h5 class="card-title d-inline">
+                    <img src="/resources/cubo.svg" style="width: 1.1em; height: 1.1em; margin-right: 0.1em; transform: translateY(-0.1em);">
+                    {{ widget.props?.label }}
+                  </h5>
+                  <span>&nbsp;</span>
+                  <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: var(--title-fg)"></fa-icon>
+                </a>
+                <app-simpleproof-cubo-widget [label]="widget.props.label" [key]="widget.props.key" [widget]="true"></app-simpleproof-cubo-widget>
+                <div style="margin-top: -0.6rem;"><a [routerLink]="['/sp/cubo' | relativeUrl]" i18n="dashboard.view-more">View more &raquo;</a></div>
               </div>
             </div>
           </div>

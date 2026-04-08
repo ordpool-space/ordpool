@@ -1,12 +1,13 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import { IMultiSelectOption } from './types';
+import { IMultiSelectOption } from '@components/ngx-bootstrap-multiselect/types';
 
 interface StringHashMap<T> {
   [k: string]: T;
 }
 
 @Pipe({
-  name: 'searchFilter'
+  name: 'searchFilter',
+  standalone: false,
 })
 export class MultiSelectSearchFilter implements PipeTransform {
 

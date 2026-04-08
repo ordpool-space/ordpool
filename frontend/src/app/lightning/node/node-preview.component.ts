@@ -2,16 +2,17 @@ import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { Observable } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
-import { SeoService } from '../../services/seo.service';
-import { OpenGraphService } from '../../services/opengraph.service';
-import { getFlagEmoji } from '../../shared/common.utils';
-import { LightningApiService } from '../lightning-api.service';
-import { isMobile } from '../../shared/common.utils';
+import { SeoService } from '@app/services/seo.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
+import { getFlagEmoji } from '@app/shared/common.utils';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
+import { isMobile } from '@app/shared/common.utils';
 
 @Component({
   selector: 'app-node-preview',
   templateUrl: './node-preview.component.html',
   styleUrls: ['./node-preview.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodePreviewComponent implements OnInit {
@@ -26,6 +27,8 @@ export class NodePreviewComponent implements OnInit {
   socketTypes: string[];
 
   publicKeySize = 99;
+
+  ogSession: number;
 
   constructor(
     private lightningApiService: LightningApiService,
@@ -43,8 +46,8 @@ export class NodePreviewComponent implements OnInit {
       .pipe(
         switchMap((params: ParamMap) => {
           this.publicKey = params.get('public_key');
-          this.openGraphService.waitFor('node-map-' + this.publicKey);
-          this.openGraphService.waitFor('node-data-' + this.publicKey);
+          this.ogSession = this.openGraphService.waitFor('node-map-' + this.publicKey);
+          this.ogSession = this.openGraphService.waitFor('node-data-' + this.publicKey);
           return this.lightningApiService.getNode$(params.get('public_key'));
         }),
         map((node) => {
@@ -70,21 +73,21 @@ export class NodePreviewComponent implements OnInit {
               label: label,
               socket: node.public_key + '@' + socket,
             });
-            socketTypesMap[label] = true
+            socketTypesMap[label] = true;
           }
           node.socketsObject = socketsObject;
           this.socketTypes = Object.keys(socketTypesMap);
           node.avgCapacity = node.capacity / Math.max(1, node.active_channel_count);
 
-          this.openGraphService.waitOver('node-data-' + this.publicKey);
+          this.openGraphService.waitOver({ event: 'node-data-' + this.publicKey, sessionId: this.ogSession });
 
           return node;
         }),
         catchError(err => {
           this.error = err;
           this.seoService.logSoft404();
-          this.openGraphService.fail('node-map-' + this.publicKey);
-          this.openGraphService.fail('node-data-' + this.publicKey);
+          this.openGraphService.fail({ event: 'node-map-' + this.publicKey, sessionId: this.ogSession });
+          this.openGraphService.fail({ event: 'node-data-' + this.publicKey, sessionId: this.ogSession });
           return [{
             alias: this.publicKey,
             public_key: this.publicKey,
@@ -102,6 +105,6 @@ export class NodePreviewComponent implements OnInit {
   }
 
   onMapReady() {
-    this.openGraphService.waitOver('node-map-' + this.publicKey);
+    this.openGraphService.waitOver({ event: 'node-map-' + this.publicKey, sessionId: this.ogSession });
   }
 }

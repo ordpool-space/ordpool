@@ -1,17 +1,23 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
 @Pipe({
-  name: 'asmStyler'
+  name: 'asmStyler',
+  standalone: false,
 })
 export class AsmStylerPipe implements PipeTransform {
 
-  transform(asm: string): string {
+  transform(asm: string, crop: number = 0): string {
     const instructions = asm.split('OP_');
     let out = '';
+    let chars = -3;
     for (const instruction of instructions) {
       if (instruction === '') {
         continue;
       }
+      if (crop && chars > crop) {
+        break;
+      }
+      chars += instruction.length + 3;
       out += this.addStyling(instruction);
     }
     return out;

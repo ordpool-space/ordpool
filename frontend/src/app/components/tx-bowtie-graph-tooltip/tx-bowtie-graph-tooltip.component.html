@@ -29,7 +29,7 @@
   <ng-template #pegout>
     <ng-container *ngIf="line.pegout; else normal">
       <p *ngIf="!isConnector">Peg Out</p>
-      <p *ngIf="line.displayValue != null"><app-amount [satoshis]="line.displayValue"></app-amount></p>
+      <p *ngIf="line.displayValue != null"><app-amount [satoshis]="line.displayValue" [unitStyle]="'color: #ffffff66'"></app-amount></p>
       <p class="address">
         <app-truncate [text]="line.pegout"></app-truncate>
       </p>
@@ -43,7 +43,7 @@
           <span *ngSwitchCase="'output'" i18n="transaction.output">Output</span>
           <span *ngSwitchCase="'fee'" i18n="transaction.fee|Transaction fee">Fee</span>
         </ng-container>
-        <span *ngIf="line.type !== 'fee'"> #{{ line.index + 1 }}</span>
+        <span *ngIf="line.type !== 'fee'"> #{{ line.index }}</span>
         <ng-container [ngSwitch]="line.type">
           <span *ngSwitchCase="'input'"> 
             <ng-container *ngIf="line.status?.block_height">
@@ -56,7 +56,7 @@
             </ng-container>
           </span>
           <span *ngSwitchCase="'output'">
-            <ng-container *ngIf="line.blockHeight && line?.spent">
+            <ng-container *ngIf="(stateService.backend$ | async) === 'esplora' && line.blockHeight && line?.spent">
               <ng-container *ngIf="line?.status?.block_height; else noBlockHeight">
                 <ng-container *ngTemplateOutlet="nBlocksLater; context:{n: line?.status?.block_height - line.blockHeight, connector: false}"></ng-container>
               </ng-container>
@@ -73,7 +73,7 @@
           <app-truncate [text]="line.txid"></app-truncate>
         </p>
           <ng-container [ngSwitch]="line.type">
-            <p *ngSwitchCase="'input'"><span i18n="transaction.output">Output</span>&nbsp; #{{ line.vout + 1 }}
+            <p *ngSwitchCase="'input'"><span i18n="transaction.output">Output</span>&nbsp; #{{ line.vout }}
               <ng-container *ngIf="line.status?.block_height">
                 <ng-container *ngIf="line.blockHeight; else noBlockHeight">
                   <ng-container *ngTemplateOutlet="nBlocksEarlier; context:{n: line.blockHeight - line?.status?.block_height, connector: true}"></ng-container>
@@ -83,7 +83,7 @@
                 </ng-template>
               </ng-container>
             </p>
-            <p *ngSwitchCase="'output'"><span i18n="transaction.input">Input</span>&nbsp; #{{ line.vin + 1 }}
+            <p *ngSwitchCase="'output'"><span i18n="transaction.input">Input</span>&nbsp; #{{ line.vin }}
               <ng-container *ngIf="line.blockHeight">
                 <ng-container *ngIf="line?.status?.block_height; else noBlockHeight">
                   <ng-container *ngTemplateOutlet="nBlocksLater; context:{n: line?.status?.block_height - line.blockHeight, connector: true}"></ng-container>
@@ -106,7 +106,7 @@
           </ng-template>
         </ng-template>
         <ng-template #defaultOutput>
-          <app-amount [blockConversion]="isConnector ? blockConversions[line?.status?.block_time] : blockConversions[line?.timestamp]" [satoshis]="line.displayValue" [forceBlockConversion]="isConnector && line?.status?.block_time"></app-amount>
+          <app-amount [blockConversion]="isConnector ? blockConversions[line?.status?.block_time] : blockConversions[line?.timestamp]" [satoshis]="line.displayValue" [forceBlockConversion]="isConnector && line?.status?.block_time" [unitStyle]="'color: #ffffff66'"></app-amount>
         </ng-template>
       </p>
       <p *ngIf="line.type !== 'fee' && line.address" class="address">

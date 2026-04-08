@@ -1,15 +1,16 @@
 import { Component, OnInit } from '@angular/core';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
-import { ApiService } from '../../services/api.service';
-import { StateService } from '../../services/state.service';
-import { SeoService } from '../../services/seo.service';
-import { OpenGraphService } from '../../services/opengraph.service';
-import { TestMempoolAcceptResult } from '../../interfaces/node-api.interface';
+import { ApiService } from '@app/services/api.service';
+import { StateService } from '@app/services/state.service';
+import { SeoService } from '@app/services/seo.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
+import { TestMempoolAcceptResult } from '@interfaces/node-api.interface';
 
 @Component({
   selector: 'app-test-transactions',
   templateUrl: './test-transactions.component.html',
-  styleUrls: ['./test-transactions.component.scss']
+  styleUrls: ['./test-transactions.component.scss'],
+  standalone: false,
 })
 export class TestTransactionsComponent implements OnInit {
   testTxsForm: UntypedFormGroup;
@@ -32,7 +33,7 @@ export class TestTransactionsComponent implements OnInit {
       maxfeerate: ['', Validators.min(0)]
     });
 
-    this.seoService.setTitle($localize`:@@meta.title.test-txs:Test Transactions`);
+    this.seoService.setTitle($localize`:@@f74d6f23e06c5a75d95a994017c00191c162ba9f:Test Transactions`);
     this.ogService.setManualOgImage('tx-push.jpg');
   }
 
@@ -74,7 +75,7 @@ export class TestTransactionsComponent implements OnInit {
       },
       (error) => {
         if (typeof error.error === 'string') {
-          const matchText = error.error.match('"message":"(.*?)"');
+          const matchText = error.error.replace(/\\/g, '').match('"message":"(.*?)"');
           this.error = matchText && matchText[1] || error.error;
         } else if (error.message) {
           this.error = error.message;

@@ -1,12 +1,13 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, Input, Output, EventEmitter, ChangeDetectorRef, OnChanges, SimpleChanges } from '@angular/core';
 import { firstValueFrom, Subscription } from 'rxjs';
-import { StateService } from '../../services/state.service';
-import { StorageService } from '../../services/storage.service';
+import { StateService } from '@app/services/state.service';
+import { StorageService } from '@app/services/storage.service';
 
 @Component({
   selector: 'app-blockchain',
   templateUrl: './blockchain.component.html',
   styleUrls: ['./blockchain.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BlockchainComponent implements OnInit, OnDestroy, OnChanges {
@@ -32,7 +33,7 @@ export class BlockchainComponent implements OnInit, OnDestroy, OnChanges {
   dividerOffset: number | null = null;
   mempoolOffset: number | null = null;
   positionStyle = {
-    transform: "translateX(1280px)",
+    transform: 'translateX(1280px)',
   };
   blockDisplayToggleStyle = {};
 
@@ -90,8 +91,8 @@ export class BlockchainComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   toggleBlockDisplayMode(): void {
-    if (this.blockDisplayMode === 'size') this.blockDisplayMode = 'fees';
-    else this.blockDisplayMode = 'size';
+    if (this.blockDisplayMode === 'size') {this.blockDisplayMode = 'fees';}
+    else {this.blockDisplayMode = 'size';}
     this.StorageService.setValue('block-display-mode-preference', this.blockDisplayMode);
     this.stateService.blockDisplayMode$.next(this.blockDisplayMode);
   }

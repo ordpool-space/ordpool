@@ -54,7 +54,7 @@ export namespace IEsploraApi {
     scriptpubkey: string;
     scriptpubkey_asm: string;
     scriptpubkey_type: string;
-    scriptpubkey_address: string;
+    scriptpubkey_address?: string;
     value: number;
     // Elements
     valuecommitment?: number;
@@ -179,4 +179,29 @@ export namespace IEsploraApi {
     burn_count: number;
   }
 
+  export interface AddressTxSummary {
+    txid: string;
+    value: number;
+    height: number;
+    time: number;
+    tx_position?: number;
+  }
+
+  export interface MerkleProof {
+    merkle: string[];
+    block_height: number;
+    pos: number;
+  }
+
+  export interface UTXO {
+    txid: string;
+    vout: number;
+    status: {
+      confirmed: boolean;
+      block_height?: number;
+      block_hash?: string;
+      block_time?: number;
+    },
+    value: number;
+  }
 }

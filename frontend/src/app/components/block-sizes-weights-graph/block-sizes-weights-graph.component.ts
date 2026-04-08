@@ -1,16 +1,16 @@
 import { ChangeDetectionStrategy, Component, Inject, Input, LOCALE_ID, OnInit, HostBinding } from '@angular/core';
-import { EChartsOption} from '../../graphs/echarts';
+import { EChartsOption} from '@app/graphs/echarts';
 import { Observable } from 'rxjs';
 import { map, share, startWith, switchMap, tap } from 'rxjs/operators';
-import { ApiService } from '../../services/api.service';
-import { SeoService } from '../../services/seo.service';
+import { ApiService } from '@app/services/api.service';
+import { SeoService } from '@app/services/seo.service';
 import { formatNumber } from '@angular/common';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
-import { StorageService } from '../../services/storage.service';
-import { MiningService } from '../../services/mining.service';
+import { StorageService } from '@app/services/storage.service';
+import { MiningService } from '@app/services/mining.service';
 import { ActivatedRoute } from '@angular/router';
-import { download, formatterXAxis } from '../../shared/graphs.utils';
-import { StateService } from '../../services/state.service';
+import { download, formatterXAxis } from '@app/shared/graphs.utils';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-block-sizes-weights-graph',
@@ -21,9 +21,10 @@ import { StateService } from '../../services/state.service';
       position: absolute;
       top: 50%;
       left: calc(50% - 15px);
-      z-index: 100;
+      z-index: 99;
     }
   `],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BlockSizesWeightsGraphComponent implements OnInit {
@@ -187,7 +188,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
             name: $localize`:@@7faaaa08f56427999f3be41df1093ce4089bbd75:Size`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -195,7 +196,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
             name: $localize`:@@919f2fd60a898850c24b1584362bbf18a4628bcb:Weight`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -203,7 +204,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
             name: $localize`Size per weight`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -261,7 +262,7 @@ export class BlockSizesWeightsGraphComponent implements OnInit {
               label: {
                 position: 'end',
                 show: true,
-                color: '#ffffff',
+                color: 'var(--fg)',
                 formatter: `1 MB`
               }
             }],

@@ -1,11 +1,12 @@
 import { Component, Input, AfterViewInit, ViewChild, ElementRef, ChangeDetectionStrategy } from '@angular/core';
 import * as QRCode from 'qrcode';
-import { StateService } from '../../services/state.service';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-qrcode',
   templateUrl: './qrcode.component.html',
   styleUrls: ['./qrcode.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class QrcodeComponent implements AfterViewInit {
@@ -37,7 +38,7 @@ export class QrcodeComponent implements AfterViewInit {
       return;
     }
     const opts: QRCode.QRCodeRenderersOptions = {
-      errorCorrectionLevel: 'L',
+      errorCorrectionLevel: 'M',
       margin: 0,
       color: {
         dark: '#000',

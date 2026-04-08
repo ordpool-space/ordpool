@@ -3,6 +3,8 @@ import { Application, Request, Response } from 'express';
 import nodesApi from './nodes.api';
 import channelsApi from './channels.api';
 import statisticsApi from './statistics.api';
+import { handleError } from '../../utils/api';
+
 class GeneralLightningRoutes {
   constructor() { }
 
@@ -27,7 +29,7 @@ class GeneralLightningRoutes {
         channels: channels,
       });
     } catch (e) {
-      res.status(500).send(e instanceof Error ? e.message : e);
+      handleError(req, res, 500, 'Failed to search for nodes and channels');
     }
   }
 
@@ -41,7 +43,7 @@ class GeneralLightningRoutes {
       res.setHeader('Expires', new Date(Date.now() + 1000 * 60).toUTCString());
       res.json(statistics);
     } catch (e) {
-      res.status(500).send(e instanceof Error ? e.message : e);
+      handleError(req, res, 500, 'Failed to get lightning statistics');
     }
   }
 
@@ -50,7 +52,7 @@ class GeneralLightningRoutes {
       const statistics = await statisticsApi.$getLatestStatistics();
       res.json(statistics);
     } catch (e) {
-      res.status(500).send(e instanceof Error ? e.message : e);
+      handleError(req, res, 500, 'Failed to get lightning statistics');
     }
   }
 }

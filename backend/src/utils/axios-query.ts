@@ -5,7 +5,8 @@ import config from '../config';
 import logger from '../logger';
 import * as https from 'https';
 
-export async function query(path): Promise<object | undefined> {
+/** @asyncUnsafe */
+export async function query(path, throwOnFail: boolean = false): Promise<object | undefined> {
  type axiosOptions = {
    headers: {
      'User-Agent': string
@@ -18,9 +19,10 @@ export async function query(path): Promise<object | undefined> {
    headers: {
      'User-Agent': (config.MEMPOOL.USER_AGENT === 'mempool') ? `mempool/v${backendInfo.getBackendInfo().version}` : `${config.MEMPOOL.USER_AGENT}`
    },
-   timeout: config.SOCKS5PROXY.ENABLED ? 30000 : 10000
+   timeout: config.SOCKS5PROXY.ENABLED ? 30000 : 20000
  };
  let retry = 0;
+ let lastError: any = null;
 
  while (retry < config.MEMPOOL.EXTERNAL_MAX_RETRY) {
    try {
@@ -50,6 +52,7 @@ export async function query(path): Promise<object | undefined> {
      }
      return data.data;
    } catch (e) {
+     lastError = e;
      logger.warn(`Could not connect to ${path} (Attempt ${retry + 1}/${config.MEMPOOL.EXTERNAL_MAX_RETRY}). Reason: ` + (e instanceof Error ? e.message : e));
      retry++;
    }
@@ -59,5 +62,10 @@ export async function query(path): Promise<object | undefined> {
  }
 
  logger.err(`Could not connect to ${path}. All ${config.MEMPOOL.EXTERNAL_MAX_RETRY} attempts failed`);
+
+ if (throwOnFail && lastError) {
+    throw lastError;
+  }
+
  return undefined;
 }

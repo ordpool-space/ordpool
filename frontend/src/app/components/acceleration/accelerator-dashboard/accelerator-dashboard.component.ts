@@ -1,18 +1,18 @@
 import { ChangeDetectionStrategy, Component, HostListener, Inject, OnDestroy, OnInit, PLATFORM_ID } from '@angular/core';
-import { SeoService } from '../../../services/seo.service';
-import { OpenGraphService } from '../../../services/opengraph.service';
-import { WebsocketService } from '../../../services/websocket.service';
-import { Acceleration, BlockExtended } from '../../../interfaces/node-api.interface';
-import { StateService } from '../../../services/state.service';
+import { SeoService } from '@app/services/seo.service';
+import { OpenGraphService } from '@app/services/opengraph.service';
+import { WebsocketService } from '@app/services/websocket.service';
+import { Acceleration, BlockExtended } from '@interfaces/node-api.interface';
+import { StateService } from '@app/services/state.service';
 import { Observable, Subscription, catchError, combineLatest, distinctUntilChanged, map, of, share, switchMap, tap } from 'rxjs';
-import { Color } from '../../block-overview-graph/sprite-types';
-import { hexToColor } from '../../block-overview-graph/utils';
-import TxView from '../../block-overview-graph/tx-view';
-import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '../../../app.constants';
-import { ServicesApiServices } from '../../../services/services-api.service';
-import { detectWebGL } from '../../../shared/graphs.utils';
-import { AudioService } from '../../../services/audio.service';
-import { ThemeService } from '../../../services/theme.service';
+import { Color } from '@components/block-overview-graph/sprite-types';
+import { hexToColor } from '@components/block-overview-graph/utils';
+import TxView from '@components/block-overview-graph/tx-view';
+import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '@app/app.constants';
+import { ServicesApiServices } from '@app/services/services-api.service';
+import { detectWebGL } from '@app/shared/graphs.utils';
+import { AudioService } from '@app/services/audio.service';
+import { ThemeService } from '@app/services/theme.service';
 
 const acceleratedColor: Color = hexToColor('8F5FF6');
 const normalColors = defaultMempoolFeeColors.map(hex => hexToColor(hex + '5F'));
@@ -26,6 +26,7 @@ interface AccelerationBlock extends BlockExtended {
   selector: 'app-accelerator-dashboard',
   templateUrl: './accelerator-dashboard.component.html',
   styleUrls: ['./accelerator-dashboard.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AcceleratorDashboardComponent implements OnInit, OnDestroy {
@@ -37,7 +38,7 @@ export class AcceleratorDashboardComponent implements OnInit, OnDestroy {
   webGlEnabled = true;
   seen: Set<string> = new Set();
   firstLoad = true;
-  timespan: '3d' | '1w' | '1m' = '1w';
+  timespan: '24h' | '1m' | '1y' | 'all' = '1y';
 
   accelerationDeltaSubscription: Subscription;
 
@@ -51,7 +52,6 @@ export class AcceleratorDashboardComponent implements OnInit, OnDestroy {
     private serviceApiServices: ServicesApiServices,
     private audioService: AudioService,
     private stateService: StateService,
-    @Inject(PLATFORM_ID) private platformId: Object,
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
     this.seoService.setTitle($localize`:@@6b867dc61c6a92f3229f1950f9f2d414790cce95:Accelerator Dashboard`);
@@ -96,10 +96,16 @@ export class AcceleratorDashboardComponent implements OnInit, OnDestroy {
       share(),
     );
 
-    this.minedAccelerations$ = this.accelerations$.pipe(
-      map(accelerations => {
-        return accelerations.filter(acc => ['completed_provisional', 'completed'].includes(acc.status));
-      })
+    this.minedAccelerations$ = this.stateService.chainTip$.pipe(
+      distinctUntilChanged(),
+      switchMap(() => {
+        return this.serviceApiServices.getAccelerationHistory$({ status: 'completed_provisional,completed', pageLength: 6 }).pipe(
+          catchError(() => {
+            return of([]);
+          }),
+        );
+      }),
+      share(),
     );
 
     this.blocks$ = combineLatest([
@@ -147,7 +153,7 @@ export class AcceleratorDashboardComponent implements OnInit, OnDestroy {
       return acceleratedColor;
     } else {
       const rate = tx.fee / tx.vsize; // color by simple single-tx fee rate
-      const feeLevelIndex = feeLevels.findIndex((feeLvl) => Math.max(1, rate) < feeLvl) - 1;
+      const feeLevelIndex = feeLevels.findIndex((feeLvl) => Math.max(0, rate) < feeLvl) - 1;
       return this.theme.theme === 'contrast' || this.theme.theme === 'bukele' ? contrastColors[feeLevelIndex] || contrastColors[contrastColors.length - 1] : normalColors[feeLevelIndex] || normalColors[normalColors.length - 1];
     }
   }

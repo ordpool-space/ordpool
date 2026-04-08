@@ -2,9 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, shareReplay, switchMap } from 'rxjs/operators';
-import { StateService } from './state.service';
-import { environment } from '../../../src/environments/environment';
-import { AssetExtended } from '../interfaces/electrs.interface';
+import { StateService } from '@app/services/state.service';
+import { environment } from '@environments/environment';
+import { AssetExtended } from '@interfaces/electrs.interface';
 
 @Injectable({
   providedIn: 'root'
@@ -30,23 +30,23 @@ export class AssetsService {
         switchMap(() => this.httpClient.get(`${apiBaseUrl}/resources/assets${this.stateService.network === 'liquidtestnet' ? '-testnet' : ''}.json`)),
         map((rawAssets) => {
           const assets: AssetExtended[] = Object.values(rawAssets);
-  
+
           if (this.stateService.network === 'liquid') {
             // @ts-ignore
             assets.push({
               name: 'Liquid Bitcoin',
-              ticker: 'L-BTC',
+              ticker: 'LBTC',
               asset_id: this.nativeAssetId,
             });
           } else if (this.stateService.network === 'liquidtestnet') {
             // @ts-ignore
             assets.push({
               name: 'Test Liquid Bitcoin',
-              ticker: 'tL-BTC',
+              ticker: 'tLBTC',
               asset_id: this.nativeAssetId,
             });
           }
-  
+
           return {
             objects: rawAssets,
             array: assets.sort((a: any, b: any) => a.name.localeCompare(b.name)),
@@ -60,7 +60,7 @@ export class AssetsService {
       map((assetsMinimal) => {
         if (this.stateService.network === 'liquidtestnet') {
           // Hard coding the Liquid Testnet native asset
-          assetsMinimal['144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49'] = [null, "tL-BTC", "Test Liquid Bitcoin", 8];
+          assetsMinimal['144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49'] = [null, 'tLBTC', 'Test Liquid Bitcoin', 8];
         }
         return assetsMinimal;
       }),

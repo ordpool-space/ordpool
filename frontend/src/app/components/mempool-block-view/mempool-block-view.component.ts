@@ -1,8 +1,8 @@
 import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { Subscription, filter, map, switchMap, tap } from 'rxjs';
-import { StateService } from '../../services/state.service';
-import { WebsocketService } from '../../services/websocket.service';
+import { StateService } from '@app/services/state.service';
+import { WebsocketService } from '@app/services/websocket.service';
 
 function bestFitResolution(min, max, n): number {
   const target = (min + max) / 2;
@@ -21,7 +21,8 @@ function bestFitResolution(min, max, n): number {
 @Component({
   selector: 'app-mempool-block-view',
   templateUrl: './mempool-block-view.component.html',
-  styleUrls: ['./mempool-block-view.component.scss']
+  styleUrls: ['./mempool-block-view.component.scss'],
+  standalone: false,
 })
 export class MempoolBlockViewComponent implements OnInit, OnDestroy {
   autofit: boolean = false;

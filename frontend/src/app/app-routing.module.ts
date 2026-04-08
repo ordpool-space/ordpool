@@ -1,36 +1,34 @@
 import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
-import { AppPreloadingStrategy } from './app.preloading-strategy'
-import { BlockViewComponent } from './components/block-view/block-view.component';
-import { EightBlocksComponent } from './components/eight-blocks/eight-blocks.component';
-import { MempoolBlockViewComponent } from './components/mempool-block-view/mempool-block-view.component';
-import { ClockComponent } from './components/clock/clock.component';
-import { StatusViewComponent } from './components/status-view/status-view.component';
-import { AddressGroupComponent } from './components/address-group/address-group.component';
-import { TrackerComponent } from './components/tracker/tracker.component';
-import { AccelerateCheckout } from './components/accelerate-checkout/accelerate-checkout.component';
+import { AppPreloadingStrategy } from '@app/app.preloading-strategy';
+import { BlockViewComponent } from '@components/block-view/block-view.component';
+import { EightBlocksComponent } from '@components/eight-blocks/eight-blocks.component';
+import { MempoolBlockViewComponent } from '@components/mempool-block-view/mempool-block-view.component';
+import { ClockComponent } from '@components/clock/clock.component';
+import { StatusViewComponent } from '@components/status-view/status-view.component';
+import { AddressGroupComponent } from '@components/address-group/address-group.component';
+import { TrackerGuard } from '@app/route-guards';
 
-const browserWindow = window || {};
-// @ts-ignore
+const browserWindow = window as typeof window & { __env?: any };
 const browserWindowEnv = browserWindow.__env || {};
 
-let routes: Routes = [
+const testnetRoutes: Routes = browserWindowEnv.TESTNET_ENABLED ? [
   {
     path: 'testnet',
     children: [
       {
         path: '',
         pathMatch: 'full',
-        loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
         data: { preload: true },
       },
       {
         path: '',
-        loadChildren: () => import('./master-page.module').then(m => m.MasterPageModule),
+        loadChildren: () => import('@app/master-page.module').then(m => m.MasterPageModule),
         data: { preload: true },
       },
       {
-        path: 'wallet',
+        path: 'widget/wallet',
         children: [],
         component: AddressGroupComponent,
         data: {
@@ -44,7 +42,7 @@ let routes: Routes = [
       },
       {
         path: '',
-        loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
         data: { preload: true },
       },
       {
@@ -53,18 +51,21 @@ let routes: Routes = [
       },
     ]
   },
+] : [];
+
+const testnet4Routes: Routes = browserWindowEnv.TESTNET4_ENABLED ? [
   {
     path: 'testnet4',
     children: [
       {
         path: '',
         pathMatch: 'full',
-        loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
         data: { preload: true },
       },
       {
         path: '',
-        loadChildren: () => import('./master-page.module').then(m => m.MasterPageModule),
+        loadChildren: () => import('@app/master-page.module').then(m => m.MasterPageModule),
         data: { preload: true },
       },
       {
@@ -82,7 +83,7 @@ let routes: Routes = [
       },
       {
         path: '',
-        loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
         data: { preload: true },
       },
       {
@@ -91,6 +92,9 @@ let routes: Routes = [
       },
     ]
   },
+] : [];
+
+const signetRoutes: Routes = browserWindowEnv.SIGNET_ENABLED ? [
   {
     path: 'signet',
     children: [
@@ -102,16 +106,16 @@ let routes: Routes = [
       {
         path: '',
         pathMatch: 'full',
-        loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
         data: { preload: true },
       },
       {
         path: '',
-        loadChildren: () => import('./master-page.module').then(m => m.MasterPageModule),
+        loadChildren: () => import('@app/master-page.module').then(m => m.MasterPageModule),
         data: { preload: true },
       },
       {
-        path: 'wallet',
+        path: 'widget/wallet',
         children: [],
         component: AddressGroupComponent,
         data: {
@@ -125,7 +129,7 @@ let routes: Routes = [
       },
       {
         path: '',
-        loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
         data: { preload: true },
       },
       {
@@ -134,23 +138,78 @@ let routes: Routes = [
       },
     ]
   },
+] : [];
+
+const regtestRoutes: Routes = browserWindowEnv.REGTEST_ENABLED ? [
+  {
+    path: 'regtest',
+    children: [
+      {
+        path: 'mining/blocks',
+        redirectTo: 'blocks',
+        pathMatch: 'full'
+      },
+      {
+        path: '',
+        pathMatch: 'full',
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        data: { preload: true },
+      },
+      {
+        path: '',
+        loadChildren: () => import('@app/master-page.module').then(m => m.MasterPageModule),
+        data: { preload: true },
+      },
+      {
+        path: 'widget/wallet',
+        children: [],
+        component: AddressGroupComponent,
+        data: {
+          networkSpecific: true,
+        }
+      },
+      {
+        path: 'status',
+        data: { networks: ['bitcoin', 'liquid'] },
+        component: StatusViewComponent
+      },
+      {
+        path: '',
+        loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+        data: { preload: true },
+      },
+      {
+        path: '**',
+        redirectTo: '/regtest'
+      },
+    ]
+  },
+] : [];
+
+let routes: Routes = [
+  ...testnetRoutes,
+  ...testnet4Routes,
+  ...signetRoutes,
+  ...regtestRoutes,
   {
     path: '',
     pathMatch: 'full',
-    loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+    loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
     data: { preload: true },
+  },
+  {
+    path: 'tx',
+    canMatch: [TrackerGuard],
+    runGuardsAndResolvers: 'always',
+    loadChildren: () => import('@components/tracker/tracker.module').then(m => m.TrackerModule),
   },
   {
     path: '',
-    loadChildren: () => import('./master-page.module').then(m => m.MasterPageModule),
+    loadChildren: () => import('@app/master-page.module').then(m => m.MasterPageModule),
     data: { preload: true },
   },
   {
-    path: 'tracker/:id',
-    component: TrackerComponent,
-  },
-  {
-    path: 'wallet',
+    path: 'widget/wallet',
     children: [],
     component: AddressGroupComponent,
     data: {
@@ -162,19 +221,23 @@ let routes: Routes = [
     children: [
       {
         path: '',
-        loadChildren: () => import('./previews.module').then(m => m.PreviewsModule)
+        loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
       },
       {
         path: 'testnet',
-        loadChildren: () => import('./previews.module').then(m => m.PreviewsModule)
+        loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
       },
       {
         path: 'testnet4',
-        loadChildren: () => import('./previews.module').then(m => m.PreviewsModule)
+        loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
       },
       {
         path: 'signet',
-        loadChildren: () => import('./previews.module').then(m => m.PreviewsModule)
+        loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
+      },
+      {
+        path: 'regtest',
+        loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
       },
     ],
   },
@@ -209,68 +272,68 @@ let routes: Routes = [
   },
   {
     path: '',
-    loadChildren: () => import('./bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
+    loadChildren: () => import('@app/bitcoin-graphs.module').then(m => m.BitcoinGraphsModule),
     data: { preload: true },
-  },
-  {
-    path: '**',
-    redirectTo: ''
   },
 ];
 
+const liquidTestnetRoutes: Routes = browserWindowEnv.LIQUID_TESTNET_ENABLED ? [
+  {
+    path: 'testnet',
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        loadChildren: () => import('@app/liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
+        data: { preload: true },
+      },
+      {
+        path: '',
+        loadChildren: () => import ('@app/liquid/liquid-master-page.module').then(m => m.LiquidMasterPageModule),
+        data: { preload: true },
+      },
+      {
+        path: 'widget/wallet',
+        children: [],
+        component: AddressGroupComponent,
+        data: {
+          networkSpecific: true,
+        }
+      },
+      {
+        path: 'status',
+        data: { networks: ['bitcoin', 'liquid'] },
+        component: StatusViewComponent
+      },
+      {
+        path: '',
+        loadChildren: () => import('@app/liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
+        data: { preload: true },
+      },
+      {
+        path: '**',
+        redirectTo: '/testnet'
+      },
+    ]
+  },
+] : [];
+
 if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
   routes = [
-    {
-      path: 'testnet',
-      children: [
-        {
-          path: '',
-          pathMatch: 'full',
-          loadChildren: () => import('./liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
-          data: { preload: true },
-        },
-        {
-          path: '',
-          loadChildren: () => import ('./liquid/liquid-master-page.module').then(m => m.LiquidMasterPageModule),
-          data: { preload: true },
-        },
-        {
-          path: 'wallet',
-          children: [],
-          component: AddressGroupComponent,
-          data: {
-            networkSpecific: true,
-          }
-        },
-        {
-          path: 'status',
-          data: { networks: ['bitcoin', 'liquid'] },
-          component: StatusViewComponent
-        },
-        {
-          path: '',
-          loadChildren: () => import('./liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
-          data: { preload: true },
-        },
-        {
-          path: '**',
-          redirectTo: '/signet'
-        },
-      ]
-    },
+    ...liquidTestnetRoutes,
     {
       path: '',
       pathMatch: 'full',
-      loadChildren: () => import('./liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
+      loadChildren: () => import('@app/liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
       data: { preload: true },
     },
     {
       path: '',
-      loadChildren: () => import ('./liquid/liquid-master-page.module').then(m => m.LiquidMasterPageModule),
+      loadChildren: () => import ('@app/liquid/liquid-master-page.module').then(m => m.LiquidMasterPageModule),
       data: { preload: true },
     },
     {
-      path: 'wallet',
+      path: 'widget/wallet',
       children: [],
       component: AddressGroupComponent,
       data: {
@@ -282,11 +345,11 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
       children: [
         {
           path: '',
-          loadChildren: () => import('./previews.module').then(m => m.PreviewsModule)
+          loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
         },
         {
           path: 'testnet',
-          loadChildren: () => import('./previews.module').then(m => m.PreviewsModule)
+          loadChildren: () => import('@app/previews.module').then(m => m.PreviewsModule)
         },
       ],
     },
@@ -297,14 +360,17 @@ if (browserWindowEnv && browserWindowEnv.BASE_MODULE === 'liquid') {
     },
     {
       path: '',
-      loadChildren: () => import('./liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
+      loadChildren: () => import('@app/liquid/liquid-graphs.module').then(m => m.LiquidGraphsModule),
       data: { preload: true },
     },
-    {
-      path: '**',
-      redirectTo: ''
-    },
   ];
+}
+
+if (!window['isMempoolSpaceBuild']) {
+  routes.push({
+    path: '**',
+    redirectTo: ''
+  });
 }
 
 @NgModule({

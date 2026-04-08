@@ -1,11 +1,12 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, Input, OnChanges, ChangeDetectorRef } from '@angular/core';
 import { firstValueFrom, Subscription } from 'rxjs';
-import { StateService } from '../../services/state.service';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-clockchain',
   templateUrl: './clockchain.component.html',
   styleUrls: ['./clockchain.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClockchainComponent implements OnInit, OnChanges, OnDestroy {

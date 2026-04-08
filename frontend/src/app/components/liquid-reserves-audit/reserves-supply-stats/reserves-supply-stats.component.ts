@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, Input, OnInit } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Env, StateService } from '../../../services/state.service';
-import { CurrentPegs } from '../../../interfaces/node-api.interface';
+import { Env, StateService } from '@app/services/state.service';
+import { CurrentPegs } from '@interfaces/node-api.interface';
 
 @Component({
   selector: 'app-reserves-supply-stats',
   templateUrl: './reserves-supply-stats.component.html',
   styleUrls: ['./reserves-supply-stats.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReservesSupplyStatsComponent implements OnInit {

@@ -1,10 +1,10 @@
 import { Component, Input, Inject, LOCALE_ID, ChangeDetectionStrategy, OnInit, OnDestroy } from '@angular/core';
-import { EChartsOption } from '../../graphs/echarts';
+import { EChartsOption } from '@app/graphs/echarts';
 import { OnChanges } from '@angular/core';
-import { StorageService } from '../../services/storage.service';
-import { download, formatterXAxis, formatterXAxisLabel } from '../../shared/graphs.utils';
+import { StorageService } from '@app/services/storage.service';
+import { download, formatterXAxis, formatterXAxisLabel } from '@app/shared/graphs.utils';
 import { formatNumber } from '@angular/common';
-import { StateService } from '../../services/state.service';
+import { StateService } from '@app/services/state.service';
 import { Subscription } from 'rxjs';
 
 const OUTLIERS_MEDIAN_MULTIPLIER = 4;
@@ -17,9 +17,10 @@ const OUTLIERS_MEDIAN_MULTIPLIER = 4;
       position: absolute;
       top: 50%;
       left: calc(50% - 16px);
-      z-index: 100;
+      z-index: 99;
     }
   `],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, OnDestroy {
@@ -32,8 +33,8 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
   @Input() template: ('widget' | 'advanced') = 'widget';
   @Input() windowPreferenceOverride: string;
   @Input() outlierCappingEnabled: boolean = false;
+  @Input() isLoading: boolean;
 
-  isLoading = true;
   mempoolStatsChartOption: EChartsOption = {};
   mempoolStatsChartInitOption = {
     renderer: 'svg'
@@ -52,8 +53,6 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
   ) { }
 
   ngOnInit() {
-    this.isLoading = true;
-
     this.rateUnitSub = this.stateService.rateUnits$.subscribe(rateUnits => {
       this.weightMode = rateUnits === 'wu';
       if (this.data) {
@@ -77,9 +76,8 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
 
   rendered() {
     if (!this.data) {
-      return; 
+      return;
     }
-    this.isLoading = false;
   }
 
   /**
@@ -139,7 +137,7 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
         silent: true,
         symbol: 'none',
         lineStyle: {
-          color: '#fff',
+          color: 'var(--fg)',
           opacity: 1,
           width: 2,
         },
@@ -147,7 +145,7 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
           yAxis: 1667,
           label: {
             show: false,
-            color: '#ffffff',
+            color: 'var(--fg)',
           }
         }],
       }
@@ -158,12 +156,19 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
         name: 'MA',
         data: this.MA,
         type: 'line',
+        color: 'var(--fg)',
         smooth: false,
         showSymbol: false,
         symbol: 'none',
         lineStyle: {
           width: 2,
-          color: "white",
+          color: 'var(--fg)',
+        },
+        emphasis: {
+          lineStyle: {
+            width: 2,
+            color: 'var(--fg)',
+          },
         }
       });
     }
@@ -193,11 +198,12 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
         bottom: 0,
         selectedDataBackground: {
           lineStyle: {
-            color: '#fff',
+            color: 'var(--fg)',
             opacity: 0.45,
           },
           areaStyle: {
             opacity: 0,
+            color: 'var(--fg)',
           }
         },
       }],
@@ -226,7 +232,7 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
             itemFormatted += `<div class="item">
                   <div class="indicator-container">${colorSpan(bestItem.color)}</div>
                   <div class="grow"></div>
-                  <div class="value">${formatNumber(bestItem.value[1], this.locale, '1.0-0')}<span class="symbol">vB/s</span></div>
+                  <div class="value">${formatNumber(bestItem.value[1], this.locale, '1.0-0')} <span class="symbol">vB/s</span></div>
                 </div>`;
           }
           return `<div class="tx-wrapper-tooltip-chart ${(this.template === 'advanced') ? 'tx-wrapper-tooltip-chart-advanced' : ''}" 
@@ -252,12 +258,13 @@ export class IncomingTransactionsGraphComponent implements OnInit, OnChanges, On
         }
       ],
       yAxis: {
-        max: (value) => {
-          if (!this.outlierCappingEnabled || value.max < this.medianVbytesPerSecond * OUTLIERS_MEDIAN_MULTIPLIER) {
-            return undefined;
-          } else {
-            return Math.round(this.medianVbytesPerSecond * OUTLIERS_MEDIAN_MULTIPLIER);
+        max: (value): number => {
+          let cappedMax = value.max;
+          if (this.outlierCappingEnabled && value.max >= (this.medianVbytesPerSecond * OUTLIERS_MEDIAN_MULTIPLIER)) {
+            cappedMax = Math.round(this.medianVbytesPerSecond * OUTLIERS_MEDIAN_MULTIPLIER);
           }
+          // always show the clearing rate line, plus a small margin
+          return Math.max(1800, cappedMax);
         },
         type: 'value',
         axisLabel: {

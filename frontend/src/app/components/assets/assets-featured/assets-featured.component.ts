@@ -1,12 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ApiService } from '../../../services/api.service';
-import { StateService } from '../../../services/state.service';
+import { ApiService } from '@app/services/api.service';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-assets-featured',
   templateUrl: './assets-featured.component.html',
-  styleUrls: ['./assets-featured.component.scss']
+  styleUrls: ['./assets-featured.component.scss'],
+  standalone: false,
 })
 export class AssetsFeaturedComponent implements OnInit {
   featuredAssets$: Observable<any>;

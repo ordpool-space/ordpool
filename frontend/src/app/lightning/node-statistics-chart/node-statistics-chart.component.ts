@@ -1,25 +1,26 @@
 import { Component, Inject, Input, LOCALE_ID, OnInit, HostBinding } from '@angular/core';
-import { EChartsOption } from '../../graphs/echarts';
+import { EChartsOption } from '@app/graphs/echarts';
 import { Observable } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 import { formatNumber } from '@angular/common';
 import { UntypedFormGroup } from '@angular/forms';
-import { StorageService } from '../../services/storage.service';
-import { download } from '../../shared/graphs.utils';
-import { LightningApiService } from '../lightning-api.service';
+import { StorageService } from '@app/services/storage.service';
+import { download } from '@app/shared/graphs.utils';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { StateService } from '../../services/state.service';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-node-statistics-chart',
   templateUrl: './node-statistics-chart.component.html',
   styleUrls: ['./node-statistics-chart.component.scss'],
+  standalone: false,
   styles: [`
     .loadingGraphs {
       position: absolute;
       top: 50%;
       left: calc(50% - 15px);
-      z-index: 100;
+      z-index: 99;
     }
   `],
 })
@@ -151,7 +152,7 @@ export class NodeStatisticsChartComponent implements OnInit {
             name: $localize`:@@807cf11e6ac1cde912496f764c176bdfdd6b7e19:Channels`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },
@@ -159,7 +160,7 @@ export class NodeStatisticsChartComponent implements OnInit {
             name: $localize`:@@ce9dfdc6dccb28dc75a78c704e09dc18fb02dcfa:Capacity`,
             inactiveColor: 'rgb(110, 112, 121)',
             textStyle: {
-              color: 'white',
+              color: 'var(--fg)',
             },
             icon: 'roundRect',
           },

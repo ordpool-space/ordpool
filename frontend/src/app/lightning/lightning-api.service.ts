@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BehaviorSubject, Observable, catchError, filter, of, shareReplay, take, tap } from 'rxjs';
-import { StateService } from '../services/state.service';
-import { IChannel, INodesRanking, IOldestNodes, ITopNodesPerCapacity, ITopNodesPerChannels } from '../interfaces/node-api.interface';
+import { StateService } from '@app/services/state.service';
+import { IChannel, INodesRanking, IOldestNodes, ITopNodesPerCapacity, ITopNodesPerChannels } from '@interfaces/node-api.interface';
 
 @Injectable({
   providedIn: 'root'
@@ -10,7 +10,7 @@ import { IChannel, INodesRanking, IOldestNodes, ITopNodesPerCapacity, ITopNodesP
 export class LightningApiService {
   private apiBaseUrl: string; // base URL is protocol, hostname, and port
   private apiBasePath = ''; // network path is /testnet, etc. or '' for mainnet
-  
+
   private requestCache = new Map<string, { subject: BehaviorSubject<any>, expiry: number }>;
 
   constructor(
@@ -23,7 +23,7 @@ export class LightningApiService {
     }
     this.apiBasePath = ''; // assume mainnet by default
     this.stateService.networkChanged$.subscribe((network) => {
-      this.apiBasePath = network ? '/' + network : '';
+      this.apiBasePath = network && network !== this.stateService.env.ROOT_NETWORK ? '/' + network : '';
     });
   }
 

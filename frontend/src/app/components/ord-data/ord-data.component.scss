@@ -1,0 +1,38 @@
+.amount {
+	font-weight: bold;
+}
+
+a.rune-link {
+	color: inherit;
+	&:hover {
+		text-decoration: underline;
+		text-decoration-color: var(--transparent-fg);	
+	}
+}
+
+a.disabled {
+	text-decoration: none;
+}
+
+.name {
+	color: var(--transparent-fg);
+	font-weight: 700;
+}
+
+.badge-ord {
+	--bs-btn-bg: var(--grey);
+	--bs-btn-border-color: transparent;
+	background-color: var(--bs-btn-bg);
+	border-color: var(--bs-btn-border-color);
+	position: relative;
+	top: -2px;
+	font-size: 81%;
+	&.primary {
+		--bs-btn-bg: var(--primary);
+	}
+}
+
+pre {
+	margin-top: 5px;
+	max-height: 200px;
+}

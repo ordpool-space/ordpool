@@ -2,16 +2,17 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Component, OnInit, ChangeDetectionStrategy, Input, Inject, LOCALE_ID, ChangeDetectorRef } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, Subscription, combineLatest, of, timer } from 'rxjs';
 import { delayWhen, filter, map, share, shareReplay, switchMap, take, takeUntil, tap, throttleTime } from 'rxjs/operators';
-import { ApiService } from '../../../services/api.service';
-import { Env, StateService } from '../../../services/state.service';
-import { AuditStatus, CurrentPegs, RecentPeg } from '../../../interfaces/node-api.interface';
-import { WebsocketService } from '../../../services/websocket.service';
-import { SeoService } from '../../../services/seo.service';
+import { ApiService } from '@app/services/api.service';
+import { Env, StateService } from '@app/services/state.service';
+import { AuditStatus, CurrentPegs, PegsVolume, RecentPeg } from '@interfaces/node-api.interface';
+import { WebsocketService } from '@app/services/websocket.service';
+import { SeoService } from '@app/services/seo.service';
 
 @Component({
   selector: 'app-recent-pegs-list',
   templateUrl: './recent-pegs-list.component.html',
   styleUrls: ['./recent-pegs-list.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RecentPegsListComponent implements OnInit {
@@ -27,6 +28,7 @@ export class RecentPegsListComponent implements OnInit {
   skeletonLines: number[] = [];
   auditStatus$: Observable<AuditStatus>;
   auditUpdated$: Observable<boolean>;
+  pegsVolume$: Observable<PegsVolume[]>;
   lastReservesBlockUpdate: number = 0;
   currentPeg$: Observable<CurrentPegs>;
   pegsCount$: Observable<number>;
@@ -36,7 +38,7 @@ export class RecentPegsListComponent implements OnInit {
   lastPegBlockUpdate: number = 0;
   lastPegAmount: string = '';
   isLoad: boolean = true;
-  queryParamSubscription: Subscription;
+  paramSubscription: Subscription;
   keyNavigationSubscription: Subscription;
   dir: 'rtl' | 'ltr' = 'ltr';
 
@@ -60,31 +62,34 @@ export class RecentPegsListComponent implements OnInit {
   ngOnInit(): void {
     this.isLoading = !this.widget;
     this.env = this.stateService.env;
-    this.skeletonLines = this.widget === true ? [...Array(5).keys()] : [...Array(15).keys()];
+    this.skeletonLines = this.widget === true ? [...Array(6).keys()] : [...Array(15).keys()];
 
     if (!this.widget) {
       this.seoService.setTitle($localize`:@@a8b0889ea1b41888f1e247f2731cc9322198ca04:Recent Peg-In / Out's`);
       this.websocketService.want(['blocks']);
 
-      this.queryParamSubscription = this.route.queryParams.pipe(
+      this.paramSubscription = this.route.params.pipe(
         tap((params) => {
           this.page = +params['page'] || 1;
           this.startingIndexSubject.next((this.page - 1) * 15);
         }),
       ).subscribe();
 
+      const prevKey = this.dir === 'ltr' ? 'ArrowLeft' : 'ArrowRight';
+      const nextKey = this.dir === 'ltr' ? 'ArrowRight' : 'ArrowLeft';
+
       this.keyNavigationSubscription = this.stateService.keyNavigation$
       .pipe(
+        filter((event) => event.key === prevKey || event.key === nextKey),
         tap((event) => {
-          this.isLoading = true;
-          const prevKey = this.dir === 'ltr' ? 'ArrowLeft' : 'ArrowRight';
-          const nextKey = this.dir === 'ltr' ? 'ArrowRight' : 'ArrowLeft';
           if (event.key === prevKey && this.page > 1) {
             this.page--;
+            this.isLoading = true;
             this.cd.markForCheck();
           }
           if (event.key === nextKey && this.page < this.pegsCount / this.pageSize) {
             this.page++;
+            this.isLoading = true;
             this.cd.markForCheck();
           }
         }),
@@ -146,6 +151,13 @@ export class RecentPegsListComponent implements OnInit {
         share()
       );
 
+      this.pegsVolume$ = this.auditUpdated$.pipe(
+        filter(auditUpdated => auditUpdated === true),
+        throttleTime(40000),
+        switchMap(_ => this.apiService.pegsVolume$()),
+        share()
+      );
+
       this.recentPegsList$ = combineLatest([
         this.auditStatus$,
         this.auditUpdated$,
@@ -172,12 +184,12 @@ export class RecentPegsListComponent implements OnInit {
   ngOnDestroy(): void {
     this.destroy$.next(1);
     this.destroy$.complete();
-    this.queryParamSubscription?.unsubscribe();
+    this.paramSubscription?.unsubscribe();
     this.keyNavigationSubscription?.unsubscribe();
   }
 
   pageChange(page: number): void {
-    this.router.navigate([], { queryParams: { page: page } });
+    this.router.navigate(['audit', 'pegs', page]);
   }
 
 }

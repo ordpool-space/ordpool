@@ -1,19 +1,23 @@
-<div class="container-xl" style="margin-top: 10vh; margin-bottom: 10vh;min-height: 40vh;">
+<div class="container-xl">
   <div class="text-center">
-    <!-- <br />
-    <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger.png' : '/resources/mempool-logo-bigger.png'" style="width: 250px;height:63px;">
-    <br /><br /> -->
+    <br />
+    @if (isLightMode) {
+      <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger-light.png' : '/resources/mempool-logo-bigger-light.png'" style="width: 250px;height:63px;">
+    } @else {
+      <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger.png' : '/resources/mempool-logo-bigger.png'" style="width: 250px;height:63px;">
+    }
+    <br /><br />
 
     <h2>Terms of Service</h2>
-    <!-- <h6>Updated: August 02, 2021</h6> -->
+    <h6>Updated: July 10, 2024</h6>
 
     <br><br>
 
-    <div class="text-left">
+    <div class="text-start">
 
-        <p *ngIf="officialMempoolSpace">The <a href="https://mempool.space/">mempool.space</a> website, the <a href="https://liquid.network/">liquid.network</a> website, the <a href="https://bitcoin.gob.sv/">bitcoin.gob.sv</a> website, their associated API services, and related network and server infrastructure (collectively, the "Website") are operated by Mempool Space K.K. in Japan ("Mempool", "We", or "Us") and self-hosted from <a href="https://bgp.tools/as/142052#connectivity">AS142052</a>.</p>
+        <p *ngIf="officialMempoolSpace">The <a href="https://mempool.space/">mempool.space</a> website, the <a href="https://liquid.network/">liquid.network</a> website, the <a href="https://bitcoin.gob.sv/">bitcoin.gob.sv</a> website, their associated API services, and related network and server infrastructure (collectively, the "Website") are operated by Mempool Holdings S.A. de C.V. in El Salvador ("Mempool", "We", or "Us") and self-hosted from <a href="https://bgp.tools/as/142052#connectivity">AS142052</a>.</p>
 
-        <!-- <p *ngIf="!officialMempoolSpace">This website and its API service (collectively, the "Website") are operated by a member of the Bitcoin community ("We" or "Us"). Mempool Space K.K. in Japan ("Mempool") has no affiliation with the operator of this Website, and does not sponsor or endorse the information provided herein.</p> -->
+        <p *ngIf="!officialMempoolSpace">This website and its API service (collectively, the "Website") are operated by a member of the Bitcoin community ("We" or "Us"). Mempool Holdings S.A. de C.V. in El Salvador ("Mempool") has no affiliation with the operator of this Website, and does not sponsor or endorse the information provided herein.</p>
 
         <h5>By accessing this Website, you agree to the following Terms of Service:</h5>
 
@@ -29,7 +33,7 @@
 
         <p>WE WILL NOT BE HELD LIABLE FOR ANY LOSS OR DAMAGES, WHETHER DIRECT, INDIRECT, OR ANY OTHER NATURE, THAT ARE DEEMED OR ALLEGED TO HAVE RESULTED FROM OR BEEN CAUSED BY THIS WEBSITE OR ITS CONTENTS, INCLUDING, BUT WITHOUT LIMITATION TO, ERRORS, INACCURACIES OR AMBIGUITY IN THIS WEBSITE OR ITS CONTENTS, FAILURES, MALFUNCTIONS, DELAYS OR INTERRUPTIONS IN OPERATION OR TRANSMISSION, ANY PERSONS USE OR MISUSE OF THIS WEBSITE OR ITS CONTENT, ANY ERRORS OR OMISSIONS IN CONTENT, DAMAGE FOR LOSS OF BITCOIN OR OTHER CRYPTO ASSETS, LOSS OF BUSINESS, LOSS OF PROFITS, BUSINESS INTERRUPTION, LOSS OF INFORMATION, OR ANY OTHER PECUNIARY OR CONSEQUENTIAL LOSS OR DAMAGE (EVEN IF WE HAVE BEEN NOTIFIED OF SUCH RISK OF LOSS OR DAMAGE).</p>
 
-        <!-- <br>
+        <br>
 
         <h4>NO ADVERTISING</h4>
 
@@ -65,7 +69,39 @@
 
           <br>
 
-        </ng-container> -->
+        </ng-container>
+
+        <h4>MEMPOOL ACCELERATOR&reg;</h4>
+
+        <p><a href="https://mempool.space/accelerator">Mempool Accelerator&reg;</a> enables members of the Bitcoin community to submit requests for transaction prioritization. </p>
+        <ul>
+
+          <li>Mempool will use reasonable commercial efforts to relay user acceleration requests to Mempool's mining pool partners, but it is at the discretion of Mempool and Mempool's mining pool partners to accept acceleration requests. </li>
+
+          <br>
+          
+          <li>Acceleration requests cannot be canceled by the user once submitted. </li>
+
+          <br>
+
+          <li>Mempool reserves the right to cancel acceleration requests for any reason, including but not limited to the ejection of an accelerated transaction from Mempool's mempool. Canceled accelerations will not be refunded.</li>
+
+          <br>
+          
+          <li>All acceleration payments and Mempool Accelerator&reg; account credit top-ups are non-refundable. </li>
+
+          <br>
+
+          <li>Mempool Accelerator&reg; account credit top-ups are prepayment for future accelerations and cannot be withdrawn or transferred.</li>
+          
+          <br>
+          
+          <li>Mempool does not provide acceleration services to persons in Cuba, Iran, North Korea, Russia, Syria, Crimea, Donetsk or Luhansk Regions of Ukraine.</li>
+      
+
+        </ul>
+
+        <br>
 
         <p>EOF</p>
 

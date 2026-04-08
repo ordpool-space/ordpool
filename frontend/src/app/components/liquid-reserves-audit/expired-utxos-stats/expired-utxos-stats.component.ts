@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, Input, OnInit } from '@angular/core';
 import { Observable, map, of } from 'rxjs';
-import { FederationUtxo } from '../../../interfaces/node-api.interface';
+import { FederationUtxo } from '@interfaces/node-api.interface';
 
 @Component({
   selector: 'app-expired-utxos-stats',
   templateUrl: './expired-utxos-stats.component.html',
   styleUrls: ['./expired-utxos-stats.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExpiredUtxosStatsComponent implements OnInit {

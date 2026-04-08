@@ -1,12 +1,13 @@
 import { Component, OnInit, ChangeDetectionStrategy, Input, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { Observable, Subscription } from 'rxjs';
-import { Price } from '../services/price.service';
-import { StateService } from '../services/state.service';
+import { Price } from '@app/services/price.service';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-fiat',
   templateUrl: './fiat.component.html',
   styleUrls: [],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FiatComponent implements OnInit, OnDestroy {

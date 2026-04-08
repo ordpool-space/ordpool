@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, ElementRef, ViewChild, Inject, Input, LOCALE_ID, OnInit } from '@angular/core';
 import { combineLatest, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { StateService } from '../..//services/state.service';
+import { StateService } from '@app/services/state.service';
 
 interface EpochProgress {
   base: string;
@@ -39,6 +39,7 @@ const EPOCH_BLOCK_LENGTH = 2016; // Bitcoin mainnet
   selector: 'app-difficulty',
   templateUrl: './difficulty.component.html',
   styleUrls: ['./difficulty.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DifficultyComponent implements OnInit {
@@ -47,7 +48,7 @@ export class DifficultyComponent implements OnInit {
   @Input() showTitle = true;
 
   @ViewChild('epochSvg') epochSvgElement: ElementRef<SVGElement>;
- 
+
   isLoadingWebSocket$: Observable<boolean>;
   difficultyEpoch$: Observable<EpochProgress>;
 
@@ -153,8 +154,8 @@ export class DifficultyComponent implements OnInit {
           base: `${da.progressPercent.toFixed(2)}%`,
           change: da.difficultyChange,
           progress: da.progressPercent,
-          minedBlocks: this.currentIndex + 1,
-          remainingBlocks: da.remainingBlocks - 1,
+          minedBlocks: this.currentIndex,
+          remainingBlocks: da.remainingBlocks,
           expectedBlocks: Math.floor(da.expectedBlocks),
           colorAdjustments,
           colorPreviousAdjustments,

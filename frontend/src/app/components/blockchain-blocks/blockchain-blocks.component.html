@@ -17,9 +17,22 @@
         <a draggable="false" [routerLink]="[getHref(i, block) | relativeUrl]" [state]="{ data: { block: block } }"
           class="blockLink" [ngClass]="{'disabled': (this.stateService.blockScrolling$ | async)}">&nbsp;</a>
         <div *ngIf="!minimal" [attr.data-cy]="'bitcoin-block-' + i + '-height'" class="block-height">
-          <a [routerLink]="[getHref(i, block) | relativeUrl]" [state]="{ data: { block: block } }">{{ block.height
+          <a [routerLink]="[getHref(i, block) | relativeUrl]" [state]="{ data: { block: block } }" class="block-height-link">{{ block.height
             }}</a>
         </div>
+        @if (!minimal && block?.extras?.orphans?.length > 0) {
+          <ng-container *ngFor="let orphan of block.extras.orphans.slice(0, 3); let j = index">
+            <div
+              class="stale-ghost"
+              [style.--stale-index]="j"
+              [routerLink]="['/block' | relativeUrl, orphan.hash]"
+              [ngbTooltip]="'stale block ' + orphan.hash.slice(0, 4) + '...' + orphan.hash.slice(-4)"
+              [placement]="'top'"
+              [container]="'body'"
+              [autoClose]="'outside'"
+            ></div>
+          </ng-container>
+        }
         <div class="block-body">
           <ng-container *ngIf="!minimal">
             <div *ngIf="block?.extras; else emptyfees" [attr.data-cy]="'bitcoin-block-offset=' + offset + '-index-' + i + '-fees'" class="fees">
@@ -30,19 +43,20 @@
                 <app-fee-rate unitClass=""></app-fee-rate>
               </div>
             </ng-template>
-
-            <!--
+            <!-- HACK: fee-span commented out -- ordpool uses this space for digital artifacts
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-fee-span'" class="fee-span"
               *ngIf="block?.extras?.minFee != null && block?.extras?.maxFee != null; else emptyfeespan">
-              <app-fee-rate [fee]="block?.extras?.minFee" [showUnit]="false" rounding="1.0-0" unitClass=""></app-fee-rate>
+              <app-fee-rate [fee]="block?.extras?.minFee" [showUnit]="false" unitClass=""></app-fee-rate>
               -
-              <app-fee-rate [fee]="block?.extras?.maxFee" rounding="1.0-0" unitClass=""></app-fee-rate>
+              <app-fee-rate [fee]="block?.extras?.maxFee" unitClass=""></app-fee-rate>
             </div>
             <ng-template #emptyfeespan>
               <div [attr.data-cy]="'bitcoin-block-offset=' + offset + '-index-' + i + '-fees'" class="fee-span">
                 <app-fee-rate unitClass=""></app-fee-rate>
               </div>
             </ng-template>
+            -->
+            <!--
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-total-fees'" *ngIf="blockDisplayMode === 'fees'; else noMiningInfo"
               class="block-size">
               <app-amount [satoshis]="block.extras?.totalFees ?? 0" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
@@ -63,21 +77,24 @@
                 @if (block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint &&
                      block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
                   <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
-                }                
+                }
                 @else if (block.extras.ordpoolStats.runes.mostActiveMint) {
                   <div class="rune-ticker">
                     <app-runestone-id-to-text [runeId]="block.extras.ordpoolStats.runes.mostActiveMint"/>
                   </div>
-                } 
+                }
                 @else {
                   <br>
                   X
                 }
-              } @else {
+
+              }
+              @else {
                 <div class="pt-3">?</div>
               }
             </div>
-            <!---
+
+            <!-- HACK: standard tx count commented out, ordpool shows inscription/rune counts instead
             <div [attr.data-cy]="'bitcoin-block-' + i + '-transactions'" class="transaction-count">
               <ng-container
                 *ngTemplateOutlet="block.tx_count === 1 ? transactionsSingular : transactionsPlural; context: {$implicit: block.tx_count | number}"></ng-container>
@@ -85,40 +102,25 @@
               <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} transactions</ng-template>
             </div>
             -->
-
-            @if (block.height < firstInscriptionHeight) {
-
-              <div class="transaction-count">
-                <br>
-                Pre-Ordinals Era
-              </div>
-
-            } @else if (block.extras.ordpoolStats) {
-            <div class="transaction-count">
-              <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? inscriptionsSingular : inscriptionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
-              <ng-template #inscriptionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>
-              <ng-template #inscriptionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} inscriptions</ng-template><br>
-
-              <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.runeMint === 1 ? runesSingular : runesPlural; context: {$implicit: block.extras.ordpoolStats.amounts.runeMint | number}"></ng-container>
-              <ng-template #runesSingular let-i i18n="shared.transaction-count.singular">{{ i }} rune mint</ng-template>
-              <ng-template #runesPlural let-i i18n="shared.transaction-count.plural">{{ i }} rune mints</ng-template>
+            <!-- HACK: ordpool time-since in badge instead of here
+            <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
+              <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
+              <a *ngIf="!minimal && showIsEarlierThanParent(i)" [routerLink]="['/docs/faq' | relativeUrl ]" class="timestamp-info" fragment="why-block-timestamps-dont-always-increase">
+                <fa-icon [icon]="['fas', 'info-circle']" [fixedWidth]="true"></fa-icon>
+              </a>
             </div>
-            } @else {
-              <div class="transaction-count">
-                <br>
-                Indexing…
-              </div>
-            }
-
-            <!-- <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
-              <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time></div> -->
+            -->
           </ng-container>
         </div>
-        <div class="animated" [class]="markHeight === block.height ? 'hide' : 'show'" *ngIf="block.extras?.pool != undefined && showPools">
-          <a [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-pool'" class="badge badge-primary"
-            [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
-            <!-- {{ block.extras.pool.name}} -->
-            <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
+        <div class="animated" *ngIf="block.extras?.pool != undefined && showPools">
+          <a [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-pool'" class="badge" [class.miner-name]="block.extras.pool.minerNames?.length > 1 && block.extras.pool.minerNames[1] != ''" [routerLink]="[('/mining/pool/' + block.extras.pool.slug) | relativeUrl]">
+            <ng-container *ngIf="block.extras.pool.minerNames?.length > 1 && block.extras.pool.minerNames[1] != ''; else centralisedPool">
+              <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.minerNames[1]" [logoStyle]="'filter: grayscale(100%) brightness(1.5);'" [showName]="false"></app-mining-pool>
+              {{ block.extras.pool.minerNames[1] }}
+            </ng-container>
+            <ng-template #centralisedPool>
+              <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.name"></app-mining-pool>
+            </ng-template>
           </a>
         </div>
       </div>
@@ -142,7 +144,7 @@
     </ng-template>
   </div>
   <div [hidden]="!arrowVisible" id="arrow-up" [style.transition]="arrowTransition"
-    [ngStyle]="{'left': arrowLeftPx + 'px' }"></div>
+    [ngStyle]="{'left': arrowLeftPx + 8 + 'px' }"></div>
 </div>
 
 <ng-template #loadingBlocksTemplate>

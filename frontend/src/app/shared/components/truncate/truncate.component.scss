@@ -2,7 +2,7 @@
   text-overflow: unset;
   display: flex;
   flex-direction: row;
-  align-items: baseline;
+  align-items: start;
   position: relative;
 
   .truncate-link {
@@ -36,6 +36,12 @@
     position: absolute;
     max-width: 300px;
     overflow: hidden;
+  }
+
+  .disabled {
+    pointer-events: none;
+    opacity: 0.8;
+    color: var(--transparent-fg);
   }
 }
 

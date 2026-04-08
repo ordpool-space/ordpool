@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { LightningApiService } from '../lightning-api.service';
+import { LightningApiService } from '@app/lightning/lightning-api.service';
 import { share } from 'rxjs/operators';
 import { Observable } from 'rxjs';
-import { INodesStatistics } from '../../interfaces/node-api.interface';
+import { INodesStatistics } from '@interfaces/node-api.interface';
 
 @Component({
   selector: 'app-nodes-ranking',
   templateUrl: './nodes-ranking.component.html',
   styleUrls: ['./nodes-ranking.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NodesRanking implements OnInit {

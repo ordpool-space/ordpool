@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, Input, OnChanges } from '@angular/core';
+import { StateService } from '@app/services/state.service';
 
 @Component({
   selector: 'app-timestamp',
   templateUrl: './timestamp.component.html',
   styleUrls: ['./timestamp.component.scss'],
+  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TimestampComponent implements OnChanges {
@@ -15,6 +17,10 @@ export class TimestampComponent implements OnChanges {
   @Input() minUnit: 'year' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second' = 'second';
 
   seconds: number | undefined = undefined;
+
+  constructor(
+    public stateService: StateService,
+  ) { }
 
   ngOnChanges(): void {
     if (this.unixTime) {

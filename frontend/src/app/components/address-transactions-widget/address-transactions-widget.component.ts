@@ -1,21 +1,22 @@
 import { Component, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from '@angular/core';
-import { StateService } from '../../services/state.service';
-import { Address, AddressTxSummary } from '../../interfaces/electrs.interface';
-import { ElectrsApiService } from '../../services/electrs-api.service';
+import { StateService } from '@app/services/state.service';
+import { Address, AddressTxSummary } from '@interfaces/electrs.interface';
+import { ElectrsApiService } from '@app/services/electrs-api.service';
 import { Observable, Subscription, catchError, map, of, switchMap, zip } from 'rxjs';
-import { PriceService } from '../../services/price.service';
+import { PriceService } from '@app/services/price.service';
 
 @Component({
   selector: 'app-address-transactions-widget',
   templateUrl: './address-transactions-widget.component.html',
   styleUrls: ['./address-transactions-widget.component.scss'],
+  standalone: false,
 })
 export class AddressTransactionsWidgetComponent implements OnInit, OnChanges, OnDestroy {
   @Input() address: string;
   @Input() addressInfo: Address;
   @Input() addressSummary$: Observable<AddressTxSummary[]> | null;
   @Input() isPubkey: boolean = false;
-  
+
   currencySubscription: Subscription;
   currency: string;
 
@@ -43,7 +44,7 @@ export class AddressTransactionsWidgetComponent implements OnInit, OnChanges, On
 
   startAddressSubscription(): void {
     this.isLoading = true;
-    if (!this.address || !this.addressInfo) {
+    if (!this.addressSummary$ && (!this.address || !this.addressInfo)) {
       return;
     }
     this.transactions$ = (this.addressSummary$ || (this.isPubkey
@@ -55,10 +56,10 @@ export class AddressTransactionsWidgetComponent implements OnInit, OnChanges, On
       })
     )).pipe(
       map(summary => {
-        return summary?.slice(0, 6);
+        return summary?.filter(tx => Math.abs(tx.value) >= 1000000)?.slice(0, 6);
       }),
       switchMap(txs => {
-        return (zip(txs.map(tx => this.priceService.getBlockPrice$(tx.time, true, this.currency).pipe(
+        return (zip(txs.map(tx => this.priceService.getBlockPrice$(tx.time, txs.length < 3, this.currency).pipe(
           map(price => {
             return {
               ...tx,
@@ -68,6 +69,12 @@ export class AddressTransactionsWidgetComponent implements OnInit, OnChanges, On
         ))));
       })
     );
+
+  }
+
+  getAmountDigits(value: number): string {
+    const decimals = Math.max(0, 4 - Math.ceil(Math.log10(Math.abs(value / 100_000_000))));
+    return `1.${decimals}-${decimals}`;
   }
 
   ngOnDestroy(): void {
