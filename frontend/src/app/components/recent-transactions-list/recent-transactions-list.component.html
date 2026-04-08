@@ -1,3 +1,13 @@
+<button *ngIf="!widget && bufferedCount > 0 && !isManualPaused"
+  type="button"
+  class="new-tx-pill"
+  (click)="scrollToTop()"
+  data-cy="new-tx-pill">
+  <fa-icon [icon]="['fas', 'angle-up']" [fixedWidth]="true"></fa-icon>
+  <span *ngIf="bufferedCount === 1" i18n="recent-transactions.new-tx-pill.singular">1 new transaction</span>
+  <span *ngIf="bufferedCount > 1" i18n="recent-transactions.new-tx-pill.plural">{{ bufferedCount }} new transactions</span>
+</button>
+
 <div [class.container-xl]="!widget" [style.min-height.px]="widget ? null : 335">
   <div class="title-row" *ngIf="!widget">
     <h1 i18n="page.recent-transactions">Recent Transactions</h1>
@@ -13,8 +23,8 @@
           {{ limit }}
         </button>
       </div>
-      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isPaused" (click)="togglePause()" title="Pause/Resume" i18n-title="recent-transactions.pause-toggle.title|Tooltip for the pause/resume updates button" aria-label="Pause/Resume" i18n-aria-label="recent-transactions.pause-toggle.aria-label|Accessible label for the pause/resume updates button" data-cy="btn-pause">
-        <fa-icon [icon]="['fas', isPaused ? 'play' : 'pause']" [fixedWidth]="true"></fa-icon>
+      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isManualPaused" (click)="togglePause()" title="Pause/Resume" i18n-title="recent-transactions.pause-toggle.title|Tooltip for the pause/resume updates button" aria-label="Pause/Resume" i18n-aria-label="recent-transactions.pause-toggle.aria-label|Accessible label for the pause/resume updates button" data-cy="btn-pause">
+        <fa-icon [icon]="['fas', isManualPaused ? 'play' : 'pause']" [fixedWidth]="true"></fa-icon>
       </button>
     </div>
   </div>
@@ -27,7 +37,7 @@
       <th class="table-cell-vsize" *ngIf="!widget" i18n="transaction.vsize|Transaction Virtual Size">vSize</th>
       <th class="table-cell-fees" i18n="transaction.fee|Transaction fee">Fee</th>
     </thead>
-    <tbody data-cy="transactions-list" *ngIf="transactions$ | async as transactions; else loadingSkeleton">
+    <tbody data-cy="transactions-list" *ngIf="transactions$ | async as transactions">
       <tr *ngFor="let transaction of transactions; trackBy: trackByTxid">
         <td class="table-cell-txid">
           <a [routerLink]="['/tx' | relativeUrl, transaction.txid]">
@@ -46,18 +56,13 @@
           <app-fee-rate [fee]="transaction.fee" [weight]="transaction.vsize * 4"></app-fee-rate>
         </td>
       </tr>
+      <tr *ngIf="transactions.length < txLimit" data-cy="transactions-skeleton-row">
+        <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
+        <td class="table-cell-fiat" *ngIf="(network$ | async) === ''"><span class="skeleton-loader"></span></td>
+        <td class="table-cell-satoshis"><span class="skeleton-loader"></span></td>
+        <td class="table-cell-vsize" *ngIf="!widget"><span class="skeleton-loader"></span></td>
+        <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
+      </tr>
     </tbody>
   </table>
 </div>
-
-<ng-template #loadingSkeleton>
-  <tbody>
-    <tr *ngFor="let item of skeletonRows">
-      <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
-      <td class="table-cell-fiat" *ngIf="(network$ | async) === ''"><span class="skeleton-loader"></span></td>
-      <td class="table-cell-satoshis"><span class="skeleton-loader"></span></td>
-      <td class="table-cell-vsize" *ngIf="!widget"><span class="skeleton-loader"></span></td>
-      <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
-    </tr>
-  </tbody>
-</ng-template>
