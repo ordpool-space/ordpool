@@ -149,6 +149,10 @@
   flex-direction: row;
   align-items: stretch;
   margin-top: 1em;
+
+  @media (min-width: 768px) {
+    min-height: 350px;
+  }
 }
 
 .payment-area {

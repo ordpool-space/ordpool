@@ -160,15 +160,6 @@ $dropdown-link-active-bg: $hover-bg;
   --bs-btn-hover-color: var(--fg);
 }
 
-.btn-outline-secondary {
-  --bs-btn-hover-bg: var(--secondary);
-  --bs-btn-hover-border-color: var(--secondary);
-  --bs-btn-focus-shadow-rgb: 218, 220, 225;
-  --bs-btn-active-bg: var(--secondary);
-  --bs-btn-active-border-color: var(--secondary);
-  --bs-btn-hover-color: var(--fg);
-}
-
 .btn-outline-info {
   --bs-btn-color: var(--link-color);
   --bs-btn-border-color: var(--link-color);
