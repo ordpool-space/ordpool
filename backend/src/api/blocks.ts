@@ -233,10 +233,10 @@ class Blocks {
     };
   }
 
-  public summarizeBlockTransactions(hash: string, height: number, transactions: TransactionExtended[]): BlockSummary {
+  public async summarizeBlockTransactions(hash: string, height: number, transactions: TransactionExtended[]): Promise<BlockSummary> {
     return {
       id: hash,
-      transactions: Common.classifyTransactions(transactions, height),
+      transactions: await Common.classifyTransactions(transactions, height),
     };
   }
 
@@ -755,7 +755,7 @@ class Blocks {
           // add CPFP
           const cpfpSummary = calculateGoodBlockCpfp(height, txs, []);
           // classify
-          const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
+          const { transactions: classifiedTxs } = await this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
           await BlocksSummariesRepository.$saveTransactions(height, blockHash, classifiedTxs, 2);
           if (unclassifiedBlocks[height].version < 2 && targetSummaryVersion === 2) {
             const cpfpClusters = await CpfpRepository.$getClustersAt(height);
@@ -792,7 +792,7 @@ class Blocks {
             }
             const cpfpSummary = calculateGoodBlockCpfp(height, templateTxs?.filter(tx => tx['effectiveFeePerVsize'] != null) as MempoolTransactionExtended[], []);
             // classify
-            const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
+            const { transactions: classifiedTxs } = await this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
             const classifiedTxMap: { [txid: string]: TransactionClassified } = {};
             for (const tx of classifiedTxs) {
               classifiedTxMap[tx.txid] = tx;
@@ -1096,7 +1096,7 @@ class Blocks {
       }
       const cpfpSummary: CpfpSummary = calculateGoodBlockCpfp(block.height, transactions, accelerations.map(a => ({ txid: a.txid, max_bid: a.feeDelta })));
       const blockExtended: BlockExtended = await this.$getBlockExtended(block, cpfpSummary.transactions);
-      const blockSummary: BlockSummary = this.summarizeBlockTransactions(block.id, block.height, cpfpSummary.transactions);
+      const blockSummary: BlockSummary = await this.summarizeBlockTransactions(block.id, block.height, cpfpSummary.transactions);
       this.updateTimerProgress(timer, `got block data for ${this.currentBlockHeight}`);
 
       if (Common.indexingEnabled()) {
@@ -1422,10 +1422,10 @@ class Blocks {
     if (cpfpSummary && !Common.isLiquid()) {
       summary = {
         id: hash,
-        transactions: cpfpSummary.transactions.map(tx => {
+        transactions: await Promise.all(cpfpSummary.transactions.map(async tx => {
           let flags: number = 0;
           try {
-            flags = Common.getTransactionFlags(tx, height);
+            flags = await Common.getTransactionFlags(tx, height);
           } catch (e) {
             logger.warn('Failed to classify transaction: ' + (e instanceof Error ? e.message : e));
           }
@@ -1438,12 +1438,12 @@ class Blocks {
             rate: tx.effectiveFeePerVsize,
             flags: flags,
           };
-        }),
+        })),
       };
       summaryVersion = cpfpSummary.version;
     } else {
       const txs = (await bitcoinApi.$getTxsForBlock(hash, true)).map(tx => transactionUtils.extendTransaction(tx));
-      summary = this.summarizeBlockTransactions(hash, height || 0, txs);
+      summary = await this.summarizeBlockTransactions(hash, height || 0, txs);
       summaryVersion = 1;
     }
     if (height == null) {
@@ -1587,7 +1587,7 @@ class Blocks {
           let summaryVersion = 0;
           if (config.MEMPOOL.BACKEND === 'esplora') {
             const txs = (await bitcoinApi.$getTxsForBlock(cleanBlock.hash, cleanBlock.stale)).map(tx => transactionUtils.extendTransaction(tx));
-            summary = this.summarizeBlockTransactions(cleanBlock.hash, cleanBlock.height, txs);
+            summary = await this.summarizeBlockTransactions(cleanBlock.hash, cleanBlock.height, txs);
             summaryVersion = 1;
           } else {
             // Call Core RPC

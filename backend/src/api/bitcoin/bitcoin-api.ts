@@ -407,7 +407,7 @@ class BitcoinApi implements AbstractBitcoinApi {
     if (addedPrevouts) {
       // re-calculate transaction flags now that we have full prevout data
       transaction.flags = undefined; // clear existing flags to force full classification
-      transaction.flags = Common.getTransactionFlags(transaction, transaction.status?.block_height ?? blocks.getCurrentBlockHeight());
+      transaction.flags = await Common.getTransactionFlags(transaction, transaction.status?.block_height ?? blocks.getCurrentBlockHeight());
     }
     return transaction;
   }
