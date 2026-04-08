@@ -1368,7 +1368,7 @@ class BlocksRepository {
         let summaryVersion = 0;
         if (config.MEMPOOL.BACKEND === 'esplora') {
           const txs = (await bitcoinApi.$getTxsForBlock(dbBlk.id, dbBlk.stale)).map(tx => transactionUtils.extendTransaction(tx));
-          summary = blocks.summarizeBlockTransactions(dbBlk.id, dbBlk.height, txs);
+          summary = await blocks.summarizeBlockTransactions(dbBlk.id, dbBlk.height, txs);
           summaryVersion = 1;
         } else {
           // Call Core RPC

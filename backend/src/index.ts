@@ -50,6 +50,11 @@ import mempoolBlocks from './api/mempool-blocks';
 import walletApi from './api/services/wallets';
 import stratumApi from './api/services/stratum';
 
+// HACK -- Ordpool imports
+import ordpoolDatabaseMigration from './api/ordpool-database-migration';
+import generalOrdpoolRoutes from './api/explorer/_ordpool/ordpool.routes';
+import ordpoolIndexer from './ordpool-indexer';
+
 class Server {
   private wss: WebSocket.Server | undefined;
   private wssUnixSocket: WebSocket.Server | undefined;
@@ -130,6 +135,9 @@ class Server {
           await databaseMigration.$blocksReindexingTruncate();
         }
         await databaseMigration.$initializeOrMigrateDatabase();
+
+        // HACK -- Ordpool database migration
+        await ordpoolDatabaseMigration.$initializeOrMigrateDatabase();
       } catch (e) {
         throw new Error(e instanceof Error ? e.message : 'Error');
       }
@@ -262,6 +270,10 @@ class Server {
         await memPool.$updateMempool(newMempool, latestAccelerations, minFeeMempool, minFeeTip, pollRate);
       }
       void indexer.$run();
+
+      // HACK -- Ordpool indexer (backfills ordpool stats for historical blocks)
+      await ordpoolIndexer.run();
+
       if (config.WALLETS.ENABLED) {
         // might take a while, so run in the background
         void walletApi.$syncWallets();
@@ -376,6 +388,9 @@ class Server {
     if (!config.MEMPOOL.OFFICIAL) {
       aboutRoutes.initRoutes(this.app);
     }
+
+    // HACK -- Ordpool API routes
+    generalOrdpoolRoutes.initRoutes(this.app);
   }
 
   healthCheck(): void {
