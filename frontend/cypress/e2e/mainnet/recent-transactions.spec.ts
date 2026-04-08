@@ -21,7 +21,7 @@ describe('Recent Transactions Page', () => {
       });
     });
 
-    it('pauses updates when clicking the clock icon', () => {
+    it('pauses updates when clicking the pause icon', () => {
       cy.visit('/txs');
       cy.waitForSkeletonGone();
 
@@ -43,17 +43,33 @@ describe('Recent Transactions Page', () => {
 
     it('caps the list when changing the limit to 10', () => {
       cy.visit('/txs');
-      cy.waitForSkeletonGone();
 
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
-
-      // Wait for the list to accumulate transactions
-      cy.get('[data-cy="transactions-list"] tr', { timeout: 30000 }).should('have.length.greaterThan', 10);
-
+      cy.get('[data-cy="transactions-list"] tr', { timeout: 90000 }).should('have.length', 50);
       cy.get('[data-cy="limit-10"]').click();
-
-      cy.get('[data-cy="transactions-list"] tr').should('have.length.at.most', 10);
+      cy.scrollTo('top');
+      cy.get('[data-cy="transactions-list"] tr', { timeout: 90000 }).should('have.length', 10);
     });
 
+    it('shows the new transaction pill when there are new transactions', () => {
+      cy.visit('/txs');
+
+      cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
+      cy.scrollTo('bottom');
+      cy.get('[data-cy="new-tx-pill"]').should('be.visible');
+    });
+
+    it('shows the new transaction pill when there are new transactions and scrolls to the top when clicked', () => {
+      cy.visit('/txs');
+
+      cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
+      cy.scrollTo('bottom');
+      cy.get('[data-cy="new-tx-pill"]', {timeout: 10000}).should('be.visible');
+      cy.get('[data-cy="new-tx-pill"]').click();
+      cy.wait(1000);
+      cy.window().then((win) => {
+        expect(win.scrollY).to.be.eq(0);
+      });
+    });
   }
 });
