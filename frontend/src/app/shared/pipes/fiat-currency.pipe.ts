@@ -42,7 +42,7 @@ export class FiatCurrencyPipe implements PipeTransform {
         const minFrac = parseInt(match[2], 10);
         const maxFrac = parseInt(match[3], 10);
         const currencyMaxFrac = this.getCurrencyMaxFrac(currency);
-        if (maxFrac === 0 && Math.abs(num) <= 1000) {
+        if (maxFrac === 0 && Math.abs(num) < 1000) {
           options.minimumFractionDigits = Math.min(2, currencyMaxFrac);
           options.maximumFractionDigits = Math.min(2, currencyMaxFrac);
         } else {
