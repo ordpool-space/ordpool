@@ -10,6 +10,7 @@ import { StateService } from '@app/services/state.service';
 export class FiatCurrencyPipe implements PipeTransform {
   fiatSubscription: Subscription;
   currency: string;
+  private currencyMaxFracCache: Record<string, number> = {};
 
   constructor(
     @Inject(LOCALE_ID) public locale: string,
@@ -18,6 +19,15 @@ export class FiatCurrencyPipe implements PipeTransform {
     this.fiatSubscription = this.stateService.fiatCurrency$.subscribe((fiat) => {
       this.currency = fiat;
     });
+  }
+
+  private getCurrencyMaxFrac(currency: string): number {
+    if (!(currency in this.currencyMaxFracCache)) {
+      this.currencyMaxFracCache[currency] =
+        new Intl.NumberFormat(this.locale, { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ??
+        Number.POSITIVE_INFINITY;
+    }
+    return this.currencyMaxFracCache[currency];
   }
 
   transform(num: number, ...args: any[]): unknown {
@@ -31,9 +41,7 @@ export class FiatCurrencyPipe implements PipeTransform {
       if (match) {
         const minFrac = parseInt(match[2], 10);
         const maxFrac = parseInt(match[3], 10);
-        const currencyMaxFrac =
-          new Intl.NumberFormat(this.locale, { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ??
-          Number.POSITIVE_INFINITY;
+        const currencyMaxFrac = this.getCurrencyMaxFrac(currency);
         options.minimumFractionDigits = Math.min(minFrac, currencyMaxFrac);
         options.maximumFractionDigits = Math.min(maxFrac, currencyMaxFrac);
       }
