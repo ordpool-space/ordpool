@@ -1,6 +1,7 @@
 import { Inject, LOCALE_ID, OnDestroy, Pipe, PipeTransform } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { StateService } from '@app/services/state.service';
+import { SMALL_FIAT_THRESHOLD } from './fiat-currency.pipe';
 
 @Pipe({
   name: 'fiatShortener',
@@ -27,7 +28,7 @@ export class FiatShortenerPipe implements PipeTransform, OnDestroy {
     const digits = args[0] || 1;
     const currency = args[1] || this.currency || 'USD';
 
-    if (num < 1000) {
+    if (Math.abs(num) < SMALL_FIAT_THRESHOLD) {
       return new Intl.NumberFormat(this.locale, { style: 'currency', currency, maximumFractionDigits: 1 }).format(num);
     }
 

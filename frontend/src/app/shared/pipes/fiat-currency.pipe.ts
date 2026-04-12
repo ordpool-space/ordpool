@@ -4,7 +4,7 @@ import { StateService } from '@app/services/state.service';
 
 // Below this threshold, show 2 decimal places even when digitsInfo requests 0,
 // so small fiat amounts (e.g. $3.50) remain readable instead of rounding to $4.
-const SMALL_FIAT_THRESHOLD = 1000;
+export const SMALL_FIAT_THRESHOLD = 1000;
 
 @Pipe({
   name: 'fiatCurrency',
