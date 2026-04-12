@@ -1,11 +1,11 @@
-<button *ngIf="!widget && bufferedCount > 0 && !isManualPaused"
+<button *ngIf="!widget && (bufferedCount$ | async) > 0 && !(manualPaused$ | async)"
   type="button"
   class="new-tx-pill"
   (click)="scrollToTop()"
   data-cy="new-tx-pill">
   <fa-icon [icon]="['fas', 'angle-up']" [fixedWidth]="true"></fa-icon>
-  <span *ngIf="bufferedCount === 1" i18n="recent-transactions.new-tx-pill.singular">1 new transaction</span>
-  <span *ngIf="bufferedCount > 1" i18n="recent-transactions.new-tx-pill.plural">{{ bufferedCount }} new transactions</span>
+  <span *ngIf="(bufferedCount$ | async) === 1" i18n="recent-transactions.new-tx-pill.singular">1 new transaction</span>
+  <span *ngIf="(bufferedCount$ | async) > 1" i18n="recent-transactions.new-tx-pill.plural">{{ bufferedCount$ | async }} new transactions</span>
 </button>
 
 <div [class.container-xl]="!widget" [style.min-height.px]="widget ? null : 335">
@@ -17,14 +17,14 @@
         <button *ngFor="let limit of limitOptions"
           type="button"
           class="btn btn-primary btn-sm"
-          [class.active]="txLimit === limit"
+          [class.active]="(limit$ | async) === limit"
           [attr.data-cy]="'limit-' + limit"
           (click)="setLimit(limit)">
           {{ limit }}
         </button>
       </div>
-      <button class="btn btn-primary btn-sm btn-pause" [class.active]="isManualPaused" (click)="togglePause()" title="Pause/Resume" i18n-title="recent-transactions.pause-toggle.title|Tooltip for the pause/resume updates button" aria-label="Pause/Resume" i18n-aria-label="recent-transactions.pause-toggle.aria-label|Accessible label for the pause/resume updates button" data-cy="btn-pause">
-        <fa-icon [icon]="['fas', isManualPaused ? 'play' : 'pause']" [fixedWidth]="true"></fa-icon>
+      <button class="btn btn-primary btn-sm btn-pause" [class.active]="manualPaused$ | async" (click)="togglePause()" title="Pause/Resume" i18n-title="recent-transactions.pause-toggle.title|Tooltip for the pause/resume updates button" aria-label="Pause/Resume" i18n-aria-label="recent-transactions.pause-toggle.aria-label|Accessible label for the pause/resume updates button" data-cy="btn-pause">
+        <fa-icon [icon]="['fas', (manualPaused$ | async) ? 'play' : 'pause']" [fixedWidth]="true"></fa-icon>
       </button>
     </div>
   </div>
@@ -56,7 +56,7 @@
           <app-fee-rate [fee]="transaction.fee" [weight]="transaction.vsize * 4"></app-fee-rate>
         </td>
       </tr>
-      <tr *ngIf="transactions.length < txLimit" data-cy="transactions-skeleton-row">
+      <tr *ngIf="transactions.length < (limit$ | async)" data-cy="transactions-skeleton-row">
         <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
         <td class="table-cell-fiat" *ngIf="(network$ | async) === ''"><span class="skeleton-loader"></span></td>
         <td class="table-cell-satoshis"><span class="skeleton-loader"></span></td>
