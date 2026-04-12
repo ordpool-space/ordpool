@@ -1,4 +1,3 @@
-import { formatCurrency, getCurrencySymbol } from '@angular/common';
 import { Inject, LOCALE_ID, OnDestroy, Pipe, PipeTransform } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { StateService } from '@app/services/state.service';
