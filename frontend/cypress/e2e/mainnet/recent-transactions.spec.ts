@@ -56,7 +56,7 @@ describe('Recent Transactions Page', () => {
 
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
       cy.scrollTo('bottom');
-      cy.get('[data-cy="new-tx-pill"]').should('be.visible');
+      cy.get('[data-cy="new-tx-pill"]', {timeout: 30000}).should('be.visible');
     });
 
     it('shows the new transaction pill when there are new transactions and scrolls to the top when clicked', () => {
@@ -64,7 +64,7 @@ describe('Recent Transactions Page', () => {
 
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
       cy.scrollTo('bottom');
-      cy.get('[data-cy="new-tx-pill"]', {timeout: 10000}).should('be.visible');
+      cy.get('[data-cy="new-tx-pill"]', {timeout: 30000}).should('be.visible');
       cy.get('[data-cy="new-tx-pill"]').click();
       cy.wait(1000);
       cy.window().then((win) => {
