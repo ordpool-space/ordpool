@@ -1,10 +1,9 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, Input, HostListener } from '@angular/core';
-import { BehaviorSubject, Observable, Subscription, merge, of } from 'rxjs';
-import { filter, scan, startWith, switchMap } from 'rxjs/operators';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, Input, HostListener } from '@angular/core';
+import { BehaviorSubject, Observable, Subscription, combineLatest, merge, of } from 'rxjs';
+import { distinctUntilChanged, filter, map, scan, shareReplay } from 'rxjs/operators';
 import { StateService } from '@app/services/state.service';
 import { WebsocketService } from '@app/services/websocket.service';
 import { SeoService } from '@app/services/seo.service';
-import { OpenGraphService } from '@app/services/opengraph.service';
 import { TransactionStripped } from '@interfaces/node-api.interface';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 
@@ -19,84 +18,73 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
   @Input() widget: boolean = false;
 
   transactions$: Observable<TransactionStripped[]>;
+  bufferedCount$: Observable<number>;
   network$: Observable<string>;
   currency: string;
   currencySubscription: Subscription;
   isLoading = true;
-  isManualPaused = false;
-  isAutoPaused = false;
-  bufferedCount = 0;
-  txLimit = 50;
   limitOptions = [10, 50, 100, 500, 1000];
-  private pausedTransactions: TransactionStripped[] = [];
-  private pausedNewTxs: TransactionStripped[] = []; // buffered while paused, newest first
-  private pausedNewTxids = new Set<string>();
-  private limit$ = new BehaviorSubject<number>(50);
+  limit$: BehaviorSubject<number>;
+  manualPaused$ = new BehaviorSubject<boolean>(false);
+  autoPaused$ = new BehaviorSubject<boolean>(false);
+  paused$: Observable<boolean>;
 
   constructor(
     public stateService: StateService,
     private websocketService: WebsocketService,
     private seoService: SeoService,
-    private ogService: OpenGraphService,
-    private cd: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
-    if (this.widget) {
-      this.txLimit = 6;
-      this.limit$.next(this.txLimit);
-    } else {
+    this.limit$ = new BehaviorSubject<number>(this.widget ? 6 : 50);
+
+    if (!this.widget) {
       this.websocketService.want(['stats', 'mempool-blocks']);
     }
     this.network$ = merge(of(''), this.stateService.networkChanged$);
 
-    this.transactions$ = this.limit$.pipe(
-      switchMap((limit) => {
-        return this.stateService.transactions$.pipe(
-          filter((txs) => txs != null),
-          scan((acc: TransactionStripped[], txs: TransactionStripped[]) => {
-            const seen = new Set(acc.map(t => t.txid));
-            const newTxs = txs.filter(t => !seen.has(t.txid));
-            if (this.isManualPaused || this.isAutoPaused) {
-              // While paused we freeze the visible list and buffer every
-              // fresh transaction we see across emissions. We need the full
-              // objects (not just txids) because stateService.transactions$
-              // only holds a small rolling window, so early-pause txs would
-              // otherwise fall off before we can re-render them on resume.
-              const incoming: TransactionStripped[] = [];
-              for (const tx of newTxs) {
-                if (!this.pausedNewTxids.has(tx.txid)) {
-                  this.pausedNewTxids.add(tx.txid);
-                  incoming.push(tx);
-                }
-              }
-              if (incoming.length) {
-                this.pausedNewTxs = [...incoming, ...this.pausedNewTxs];
-                // Cap the buffer at txLimit to bound memory on long pauses.
-                // Anything beyond the limit would be sliced off on resume
-                // anyway, so drop the oldest entries (tail) and evict their
-                // txids from the dedup set so it can't grow unbounded.
-                if (this.pausedNewTxs.length > limit) {
-                  const dropped = this.pausedNewTxs.slice(limit);
-                  for (const tx of dropped) {
-                    this.pausedNewTxids.delete(tx.txid);
-                  }
-                  this.pausedNewTxs = this.pausedNewTxs.slice(0, limit);
-                }
-              }
-              this.bufferedCount = this.pausedNewTxs.length;
-              return acc;
-            }
-            this.pausedNewTxs = [];
-            this.pausedNewTxids.clear();
-            this.bufferedCount = 0;
-            const result = [...newTxs, ...acc].slice(0, limit);
-            this.pausedTransactions = result;
-            return result;
-          }, this.pausedTransactions),
-          startWith(this.pausedTransactions),
-        );
-      }),
+    this.paused$ = combineLatest([this.manualPaused$, this.autoPaused$]).pipe(
+      map(([m, a]) => m || a),
+      distinctUntilChanged(),
+    );
+
+    // deduplicated FIFO queue of live transactions
+    const accumulated$ = this.stateService.transactions$.pipe(
+      filter((txs): txs is TransactionStripped[] => txs !== null && txs !== undefined),
+      scan((acc, txs) => {
+        // insert into map in chronological order
+        for (let i = txs.length - 1; i >= 0; i--) {
+          const tx = txs[i];
+          if (!acc.has(tx.txid)) {
+            acc.set(tx.txid, tx);
+          }
+        }
+        while (acc.size > 1000) {
+          acc.delete(acc.keys().next().value);
+        }
+        return acc;
+      }, new Map<string, TransactionStripped>()), // ES6 maps preserve ordering
+      map((acc) => Array.from(acc.values()).reverse()), // newest-first for rendering
+      shareReplay(1), // multicast to transactions$ + bufferedCount$
+    );
+
+    this.transactions$ = combineLatest([accumulated$, this.limit$, this.paused$]).pipe(
+      filter(([, , paused]) => !paused), // stop updating while paused
+      map(([live, limit]) => live.slice(0, limit)), // otherwise update in real time and enforce the limit
+    );
+
+    // keep track of how many new txs have arrived since the last pause for the pill button
+    this.bufferedCount$ = combineLatest([accumulated$, this.paused$]).pipe(
+      scan((state, [live, paused]) => {
+        if (!paused) {
+          return { frozen: null as number | null, count: 0 };
+        }
+        const frozen = state.frozen ?? live.length;
+        return { frozen, count: Math.max(0, live.length - frozen) };
+      }, { frozen: null as number | null, count: 0 }),
+      map((state) => state.count),
+      distinctUntilChanged(),
+      shareReplay(1),
     );
 
     this.currencySubscription = this.stateService.fiatCurrency$.subscribe((fiat) => {
@@ -110,17 +98,11 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
   }
 
   setLimit(limit: number): void {
-    this.txLimit = limit;
     this.limit$.next(limit);
   }
 
   togglePause(): void {
-    this.isManualPaused = !this.isManualPaused;
-    if (!this.isManualPaused && !this.isAutoPaused) {
-      this.flushPausedBuffer();
-      this.limit$.next(this.txLimit);
-    }
-    this.cd.markForCheck();
+    this.manualPaused$.next(!this.manualPaused$.value);
   }
 
   @HostListener('window:scroll')
@@ -131,28 +113,10 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
     const scrollEl = document.scrollingElement || document.documentElement;
     const atTop = !scrollEl || scrollEl.scrollTop <= 0;
     const shouldAutoPause = !atTop;
-    if (shouldAutoPause === this.isAutoPaused) {
+    if (shouldAutoPause === this.autoPaused$.value) {
       return;
     }
-    this.isAutoPaused = shouldAutoPause;
-    if (!this.isAutoPaused && !this.isManualPaused) {
-      // Flush buffered updates as soon as the user returns to the top.
-      this.flushPausedBuffer();
-      this.limit$.next(this.txLimit);
-    }
-    this.cd.markForCheck();
-  }
-
-  // Merges buffered (paused) transactions into pausedTransactions so that the
-  // re-subscribed scan starts from the up-to-date frozen list, then clears
-  // the buffer so the pill disappears.
-  private flushPausedBuffer(): void {
-    if (this.pausedNewTxs.length > 0) {
-      this.pausedTransactions = [...this.pausedNewTxs, ...this.pausedTransactions].slice(0, this.txLimit);
-    }
-    this.pausedNewTxs = [];
-    this.pausedNewTxids.clear();
-    this.bufferedCount = 0;
+    this.autoPaused$.next(shouldAutoPause);
   }
 
   scrollToTop(): void {
@@ -166,7 +130,7 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
     return tx.txid;
   }
 
-ngOnDestroy(): void {
+  ngOnDestroy(): void {
     this.currencySubscription?.unsubscribe();
   }
 }
