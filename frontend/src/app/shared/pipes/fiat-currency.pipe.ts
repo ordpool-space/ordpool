@@ -1,13 +1,17 @@
 import { formatCurrency, getCurrencySymbol } from '@angular/common';
-import { Inject, LOCALE_ID, Pipe, PipeTransform } from '@angular/core';
+import { Inject, LOCALE_ID, OnDestroy, Pipe, PipeTransform } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { StateService } from '@app/services/state.service';
+
+// Below this threshold, show 2 decimal places even when digitsInfo requests 0,
+// so small fiat amounts (e.g. $3.50) remain readable instead of rounding to $4.
+const SMALL_FIAT_THRESHOLD = 1000;
 
 @Pipe({
   name: 'fiatCurrency',
   standalone: false,
 })
-export class FiatCurrencyPipe implements PipeTransform {
+export class FiatCurrencyPipe implements PipeTransform, OnDestroy {
   fiatSubscription: Subscription;
   currency: string;
   private currencyMaxFracCache: Record<string, number> = {};
@@ -19,6 +23,10 @@ export class FiatCurrencyPipe implements PipeTransform {
     this.fiatSubscription = this.stateService.fiatCurrency$.subscribe((fiat) => {
       this.currency = fiat;
     });
+  }
+
+  ngOnDestroy(): void {
+    this.fiatSubscription.unsubscribe();
   }
 
   private getCurrencyMaxFrac(currency: string): number {
@@ -39,10 +47,14 @@ export class FiatCurrencyPipe implements PipeTransform {
     if (digitsInfo) {
       const match = digitsInfo.match(/^(\d+)\.(\d+)-(\d+)$/);
       if (match) {
+        const minInt = parseInt(match[1], 10);
         const minFrac = parseInt(match[2], 10);
         const maxFrac = parseInt(match[3], 10);
         const currencyMaxFrac = this.getCurrencyMaxFrac(currency);
-        if (maxFrac === 0 && Math.abs(num) < 1000) {
+        if (minInt > 1) {
+          options.minimumIntegerDigits = minInt;
+        }
+        if (maxFrac === 0 && Math.abs(num) < SMALL_FIAT_THRESHOLD) {
           options.minimumFractionDigits = Math.min(2, currencyMaxFrac);
           options.maximumFractionDigits = Math.min(2, currencyMaxFrac);
         } else {

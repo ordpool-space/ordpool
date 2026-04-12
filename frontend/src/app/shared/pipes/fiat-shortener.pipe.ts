@@ -1,5 +1,5 @@
 import { formatCurrency, getCurrencySymbol } from '@angular/common';
-import { Inject, LOCALE_ID, Pipe, PipeTransform } from '@angular/core';
+import { Inject, LOCALE_ID, OnDestroy, Pipe, PipeTransform } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { StateService } from '@app/services/state.service';
 
@@ -7,7 +7,7 @@ import { StateService } from '@app/services/state.service';
   name: 'fiatShortener',
   standalone: false,
 })
-export class FiatShortenerPipe implements PipeTransform {
+export class FiatShortenerPipe implements PipeTransform, OnDestroy {
   fiatSubscription: Subscription;
   currency: string;
 
@@ -18,6 +18,10 @@ export class FiatShortenerPipe implements PipeTransform {
     this.fiatSubscription = this.stateService.fiatCurrency$.subscribe((fiat) => {
       this.currency = fiat;
     });
+  }
+
+  ngOnDestroy(): void {
+    this.fiatSubscription.unsubscribe();
   }
 
   transform(num: number, ...args: any[]): unknown {
