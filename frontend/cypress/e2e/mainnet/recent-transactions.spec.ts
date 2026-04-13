@@ -1,30 +1,67 @@
+import { mockWebSocketV2, emitMempoolInfo, receiveWebSocketMessageFromServer } from '../../support/websocket';
+
 const baseModule = Cypress.env('BASE_MODULE');
+
+function randomHex(length: number): string {
+  let result = '';
+  const chars = '0123456789abcdef';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
+function generateMockTransactions(count: number): any[] {
+  const txs = [];
+  for (let i = 0; i < count; i++) {
+    txs.push({
+      txid: randomHex(64),
+      fee: 1000 + Math.floor(Math.random() * 50000),
+      vsize: 140 + Math.floor(Math.random() * 500),
+      value: 10000 + Math.floor(Math.random() * 10000000),
+    });
+  }
+  return txs;
+}
+
+function sendMockTransactions(count: number): string[] {
+  const txs = generateMockTransactions(count);
+  receiveWebSocketMessageFromServer({
+    params: {
+      message: {
+        contents: JSON.stringify({ transactions: txs }),
+      },
+    },
+  });
+  return txs.map((tx) => tx.txid);
+}
 
 describe('Recent Transactions Page', () => {
   if (baseModule === 'mempool') {
 
     it('updates the transaction list over time', () => {
+      mockWebSocketV2();
       cy.visit('/txs');
-      cy.waitForSkeletonGone();
+      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
 
+      sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
 
-      cy.get('[data-cy="transactions-list"] tr .table-cell-txid a').then(($rows) => {
-        const initialTxids = [...$rows].map((el) => el.textContent.trim());
+      const newTxids = sendMockTransactions(6);
+      const markerTxid = newTxids[0].substring(0, 10);
 
-        cy.wait(15000);
-
-        cy.get('[data-cy="transactions-list"] tr .table-cell-txid a').then(($updatedRows) => {
-          const updatedTxids = [...$updatedRows].map((el) => el.textContent.trim());
-          expect(updatedTxids).to.not.deep.equal(initialTxids);
-        });
+      cy.get('[data-cy="transactions-list"] tr .table-cell-txid a').should(($rows) => {
+        const visibleText = [...$rows].map((el) => el.textContent.trim()).join(' ');
+        expect(visibleText).to.include(markerTxid);
       });
     });
 
     it('pauses updates when clicking the pause icon', () => {
+      mockWebSocketV2();
       cy.visit('/txs');
-      cy.waitForSkeletonGone();
+      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
 
+      sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
 
       cy.get('[data-cy="btn-pause"]').click();
@@ -32,9 +69,14 @@ describe('Recent Transactions Page', () => {
       cy.get('[data-cy="transactions-list"] tr .table-cell-txid a').then(($rows) => {
         const pausedTxids = [...$rows].map((el) => el.textContent.trim());
 
-        cy.wait(10000);
+        const newTxids = sendMockTransactions(6);
+        const markerTxid = newTxids[0].substring(0, 10);
 
-        cy.get('[data-cy="transactions-list"] tr .table-cell-txid a').then(($updatedRows) => {
+        // The new txid should NOT appear in the list while paused
+        cy.wait(1000);
+        cy.get('[data-cy="transactions-list"] tr .table-cell-txid a').should(($updatedRows) => {
+          const visibleText = [...$updatedRows].map((el) => el.textContent.trim()).join(' ');
+          expect(visibleText).to.not.include(markerTxid);
           const updatedTxids = [...$updatedRows].map((el) => el.textContent.trim());
           expect(updatedTxids).to.deep.equal(pausedTxids);
         });
@@ -42,29 +84,52 @@ describe('Recent Transactions Page', () => {
     });
 
     it('caps the list when changing the limit to 10', () => {
+      mockWebSocketV2();
       cy.visit('/txs');
+      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
 
-      cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
-      cy.get('[data-cy="transactions-list"] tr', { timeout: 90000 }).should('have.length', 50);
+      // Send enough batches to fill 50 transactions (6 per batch, need 9 batches)
+      for (let i = 0; i < 9; i++) {
+        sendMockTransactions(6);
+      }
+
+      cy.get('[data-cy="transactions-list"] tr').should('have.length', 50);
       cy.get('[data-cy="limit-10"]').click();
       cy.scrollTo('top');
-      cy.get('[data-cy="transactions-list"] tr', { timeout: 90000 }).should('have.length', 10);
+      cy.get('[data-cy="transactions-list"] tr').should('have.length', 10);
     });
 
     it('shows the new transaction pill when there are new transactions', () => {
+      mockWebSocketV2();
       cy.visit('/txs');
+      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
 
+      sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
       cy.scrollTo('bottom');
-      cy.get('[data-cy="new-tx-pill"]', {timeout: 30000}).should('be.visible');
+      // Ensure scroll event has fired and auto-pause is active
+      cy.window().should((win) => {
+        expect(win.scrollY).to.be.greaterThan(0);
+      });
+
+      sendMockTransactions(6);
+      cy.get('[data-cy="new-tx-pill"]').should('be.visible');
     });
 
     it('shows the new transaction pill when there are new transactions and scrolls to the top when clicked', () => {
+      mockWebSocketV2();
       cy.visit('/txs');
+      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
 
+      sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
       cy.scrollTo('bottom');
-      cy.get('[data-cy="new-tx-pill"]', {timeout: 30000}).should('be.visible');
+      cy.window().should((win) => {
+        expect(win.scrollY).to.be.greaterThan(0);
+      });
+
+      sendMockTransactions(6);
+      cy.get('[data-cy="new-tx-pill"]').should('be.visible');
       cy.get('[data-cy="new-tx-pill"]').click();
       cy.wait(1000);
       cy.window().then((win) => {
