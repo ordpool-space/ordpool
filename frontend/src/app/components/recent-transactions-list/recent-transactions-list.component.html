@@ -37,7 +37,7 @@
       <th class="table-cell-vsize" *ngIf="!widget" i18n="transaction.vsize|Transaction Virtual Size">vSize</th>
       <th class="table-cell-fees" i18n="transaction.fee|Transaction fee">Fee</th>
     </thead>
-    <tbody data-cy="transactions-list" *ngIf="transactions$ | async as transactions">
+    <tbody data-cy="transactions-list" *ngIf="transactions$ | async as transactions; else skeleton">
       <tr *ngFor="let transaction of transactions; trackBy: trackByTxid">
         <td class="table-cell-txid">
           <a [routerLink]="['/tx' | relativeUrl, transaction.txid]">
@@ -56,13 +56,24 @@
           <app-fee-rate [fee]="transaction.fee" [weight]="transaction.vsize * 4"></app-fee-rate>
         </td>
       </tr>
-      <tr *ngIf="transactions.length < (limit$ | async)" data-cy="transactions-skeleton-row">
+      <tr *ngIf="!widget && transactions.length < (limit$ | async)" data-cy="transactions-skeleton-row">
         <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
         <td class="table-cell-fiat" *ngIf="(network$ | async) === ''"><span class="skeleton-loader"></span></td>
         <td class="table-cell-satoshis"><span class="skeleton-loader"></span></td>
-        <td class="table-cell-vsize" *ngIf="!widget"><span class="skeleton-loader"></span></td>
+        <td class="table-cell-vsize"><span class="skeleton-loader"></span></td>
         <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
       </tr>
     </tbody>
+    <ng-template #skeleton>
+      <tbody>
+        <tr *ngFor="let i of (widget ? [1,2,3,4,5,6] : [1])">
+          <td class="table-cell-txid"><span class="skeleton-loader"></span></td>
+          <td class="table-cell-fiat" *ngIf="(network$ | async) === ''"><span class="skeleton-loader"></span></td>
+          <td class="table-cell-satoshis"><span class="skeleton-loader"></span></td>
+          <td class="table-cell-vsize" *ngIf="!widget"><span class="skeleton-loader"></span></td>
+          <td class="table-cell-fees"><span class="skeleton-loader"></span></td>
+        </tr>
+      </tbody>
+    </ng-template>
   </table>
 </div>
