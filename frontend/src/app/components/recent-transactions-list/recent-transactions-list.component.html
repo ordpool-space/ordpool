@@ -8,7 +8,7 @@
   <span *ngIf="(bufferedCount$ | async) > 1" i18n="recent-transactions.new-tx-pill.plural">{{ bufferedCount$ | async }} new transactions</span>
 </button>
 
-<div [class.container-xl]="!widget" [style.min-height.px]="widget ? null : 335">
+<div [class.container-xl]="!widget" [class.widget]="widget" [style.min-height.px]="widget ? null : 335">
   <div class="title-row" *ngIf="!widget">
     <h1 i18n="page.recent-transactions">Recent Transactions</h1>
 
