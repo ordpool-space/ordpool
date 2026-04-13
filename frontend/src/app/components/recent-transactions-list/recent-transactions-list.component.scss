@@ -91,3 +91,22 @@
     text-align: right;
   }
 }
+
+.widget .latest-transactions {
+  .table-cell-satoshis {
+    @media (min-width: 768px) {
+      display: none;
+    }
+    @media (min-width: 1100px) {
+      display: table-cell;
+    }
+  }
+  .table-cell-fiat {
+    @media (min-width: 768px) {
+      display: none;
+    }
+    @media (min-width: 992px) {
+      display: table-cell;
+    }
+  }
+}
