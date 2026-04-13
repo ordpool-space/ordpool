@@ -883,9 +883,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
       preserveFragment: true,
       replaceUrl: true,
     });
-    if (this.txList) {
-      this.txList.setDetailsOpen(this.isDetailsOpen);
-    }
+    this.txList?.setDetailsOpen(this.isDetailsOpen);
   }
 
   dismissAccelAlert(): void {
