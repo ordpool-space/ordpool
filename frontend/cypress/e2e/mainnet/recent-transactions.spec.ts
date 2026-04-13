@@ -1,4 +1,4 @@
-import { mockWebSocketV2, emitMempoolInfo, receiveWebSocketMessageFromServer } from '../../support/websocket';
+import { mockWebSocketV2, receiveWebSocketMessageFromServer } from '../../support/websocket';
 
 const baseModule = Cypress.env('BASE_MODULE');
 
@@ -36,13 +36,31 @@ function sendMockTransactions(count: number): string[] {
   return txs.map((tx) => tx.txid);
 }
 
+// Send init fixtures without waitForSkeletonGone (the /txs page has a
+// skeleton row that only disappears once transactions fill the limit,
+// which won't happen from mempool-info alone).
+function initMempoolData(): void {
+  cy.window({ timeout: 5000 })
+    .should((win) => {
+      expect(win.mockSocket).to.not.be.undefined;
+    })
+    .then((win) => {
+      cy.readFile('cypress/fixtures/mainnet_live2hchart.json', 'utf-8').then((fixture) => {
+        win.mockSocket.send(JSON.stringify(fixture));
+      });
+      cy.readFile('cypress/fixtures/mainnet_mempoolInfo.json', 'utf-8').then((fixture) => {
+        win.mockSocket.send(JSON.stringify(fixture));
+      });
+    });
+}
+
 describe('Recent Transactions Page', () => {
   if (baseModule === 'mempool') {
 
     it('updates the transaction list over time', () => {
       mockWebSocketV2();
       cy.visit('/txs');
-      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
+      initMempoolData();
 
       sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
@@ -59,7 +77,7 @@ describe('Recent Transactions Page', () => {
     it('pauses updates when clicking the pause icon', () => {
       mockWebSocketV2();
       cy.visit('/txs');
-      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
+      initMempoolData();
 
       sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
@@ -86,7 +104,7 @@ describe('Recent Transactions Page', () => {
     it('caps the list when changing the limit to 10', () => {
       mockWebSocketV2();
       cy.visit('/txs');
-      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
+      initMempoolData();
 
       // Send enough batches to fill 50 transactions (6 per batch, need 9 batches)
       for (let i = 0; i < 9; i++) {
@@ -102,7 +120,7 @@ describe('Recent Transactions Page', () => {
     it('shows the new transaction pill when there are new transactions', () => {
       mockWebSocketV2();
       cy.visit('/txs');
-      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
+      initMempoolData();
 
       sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
@@ -119,7 +137,7 @@ describe('Recent Transactions Page', () => {
     it('shows the new transaction pill when there are new transactions and scrolls to the top when clicked', () => {
       mockWebSocketV2();
       cy.visit('/txs');
-      emitMempoolInfo({ params: { command: 'init', waitForMempoolBlocks: false } });
+      initMempoolData();
 
       sendMockTransactions(6);
       cy.get('[data-cy="transactions-list"] tr').should('have.length.greaterThan', 0);
