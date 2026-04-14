@@ -297,11 +297,14 @@ class WebsocketHandler {
 
             if (txids.length) {
               client['track-txs'] = txids;
+              client['track-txs-updates'] = 0;
             } else {
               client['track-txs'] = null;
+              client['track-txs-updates'] = 0;
             }
 
             if (Object.keys(txs).length) {
+              client['track-txs-updates'] = (client['track-txs-updates'] || 0) + Object.keys(txs).length;
               response['tracked-txs'] = JSON.stringify(txs);
             }
           }
@@ -326,10 +329,13 @@ class WebsocketHandler {
             if (Object.keys(addressMap).length > config.MEMPOOL.MAX_TRACKED_ADDRESSES) {
               response['track-addresses-error'] = `"too many addresses requested, this connection supports tracking a maximum of ${config.MEMPOOL.MAX_TRACKED_ADDRESSES} addresses"`;
               client['track-addresses'] = null;
+              client['track-addresses-updates'] = 0;
             } else if (Object.keys(addressMap).length > 0) {
               client['track-addresses'] = addressMap;
+              client['track-addresses-updates'] = 0;
             } else {
               client['track-addresses'] = null;
+              client['track-addresses-updates'] = 0;
             }
           }
 
@@ -855,6 +861,8 @@ class WebsocketHandler {
         }
 
         if (Object.keys(addressMap).length > 0) {
+          client['track-addresses-updates'] =
+            (client['track-addresses-updates'] || 0) + this.countAddressTransactions(addressMap);
           response['multi-address-transactions'] = JSON.stringify(addressMap);
         }
       }
@@ -1005,6 +1013,7 @@ class WebsocketHandler {
           }
         }
         if (Object.keys(txs).length) {
+          client['track-txs-updates'] = (client['track-txs-updates'] || 0) + Object.keys(txs).length;
           response['tracked-txs'] = JSON.stringify(txs);
         }
       }
@@ -1302,6 +1311,7 @@ class WebsocketHandler {
           }
         }
         if (Object.keys(txs).length) {
+          client['track-txs-updates'] = (client['track-txs-updates'] || 0) + Object.keys(txs).length;
           response['tracked-txs'] = JSON.stringify(txs);
         }
       }
@@ -1337,6 +1347,8 @@ class WebsocketHandler {
         }
 
         if (Object.keys(addressMap).length > 0) {
+          client['track-addresses-updates'] =
+            (client['track-addresses-updates'] || 0) + this.countAddressTransactions(addressMap);
           response['multi-address-transactions'] = JSON.stringify(addressMap);
         }
       }
@@ -1546,25 +1558,72 @@ class WebsocketHandler {
     if (this.webSocketServers.length) {
       let numTxSubs = 0;
       let numTxsSubs = 0;
+      let numAddressSubs = 0;
+      let numAddressesSubs = 0;
       let numProjectedSubs = 0;
       let numRbfSubs = 0;
+      let trackedTxsTotal = 0;
+      let trackedAddressesTotal = 0;
+      let trackedTxsMax = 0;
+      let trackedAddressesMax = 0;
+      let trackTxsTrackedTotal = 0;
+      let trackTxsTrackedMax = 0;
+      let trackAddressesTrackedTotal = 0;
+      let trackAddressesTrackedMax = 0;
+      let trackTxsUpdatesTotal = 0;
+      let trackTxsUpdatesMax = 0;
+      let trackAddressesUpdatesTotal = 0;
+      let trackAddressesUpdatesMax = 0;
 
-      // TODO - Fix indentation after PR is merged
       for (const server of this.webSocketServers) {
-      server.clients.forEach((client) => {
-        if (client['track-tx']) {
-          numTxSubs++;
-        }
-        if (client['track-txs']) {
-          numTxsSubs++;
-        }
-        if (client['track-mempool-block'] != null && client['track-mempool-block'] >= 0) {
-          numProjectedSubs++;
-        }
-        if (client['track-rbf']) {
-          numRbfSubs++;
-        }
-      });
+        server.clients.forEach((client) => {
+          let trackedTxCount = 0;
+          let trackedAddressCount = 0;
+
+          if (client['track-tx']) {
+            numTxSubs++;
+            trackedTxCount += 1;
+          }
+          if (client['track-txs']) {
+            numTxsSubs++;
+            trackedTxCount += client['track-txs'].length;
+          }
+          if (client['track-address']) {
+            numAddressSubs++;
+            trackedAddressCount += 1;
+          }
+          if (client['track-addresses']) {
+            numAddressesSubs++;
+            const addressCount = Object.keys(client['track-addresses']).length;
+            trackedAddressCount += addressCount;
+            trackAddressesTrackedTotal += addressCount;
+            trackAddressesTrackedMax = Math.max(trackAddressesTrackedMax, addressCount);
+            const updates = client['track-addresses-updates'] || 0;
+            trackAddressesUpdatesTotal += updates;
+            trackAddressesUpdatesMax = Math.max(trackAddressesUpdatesMax, updates);
+            client['track-addresses-updates'] = 0;
+          }
+          if (client['track-mempool-block'] != null && client['track-mempool-block'] >= 0) {
+            numProjectedSubs++;
+          }
+          if (client['track-rbf']) {
+            numRbfSubs++;
+          }
+          if (client['track-txs']) {
+            const txCount = client['track-txs'].length;
+            trackTxsTrackedTotal += txCount;
+            trackTxsTrackedMax = Math.max(trackTxsTrackedMax, txCount);
+            const updates = client['track-txs-updates'] || 0;
+            trackTxsUpdatesTotal += updates;
+            trackTxsUpdatesMax = Math.max(trackTxsUpdatesMax, updates);
+            client['track-txs-updates'] = 0;
+          }
+
+          trackedTxsTotal += trackedTxCount;
+          trackedAddressesTotal += trackedAddressCount;
+          trackedTxsMax = Math.max(trackedTxsMax, trackedTxCount);
+          trackedAddressesMax = Math.max(trackedAddressesMax, trackedAddressCount);
+        });
       }
 
       let count = 0;
@@ -1573,11 +1632,32 @@ class WebsocketHandler {
       }
       const diff = count - this.numClients;
       this.numClients = count;
-      logger.debug(`${count} websocket clients | ${this.numConnected} connected | ${this.numDisconnected} disconnected | (${diff >= 0 ? '+' : ''}${diff})`);
-      logger.debug(`websocket subscriptions: track-tx: ${numTxSubs}, track-txs: ${numTxsSubs}, track-mempool-block: ${numProjectedSubs} track-rbf: ${numRbfSubs}`);
+      const trackedTxsAvg = count > 0 ? trackedTxsTotal / count : 0;
+      const trackedAddressesAvg = count > 0 ? trackedAddressesTotal / count : 0;
+      const trackTxsTrackedAvg = numTxsSubs > 0 ? trackTxsTrackedTotal / numTxsSubs : 0;
+      const trackAddressesTrackedAvg =
+        numAddressesSubs > 0 ? trackAddressesTrackedTotal / numAddressesSubs : 0;
+      const trackTxsUpdatesAvg = numTxsSubs > 0 ? trackTxsUpdatesTotal / numTxsSubs : 0;
+      const trackAddressesUpdatesAvg =
+        numAddressesSubs > 0 ? trackAddressesUpdatesTotal / numAddressesSubs : 0;
+      logger.debug(
+        `${count} websocket clients | ${this.numConnected} connected | ${this.numDisconnected} disconnected | (${diff >= 0 ? '+' : ''}${diff}) | tracked txs: total=${trackedTxsTotal}, avg=${trackedTxsAvg.toFixed(2)}, max=${trackedTxsMax} | tracked addresses: total=${trackedAddressesTotal}, avg=${trackedAddressesAvg.toFixed(2)}, max=${trackedAddressesMax} | ws-subscriptions: tx=${numTxSubs},txs=${numTxsSubs},address=${numAddressSubs},addresses=${numAddressesSubs},txs-tracked-avg=${trackTxsTrackedAvg.toFixed(2)},txs-tracked-max=${trackTxsTrackedMax},addresses-tracked-avg=${trackAddressesTrackedAvg.toFixed(2)},addresses-tracked-max=${trackAddressesTrackedMax},txs-updates-avg=${trackTxsUpdatesAvg.toFixed(2)},txs-updates-max=${trackTxsUpdatesMax},addresses-updates-avg=${trackAddressesUpdatesAvg.toFixed(2)},addresses-updates-max=${trackAddressesUpdatesMax}`
+      );
+      logger.debug(`websocket subscriptions: track-tx: ${numTxSubs}, track-txs: ${numTxsSubs}, track-address: ${numAddressSubs}, track-addresses: ${numAddressesSubs}, track-mempool-block: ${numProjectedSubs} track-rbf: ${numRbfSubs}`);
       this.numConnected = 0;
       this.numDisconnected = 0;
     }
+  }
+
+  private countAddressTransactions(addressMap: { [address: string]: AddressTransactions }): number {
+    return Object.values(addressMap).reduce(
+      (total, transactions) =>
+        total
+        + transactions.mempool.length
+        + transactions.confirmed.length
+        + transactions.removed.length,
+      0,
+    );
   }
 }
 
