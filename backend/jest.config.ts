@@ -5,7 +5,7 @@ const config: Config.InitialOptions = {
   testEnvironment: 'node',
   verbose: true,
   automock: false,
-  collectCoverage: true,
+  collectCoverage: false,
   collectCoverageFrom: ['./src/**/**.ts'],
   coverageProvider: 'v8',
   coverageThreshold: {
@@ -20,5 +20,14 @@ const config: Config.InitialOptions = {
     '/node_modules/',
     '/__integration_tests__/',
   ],
+  modulePathIgnorePatterns: ['<rootDir>/dist/'],
+  transform: {
+    '^.+\\.ts?$': ['ts-jest', {
+      tsconfig: './tsconfig.debug.json',
+      diagnostics: false,
+      sourceMap: true
+    }],
+  },
+  maxWorkers: 1,
 };
 export default config;

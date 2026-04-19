@@ -14,7 +14,8 @@ import { ParsedSrc20 } from 'ordpool-parser';
   selector: 'app-src20-viewer',
   templateUrl: './src20-viewer.component.html',
   styleUrls: ['./src20-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class Src20ViewerComponent {
 

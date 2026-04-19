@@ -11,7 +11,8 @@ import { Pipe, PipeTransform } from '@angular/core';
  *   {{ 21 | numberSuffix }} => "21st"
  */
 @Pipe({
-  name: 'numberSuffix'
+  name: 'numberSuffix',
+  standalone: false,
 })
 export class NumberSuffixPipe implements PipeTransform {
 

@@ -7,7 +7,8 @@ import { SeoService } from '../../../services/seo.service';
   selector: 'app-cat21-collab',
   templateUrl: './cat21-collab.component.html',
   styleUrls: ['./cat21-collab.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class Cat21CollabComponent {
 

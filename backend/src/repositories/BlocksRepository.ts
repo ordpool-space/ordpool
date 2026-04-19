@@ -203,7 +203,7 @@ class BlocksRepository {
         block.extras.firstSeen === null ? 1 : block.extras.firstSeen // Sentinel value 1 indicates that we could not find first seen time
       ];
 
-      await DB.query(query, params);
+      await DB.query(query, params, 'silent');
     } catch (e: any) {
       if (e.errno === 1062) { // ER_DUP_ENTRY - This scenario is possible upon node backend restart or if a stale block is reconnected
         if (!block.stale) {

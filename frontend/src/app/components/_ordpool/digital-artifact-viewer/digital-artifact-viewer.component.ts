@@ -6,7 +6,8 @@ import { DigitalArtifact, DigitalArtifactType, ParsedAtomical, ParsedCat21, Pars
   selector: 'app-digital-artifact-viewer',
   templateUrl: './digital-artifact-viewer.component.html',
   styleUrls: ['./digital-artifact-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class DigitalArtifactViewerComponent {
 

@@ -8,7 +8,8 @@ import { Pipe, PipeTransform } from '@angular/core';
  *   {{ 98765 | divisibility:1:'de-DE' }} => "9.876,5"
  */
 @Pipe({
-  name: 'divisibility'
+  name: 'divisibility',
+  standalone: false,
 })
 export class DivisibilityPipe implements PipeTransform {
 

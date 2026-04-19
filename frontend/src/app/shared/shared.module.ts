@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgbCollapseModule, NgbTypeaheadModule, NgbNavModule, NgbTooltipModule, NgbPaginationModule, NgbDropdownModule, NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgbCollapseModule, NgbTypeaheadModule, NgbNavModule, NgbTooltipModule, NgbPaginationModule, NgbDropdownModule, NgbDatepickerModule, NgbModalModule, NgbPopoverModule } from '@ng-bootstrap/ng-bootstrap';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, faCogs, faDatabase, faExchangeAlt, faInfoCircle,
   faLink, faList, faSearch, faCaretUp, faCaretDown, faTachometerAlt, faThList, faTint, faClock, faAngleDoubleDown, faSortUp, faAngleDoubleUp, faChevronDown,
@@ -134,6 +134,33 @@ import { BitcoinInvoiceComponent } from '@components/bitcoin-invoice/bitcoin-inv
 import { OnlyVsizeDirective, OnlyWeightDirective } from '@app/shared/components/weight-directives/weight-directives';
 import { GithubLogin } from '@components/github-login.component/github-login.component';
 
+// HACK -- ordpool _ordpool components
+import { DigitalArtifactViewerComponent } from '@components/_ordpool/digital-artifact-viewer/digital-artifact-viewer.component';
+import { InscriptionViewerComponent } from '@components/_ordpool/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
+import { Src20ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/src20-viewer/src20-viewer.component';
+import { Cat21ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
+import { RunestoneViewerComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
+import { RunestoneIdToLinkComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
+import { RunestoneIdToTextComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-text.component';
+import { BigIntFormatterPipe } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
+import { NumberSuffixPipe } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/number-suffix.pipe';
+import { DivisibilityPipe } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/divisibility-pipe';
+import { CapitalizeFirstPipe } from '@components/_ordpool/digital-artifact-viewer/cat21-viewer/capitalize-first.pipe';
+import { JsonViewerComponent } from '@components/_ordpool/digital-artifact-viewer/json-viewer/json-viewer.component';
+import { CodeViewerComponent } from '@components/_ordpool/digital-artifact-viewer/code-viewer/code-viewer.component';
+import { MetadataViewerComponent } from '@components/_ordpool/digital-artifact-viewer/metadata-viewer/metadata-viewer.component';
+import { InscriptionAcceleratorComponent } from '@components/_ordpool/inscription-accelerator/inscription-accelerator.component';
+import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wallet-connect.component';
+import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
+import { CountdownTimerComponent } from '@components/_ordpool/cat21-mint/countdown-timer-component';
+import { Cat21CollabComponent } from '@components/_ordpool/cat21-collab/cat21-collab.component';
+import { Cat21WhitelistCheckerComponent } from '@components/_ordpool/cat21-whitelist-checker/cat21-whitelist-checker.component';
+import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
+import { AtomicalViewerComponent } from '@components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
+import { MiniInscriptionViewerComponent } from '@components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
+import { FeesBoxClickableComponent } from '@components/fees-box-clickable/fees-box-clickable.component';
+import { HighlightModule } from 'ngx-highlightjs';
+
 @NgModule({
   declarations: [
     ClipboardComponent,
@@ -258,6 +285,27 @@ import { GithubLogin } from '@components/github-login.component/github-login.com
     TwitterLogin,
     GithubLogin,
     BitcoinInvoiceComponent,
+    // HACK -- ordpool non-standalone components (declared here, inherit SharedModule context)
+    FeesBoxClickableComponent,
+    DigitalArtifactViewerComponent,
+    InscriptionViewerComponent,
+    Src20ViewerComponent,
+    Cat21ViewerComponent,
+    RunestoneViewerComponent,
+    RunestoneIdToLinkComponent,
+    RunestoneIdToTextComponent,
+    BigIntFormatterPipe,
+    NumberSuffixPipe,
+    DivisibilityPipe,
+    JsonViewerComponent,
+    CodeViewerComponent,
+    MetadataViewerComponent,
+    InscriptionAcceleratorComponent,
+    WalletConnectComponent,
+    Cat21MintComponent,
+    CountdownTimerComponent,
+    Cat21CollabComponent,
+    Cat21WhitelistCheckerComponent,
   ],
   imports: [
     CommonModule,
@@ -273,6 +321,14 @@ import { GithubLogin } from '@components/github-login.component/github-login.com
     NgbDatepickerModule,
     InfiniteScrollModule,
     FontAwesomeModule,
+    // HACK -- ordpool standalone components/pipes/modules
+    NgbModalModule,
+    NgbPopoverModule,
+    HighlightModule,
+    PreviewViewerComponent,
+    AtomicalViewerComponent,
+    MiniInscriptionViewerComponent,
+    CapitalizeFirstPipe,
   ],
   providers: [
     BytesPipe,
@@ -410,6 +466,13 @@ import { GithubLogin } from '@components/github-login.component/github-login.com
 
     OnlyVsizeDirective,
     OnlyWeightDirective,
+    // HACK -- ordpool exports
+    DigitalArtifactViewerComponent,
+    InscriptionAcceleratorComponent,
+    RunestoneIdToLinkComponent,
+    RunestoneIdToTextComponent,
+    Cat21ViewerComponent,
+    FeesBoxClickableComponent,
   ]
 })
 export class SharedModule {

@@ -6,7 +6,8 @@ import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api
 @Component({
   selector: 'app-runestone-id-to-text',
   templateUrl: './runestone-id-to-text.component.html',
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class RunestoneIdToTextComponent {
 

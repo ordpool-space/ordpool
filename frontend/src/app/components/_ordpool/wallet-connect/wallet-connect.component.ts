@@ -15,6 +15,7 @@ import { limitArray } from './limit-array';
   templateUrl: './wallet-connect.component.html',
   styleUrls: ['./wallet-connect.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class WalletConnectComponent {
 

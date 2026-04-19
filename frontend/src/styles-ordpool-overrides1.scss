@@ -26,11 +26,12 @@ $title-fg: $bitcoin;
 
 
 // HACK: more colors for ng-bootstrap modals + popover
+// $bg is the same value as $body-bg and $gray-800 in the main styles.scss
 $modal-content-color: $light;
-$modal-content-bg: $body-bg;
+$modal-content-bg: $bg;
 $popover-body-color: $light;
-$popover-bg: $body-bg;
-$popover-border-color: $gray-800;
+$popover-bg: $bg;
+$popover-border-color: $bg;
 
 .bitcoin {
   color: $bitcoin;
@@ -82,10 +83,10 @@ body {
   padding-top: 0;
 }
 
-// this is a Bootstrap 5 class, let's already use the future one
-.btn-close {
-  @extend .close
-}
+// Bootstrap 5 renamed .close to .btn-close. The original shim is no longer needed.
+// .btn-close {
+//   @extend .close
+// }
  
 // removes the distracting badge from the blocks
 app-blockchain-blocks .badge {

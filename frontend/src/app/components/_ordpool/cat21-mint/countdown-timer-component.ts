@@ -5,7 +5,8 @@ import { Observable, interval, map, startWith, takeWhile } from 'rxjs';
   selector: 'app-countdown-timer',
   templateUrl: './countdown-timer.component.html',
   styleUrls: ['./countdown-timer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class CountdownTimerComponent implements OnInit {
 

@@ -359,6 +359,9 @@ const downloadLiquidAssets = () => {
     }
     await downloadMiningPoolLogos();
 
+    // HACK -- Ordpool: disabled downloadPromoVideoSubtitles() and downloadPromoVideo()
+    // (mempool/mempool-promo is a private repo, downloads always fail)
+    /*
     if (config.verbose) {
       console.log(`${LOG_TAG} Downloading promo video subtitles`);
     }
@@ -368,6 +371,7 @@ const downloadLiquidAssets = () => {
       console.log(`${LOG_TAG} Downloading promo video`);
     }
     await downloadPromoVideo();
+    */
 
     console.log(`${LOG_TAG} Asset synchronization complete`);
   } catch (error) {

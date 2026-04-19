@@ -102,6 +102,29 @@
               <ng-template #transactionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} transactions</ng-template>
             </div>
             -->
+
+            @if (block.height < firstInscriptionHeight) {
+              <div class="transaction-count">
+                <br>
+                Pre-Ordinals Era
+              </div>
+            } @else if (block.extras.ordpoolStats) {
+              <div class="transaction-count">
+                <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.inscriptionMint === 1 ? inscriptionsSingular : inscriptionsPlural; context: {$implicit: block.extras.ordpoolStats.amounts.inscriptionMint | number}"></ng-container>
+                <ng-template #inscriptionsSingular let-i i18n="shared.transaction-count.singular">{{ i }} inscription</ng-template>
+                <ng-template #inscriptionsPlural let-i i18n="shared.transaction-count.plural">{{ i }} inscriptions</ng-template><br>
+
+                <ng-container *ngTemplateOutlet="block.extras.ordpoolStats.amounts.runeMint === 1 ? runesSingular : runesPlural; context: {$implicit: block.extras.ordpoolStats.amounts.runeMint | number}"></ng-container>
+                <ng-template #runesSingular let-i i18n="shared.transaction-count.singular">{{ i }} rune mint</ng-template>
+                <ng-template #runesPlural let-i i18n="shared.transaction-count.plural">{{ i }} rune mints</ng-template>
+              </div>
+            } @else {
+              <div class="transaction-count">
+                <br>
+                Indexing...
+              </div>
+            }
+
             <!-- HACK: ordpool time-since in badge instead of here
             <div [attr.data-cy]="'bitcoin-block-' + offset + '-index-' + i + '-time'" class="time-difference">
               <app-time kind="since" [time]="block.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
