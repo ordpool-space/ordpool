@@ -9,7 +9,7 @@ footer {
 }
 
 footer a {
-  color: var(--footer-fg);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 footer p {
@@ -76,11 +76,6 @@ footer .selector {
   display: inline-block;
 }
 
-footer .add-margin {
-  margin-left: 5px;
-  margin-right: 5px;
-}
-
 footer .row.link-tree {
   max-width: 1140px;
   margin: 0 auto;
@@ -100,7 +95,7 @@ footer .row.social-links {
   display: flex;
   flex-wrap: wrap;
   width: fit-content;
-  margin: 0 auto; 
+  margin: 0 auto;
 
   @media (max-width: 450px){
     width: 250px;
@@ -114,12 +109,6 @@ footer .row.social-links a {
 footer .row.social-links svg {
   width: 20px;
   margin: 10px 0 10px 0;
-  fill: var(--fg);
-}
-
-footer .row.social-links svg * {
-  fill: var(--fg) !important;
-  stroke: var(--fg) !important;
 }
 
 footer .row.version {
@@ -132,7 +121,7 @@ footer .row.version p {
   margin-bottom: 0;
   text-align: center;
   font-size: 12px;
-  color: var(--footer-fg);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 footer .row.version p a {
@@ -165,7 +154,7 @@ footer .nowrap {
   display: block;
 }
 
-@media (min-width: 1020px) {
+@media (min-width: 951px) {
   :host-context(.ltr-layout) .language-selector {
     float: right !important;
   }
@@ -183,24 +172,7 @@ footer .nowrap {
 }
 
 .services {
-  @media (min-width: 1300px) {
-    :host-context(.ltr-layout) .language-selector {
-      float: right !important;
-    }
-    :host-context(.rtl-layout) .language-selector {
-      float: left !important;
-    }
-  
-    .explore-tagline-desktop {
-      display: block;
-    }
-  
-    .explore-tagline-mobile {
-      display: none;
-    }
-  }
-
-  @media (max-width: 1300px) {
+  @media (min-width: 951px) and (max-width: 1147px) {
     :host-context(.ltr-layout) .services .language-selector {
       float: none !important;
     }
@@ -276,7 +248,7 @@ footer .nowrap {
 
 }
 
-@media (max-width: 1019px) {
+@media (max-width: 950px) {
 
   .main-logo {
     width: 220px;
@@ -309,17 +281,13 @@ footer .nowrap {
     margin: 0 auto;
   }
 
-  .enterprise-logo {
-    max-width: 100%;
-  }
-
   footer .site-options {
     float: none;
     margin-top: 15px;
   }
 }
 
-@media (max-width: 1300px) {
+@media (max-width: 1147px) {
 
   .services.main-logo {
     width: 220px;
@@ -367,14 +335,6 @@ footer .nowrap {
   margin-left: 1em;
 }
 
-.col-md-12 {
-  padding-left: 15px;
-  padding-right: 15px;
-
-  &.row>* {
-    padding-right: 0;
-    padding-left: 0;
-    flex-shrink: unset;
-    width: unset;
-  }
+.bitcoin {
+  color: #FF9900 !important;
 }

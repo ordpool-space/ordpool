@@ -14,7 +14,8 @@ import { extractErrorMessage } from '../inscription-accelerator/extract-error-me
   selector: 'app-cat21-whitelist-checker',
   templateUrl: './cat21-whitelist-checker.component.html',
   styleUrls: ['./cat21-whitelist-checker.component.scss'],
-  // changeDetection: ChangeDetectionStrategy.OnPush
+  // changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class Cat21WhitelistCheckerComponent implements OnInit {
 

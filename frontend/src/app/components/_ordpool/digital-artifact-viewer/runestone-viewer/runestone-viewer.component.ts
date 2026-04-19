@@ -36,7 +36,8 @@ import { Observable, shareReplay } from 'rxjs';
   selector: 'app-runestone-viewer',
   templateUrl: './runestone-viewer.component.html',
   styleUrls: ['./runestone-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class RunestoneViewerComponent {
 

@@ -30,7 +30,8 @@ import { environment } from 'src/environments/environment';
   selector: 'app-cat21-viewer',
   templateUrl: './cat21-viewer.component.html',
   styleUrls: ['./cat21-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class Cat21ViewerComponent {
 

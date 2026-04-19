@@ -19,7 +19,8 @@ import { SeoService } from '../../../services/seo.service';
   selector: 'app-cat21-mint',
   templateUrl: './cat21-mint.component.html',
   styleUrls: ['./cat21-mint.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class Cat21MintComponent implements OnInit {
 

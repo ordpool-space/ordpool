@@ -5,6 +5,7 @@ import { specialBlocks } from '@app/app.constants';
 import { BlockExtended } from '@interfaces/node-api.interface';
 import { Location } from '@angular/common';
 import { CacheService } from '@app/services/cache.service';
+import { getFirstInscriptionHeight } from 'ordpool-parser';
 
 interface BlockchainBlock extends BlockExtended {
   placeholder?: boolean;
@@ -83,6 +84,9 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
     private location: Location,
   ) {
   }
+
+  // HACK -- ordpool: first inscription height for ordinals support
+  firstInscriptionHeight = getFirstInscriptionHeight(this.stateService.network || 'mainnet');
 
   ngOnInit() {
     this.dynamicBlocksAmount = Math.min(8, this.stateService.env.KEEP_BLOCKS_AMOUNT);

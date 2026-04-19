@@ -1075,6 +1075,11 @@ class Blocks {
         logger.debug(`New block found (#${this.currentBlockHeight})!`);
       }
 
+      if (debugBlock) {
+        // HACK: force a given block for debugging reasons
+        this.currentBlockHeight = debugBlock;
+      }
+
       this.updateTimerProgress(timer, `getting block data for ${this.currentBlockHeight}`);
       const blockHash = await bitcoinCoreApi.$getBlockHash(this.currentBlockHeight);
       const verboseBlock = await bitcoinClient.getBlock(blockHash, 2);

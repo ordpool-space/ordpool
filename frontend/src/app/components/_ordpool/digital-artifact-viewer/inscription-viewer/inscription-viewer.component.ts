@@ -21,7 +21,8 @@ More test cases:
   selector: 'app-inscription-viewer',
   templateUrl: './inscription-viewer.component.html',
   styleUrls: ['./inscription-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class InscriptionViewerComponent {
 

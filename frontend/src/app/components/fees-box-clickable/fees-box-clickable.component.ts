@@ -11,6 +11,7 @@ import { ThemeService } from '../../services/theme.service';
   templateUrl: './fees-box-clickable.component.html',
   styleUrls: ['./fees-box-clickable.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class FeesBoxClickableComponent implements OnInit, OnDestroy {
   isLoading$: Observable<boolean>;
@@ -44,7 +45,7 @@ export class FeesBoxClickableComponent implements OnInit, OnDestroy {
         }
       )
     );
-    this.themeSubscription = this.themeService.themeChanged$.subscribe(() => {
+    this.themeSubscription = this.themeService.themeState$.subscribe(() => {
       this.setFeeGradient();
     })
   }

@@ -1,4 +1,4 @@
-import { Input, ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, OnChanges, SimpleChanges, Inject, LOCALE_ID, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, Inject, LOCALE_ID, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Observable, merge, of, Subject, Subscription } from 'rxjs';
 import { tap, takeUntil } from 'rxjs/operators';
@@ -9,6 +9,8 @@ import { NavigationService } from '@app/services/navigation.service';
 import { StorageService } from '@app/services/storage.service';
 import { WebsocketService } from '@app/services/websocket.service';
 import { EnterpriseService } from '@app/services/enterprise.service';
+// HACK -- Ordpool: import environment for CAT-21 mint flag
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-global-footer',
@@ -17,13 +19,13 @@ import { EnterpriseService } from '@app/services/enterprise.service';
   standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class GlobalFooterComponent implements OnInit, OnDestroy, OnChanges {
-  @Input() user: any = undefined;
+export class GlobalFooterComponent implements OnInit, OnDestroy {
+  // HACK -- Ordpool: CAT-21 mint flag
+  enableCat21Mint = environment.enableCat21Mint;
 
   private destroy$: Subject<any> = new Subject<any>();
   env: Env;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
-  mempoolSpaceBuild = window['isMempoolSpaceBuild'];
   backendInfo$: Observable<IBackendInfo>;
   servicesBackendInfo$: Observable<IBackendInfo>;
   frontendGitCommitHash = this.stateService.env.GIT_COMMIT_HASH;
@@ -74,15 +76,8 @@ export class GlobalFooterComponent implements OnInit, OnDestroy, OnChanges {
     });
 
     this.urlSubscription = this.route.url.subscribe((url) => {
-      this.user = this.storageService.getAuth();
       this.cd.markForCheck();
     });
-  }
-
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes.user) {
-      this.user = this.storageService.getAuth();
-    }
   }
 
   ngOnDestroy(): void {

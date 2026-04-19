@@ -1,5 +1,6 @@
-<div class="container-xl">
+<div class="container-xl" style="margin-top: 10vh; margin-bottom: 10vh;min-height: 40vh;">
   <div class="text-center">
+    <!-- HACK -- Ordpool: commented out logo
     <br />
     @if (isLightMode) {
       <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger-light.png' : '/resources/mempool-logo-bigger-light.png'" style="width: 250px;height:63px;">
@@ -7,9 +8,10 @@
       <img [src]="officialMempoolSpace ? '/resources/mempool-space-logo-bigger.png' : '/resources/mempool-logo-bigger.png'" style="width: 250px;height:63px;">
     }
     <br /><br />
+    -->
 
     <h2>Terms of Service</h2>
-    <h6>Updated: July 10, 2024</h6>
+    <!-- <h6>Updated: July 10, 2024</h6> -->
 
     <br><br>
 
@@ -17,7 +19,9 @@
 
         <p *ngIf="officialMempoolSpace">The <a href="https://mempool.space/">mempool.space</a> website, the <a href="https://liquid.network/">liquid.network</a> website, the <a href="https://bitcoin.gob.sv/">bitcoin.gob.sv</a> website, their associated API services, and related network and server infrastructure (collectively, the "Website") are operated by Mempool Holdings S.A. de C.V. in El Salvador ("Mempool", "We", or "Us") and self-hosted from <a href="https://bgp.tools/as/142052#connectivity">AS142052</a>.</p>
 
+        <!-- HACK -- Ordpool: commented out
         <p *ngIf="!officialMempoolSpace">This website and its API service (collectively, the "Website") are operated by a member of the Bitcoin community ("We" or "Us"). Mempool Holdings S.A. de C.V. in El Salvador ("Mempool") has no affiliation with the operator of this Website, and does not sponsor or endorse the information provided herein.</p>
+        -->
 
         <h5>By accessing this Website, you agree to the following Terms of Service:</h5>
 

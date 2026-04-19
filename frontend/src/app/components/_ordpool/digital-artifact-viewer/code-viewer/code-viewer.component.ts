@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input } from '@angular/core';
 
-import * as prettier from 'prettier';
+import * as prettier from 'prettier/standalone';
 import * as prettierPluginBabel from 'prettier/plugins/babel';
+// @ts-ignore - prettier v3 ships empty estree.d.ts
 import * as prettierPluginEstree from 'prettier/plugins/estree';
 import * as prettierPluginCss from 'prettier/plugins/postcss';
 
@@ -9,7 +10,8 @@ import * as prettierPluginCss from 'prettier/plugins/postcss';
   selector: 'app-code-viewer',
   templateUrl: './code-viewer.component.html',
   styleUrls: ['./code-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class CodeViewerComponent {
 

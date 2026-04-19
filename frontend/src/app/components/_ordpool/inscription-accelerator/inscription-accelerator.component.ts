@@ -20,7 +20,8 @@ import { extractErrorMessage } from './extract-error-message';
   selector: 'app-inscription-accelerator',
   templateUrl: './inscription-accelerator.component.html',
   styleUrls: ['./inscription-accelerator.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class InscriptionAcceleratorComponent implements OnInit {
 

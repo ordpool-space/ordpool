@@ -6,7 +6,8 @@ import { formatJSON } from 'ordpool-parser';
   selector: 'app-json-viewer',
   templateUrl: './json-viewer.component.html',
   styleUrls: ['./json-viewer.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
 })
 export class JsonViewerComponent {
 

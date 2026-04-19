@@ -11,8 +11,14 @@
     line-height: 32px;
   }
 
+  .unknown {
+    border: 1px solid #b4b4b4;
+  }
+
   .image.not-rounded {
     border-radius: 0;
+    width: 60px;
+    height: 60px;
   }
 
   .intro {
@@ -273,5 +279,33 @@
     flex-wrap: wrap;
     justify-content: center;
     max-width: 1050px;
+  }
+}
+
+// HACK -- Ordpool: custom styles for about page
+
+.iframe-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+
+
+  iframe, img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: 0;
+  }
+}
+
+
+img {
+  border: 1px solid transparent;
+}
+
+a:hover {
+
+  img {
+    border: 1px solid #FF9900;
   }
 }

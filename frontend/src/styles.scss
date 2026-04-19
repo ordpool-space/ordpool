@@ -2,14 +2,18 @@
 // the orginal theming is pure pain, the old colors are visible for a short moment - so we better hack the global stylesheets directly
 
 @use "sass:color";
+// HACK 1/2 -- must be @use (not @import) so it stays before @use "bootstrap" below.
+//            Provides ordpool's theme variable overrides. The main file's same-named
+//            declarations below are marked !default so ordpool's values win.
+@use "./styles-ordpool-overrides1" as *;
 
 /* Theme */
-$bg: #1d1f31;
-$active-bg: #11131f;
-$hover-bg: #12131e;
-$fg: #fff;
-$nav-bg: $bg;
-$title-fg: #4a68b9;
+$bg: #1d1f31 !default;
+$active-bg: #11131f !default;
+$hover-bg: #12131e !default;
+$fg: #fff !default;
+$nav-bg: $bg !default;
+$title-fg: #4a68b9 !default;
 
 $taproot: #eba814;
 $taproot-light: #d5a90a;
@@ -23,17 +27,13 @@ $gray-700: $fg;
 
 $nav-tabs-link-active-bg: $active-bg;
 
-$primary: #105fb0;
-$secondary: #2d3348;
-$tertiary: #653b9c;
-$success: #1a9436;
-$info: #1bd8f4;
+$primary: #105fb0 !default;
+$secondary: #2d3348 !default;
+$tertiary: #653b9c !default;
+$success: #1a9436 !default;
+$info: #1bd8f4 !default;
 
 $h5-font-size: 1.15rem !default;
-
-
-// HACK 1/2
-@import "./styles-ordpool-overrides1";
 
 
 $pagination-bg: $body-bg;
