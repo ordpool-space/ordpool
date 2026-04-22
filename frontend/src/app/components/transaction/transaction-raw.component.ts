@@ -398,11 +398,6 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     this.updateCpfpMode(newMode);
   }
 
-  toggleCpfpView() {
-    const newMode = this.cpfpMode === 'advanced' ? 'simple' : 'advanced';
-    this.updateCpfpMode(newMode);
-  }
-
   private updateCpfpMode(mode: 'advanced' | 'simple' | null) {
     this.cpfpMode = mode;
     this.router.navigate([], {
