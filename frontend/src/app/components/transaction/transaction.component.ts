@@ -1124,13 +1124,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleCpfp() {
-    // cycle: null (closed) -> 'advanced' (open) -> null (closed)
     const newMode = this.cpfpMode ? null : (this.cpfpInfo?.cluster ? 'advanced' : 'simple');
-    this.updateCpfpMode(newMode);
-  }
-
-  toggleCpfpView() {
-    const newMode = this.cpfpMode === 'advanced' ? 'simple' : 'advanced';
     this.updateCpfpMode(newMode);
   }
 
