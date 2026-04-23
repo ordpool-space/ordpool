@@ -119,7 +119,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   isAcceleration: boolean = false;
   accelerationCanceled: boolean = false;
   filters: Filter[] = [];
-  showCpfpDetails = false;
+  cpfpMode: 'advanced' | 'simple' | null = null;
   miningStats: MiningStats;
   fetchCpfp$ = new Subject<string>();
   transactionTimes$ = new Subject<string>();
@@ -221,6 +221,10 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit() {
     this.enterpriseService.page();
     this.isDetailsOpen = this.route.snapshot.queryParams['showDetails'] === 'true';
+    const cpfpParam = this.route.snapshot.queryParams['cpfp'];
+    if (cpfpParam === 'advanced' || cpfpParam === 'simple') {
+      this.cpfpMode = cpfpParam;
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     this.forceAccelerationSummary = !!urlParams.get('cash_request_id');
@@ -1090,7 +1094,6 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     this.rbfInfo = null;
     this.rbfReplaces = [];
     this.filters = [];
-    this.showCpfpDetails = false;
     this.showAccelerationDetails = false;
     this.accelerationFlowCompleted = false;
     this.accelerationInfo = null;
@@ -1101,6 +1104,8 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     this.auditStatus = null;
     this.accelerationPositions = null;
     this.isDetailsOpen = this.route.snapshot.queryParams['showDetails'] === 'true';
+    const cpfpParam = this.route.snapshot.queryParams['cpfp'];
+    this.cpfpMode = (cpfpParam === 'advanced' || cpfpParam === 'simple') ? cpfpParam : null;
     document.body.scrollTo(0, 0);
     this.isAcceleration = false;
     this.isAccelerated$.next(this.isAcceleration);
@@ -1116,6 +1121,22 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   setupGraph() {
     this.maxInOut = Math.min(this.inOutLimit, Math.max(this.tx?.vin?.length || 1, this.tx?.vout?.length + 1 || 1));
     this.graphHeight = this.graphExpanded ? this.maxInOut * 15 : Math.min(360, this.maxInOut * 80);
+  }
+
+  toggleCpfp() {
+    const newMode = this.cpfpMode ? null : (this.cpfpInfo?.cluster ? 'advanced' : 'simple');
+    this.updateCpfpMode(newMode);
+  }
+
+  private updateCpfpMode(mode: 'advanced' | 'simple' | null) {
+    this.cpfpMode = mode;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { cpfp: mode },
+      queryParamsHandling: 'merge',
+      preserveFragment: true,
+      replaceUrl: true,
+    });
   }
 
   toggleGraph() {

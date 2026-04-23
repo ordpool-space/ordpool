@@ -264,7 +264,11 @@
             }
           </div>
           @if (hasCpfp) {
-            <button type="button" class="btn btn-outline-info btn-sm btn-small-height float-end" (click)="toggleCpfp()">CPFP</button>
+            @if (cpfpInfo?.cluster) {
+              <button type="button" class="btn btn-outline-info btn-sm btn-small-height float-end" (click)="toggleCpfp()" i18n="transaction.cluster|Cluster">Cluster</button>
+            } @else {
+              <button type="button" class="btn btn-outline-info btn-sm btn-small-height float-end" (click)="toggleCpfp()">CPFP</button>
+            }
           }
         </td>
       </tr>
