@@ -689,8 +689,7 @@ class BlocksRepository {
         ORDER BY height DESC
       `);
       if (!blocks || blocks.length === 0) {
-        logger.warn('Cannot validate chain: no indexed blocks in database');
-        return true;
+        throw new Error('Cannot validate chain: no indexed blocks in database'); 
       }
       const blocksByHash = {};
       const blocksByHeight = {};
