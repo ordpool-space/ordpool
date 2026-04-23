@@ -710,7 +710,7 @@ class BlocksRepository {
       const indexedTip = blocksByHash[hash];
       const tipHeight = indexedTip?.height ?? (await bitcoinApi.$getBlock(hash))?.height;
       if (typeof tipHeight !== 'number') {
-+       throw new Error(`Cannot validate chain: could not resolve tip block height for ${hash} from index or node`);
+         throw new Error(`Cannot validate chain: could not resolve tip block height for ${hash} from index or node`);
       }
 
       // stop at the last canonical block we're supposed to have indexed already
