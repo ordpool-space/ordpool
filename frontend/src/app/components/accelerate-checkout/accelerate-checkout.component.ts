@@ -787,7 +787,6 @@ export class AccelerateCheckout implements OnInit, OnDestroy {
             this.tx.txid,
             cardOnFile.card.card_id,
             verificationToken.token,
-            `accelerator-${this.tx.txid.substring(0, 15)}-${Math.round(new Date().getTime() / 1000)}`,
             costUSD,
             verificationToken.userChallenged,
             this.partnerCode
