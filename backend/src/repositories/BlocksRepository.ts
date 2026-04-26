@@ -731,6 +731,7 @@ class BlocksRepository {
       const start = new Date().getTime();
       const tip = await bitcoinApi.$getBlockHashTip();
       let firstBadBlockHeight: number | null = null;
+      let firstBadBlockTimestamp: number | null = null;
       const [blocks]: any[] = await DB.query(`
         SELECT
           height,
@@ -741,6 +742,9 @@ class BlocksRepository {
         FROM blocks
         ORDER BY height DESC
       `);
+      if (!blocks || blocks.length === 0) {
+        throw new Error('Cannot validate chain: no indexed blocks in database'); 
+      }
       const blocksByHash = {};
       const blocksByHeight = {};
       let minHeight = Infinity;
@@ -757,7 +761,11 @@ class BlocksRepository {
       // ensure that indexed blocks are correctly classified as stale or canonical
       // iterate back to genesis, resetting canonical status where necessary
       let hash = tip;
-      const tipHeight = blocksByHash[hash].height || (await bitcoinApi.$getBlock(hash))?.height;
+      const indexedTip = blocksByHash[hash];
+      const tipHeight = indexedTip?.height ?? (await bitcoinApi.$getBlock(hash))?.height;
+      if (typeof tipHeight !== 'number') {
+         throw new Error(`Cannot validate chain: could not resolve tip block height for ${hash} from index or node`);
+      }
 
       // stop at the last canonical block we're supposed to have indexed already
       let lastIndexedBlockHeight = minHeight;
@@ -779,6 +787,7 @@ class BlocksRepository {
           // block is marked stale, but shouldn't be
           await this.$setCanonicalBlockAtHeight(block.hash, height);
           firstBadBlockHeight = height;
+          firstBadBlockTimestamp = block.timestamp;
         }
         hash = block?.previous_block_hash;
         if (!hash) {
@@ -795,7 +804,9 @@ class BlocksRepository {
 
       if (firstBadBlockHeight != null) {
         logger.warn(`Chain divergence detected at block ${firstBadBlockHeight}`);
-        await HashratesRepository.$deleteHashratesFromTimestamp(blocksByHash[firstBadBlockHeight].timestamp - 604800);
+        if (firstBadBlockTimestamp != null) {
+          await HashratesRepository.$deleteHashratesFromTimestamp(firstBadBlockTimestamp - 604800);
+        }
         await DifficultyAdjustmentsRepository.$deleteAdjustementsFromHeight(firstBadBlockHeight);
         return false;
       }
