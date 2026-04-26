@@ -785,10 +785,10 @@ export class TrackerComponent implements OnInit, OnDestroy {
     return this.isLoadingTx || this.loadingCachedTx || this.loadingPosition;
   }
 
-  async checkAccelerationEligibility() {
+  checkAccelerationEligibility() {
     if (this.tx) {
       const txHeight = this.tx.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-      this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
+      this.tx.flags = getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
       const replaceableInputs = (this.tx.flags & (TransactionFlags.sighash_none | TransactionFlags.sighash_acp)) > 0n;
       const highSigop = (this.tx.sigops * 20) > this.tx.weight;
       this.eligibleForAcceleration = !replaceableInputs && !highSigop;

@@ -4,6 +4,7 @@ import { MempoolTransactionExtended, TransactionExtended, VbytesPerSecond, GbtCa
 import logger from '../logger';
 import { Common } from './common';
 import transactionUtils from './transaction-utils';
+import { DigitalArtifactAnalyserService } from 'ordpool-parser';
 import { IBitcoinApi } from './bitcoin/bitcoin-api.interface';
 import loadingIndicators from './loading-indicators';
 import bitcoinClient from './bitcoin/bitcoin-client';
@@ -149,7 +150,10 @@ class Mempool {
       if (config.MEMPOOL.CACHE_ENABLED && config.REDIS.ENABLED) {
         await redisCache.$addTransaction(this.mempoolCache[txid]);
       }
-      this.mempoolCache[txid].flags = await Common.getTransactionFlags(this.mempoolCache[txid]);
+      // HACK -- Ordpool: pre-compute ordpool flags for mempool transactions.
+      // analyseTransaction sets tx._ordpoolFlags as a side effect, which getTransactionFlags (sync) reads.
+      await DigitalArtifactAnalyserService.analyseTransaction(this.mempoolCache[txid], 0n);
+      this.mempoolCache[txid].flags = Common.getTransactionFlags(this.mempoolCache[txid]);
       this.mempoolCache[txid].cpfpChecked = false;
       this.mempoolCache[txid].cpfpDirty = true;
       this.mempoolCache[txid].cpfpUpdated = undefined;
