@@ -262,7 +262,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     }
   }
 
-  async processTransaction(tx: Transaction, hex: string, psbt: string): Promise<void> {
+  processTransaction(tx: Transaction, hex: string, psbt: string): void {
     this.transaction = tx;
     this.rawHexTransaction = hex;
     this.psbt = psbt;
@@ -276,7 +276,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     });
 
     const txHeight = this.transaction.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-    this.transaction.flags = await getTransactionFlags(this.transaction, this.cpfpInfo, null, txHeight, this.stateService.network);
+    this.transaction.flags = getTransactionFlags(this.transaction, this.cpfpInfo, null, txHeight, this.stateService.network);
     this.filters = this.transaction.flags ? toFilters(this.transaction.flags).filter(f => f.txPage) : [];
 
     this.setupGraph();

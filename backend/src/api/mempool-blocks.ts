@@ -164,7 +164,7 @@ class MempoolBlocks {
       // clean up thread error listener
       this.txSelectionWorker?.removeListener('error', threadErrorListener);
 
-      const processed = await this.processBlockTemplates(newMempool, blocks, null, Object.entries(rates), Object.values(clusters), candidates, accelerations, accelerationPool, saveResults);
+      const processed = this.processBlockTemplates(newMempool, blocks, null, Object.entries(rates), Object.values(clusters), candidates, accelerations, accelerationPool, saveResults);
 
       logger.debug(`makeBlockTemplates completed in ${(Date.now() - start)/1000} seconds`);
 
@@ -225,7 +225,7 @@ class MempoolBlocks {
       // clean up thread error listener
       this.txSelectionWorker?.removeListener('error', threadErrorListener);
 
-      await this.processBlockTemplates(newMempool, blocks, null, Object.entries(rates), Object.values(clusters), candidates, accelerations, null, saveResults);
+      this.processBlockTemplates(newMempool, blocks, null, Object.entries(rates), Object.values(clusters), candidates, accelerations, null, saveResults);
       logger.debug(`updateBlockTemplates completed in ${(Date.now() - start) / 1000} seconds`);
     } catch (e) {
       logger.err('updateBlockTemplates failed. ' + (e instanceof Error ? e.message : e));
@@ -279,7 +279,7 @@ class MempoolBlocks {
       const expectedSize = transactions.length;
       const resultMempoolSize = blocks.reduce((total, block) => total + block.length, 0) + overflow.length;
       logger.debug(`RUST updateBlockTemplates returned ${resultMempoolSize} txs out of ${expectedSize} in the mempool, ${overflow.length} were unmineable`);
-      const processed = await this.processBlockTemplates(newMempool, blocks, blockWeights, rates, clusters, candidates, accelerations, accelerationPool, saveResults, dryRun);
+      const processed = this.processBlockTemplates(newMempool, blocks, blockWeights, rates, clusters, candidates, accelerations, accelerationPool, saveResults, dryRun);
       logger.debug(`RUST makeBlockTemplates completed in ${(Date.now() - start)/1000} seconds`);
       return processed;
     } catch (e) {
@@ -344,7 +344,7 @@ class MempoolBlocks {
       if (transactions.length !== resultMempoolSize) {
         throw new Error(`GBT returned wrong number of transactions ${transactions.length} vs ${resultMempoolSize}, cache is probably out of sync`);
       } else {
-        const processed = await this.processBlockTemplates(newMempool, blocks, blockWeights, rates, clusters, candidates, accelerations, accelerationPool, !dryRun, dryRun);
+        const processed = this.processBlockTemplates(newMempool, blocks, blockWeights, rates, clusters, candidates, accelerations, accelerationPool, !dryRun, dryRun);
         this.removeUids(removedTxs);
         logger.debug(`RUST updateBlockTemplates completed in ${(Date.now() - start)/1000} seconds`);
         return processed;
@@ -356,7 +356,7 @@ class MempoolBlocks {
     }
   }
 
-  private async processBlockTemplates(mempool: { [txid: string]: MempoolTransactionExtended }, blocks: string[][], blockWeights: number[] | null, rates: [string, number][], clusters: string[][], candidates: GbtCandidates | undefined, accelerations: { [txid: string]: Acceleration }, accelerationPool, saveResults, dryRun = false): Promise<MempoolBlockWithTransactions[]> {
+  private processBlockTemplates(mempool: { [txid: string]: MempoolTransactionExtended }, blocks: string[][], blockWeights: number[] | null, rates: [string, number][], clusters: string[][], candidates: GbtCandidates | undefined, accelerations: { [txid: string]: Acceleration }, accelerationPool, saveResults, dryRun = false): MempoolBlockWithTransactions[] {
     if (!dryRun) {
       for (const txid of Object.keys(candidates?.txs ?? mempool)) {
         if (txid in mempool) {
@@ -535,7 +535,7 @@ class MempoolBlocks {
           }
         }
       }
-      mempoolBlocks[blockIndex] = await this.dataToMempoolBlocks(
+      mempoolBlocks[blockIndex] = this.dataToMempoolBlocks(
         block,
         transactions,
         totalSize,
@@ -555,7 +555,7 @@ class MempoolBlocks {
     return mempoolBlocks;
   }
 
-  public async processClusterMempoolBlocks(projectedBlocks: ProjectedBlock[], newMempool: { [txid: string]: MempoolTransactionExtended }, accelerations: { [txid: string]: Acceleration }, saveResults = true, accelerationPool?: number): Promise<MempoolBlockWithTransactions[]> {
+  public processClusterMempoolBlocks(projectedBlocks: ProjectedBlock[], newMempool: { [txid: string]: MempoolTransactionExtended }, accelerations: { [txid: string]: Acceleration }, saveResults = true, accelerationPool?: number): MempoolBlockWithTransactions[] {
     const lastBlockIndex = projectedBlocks.length - 1;
     let hasBlockStack = projectedBlocks.length >= 8;
     let stackWeight = 0;
@@ -644,7 +644,7 @@ class MempoolBlocks {
         }
       }
 
-      mempoolBlocks[blockIndex] = await this.dataToMempoolBlocks(
+      mempoolBlocks[blockIndex] = this.dataToMempoolBlocks(
         validTxids,
         transactions,
         totalSize,
@@ -664,7 +664,7 @@ class MempoolBlocks {
     return mempoolBlocks;
   }
 
-  private async dataToMempoolBlocks(transactionIds: string[], transactions: MempoolTransactionExtended[], totalSize: number, totalWeight: number, totalFees: number, feeStats?: EffectiveFeeStats ): Promise<MempoolBlockWithTransactions> {
+  private dataToMempoolBlocks(transactionIds: string[], transactions: MempoolTransactionExtended[], totalSize: number, totalWeight: number, totalFees: number, feeStats?: EffectiveFeeStats ): MempoolBlockWithTransactions {
     if (!feeStats) {
       feeStats = Common.calcEffectiveFeeStatistics(transactions);
     }
@@ -676,7 +676,7 @@ class MempoolBlocks {
       medianFee: feeStats.medianFee, // Common.percentile(transactions.map((tx) => tx.effectiveFeePerVsize), config.MEMPOOL.RECOMMENDED_FEE_PERCENTILE),
       feeRange: feeStats.feeRange, //Common.getFeesInRange(transactions, rangeLength),
       transactionIds: transactionIds,
-      transactions: await Common.classifyTransactions(transactions),
+      transactions: transactions.map((tx) => Common.classifyTransaction(tx)),
     };
   }
 

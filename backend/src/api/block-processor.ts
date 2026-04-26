@@ -64,7 +64,7 @@ class BlockProcessor {
 
 
     const blockExtended = await blocks.$getBlockExtended(block, cpfpSummary.transactions, pool);
-    const blockSummary = await blocks.summarizeBlockTransactions(block.id, block.height, cpfpSummary.transactions);
+    const blockSummary = blocks.summarizeBlockTransactions(block.id, block.height, cpfpSummary.transactions);
 
     let auditResult: ProcessedAudit | undefined;
     if (config.MEMPOOL.AUDIT && memPool.isInSync()) {
@@ -121,7 +121,7 @@ class BlockProcessor {
     if (templateAlgorithm === TemplateAlgorithm.clusterMempool) {
       const clusterMempool = memPool.clusterMempool ?? new ClusterMempool(auditMempool, accelerations, true, 75000);
       const cmBlocks = clusterMempool.getBlocks(config.MEMPOOL.MEMPOOL_BLOCKS_AMOUNT) ?? [];
-      projectedBlocks = await mempoolBlocks.processClusterMempoolBlocks(
+      projectedBlocks = mempoolBlocks.processClusterMempoolBlocks(
         cmBlocks,
         auditMempool,
         accelerations,

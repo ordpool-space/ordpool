@@ -6,7 +6,6 @@ import { StateService } from '@app/services/state.service';
 import { hash, Hash } from '@app/shared/sha256';
 import { AddressType, AddressTypeInfo, detectAddressType } from '@app/shared/address-utils';
 import * as secp256k1 from '@noble/secp256k1';
-import { DigitalArtifactAnalyserService } from 'ordpool-parser';
 
 // Bitcoin Core default policy settings
 const MAX_STANDARD_TX_WEIGHT = 400_000;
@@ -797,10 +796,7 @@ export function isBurnKey(pubkey: string): boolean {
   ].includes(pubkey);
 }
 
-  // HACK - WARNING
-  // THIS METHOD is duplicated between frontend/backend
-  // similar code exists in backend/src/api/common.ts, keep them in sync!
-export async function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean, height?: number, network?: string): Promise<bigint> {
+export function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean, height?: number, network?: string): bigint {
   let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
   // Update variable flags (CPFP, RBF)
@@ -814,6 +810,14 @@ export async function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, 
   }
   if (replacement) {
     flags |= TransactionFlags.replacement;
+  }
+
+  // HACK -- Ordpool: include pre-computed ordpool flags.
+  // These are set by ordpool-parser's analyseTransactions/analyseTransaction as a side effect
+  // on the tx object (tx._ordpoolFlags). This avoids making getTransactionFlags async, which
+  // would cascade async/await changes through 15+ upstream files. See backend/.claude/CLAUDE.md.
+  if ((tx as any)._ordpoolFlags) {
+    flags |= BigInt((tx as any)._ordpoolFlags);
   }
 
   // Already processed static flags, no need to do it again
@@ -954,9 +958,6 @@ export async function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, 
   if (isNonStandard(tx, height, network)) {
     flags |= TransactionFlags.nonstandard;
   }
-
-  // HACK --- Ordpool Flags
-  flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
 
   return flags;
 }

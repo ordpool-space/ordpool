@@ -8,7 +8,6 @@ import transactionUtils from './transaction-utils';
 import { isPoint } from '../utils/secp256k1';
 import logger from '../logger';
 import { getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
-import { DigitalArtifactAnalyserService } from 'ordpool-parser';
 import { IEsploraApi } from './bitcoin/esplora-api.interface';
 
 // Bitcoin Core default policy settings
@@ -608,10 +607,7 @@ export class Common {
     return isTaproot || !isNotTaproot;
   }
 
-  // HACK - WARNING
-  // THIS METHOD is duplicated between frontend/backend
-  // similar code exists in frontend/src/app/shared/transaction.utils.ts, keep them in sync!
-  static async getTransactionFlags(tx: TransactionExtended, height?: number): Promise<number> {
+  static getTransactionFlags(tx: TransactionExtended, height?: number): number {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
     // Update variable flags (CPFP, RBF)
@@ -626,6 +622,14 @@ export class Common {
     flags &= ~TransactionFlags.replacement;
     if (tx.replacement) {
       flags |= TransactionFlags.replacement;
+    }
+
+    // HACK -- Ordpool: include pre-computed ordpool flags.
+    // These are set by ordpool-parser's analyseTransactions/analyseTransaction as a side effect
+    // on the tx object (tx._ordpoolFlags). This avoids making getTransactionFlags async, which
+    // would cascade async/await changes through 15+ upstream files. See backend/.claude/CLAUDE.md.
+    if ((tx as any)._ordpoolFlags) {
+      flags |= BigInt((tx as any)._ordpoolFlags);
     }
 
     // Already processed static flags, no need to do it again
@@ -769,16 +773,13 @@ export class Common {
       flags |= TransactionFlags.nonstandard;
     }
 
-    // HACK --- Ordpool Flags
-    flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
-
     return Number(flags);
   }
 
-  static async classifyTransaction(tx: TransactionExtended, height?: number): Promise<TransactionClassified> {
+  static classifyTransaction(tx: TransactionExtended, height?: number): TransactionClassified {
     let flags = 0;
     try {
-      flags = await Common.getTransactionFlags(tx, height);
+      flags = Common.getTransactionFlags(tx, height);
     } catch (e) {
       logger.warn('Failed to add classification flags to transaction: ' + (e instanceof Error ? e.message : e));
     }
@@ -789,8 +790,8 @@ export class Common {
     };
   }
 
-  static async classifyTransactions(txs: TransactionExtended[], height?: number): Promise<TransactionClassified[]> {
-    return Promise.all(txs.map(tx => Common.classifyTransaction(tx, height)));
+  static classifyTransactions(txs: TransactionExtended[], height?: number): TransactionClassified[] {
+    return txs.map(tx => Common.classifyTransaction(tx, height));
   }
 
   static stripTransaction(tx: TransactionExtended): TransactionStripped {

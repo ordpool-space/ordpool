@@ -91,6 +91,12 @@ npm link ordpool-parser
 
 Key imports: `DigitalArtifactAnalyserService`, `InscriptionParserService`, `InscriptionPreviewService`, `convertVerboseBlockToSimplePlus`, `getFirstInscriptionHeight`.
 
+### HARD RULE: Ordpool Flags Must Be Applied Everywhere
+
+Ordpool transaction flags (`ordpool_inscription`, `ordpool_rune`, `ordpool_cat21`, `ordpool_atomical`, `ordpool_src20`, `ordpool_labitbu`) MUST be applied to every transaction, everywhere -- mempool, confirmed blocks, individual lookups, WebSocket, frontend. They must be computed together with the upstream flags in `getTransactionFlags`, not as a post-processing step.
+
+**To avoid cascading async changes to upstream code**, use `quickAnalyseTransaction` (sync) for per-transaction flags, NOT `analyseTransaction` (async). The async deep analysis (`analyseTransactions`) is only for per-block `ordpoolStats` in `$getBlockExtended`. This keeps all upstream function signatures untouched (no async/await changes needed in `Common.getTransactionFlags`, `classifyTransaction`, `classifyTransactions`, `summarizeBlockTransactions`, `processBlockTemplates`, `dataToMempoolBlocks`, etc.).
+
 ### Code Marking Convention (for merge-friendly changes)
 
 This is a fork of mempool.space. Ordpool-specific changes follow the same marking system as the frontend:

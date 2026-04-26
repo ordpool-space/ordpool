@@ -1008,27 +1008,22 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   setFeatures(): void {
-    (async () => {
-      if (this.tx) {
-        this.segwitEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'segwit');
-        this.taprootEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'taproot');
-        this.rbfEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'rbf');
-        const txHeight = this.tx.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-        this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
-        // HACK: always show all flags, because why not?
-        // this.filters = this.tx.flags ? toFilters(this.tx.flags).filter(f => f.txPage) : [];
-        this.filters = this.tx.flags ? toFilters(this.tx.flags) : [];
-        this.checkAccelerationEligibility();
-      } else {
-        this.segwitEnabled = false;
-        this.taprootEnabled = false;
-        this.rbfEnabled = false;
-      }
-      this.featuresEnabled = this.segwitEnabled || this.taprootEnabled || this.rbfEnabled;
-
-      // because of the async wrapper
-      this.cd.detectChanges();
-    })();
+    if (this.tx) {
+      this.segwitEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'segwit');
+      this.taprootEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'taproot');
+      this.rbfEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'rbf');
+      const txHeight = this.tx.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
+      this.tx.flags = getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
+      // HACK: always show all flags, because why not?
+      // this.filters = this.tx.flags ? toFilters(this.tx.flags).filter(f => f.txPage) : [];
+      this.filters = this.tx.flags ? toFilters(this.tx.flags) : [];
+      this.checkAccelerationEligibility();
+    } else {
+      this.segwitEnabled = false;
+      this.taprootEnabled = false;
+      this.rbfEnabled = false;
+    }
+    this.featuresEnabled = this.segwitEnabled || this.taprootEnabled || this.rbfEnabled;
   }
 
   checkAccelerationEligibility() {
