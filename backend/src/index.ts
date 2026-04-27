@@ -151,6 +151,45 @@ class Server {
         res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count,X-Mempool-Auth');
         next();
       })
+      // HACK --- Ordpool: cheap nginx replacement.
+      // Mempool's upstream production runs nginx in front of backend + electrs to path-route
+      // /api/v1/* → backend and /api/* → electrs (with the /api prefix stripped). We don't
+      // run nginx — the Cloudflare Tunnel forwards everything to this Node process. So we do
+      // the same path-rewriting in Express here, before any other route is matched.
+      //
+      // For our traffic (a few hundred req/s peak, mostly bots) the ~200µs Node proxy
+      // overhead vs. nginx's ~50µs is invisible relative to electrs's 10-100ms response
+      // time. If we ever scale to where the proxy itself becomes a bottleneck, this gets
+      // replaced by nginx in front of cloudflared and these lines deleted.
+      //
+      // Implementation: Node's built-in http module, no extra deps. Streams the request
+      // body in and the response back, propagates status/headers, fails open with 502 on
+      // electrs being unreachable.
+      .use('/api', (req: Request, res: Response, next: NextFunction) => {
+        if (req.path === '/v1' || req.path.startsWith('/v1/')) {
+          return next(); // upstream's normal /api/v1/* routing takes over
+        }
+        const electrsHost = (config.ESPLORA && (config.ESPLORA as any).REST_API_URL)
+          ? new URL((config.ESPLORA as any).REST_API_URL)
+          : new URL('http://127.0.0.1:3000');
+        const proxyReq = http.request({
+          host: electrsHost.hostname,
+          port: electrsHost.port || 80,
+          path: req.url, // req.url is the path AFTER /api was matched, plus any querystring
+          method: req.method,
+          headers: { ...req.headers, host: `${electrsHost.hostname}:${electrsHost.port || 80}` },
+        }, (electrsRes) => {
+          res.writeHead(electrsRes.statusCode || 502, electrsRes.headers);
+          electrsRes.pipe(res);
+        });
+        proxyReq.on('error', (err) => {
+          logger.warn(`electrs proxy error for ${req.method} ${req.url}: ${err.message}`);
+          if (!res.headersSent) {
+            res.status(502).send('electrs proxy error');
+          }
+        });
+        req.pipe(proxyReq);
+      })
       .use(express.urlencoded({ extended: true, limit: '10mb' }))
       .use(express.text({ type: ['text/plain', 'application/base64'], limit: '10mb' }))
       .use(express.json({ limit: '10mb' }))
