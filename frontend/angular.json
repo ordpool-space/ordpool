@@ -172,6 +172,7 @@
               "src/config.js",
               "src/customize.js",
               "src/config.template.js",
+              "src/_redirects",
               {
                 "glob": "*.css",
                 "input": ".theme-build",
@@ -196,7 +197,8 @@
             "production": {
               "assets": [
                 "src/favicon.ico",
-                "src/robots.txt"
+                "src/robots.txt",
+                "src/_redirects"
               ],
               "fileReplacements": [
                 {

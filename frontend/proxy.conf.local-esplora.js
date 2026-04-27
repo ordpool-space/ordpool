@@ -23,11 +23,17 @@ console.log('** USING PROXY_CONFIG FROM proxy.conf.local-esplora.js ***');
 // HACK -- Ordpool absolute URL: dev mirrors prod's edge routing.
 //
 // In prod, ordpool.space (Cloudflare Pages) handles same-origin paths via _redirects:
-//   /content/*  → api.ordpool.space/content/* 301   (our backend's SSR handler)
-//   /preview/*  → api.ordpool.space/preview/* 301   (our backend's SSR handler)
-//   /r/*        → ordinals.com/r/*            301   (recursive inscriptions, external)
+//   /content/*    → api.ordpool.space/content/* 301   (our backend's SSR handler)
+//   /preview/*    → api.ordpool.space/preview/* 301   (our backend's SSR handler)
+//   /r/*          → ordinals.com/r/*            301   (recursive inscriptions, external)
+//   /blockheight  → ordinals.com/blockheight    301   ┐
+//   /blockhash    → ordinals.com/blockhash      301   │ backwards-compat plain-text
+//   /blockhash/*  → ordinals.com/blockhash/*    301   │ recursion endpoints (see
+//   /blocktime    → ordinals.com/blocktime      301   ┘ docs.ordinals.com/inscriptions/recursion.html)
 // while the frontend hits api.ordpool.space directly via absolute URLs (environment.apiBaseUrl)
 // for everything else (/api/v1/*, WebSocket, etc.).
+//
+// Explicit paths for the block recursion endpoints, NOT /block* — the SPA owns /block/<height>.
 //
 // In dev we don't run Pages locally, so this proxy reproduces ONLY the same-origin redirects.
 // The /api/v1/* + /api/* + /api/v1/services/* rules from upstream mempool are intentionally
@@ -54,7 +60,7 @@ let PROXY_CONFIG = [
     proxyTimeout: 30000
   },
   {
-    context: ['/r/**'],
+    context: ['/r/**', '/blockheight', '/blockhash', '/blockhash/**', '/blocktime'],
     target: 'https://ordinals.com',
     secure: false,
     changeOrigin: true,

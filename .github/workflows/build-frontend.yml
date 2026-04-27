@@ -1,0 +1,60 @@
+name: Build Frontend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ stage_prod ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-frontend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Build (production, --localize)
+      working-directory: frontend
+      run: npm run build
+
+    - name: Promote en-US to root (Pages serves the root)
+      working-directory: frontend
+      run: mv dist/mempool/browser/en-US/* dist/mempool/browser/
+
+    - name: Sanity-check the deploy artifact
+      working-directory: frontend
+      run: |
+        echo "=== root listing ==="
+        ls -lh dist/mempool/browser | head -30
+        echo "=== _redirects (must be present, must point at api.ordpool.space) ==="
+        cat dist/mempool/browser/_redirects
+        test -s dist/mempool/browser/_redirects
+        grep -q 'api.ordpool.space/content' dist/mempool/browser/_redirects
+        grep -q 'api.ordpool.space/preview' dist/mempool/browser/_redirects
+        grep -q 'ordinals.com/r' dist/mempool/browser/_redirects
+
+    - name: Deploy to ordpool-space/ordpool-frontend-build
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      working-directory: frontend
+      run: |
+        npx angular-cli-ghpages \
+          --repo=https://github.com/ordpool-space/ordpool-frontend-build.git \
+          --branch=main \
+          --dir=dist/mempool/browser \
+          --name="The Buildbot" \
+          --email=noreply@haushoppe.art \
+          --no-notfound \
+          --no-nojekyll
