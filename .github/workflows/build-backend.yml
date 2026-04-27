@@ -42,13 +42,33 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('rust/gbt/**/Cargo.lock') }}
         restore-keys: ${{ runner.os }}-cargo-
 
-    - name: Install dependencies (also builds rust-gbt via preinstall)
+    - name: Install dependencies (preinstall builds rust-gbt; we DON'T ship node_modules)
       working-directory: backend
       run: npm ci
 
-    - name: Build + package (produces backend/package/ with bundled node_modules + rust-gbt native module)
+    - name: Build TypeScript -> dist/
       working-directory: backend
-      run: npm run package
+      run: npm run build
+
+    - name: Prepare slim deploy artifact (compiled JS + our rust-gbt binding only)
+      working-directory: backend
+      run: |
+        rm -rf deploy && mkdir deploy
+        cp -r dist/. deploy/
+        cp -r rust-gbt deploy/rust-gbt
+        cp package.json package-lock.json deploy/
+        node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('deploy/package.json', 'utf8'));
+          delete pkg.scripts.preinstall;
+          pkg.dependencies['rust-gbt'] = 'file:./rust-gbt';
+          pkg.scripts.start = 'node --max-old-space-size=4096 index.js';
+          fs.writeFileSync('deploy/package.json', JSON.stringify(pkg, null, 2) + '\n');
+        "
+        sed -i 's|file:../rust-gbt|file:./rust-gbt|g' deploy/package-lock.json
+        echo "=== artifact contents ==="
+        ls -lh deploy
+        du -sh deploy
 
     - name: Deploy to ordpool-space/ordpool-backend-build
       env:
@@ -58,7 +78,7 @@ jobs:
         npx angular-cli-ghpages \
           --repo=https://github.com/ordpool-space/ordpool-backend-build.git \
           --branch=main \
-          --dir=package \
+          --dir=deploy \
           --name="The Buildbot" \
           --email=noreply@haushoppe.art \
           --no-notfound \
