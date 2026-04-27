@@ -37,7 +37,7 @@ describe('getSqlInterval', () => {
     const invalidCases = ['1hour', 'xyz', 'h1', '1', '', null, undefined];
 
     invalidCases.forEach((input) => {
-      expect(() => getSqlInterval(input as any)).toThrowError(`Invalid interval: ${input}`);
+      expect(() => getSqlInterval(input as any)).toThrow(`Invalid interval: ${input}`);
     });
   });
 
