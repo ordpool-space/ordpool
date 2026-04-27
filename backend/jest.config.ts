@@ -31,5 +31,9 @@ const config: Config.InitialOptions = {
     }],
   },
   maxWorkers: 1,
+  // BackendInfo singleton starts a setInterval + HTTP request to bitcoind at import time.
+  // Any test that transitively imports Common -> blocks -> BackendInfo will keep Node alive.
+  // This is upstream's architectural issue, not ours. Force exit to work around it.
+  forceExit: true,
 };
 export default config;
