@@ -5,7 +5,13 @@
     "module": "CommonJs",
     "types": [
       "jest"
-    ]
+    ],
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@components/*": ["src/app/components/*"],
+      "@environments/*": ["src/environments/*"],
+      "@interfaces/*": ["src/app/interfaces/*"]
+    }
   },
   "include": [
     "src/**/*.spec.ts",
