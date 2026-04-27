@@ -25,13 +25,9 @@ jobs:
       working-directory: frontend
       run: npm ci
 
-    - name: Build (production, --localize)
+    - name: Build (production, single English locale — we never translated ordpool components)
       working-directory: frontend
       run: npm run build
-
-    - name: Promote en-US to root (Pages serves the root)
-      working-directory: frontend
-      run: mv dist/mempool/browser/en-US/* dist/mempool/browser/
 
     - name: Sanity-check the deploy artifact
       working-directory: frontend
