@@ -10,7 +10,11 @@ export const environment = {
   enableCat21Mint: true,
   ordBaseUrl: 'https://explorer.ordinalsbot.com',
   ordBaseUrlTestnet: 'https://testnet-explorer.ordinalsbot.com',
-  cat21BaseUrl: 'http://localhost:3333'
+  cat21BaseUrl: 'http://localhost:3333',
+  // HACK -- Ordpool absolute URL: empty in dev so the Angular dev proxy
+  // (proxy.conf.local-esplora.js) handles /api/* + /api/v1/ws routing.
+  apiBaseUrl: '',
+  websocketBaseUrl: '',
 };
 
 /*

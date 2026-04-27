@@ -9,6 +9,8 @@ import { take } from 'rxjs/operators';
 import { TransferState, makeStateKey } from '@angular/core';
 import { CacheService } from '@app/services/cache.service';
 import { uncompressDeltaChange, uncompressTx } from '@app/shared/common.utils';
+// HACK -- Ordpool absolute URL
+import { environment } from '@environments/environment';
 
 const OFFLINE_RETRY_AFTER_MS = 2000;
 const OFFLINE_PING_CHECK_AFTER_MS = 30000;
@@ -20,8 +22,13 @@ const initData = makeStateKey('/api/v1/init-data');
   providedIn: 'root'
 })
 export class WebsocketService {
+  // HACK -- Ordpool absolute URL: in prod environment.websocketBaseUrl is `wss://api.ordpool.space`
+  // (tunnel-routed to ordpool-backend). In dev it's '' so we fall back to the upstream pattern of
+  // building the URL from document.location (which the Angular dev proxy then handles).
   private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
-  private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
+  private webSocketUrl = environment.websocketBaseUrl
+    ? environment.websocketBaseUrl + '{network}/api/v1/ws'
+    : this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
 
   private websocketSubject: WebSocketSubject<WebsocketResponse>;
   private goneOffline = false;

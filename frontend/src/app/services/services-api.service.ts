@@ -9,6 +9,8 @@ import { IBackendInfo } from '@interfaces/websocket.interface';
 import { Acceleration, AccelerationHistoryParams } from '@interfaces/node-api.interface';
 import { AccelerationStats } from '@components/acceleration/acceleration-stats/acceleration-stats.component';
 import { SimpleProof } from '@components/simpleproof-widget/simpleproof-widget.component';
+// HACK -- Ordpool absolute URL
+import { environment } from '@environments/environment';
 
 export interface IUser {
   username: string;
@@ -42,7 +44,11 @@ export class ServicesApiServices {
   ) {
     this.currentAuth = localStorage.getItem('auth');
 
-    this.apiBaseUrl = ''; // use relative URL by default
+    // HACK -- Ordpool absolute URL: see api.service.ts for rationale.
+    // Note: most calls in this file use this.stateService.env.SERVICES_API directly (mempool's
+    // accelerator service which we don't host) — we leave SERVICES_API unchanged so those calls
+    // keep going to mempool.space and harmlessly 401 if the user has no mempool account.
+    this.apiBaseUrl = environment.apiBaseUrl;
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }

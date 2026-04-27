@@ -20,17 +20,35 @@ try {
 
 console.log('** USING PROXY_CONFIG FROM proxy.conf.local-esplora.js ***');
 
+// HACK -- Ordpool absolute URL: dev mirrors prod's edge routing.
+//
+// In prod, ordpool.space (Cloudflare Pages) handles same-origin paths via _redirects:
+//   /content/*  → api.ordpool.space/content/* 301   (our backend's SSR handler)
+//   /preview/*  → api.ordpool.space/preview/* 301   (our backend's SSR handler)
+//   /r/*        → ordinals.com/r/*            301   (recursive inscriptions, external)
+// while the frontend hits api.ordpool.space directly via absolute URLs (environment.apiBaseUrl)
+// for everything else (/api/v1/*, WebSocket, etc.).
+//
+// In dev we don't run Pages locally, so this proxy reproduces ONLY the same-origin redirects.
+// The /api/v1/* + /api/* + /api/v1/services/* rules from upstream mempool are intentionally
+// dropped: the frontend's services use environment.apiBaseUrl='http://localhost:8999' (and
+// equivalents) and hit the local backend / electrs directly, the same way prod hits the tunnel.
+//
+// Inscription protocol constraint (see workspace CLAUDE.md "HARD RULE: /content/, /preview/, /r/
+// MUST stay relative"): inscriptions reference each other via same-origin paths, so we cannot
+// rewrite these into absolute URLs in the frontend. They must stay relative and be resolved at
+// the edge (or here in dev) into whoever actually serves them.
 let PROXY_CONFIG = [
   {
     context: ['/content/**'],
-    target: `http://127.0.0.1:8999`,
+    target: 'http://127.0.0.1:8999',
     secure: false,
     changeOrigin: true,
     proxyTimeout: 30000
   },
   {
     context: ['/preview/**'],
-    target: `http://127.0.0.1:8999`,
+    target: 'http://127.0.0.1:8999',
     secure: false,
     changeOrigin: true,
     proxyTimeout: 30000
@@ -43,78 +61,6 @@ let PROXY_CONFIG = [
     proxyTimeout: 30000
   }
 ];
-
-PROXY_CONFIG.push(...[
-  {
-    context: ['/testnet/api/v1/lightning/**'],
-    target: `http://127.0.0.1:8999`,
-    secure: false,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-    pathRewrite: {
-        "^/testnet": ""
-    },
-  },
-  {
-    context: ['/regtest/api/v1/**'],
-    target: `http://127.0.0.1:8999`,
-    secure: false,
-    ws: true,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-    pathRewrite: {
-        "^/regtest": ""
-    },
-  },
-  {
-    context: ['/regtest/api/**'],
-    target: `http://127.0.0.1:3000`,
-    secure: false,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-    pathRewrite: {
-        "^/regtest/api": ""
-    },
-  },
-  /* Optional proxy to route dev to official acceleration services
-  {
-    context: ['/api/v1/services/accelerator/**'],
-    target: `https://mempool.space/api/v1/services/accelerator/`,
-    secure: false,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-    pathRewrite: {
-      "^/api/v1/services/accelerator": ""
-    },
-  },
-  */
-  {
-    context: ['/api/v1/services/**'],
-    target: `http://localhost:9000`,
-    secure: false,
-    ws: true,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-  },
-  {
-    context: ['/api/v1/**'],
-    target: `http://127.0.0.1:8999`,
-    secure: false,
-    ws: true,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-  },
-  {
-    context: ['/api/**'],
-    target: `http://127.0.0.1:3000`,
-    secure: false,
-    changeOrigin: true,
-    proxyTimeout: 30000,
-    pathRewrite: {
-        "^/api": ""
-    },
-  }
-]);
 
 console.log(PROXY_CONFIG);
 
