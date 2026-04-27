@@ -1,0 +1,20 @@
+# Cloudflare Pages _redirects — source of truth for ordpool.space (v2).
+# Wired into the build via angular.json (assets) and shipped in dist/.
+#
+# /content/ + /preview/ MUST stay relative on the SPA (inscription protocol
+# constraint — recursive inscriptions reference each other via same-origin
+# paths). The edge sends them to our v2 backend's SSR handler.
+/content/* https://api.ordpool.space/content/:splat 301
+/preview/* https://api.ordpool.space/preview/:splat 301
+
+# Recursion endpoints — sent to ordinals.com. cat21-ord runs with
+# --index-cat21 and only indexes cats, so it can't answer non-cat
+# recursive lookups. /r/* is the modern form; the four below are the
+# backwards-compat plain-text endpoints (see
+# docs.ordinals.com/inscriptions/recursion.html). NOT /block* — that
+# would collide with the SPA's /block/<height> route.
+/r/* https://ordinals.com/r/:splat 301
+/blockheight https://ordinals.com/blockheight 301
+/blockhash https://ordinals.com/blockhash 301
+/blockhash/* https://ordinals.com/blockhash/:splat 301
+/blocktime https://ordinals.com/blocktime 301
