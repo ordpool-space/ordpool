@@ -20,7 +20,8 @@ export class AssetsService {
     private httpClient: HttpClient,
     private stateService: StateService,
   ) {
-    let apiBaseUrl = '';
+    // HACK -- Ordpool absolute URL: see api.service.ts for rationale
+    let apiBaseUrl = environment.apiBaseUrl;
     if (!this.stateService.isBrowser) {
       apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }

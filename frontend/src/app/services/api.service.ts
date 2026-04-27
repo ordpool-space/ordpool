@@ -9,6 +9,8 @@ import { Conversion } from '@app/services/price.service';
 import { StorageService } from '@app/services/storage.service';
 import { WebsocketResponse } from '@interfaces/websocket.interface';
 import { TxAuditStatus } from '@components/transaction/transaction.component';
+// HACK -- Ordpool absolute URL
+import { environment } from '@environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -26,7 +28,10 @@ export class ApiService {
     private stateService: StateService,
     private storageService: StorageService
   ) {
-    this.apiBaseUrl = ''; // use relative URL by default
+    // HACK -- Ordpool absolute URL: in prod environment.apiBaseUrl is `https://api.ordpool.space`
+    // (tunnel-routed to ordpool-backend on happysrv.de). In dev it's '' so the Angular dev proxy
+    // routes /api/v1/* and /api/* to localhost backends. The SSR branch below stays unchanged.
+    this.apiBaseUrl = environment.apiBaseUrl;
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }

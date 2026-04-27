@@ -9,6 +9,7 @@ import {
   OrdpoolStatisticResponse,
 } from '../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 import { StateService } from '../state.service';
+import { environment } from '@environments/environment';
 
 
 @Injectable({
@@ -23,7 +24,7 @@ export class OrdpoolApiService {
   private stateService  = inject(StateService);
 
   constructor() {
-    this.apiBaseUrl = ''; // use relative URL by default
+    this.apiBaseUrl = environment.apiBaseUrl;
     if (!this.stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }

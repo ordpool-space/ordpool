@@ -3,6 +3,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { BehaviorSubject, Observable, catchError, filter, of, shareReplay, take, tap } from 'rxjs';
 import { StateService } from '@app/services/state.service';
 import { IChannel, INodesRanking, IOldestNodes, ITopNodesPerCapacity, ITopNodesPerChannels } from '@interfaces/node-api.interface';
+// HACK -- Ordpool absolute URL
+import { environment } from '@environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -17,7 +19,8 @@ export class LightningApiService {
     private httpClient: HttpClient,
     private stateService: StateService,
   ) {
-    this.apiBaseUrl = ''; // use relative URL by default
+    // HACK -- Ordpool absolute URL: see api.service.ts for rationale
+    this.apiBaseUrl = environment.apiBaseUrl;
     if (!stateService.isBrowser) { // except when inside AU SSR process
       this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
     }
