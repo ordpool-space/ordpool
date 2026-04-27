@@ -1,0 +1,65 @@
+name: Build Backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ stage_prod ]
+    paths:
+      - 'backend/**'
+      - 'rust/gbt/**'
+      - '.github/workflows/build-backend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Read rust-toolchain
+      id: rust
+      run: echo "version=$(cat rust/gbt/rust-toolchain)" >> "$GITHUB_OUTPUT"
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ steps.rust.outputs.version }}
+
+    - name: Cache Rust build
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          rust/gbt/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('rust/gbt/**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+
+    - name: Install dependencies (also builds rust-gbt via preinstall)
+      working-directory: backend
+      run: npm ci
+
+    - name: Build + package (produces backend/package/ with bundled node_modules + rust-gbt native module)
+      working-directory: backend
+      run: npm run package
+
+    - name: Deploy to ordpool-space/ordpool-backend-build
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      working-directory: backend
+      run: |
+        npx angular-cli-ghpages \
+          --repo=https://github.com/ordpool-space/ordpool-backend-build.git \
+          --branch=main \
+          --dir=package \
+          --name="The Buildbot" \
+          --email=noreply@haushoppe.art \
+          --no-notfound \
+          --no-nojekyll
