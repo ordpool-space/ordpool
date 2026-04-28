@@ -5,9 +5,11 @@ import {
   ChartType,
   FeeStatistic,
   InscriptionSizeStatistic,
+  InscriptionTypeStatistic,
   Interval,
   MintStatistic,
   NewTokenStatistic,
+  ProtocolStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
 // Helper type to map ChartType to the corresponding statistic type
@@ -16,6 +18,8 @@ type ExtractStatistic<T extends ChartType> =
   T extends 'new-tokens' ? NewTokenStatistic :
   T extends 'fees' ? FeeStatistic :
   T extends 'inscription-sizes' ? InscriptionSizeStatistic :
+  T extends 'protocols' ? ProtocolStatistic :
+  T extends 'inscription-types' ? InscriptionTypeStatistic :
   never;
 
 /**
@@ -85,6 +89,17 @@ export function getSeriesData<T extends ChartType>(
       { name: 'Average Envelope Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.avgEnvelopeSize]) },
       { name: 'Average Content Size', type: 'line', data: stats.map((stat) => [stat.minTime, stat.avgContentSize]) },
     ],
+    protocols: (stats: ProtocolStatistic[]) => [
+      { name: 'Counterparty', type: 'line', data: stats.map((stat) => [stat.minTime, stat.counterparty]) },
+      { name: 'Stamp', type: 'line', data: stats.map((stat) => [stat.minTime, stat.stamp]) },
+      { name: 'SRC-721', type: 'line', data: stats.map((stat) => [stat.minTime, stat.src721]) },
+      { name: 'SRC-101', type: 'line', data: stats.map((stat) => [stat.minTime, stat.src101]) },
+    ],
+    'inscription-types': (stats: InscriptionTypeStatistic[]) => [
+      { name: 'Images', type: 'line', data: stats.map((stat) => [stat.minTime, stat.inscriptionImages]) },
+      { name: 'Text', type: 'line', data: stats.map((stat) => [stat.minTime, stat.inscriptionTexts]) },
+      { name: 'JSON', type: 'line', data: stats.map((stat) => [stat.minTime, stat.inscriptionJsons]) },
+    ],
   })(statistics);
 }
 
@@ -96,7 +111,7 @@ export function getSeriesData<T extends ChartType>(
  */
 export function getTooltipContent(
   type: ChartType,
-  stat: MintStatistic | NewTokenStatistic | FeeStatistic | InscriptionSizeStatistic
+  stat: MintStatistic | NewTokenStatistic | FeeStatistic | InscriptionSizeStatistic | ProtocolStatistic | InscriptionTypeStatistic
 ): string {
 
   const baseContent = `
@@ -172,6 +187,29 @@ export function getTooltipContent(
       `
       );
     }
+    case 'protocols': {
+      const s = stat as ProtocolStatistic;
+      return (
+        baseContent +
+        `
+        Counterparty: ${s.counterparty }<br/>
+        Stamp: ${s.stamp }<br/>
+        SRC-721: ${s.src721 }<br/>
+        SRC-101: ${s.src101 }
+      `
+      );
+    }
+    case 'inscription-types': {
+      const s = stat as InscriptionTypeStatistic;
+      return (
+        baseContent +
+        `
+        Images: ${s.inscriptionImages }<br/>
+        Text: ${s.inscriptionTexts }<br/>
+        JSON: ${s.inscriptionJsons }
+      `
+      );
+    }
     default:
       throw new Error(`Unsupported chart type: ${type}`);
   }
@@ -202,6 +240,8 @@ export function formatChartHeading(chartType: ChartType): string {
     'new-tokens': 'New Tokens',
     fees: 'Fees',
     'inscription-sizes': 'Inscription Sizes',
+    protocols: 'Other Protocols',
+    'inscription-types': 'Inscription Types',
   };
 
   return chartTypeHeadings[chartType];
@@ -220,6 +260,8 @@ export function formatChartDescription(chartType: ChartType, interval: Interval,
     'new-tokens': 'This chart showcases the deployment of new tokens, including Rune etchings, BRC-20 deployments, and SRC-20 deployments.',
     fees: 'This chart illustrates the total fees incurred during minting activities for CAT-21 assets, inscriptions, Runes, BRC-20 tokens, and SRC-20 tokens.',
     'inscription-sizes': 'This chart analyzes the sizes of inscriptions during minting activities, showing total sizes, largest sizes, and average sizes for both envelope and content data.',
+    protocols: 'This chart tracks activity from older Bitcoin meta-protocols: Counterparty, Stamp, SRC-721 and SRC-101.',
+    'inscription-types': 'This chart breaks down inscriptions by content type: images (any image/* MIME), text (text/plain, text/html, etc.), and JSON (application/json or text/plain bodies that parse as JSON objects). The same mint can contribute to multiple buckets — a JSON inscribed as text/plain hits both Text and JSON.',
   };
 
   const intervalDescriptions: Record<Interval, string> = {
