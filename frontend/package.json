@@ -95,7 +95,7 @@
     "rxjs": "~7.8.1",
     "sats-connect": "^1.1.2",
     "tslib": "~2.8.0",
-    "zone.js": "~0.15.1"
+    "zone.js": "~0.16.1"
   },
   "devDependencies": {
     "@angular/compiler-cli": "^20.3.18",
