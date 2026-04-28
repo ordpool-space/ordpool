@@ -24,26 +24,27 @@ export interface OrdpoolDatabaseBlock {
 
   amountsAtomical: number;
   amountsAtomicalMint: number;
-  amountsAtomicalTransfer: number;
   amountsAtomicalUpdate: number;
 
   amountsLabitbu: number;
+  amountsCounterparty: number;
+  amountsStamp: number;
+  amountsSrc721: number;
+  amountsSrc101: number;
 
   amountsCat21: number;
   amountsCat21Mint: number;
-  amountsCat21Transfer: number;
 
   amountsInscription: number;
   amountsInscriptionMint: number;
-  amountsInscriptionTransfer: number;
-  amountsInscriptionBurn: number;
+  amountsInscriptionImage: number;
+  amountsInscriptionText: number;
+  amountsInscriptionJson: number;
 
   amountsRune: number;
   amountsRuneEtch: number;
   amountsRuneMint: number;
   amountsRuneCenotaph: number;
-  amountsRuneTransfer: number;
-  amountsRuneBurn: number;
 
   amountsBrc20: number;
   amountsBrc20Deploy: number;
@@ -93,38 +94,39 @@ export interface OrdpoolDatabaseBlock {
 export const ORDPOOL_BLOCK_DB_FIELDS = `
 
   /* HACK -- Ordpool stats */
-  ordpool_stats.amounts_atomical                             AS amountsAtomical,                           /* 1 */
-  ordpool_stats.amounts_atomical_mint                        AS amountsAtomicalMint,                       /* 2 */
-  ordpool_stats.amounts_atomical_transfer                    AS amountsAtomicalTransfer,                   /* 3 */
-  ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,                     /* 4 */
+  ordpool_stats.amounts_atomical                             AS amountsAtomical,
+  ordpool_stats.amounts_atomical_mint                        AS amountsAtomicalMint,
+  ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,
 
-  ordpool_stats.amounts_labitbu                              AS amountsLabitbu,                            /* 4b */
+  ordpool_stats.amounts_labitbu                              AS amountsLabitbu,
+  ordpool_stats.amounts_counterparty                         AS amountsCounterparty,
+  ordpool_stats.amounts_stamp                                AS amountsStamp,
+  ordpool_stats.amounts_src721                               AS amountsSrc721,
+  ordpool_stats.amounts_src101                               AS amountsSrc101,
 
-  ordpool_stats.amounts_cat21                                AS amountsCat21,                              /* 5 */
-  ordpool_stats.amounts_cat21_mint                           AS amountsCat21Mint,                          /* 6 */
-  ordpool_stats.amounts_cat21_transfer                       AS amountsCat21Transfer,                      /* 7 */
+  ordpool_stats.amounts_cat21                                AS amountsCat21,
+  ordpool_stats.amounts_cat21_mint                           AS amountsCat21Mint,
 
-  ordpool_stats.amounts_inscription                          AS amountsInscription,                        /* 8 */
-  ordpool_stats.amounts_inscription_mint                     AS amountsInscriptionMint,                    /* 9 */
-  ordpool_stats.amounts_inscription_transfer                 AS amountsInscriptionTransfer,                /* 10 */
-  ordpool_stats.amounts_inscription_burn                     AS amountsInscriptionBurn,                    /* 11 */
+  ordpool_stats.amounts_inscription                          AS amountsInscription,
+  ordpool_stats.amounts_inscription_mint                     AS amountsInscriptionMint,
+  ordpool_stats.amounts_inscription_image                    AS amountsInscriptionImage,
+  ordpool_stats.amounts_inscription_text                     AS amountsInscriptionText,
+  ordpool_stats.amounts_inscription_json                     AS amountsInscriptionJson,
 
-  ordpool_stats.amounts_rune                                 AS amountsRune,                               /* 12 */
-  ordpool_stats.amounts_rune_etch                            AS amountsRuneEtch,                           /* 13 */
-  ordpool_stats.amounts_rune_mint                            AS amountsRuneMint,                           /* 14 */
-  ordpool_stats.amounts_rune_cenotaph                        AS amountsRuneCenotaph,                       /* 15 */
-  ordpool_stats.amounts_rune_transfer                        AS amountsRuneTransfer,                       /* 16 */
-  ordpool_stats.amounts_rune_burn                            AS amountsRuneBurn,                           /* 17 */
+  ordpool_stats.amounts_rune                                 AS amountsRune,
+  ordpool_stats.amounts_rune_etch                            AS amountsRuneEtch,
+  ordpool_stats.amounts_rune_mint                            AS amountsRuneMint,
+  ordpool_stats.amounts_rune_cenotaph                        AS amountsRuneCenotaph,
 
-  ordpool_stats.amounts_brc20                                AS amountsBrc20,                              /* 18 */
-  ordpool_stats.amounts_brc20_deploy                         AS amountsBrc20Deploy,                        /* 19 */
-  ordpool_stats.amounts_brc20_mint                           AS amountsBrc20Mint,                          /* 20 */
-  ordpool_stats.amounts_brc20_transfer                       AS amountsBrc20Transfer,                      /* 21 */
+  ordpool_stats.amounts_brc20                                AS amountsBrc20,
+  ordpool_stats.amounts_brc20_deploy                         AS amountsBrc20Deploy,
+  ordpool_stats.amounts_brc20_mint                           AS amountsBrc20Mint,
+  ordpool_stats.amounts_brc20_transfer                       AS amountsBrc20Transfer,
 
-  ordpool_stats.amounts_src20                                AS amountsSrc20,                              /* 22 */
-  ordpool_stats.amounts_src20_deploy                         AS amountsSrc20Deploy,                        /* 23 */
-  ordpool_stats.amounts_src20_mint                           AS amountsSrc20Mint,                          /* 24 */
-  ordpool_stats.amounts_src20_transfer                       AS amountsSrc20Transfer,                      /* 25 */
+  ordpool_stats.amounts_src20                                AS amountsSrc20,
+  ordpool_stats.amounts_src20_deploy                         AS amountsSrc20Deploy,
+  ordpool_stats.amounts_src20_mint                           AS amountsSrc20Mint,
+  ordpool_stats.amounts_src20_transfer                       AS amountsSrc20Transfer,
 
   ordpool_stats.fees_rune_mints                              AS feesRuneMints,                             /* 26 */
   ordpool_stats.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,                  /* 27 */
@@ -229,109 +231,111 @@ class OrdpoolBlocksRepository {
         hash,
         height,
 
-        amounts_atomical,                                   /* 1 */
-        amounts_atomical_mint,                              /* 2 */
-        amounts_atomical_transfer,                          /* 3 */
-        amounts_atomical_update,                            /* 4 */
+        amounts_atomical,
+        amounts_atomical_mint,
+        amounts_atomical_update,
 
-        amounts_labitbu,                                    /* 4b */
+        amounts_labitbu,
+        amounts_counterparty,
+        amounts_stamp,
+        amounts_src721,
+        amounts_src101,
 
-        amounts_cat21,                                      /* 5 */
-        amounts_cat21_mint,                                 /* 6 */
-        amounts_cat21_transfer,                             /* 7 */
+        amounts_cat21,
+        amounts_cat21_mint,
 
-        amounts_inscription,                                /* 8 */
-        amounts_inscription_mint,                           /* 9 */
-        amounts_inscription_transfer,                       /* 10 */
-        amounts_inscription_burn,                           /* 11 */
+        amounts_inscription,
+        amounts_inscription_mint,
+        amounts_inscription_image,
+        amounts_inscription_text,
+        amounts_inscription_json,
 
-        amounts_rune,                                       /* 12 */
-        amounts_rune_etch,                                  /* 13 */
-        amounts_rune_mint,                                  /* 14 */
-        amounts_rune_cenotaph,                              /* 15 */
-        amounts_rune_transfer,                              /* 16 */
-        amounts_rune_burn,                                  /* 17 */
+        amounts_rune,
+        amounts_rune_etch,
+        amounts_rune_mint,
+        amounts_rune_cenotaph,
 
-        amounts_brc20,                                      /* 18 */
-        amounts_brc20_deploy,                               /* 19 */
-        amounts_brc20_mint,                                 /* 20 */
-        amounts_brc20_transfer,                             /* 21 */
+        amounts_brc20,
+        amounts_brc20_deploy,
+        amounts_brc20_mint,
+        amounts_brc20_transfer,
 
-        amounts_src20,                                      /* 22 */
-        amounts_src20_deploy,                               /* 23 */
-        amounts_src20_mint,                                 /* 24 */
-        amounts_src20_transfer,                             /* 25 */
+        amounts_src20,
+        amounts_src20_deploy,
+        amounts_src20_mint,
+        amounts_src20_transfer,
 
-        fees_rune_mints,                                    /* 26 */
-        fees_non_uncommon_rune_mints,                       /* 27 */
-        fees_brc20_mints,                                   /* 28 */
-        fees_src20_mints,                                   /* 29 */
-        fees_cat21_mints,                                   /* 30 */
-        fees_atomicals,                                     /* 31 */
-        fees_labitbus,                                      /* 31b */
-        fees_inscription_mints,                             /* 32 */
+        fees_rune_mints,
+        fees_non_uncommon_rune_mints,
+        fees_brc20_mints,
+        fees_src20_mints,
+        fees_cat21_mints,
+        fees_atomicals,
+        fees_labitbus,
+        fees_inscription_mints,
 
-        inscriptions_total_envelope_size,                   /* 33 */
-        inscriptions_total_content_size,                    /* 34 */
-        inscriptions_largest_envelope_size,                 /* 35 */
-        inscriptions_largest_content_size,                  /* 36 */
-        inscriptions_largest_envelope_inscription_id,       /* 37 */
-        inscriptions_largest_content_inscription_id,        /* 38 */
-        inscriptions_average_envelope_size,                 /* 39 */
-        inscriptions_average_content_size,                  /* 40 */
+        inscriptions_total_envelope_size,
+        inscriptions_total_content_size,
+        inscriptions_largest_envelope_size,
+        inscriptions_largest_content_size,
+        inscriptions_largest_envelope_inscription_id,
+        inscriptions_largest_content_inscription_id,
+        inscriptions_average_envelope_size,
+        inscriptions_average_content_size,
 
-        runes_most_active_mint,                             /* 41 */
-        runes_most_active_non_uncommon_mint,                /* 42 */
-        brc20_most_active_mint,                             /* 43 */
-        src20_most_active_mint,                             /* 44 */
+        runes_most_active_mint,
+        runes_most_active_non_uncommon_mint,
+        brc20_most_active_mint,
+        src20_most_active_mint,
 
-        analyser_version                                    /* 45 */
+        analyser_version
 
       ) VALUE (
         ?,
         ?,
 
-        ?,  /* 1 amounts_atomical */
-        ?,  /* 2 amounts_atomical_mint */
-        ?,  /* 3 amounts_atomical_transfer */
-        ?,  /* 4 amounts_atomical_update */
+        ?,  /* amounts_atomical */
+        ?,  /* amounts_atomical_mint */
+        ?,  /* amounts_atomical_update */
 
-        ?,  /* 4b amounts_labitbu */
+        ?,  /* amounts_labitbu */
+        ?,  /* amounts_counterparty */
+        ?,  /* amounts_stamp */
+        ?,  /* amounts_src721 */
+        ?,  /* amounts_src101 */
 
-        ?,  /* 5 amounts_cat21 */
-        ?,  /* 6 amounts_cat21_mint */
-        ?,  /* 7 amounts_cat21_transfer */
+        ?,  /* amounts_cat21 */
+        ?,  /* amounts_cat21_mint */
 
-        ?,  /* 8 amounts_inscription */
-        ?,  /* 9 amounts_inscription_mint */
-        ?,  /* 10 amounts_inscription_transfer */
-        ?,  /* 11 amounts_inscription_burn */
+        ?,  /* amounts_inscription */
+        ?,  /* amounts_inscription_mint */
+        ?,  /* amounts_inscription_image */
+        ?,  /* amounts_inscription_text */
+        ?,  /* amounts_inscription_json */
 
-        ?,  /* 12 amounts_rune */
-        ?,  /* 13 amounts_rune_etch */
-        ?,  /* 14 amounts_rune_mint */
-        ?,  /* 15 amounts_rune_cenotaph */
-        ?,  /* 16 amounts_rune_transfer */
-        ?,  /* 17 amounts_rune_burn */
+        ?,  /* amounts_rune */
+        ?,  /* amounts_rune_etch */
+        ?,  /* amounts_rune_mint */
+        ?,  /* amounts_rune_cenotaph */
 
-        ?,  /* 18 amounts_brc20 */
-        ?,  /* 19 amounts_brc20_deploy */
-        ?,  /* 20 amounts_brc20_mint */
-        ?,  /* 21 amounts_brc20_transfer */
+        ?,  /* amounts_brc20 */
+        ?,  /* amounts_brc20_deploy */
+        ?,  /* amounts_brc20_mint */
+        ?,  /* amounts_brc20_transfer */
 
-        ?,  /* 22 amounts_src20 */
-        ?,  /* 23 amounts_src20_deploy */
-        ?,  /* 24 amounts_src20_mint */
-        ?,  /* 25 amounts_src20_transfer */
+        ?,  /* amounts_src20 */
+        ?,  /* amounts_src20_deploy */
+        ?,  /* amounts_src20_mint */
+        ?,  /* amounts_src20_transfer */
 
-        ?,  /* 26 fees_rune_mints */
-        ?,  /* 27 fees_non_uncommon_rune_mints */
-        ?,  /* 28 fees_brc20_mints */
-        ?,  /* 29 fees_src20_mints */
-        ?,  /* 30 fees_cat21_mints */
-        ?,  /* 31 fees_atomicals */
-        ?,  /* 31b fees_labitbus */
-        ?,  /* 32 fees_inscription_mints */
+        ?,  /* fees_rune_mints */
+        ?,  /* fees_non_uncommon_rune_mints */
+        ?,  /* fees_brc20_mints */
+        ?,  /* fees_src20_mints */
+        ?,  /* fees_cat21_mints */
+        ?,  /* fees_atomicals */
+        ?,  /* fees_labitbus */
+        ?,  /* fees_inscription_mints */
 
         ?,  /* 33 inscriptions_total_envelope_size */
         ?,  /* 34 inscriptions_total_content_size */
@@ -354,38 +358,39 @@ class OrdpoolBlocksRepository {
         block.id,
         block.height,
 
-        block.extras.ordpoolStats.amounts.atomical,                           // 1
-        block.extras.ordpoolStats.amounts.atomicalMint,                       // 2
-        block.extras.ordpoolStats.amounts.atomicalTransfer,                   // 3
-        block.extras.ordpoolStats.amounts.atomicalUpdate,                     // 4
+        block.extras.ordpoolStats.amounts.atomical,
+        block.extras.ordpoolStats.amounts.atomicalMint,
+        block.extras.ordpoolStats.amounts.atomicalUpdate,
 
-        block.extras.ordpoolStats.amounts.labitbu,                           // 4b
+        block.extras.ordpoolStats.amounts.labitbu,
+        block.extras.ordpoolStats.amounts.counterparty,
+        block.extras.ordpoolStats.amounts.stamp,
+        block.extras.ordpoolStats.amounts.src721,
+        block.extras.ordpoolStats.amounts.src101,
 
-        block.extras.ordpoolStats.amounts.cat21,                              // 5
-        block.extras.ordpoolStats.amounts.cat21Mint,                          // 6
-        block.extras.ordpoolStats.amounts.cat21Transfer,                      // 7
+        block.extras.ordpoolStats.amounts.cat21,
+        block.extras.ordpoolStats.amounts.cat21Mint,
 
-        block.extras.ordpoolStats.amounts.inscription,                        // 8
-        block.extras.ordpoolStats.amounts.inscriptionMint,                    // 9
-        block.extras.ordpoolStats.amounts.inscriptionTransfer,                // 10
-        block.extras.ordpoolStats.amounts.inscriptionBurn,                    // 11
+        block.extras.ordpoolStats.amounts.inscription,
+        block.extras.ordpoolStats.amounts.inscriptionMint,
+        block.extras.ordpoolStats.amounts.inscriptionImage,
+        block.extras.ordpoolStats.amounts.inscriptionText,
+        block.extras.ordpoolStats.amounts.inscriptionJson,
 
-        block.extras.ordpoolStats.amounts.rune,                               // 12
-        block.extras.ordpoolStats.amounts.runeEtch,                           // 13
-        block.extras.ordpoolStats.amounts.runeMint,                           // 14
-        block.extras.ordpoolStats.amounts.runeCenotaph,                       // 15
-        block.extras.ordpoolStats.amounts.runeTransfer,                       // 16
-        block.extras.ordpoolStats.amounts.runeBurn,                           // 17
+        block.extras.ordpoolStats.amounts.rune,
+        block.extras.ordpoolStats.amounts.runeEtch,
+        block.extras.ordpoolStats.amounts.runeMint,
+        block.extras.ordpoolStats.amounts.runeCenotaph,
 
-        block.extras.ordpoolStats.amounts.brc20,                              // 18
-        block.extras.ordpoolStats.amounts.brc20Deploy,                        // 19
-        block.extras.ordpoolStats.amounts.brc20Mint,                          // 20
-        block.extras.ordpoolStats.amounts.brc20Transfer,                      // 21
+        block.extras.ordpoolStats.amounts.brc20,
+        block.extras.ordpoolStats.amounts.brc20Deploy,
+        block.extras.ordpoolStats.amounts.brc20Mint,
+        block.extras.ordpoolStats.amounts.brc20Transfer,
 
-        block.extras.ordpoolStats.amounts.src20,                              // 22
-        block.extras.ordpoolStats.amounts.src20Deploy,                        // 23
-        block.extras.ordpoolStats.amounts.src20Mint,                          // 24
-        block.extras.ordpoolStats.amounts.src20Transfer,                      // 25
+        block.extras.ordpoolStats.amounts.src20,
+        block.extras.ordpoolStats.amounts.src20Deploy,
+        block.extras.ordpoolStats.amounts.src20Mint,
+        block.extras.ordpoolStats.amounts.src20Transfer,
 
         block.extras.ordpoolStats.fees.runeMints,                             // 26
         block.extras.ordpoolStats.fees.nonUncommonRuneMints,                  // 27
@@ -437,26 +442,27 @@ class OrdpoolBlocksRepository {
       amounts: {
         atomical: dbBlk.amountsAtomical,
         atomicalMint: dbBlk.amountsAtomicalMint,
-        atomicalTransfer: dbBlk.amountsAtomicalTransfer,
         atomicalUpdate: dbBlk.amountsAtomicalUpdate,
 
         labitbu: dbBlk.amountsLabitbu,
+        counterparty: dbBlk.amountsCounterparty,
+        stamp: dbBlk.amountsStamp,
+        src721: dbBlk.amountsSrc721,
+        src101: dbBlk.amountsSrc101,
 
         cat21: dbBlk.amountsCat21,
         cat21Mint: dbBlk.amountsCat21Mint,
-        cat21Transfer: dbBlk.amountsCat21Transfer,
 
         inscription: dbBlk.amountsInscription,
         inscriptionMint: dbBlk.amountsInscriptionMint,
-        inscriptionTransfer: dbBlk.amountsInscriptionTransfer,
-        inscriptionBurn: dbBlk.amountsInscriptionBurn,
+        inscriptionImage: dbBlk.amountsInscriptionImage,
+        inscriptionText: dbBlk.amountsInscriptionText,
+        inscriptionJson: dbBlk.amountsInscriptionJson,
 
         rune: dbBlk.amountsRune,
         runeEtch: dbBlk.amountsRuneEtch,
         runeMint: dbBlk.amountsRuneMint,
         runeCenotaph: dbBlk.amountsRuneCenotaph,
-        runeTransfer: dbBlk.amountsRuneTransfer,
-        runeBurn: dbBlk.amountsRuneBurn,
 
         brc20: dbBlk.amountsBrc20,
         brc20Deploy: dbBlk.amountsBrc20Deploy,

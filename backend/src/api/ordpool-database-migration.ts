@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 1;
+  private static currentVersion = 2;
 
   private queryTimeout = 3600_000;
 
@@ -382,6 +382,33 @@ class OrdpoolDatabaseMigration {
           UNIQUE KEY (hash, tx_index),
           INDEX idx_height (height)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+    }
+
+    // v2: align ordpool_stats columns with ordpool-parser v2.1.0 flag rework.
+    //   - drop the 6 *_transfer / *_burn amount columns (atomical/cat21/inscription/rune):
+    //     a stateless tx parser cannot fire transfer or burn flags (sat tracking required),
+    //     so these columns held zeros for every block ever indexed.
+    //   - add amount columns for the 4 promoted protocol-family flags (counterparty,
+    //     stamp, src721, src101) which were already detected by the parser but had no DB column.
+    //   - add 3 inscription content-type bucket columns (image / text / json) for the
+    //     'what kind of inscriptions get inscribed?' chart.
+    if (version <= 2) {
+      queries.push(`ALTER TABLE ordpool_stats
+        DROP COLUMN IF EXISTS amounts_atomical_transfer,
+        DROP COLUMN IF EXISTS amounts_cat21_transfer,
+        DROP COLUMN IF EXISTS amounts_inscription_transfer,
+        DROP COLUMN IF EXISTS amounts_inscription_burn,
+        DROP COLUMN IF EXISTS amounts_rune_transfer,
+        DROP COLUMN IF EXISTS amounts_rune_burn,
+
+        ADD COLUMN IF NOT EXISTS amounts_counterparty       INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_stamp              INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_src721             INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_src101             INT UNSIGNED NOT NULL DEFAULT 0,
+
+        ADD COLUMN IF NOT EXISTS amounts_inscription_image  INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_inscription_text   INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_inscription_json   INT UNSIGNED NOT NULL DEFAULT 0;`);
     }
 
     return queries;

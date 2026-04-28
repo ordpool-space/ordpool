@@ -84,6 +84,21 @@ class OrdpoolStatisticsApi {
           AVG(bos.inscriptions_average_envelope_size) AS avgEnvelopeSize,
           AVG(bos.inscriptions_average_content_size) AS avgContentSize
         `;
+      case 'protocols':
+        return `
+          ${baseClause},
+          SUM(bos.amounts_counterparty) AS counterparty,
+          SUM(bos.amounts_stamp) AS stamp,
+          SUM(bos.amounts_src721) AS src721,
+          SUM(bos.amounts_src101) AS src101
+        `;
+      case 'inscription-types':
+        return `
+          ${baseClause},
+          SUM(bos.amounts_inscription_image) AS inscriptionImages,
+          SUM(bos.amounts_inscription_text) AS inscriptionTexts,
+          SUM(bos.amounts_inscription_json) AS inscriptionJsons
+        `;
       default:
         throw new Error('Invalid chart type: ' + type);
     }
