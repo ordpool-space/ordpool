@@ -2,10 +2,12 @@
 
 <div class="mb-3 d-flex menu">
 
-  <a routerLinkActive="active" class="btn btn-primary w-33" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', statistics.interval, statistics.aggregation]">Mints</a>
-  <a routerLinkActive="active" class="btn btn-primary w-33" [routerLink]="['/ordpool-stats' | relativeUrl, 'new-tokens', statistics.interval, statistics.aggregation]">New Tokens</a>
-  <a routerLinkActive="active" class="btn btn-primary w-33" [routerLink]="['/ordpool-stats' | relativeUrl, 'fees', statistics.interval, statistics.aggregation]">Fees</a>
-  <a routerLinkActive="active" class="btn btn-primary w-33" [routerLink]="['/ordpool-stats' | relativeUrl, 'inscription-sizes', statistics.interval, statistics.aggregation]">Inscription Sizes</a>
+  <a routerLinkActive="active" class="btn btn-primary" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', statistics.interval, statistics.aggregation]">Mints</a>
+  <a routerLinkActive="active" class="btn btn-primary" [routerLink]="['/ordpool-stats' | relativeUrl, 'new-tokens', statistics.interval, statistics.aggregation]">New Tokens</a>
+  <a routerLinkActive="active" class="btn btn-primary" [routerLink]="['/ordpool-stats' | relativeUrl, 'fees', statistics.interval, statistics.aggregation]">Fees</a>
+  <a routerLinkActive="active" class="btn btn-primary" [routerLink]="['/ordpool-stats' | relativeUrl, 'inscription-sizes', statistics.interval, statistics.aggregation]">Inscription Sizes</a>
+  <a routerLinkActive="active" class="btn btn-primary" [routerLink]="['/ordpool-stats' | relativeUrl, 'inscription-types', statistics.interval, statistics.aggregation]">Inscription Types</a>
+  <a routerLinkActive="active" class="btn btn-primary" [routerLink]="['/ordpool-stats' | relativeUrl, 'protocols', statistics.interval, statistics.aggregation]">Other Protocols</a>
 
 </div>
 

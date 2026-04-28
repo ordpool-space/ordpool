@@ -53,6 +53,33 @@ describe('OrdpoolStatisticsApi', () => {
       expect(result).toEqual([{ totalEnvelopeSize: 5000 }]);
     });
 
+    it('should call the correct query for protocols', async () => {
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ counterparty: 60, stamp: 70, src721: 80, src101: 90 }]]);
+
+      const result = await OrdpoolStatisticsApi.getOrdpoolStatistics('protocols', '1y', 'day');
+
+      // All four protocol-family columns SUMed under their JS names
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_counterparty) AS counterparty'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_stamp) AS stamp'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_src721) AS src721'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_src101) AS src101'));
+
+      expect(result).toEqual([{ counterparty: 60, stamp: 70, src721: 80, src101: 90 }]);
+    });
+
+    it('should call the correct query for inscription types', async () => {
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ inscriptionImages: 100, inscriptionTexts: 200, inscriptionJsons: 300 }]]);
+
+      const result = await OrdpoolStatisticsApi.getOrdpoolStatistics('inscription-types', '1m', 'day');
+
+      // The three content-type bucket columns
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_inscription_image) AS inscriptionImages'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_inscription_text) AS inscriptionTexts'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(bos.amounts_inscription_json) AS inscriptionJsons'));
+
+      expect(result).toEqual([{ inscriptionImages: 100, inscriptionTexts: 200, inscriptionJsons: 300 }]);
+    });
+
     it('should apply interval filtering', async () => {
       (DB.query as jest.Mock).mockResolvedValueOnce([[{ cat21Mints: 5, inscriptionMints: 10 }]]);
 
