@@ -2,13 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Frontend: ordpool (Angular 17)
+## Frontend: ordpool (Angular 20)
 
-Fork of mempool.space frontend with Ordinals customizations.
+Fork of mempool.space frontend with Ordinals customizations. After the upstream-merge in April 2026 the stack is Angular 20 + Bootstrap 5 + Node 24 (was Angular 17 / Bootstrap 4 / Node 20 in v1).
 
 ### Node Version
 
-Requires **Node.js v20 or higher**.
+Requires **Node.js v24** (see `.nvmrc`). The CI workflows pin `node-version: 24`.
 
 ### First-Time Setup
 
