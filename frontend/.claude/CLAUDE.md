@@ -96,8 +96,26 @@ This is a fork of mempool.space. To keep changes isolated and merges manageable,
 
 ### Dependency: ordpool-parser
 
-The frontend depends on `ordpool-parser`. For development with local changes:
+The frontend depends on `ordpool-parser` via a git SHA ref in `package.json`:
+```json
+"ordpool-parser": "github:ordpool-space/ordpool-parser#<sha>"
+```
 
+The `prepare` script in ordpool-parser runs `npm run build` on install, so the compiled output is always fresh.
+
+**CRITICAL: When updating the git SHA, ALWAYS run `npm install` afterwards to regenerate `package-lock.json`, then commit BOTH files together.** CI caches `node_modules` keyed by the lockfile hash. If you update the SHA without updating the lockfile, CI restores stale `node_modules` from cache and the build fails with missing types.
+
+```bash
+# Correct workflow for bumping ordpool-parser:
+# 1. Update the SHA in package.json
+# 2. Run npm install to regenerate the lockfile
+npm install
+# 3. Commit BOTH package.json AND package-lock.json
+git add package.json package-lock.json
+git commit -m "bump ordpool-parser to <sha>"
+```
+
+For local development with live changes (no commit needed):
 ```bash
 # In ordpool-parser/
 npm run build && cd dist && npm link

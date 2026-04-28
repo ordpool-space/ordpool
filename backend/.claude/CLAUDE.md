@@ -79,8 +79,26 @@ npm run prettier         # Prettier formatting
 
 ### Dependency: ordpool-parser
 
-The backend imports `ordpool-parser` for transaction analysis. For development with local changes:
+The backend imports `ordpool-parser` via a git SHA ref in `package.json`:
+```json
+"ordpool-parser": "github:ordpool-space/ordpool-parser#<sha>"
+```
 
+The `prepare` script in ordpool-parser runs `npm run build` on install, so the compiled output is always fresh.
+
+**CRITICAL: When updating the git SHA, ALWAYS run `npm install` afterwards to regenerate `package-lock.json`, then commit BOTH files together.** CI caches `node_modules` keyed by the lockfile hash. If you update the SHA in `package.json` without updating the lockfile, CI restores stale `node_modules` from cache (with the old ordpool-parser build) and the `prepare` script never re-runs.
+
+```bash
+# Correct workflow for bumping ordpool-parser:
+# 1. Update the SHA in package.json
+# 2. Run npm install to regenerate the lockfile
+npm install
+# 3. Commit BOTH package.json AND package-lock.json
+git add package.json package-lock.json
+git commit -m "bump ordpool-parser to <sha>"
+```
+
+For local development with live changes (no commit needed):
 ```bash
 # In ordpool-parser/
 npm run build && cd dist && npm link
