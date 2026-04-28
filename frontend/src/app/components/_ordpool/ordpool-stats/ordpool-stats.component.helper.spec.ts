@@ -2,8 +2,10 @@ import {
   ChartType,
   FeeStatistic,
   InscriptionSizeStatistic,
+  InscriptionTypeStatistic,
   MintStatistic,
   NewTokenStatistic,
+  ProtocolStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
 import { formatTimestamp, getSeriesData, getTooltipContent }  from './ordpool-stats.component.helper'
@@ -48,6 +50,14 @@ describe('getSeriesData', () => {
     },
   ];
 
+  const protocolStats: ProtocolStatistic[] = [
+    { ...baseStat, counterparty: 60, stamp: 70, src721: 80, src101: 90 },
+  ];
+
+  const inscriptionTypeStats: InscriptionTypeStatistic[] = [
+    { ...baseStat, inscriptionImages: 100, inscriptionTexts: 200, inscriptionJsons: 300 },
+  ];
+
   it('should generate correct series data for mints', () => {
     const result = getSeriesData('mints', mintStats);
     expect(result).toEqual([
@@ -89,6 +99,25 @@ describe('getSeriesData', () => {
       { name: 'Largest Content Size', type: 'line', data: [[1734994800000, 10000]] },
       { name: 'Average Envelope Size', type: 'line', data: [[1734994800000, 1100]] },
       { name: 'Average Content Size', type: 'line', data: [[1734994800000, 1200]] },
+    ]);
+  });
+
+  it('should generate correct series data for protocols', () => {
+    const result = getSeriesData('protocols', protocolStats);
+    expect(result).toEqual([
+      { name: 'Counterparty', type: 'line', data: [[1734994800000, 60]] },
+      { name: 'Stamp', type: 'line', data: [[1734994800000, 70]] },
+      { name: 'SRC-721', type: 'line', data: [[1734994800000, 80]] },
+      { name: 'SRC-101', type: 'line', data: [[1734994800000, 90]] },
+    ]);
+  });
+
+  it('should generate correct series data for inscription-types', () => {
+    const result = getSeriesData('inscription-types', inscriptionTypeStats);
+    expect(result).toEqual([
+      { name: 'Images', type: 'line', data: [[1734994800000, 100]] },
+      { name: 'Text', type: 'line', data: [[1734994800000, 200]] },
+      { name: 'JSON', type: 'line', data: [[1734994800000, 300]] },
     ]);
   });
 
@@ -154,6 +183,21 @@ describe('getTooltipContent', () => {
     avgContentSize: 1200,
   };
 
+  const protocolStat: ProtocolStatistic = {
+    ...baseStat,
+    counterparty: 60,
+    stamp: 70,
+    src721: 80,
+    src101: 90,
+  };
+
+  const inscriptionTypeStat: InscriptionTypeStatistic = {
+    ...baseStat,
+    inscriptionImages: 100,
+    inscriptionTexts: 200,
+    inscriptionJsons: 300,
+  };
+
   it('should generate correct tooltip content for mints', () => {
     const result = getTooltipContent('mints', mintStat);
     expect(result).toContain('CAT-21: 5');
@@ -188,6 +232,21 @@ describe('getTooltipContent', () => {
     expect(result).toContain('Largest Content Size: 10000');
     expect(result).toContain('Average Envelope Size: 1100');
     expect(result).toContain('Average Content Size: 1200');
+  });
+
+  it('should generate correct tooltip content for protocols', () => {
+    const result = getTooltipContent('protocols', protocolStat);
+    expect(result).toContain('Counterparty: 60');
+    expect(result).toContain('Stamp: 70');
+    expect(result).toContain('SRC-721: 80');
+    expect(result).toContain('SRC-101: 90');
+  });
+
+  it('should generate correct tooltip content for inscription-types', () => {
+    const result = getTooltipContent('inscription-types', inscriptionTypeStat);
+    expect(result).toContain('Images: 100');
+    expect(result).toContain('Text: 200');
+    expect(result).toContain('JSON: 300');
   });
 
   it('should throw an error for unsupported chart type', () => {
