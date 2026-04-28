@@ -129,23 +129,28 @@ export const TransactionFilters: { [key: string]: Filter } = {
     ordpool_brc20:                { key: 'ordpool_brc20',                 label: 'BRC-20',                flag: OrdpoolTransactionFlags.ordpool_brc20, important: true, tooltip: true, txPage: true, },
     ordpool_src20:                { key: 'ordpool_src20',                 label: 'SRC-20',                flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
     ordpool_labitbu:              { key: 'ordpool_labitbu',               label: 'Labitbu',               flag: OrdpoolTransactionFlags.ordpool_labitbu, important: true, tooltip: true, txPage: true, },
-    
+
+    /* ordpool flags promoted in v2.1.0 from orphan-detected to first-class */
+    ordpool_counterparty:         { key: 'ordpool_counterparty',          label: 'Counterparty',          flag: OrdpoolTransactionFlags.ordpool_counterparty, important: true, tooltip: true, txPage: true, },
+    ordpool_stamp:                { key: 'ordpool_stamp',                 label: 'Stamp',                 flag: OrdpoolTransactionFlags.ordpool_stamp, important: true, tooltip: true, txPage: true, },
+    ordpool_src721:               { key: 'ordpool_src721',                label: 'SRC-721',               flag: OrdpoolTransactionFlags.ordpool_src721, important: true, tooltip: true, txPage: true, },
+    ordpool_src101:               { key: 'ordpool_src101',                label: 'SRC-101',               flag: OrdpoolTransactionFlags.ordpool_src101, important: true, tooltip: true, txPage: true, },
+
     ordpool_atomical_mint:        { key: 'ordpool_atomical_mint',         label: 'Atomical Mint',         flag: OrdpoolTransactionFlags.ordpool_atomical_mint, important: true, tooltip: true, txPage: true, },
-    ordpool_atomical_transfer:    { key: 'ordpool_atomical_transfer',     label: 'Atomical Transfer',     flag: OrdpoolTransactionFlags.ordpool_atomical_transfer, important: true, tooltip: true, txPage: true, },
     ordpool_atomical_update:      { key: 'ordpool_atomical_update',       label: 'Atomical Update',       flag: OrdpoolTransactionFlags.ordpool_atomical_update, important: true, tooltip: true, txPage: true, },
 
     ordpool_cat21_mint:           { key: 'ordpool_cat21_mint',            label: 'CAT-21 Mint',           flag: OrdpoolTransactionFlags.ordpool_cat21_mint, important: true, tooltip: true, txPage: true, },
-    ordpool_cat21_transfer:       { key: 'ordpool_cat21_transfer',        label: 'CAT-21 Transfer',       flag: OrdpoolTransactionFlags.ordpool_cat21_transfer, important: true, tooltip: true, txPage: true, },
-    
+
     ordpool_inscription_mint:     { key: 'ordpool_inscription_mint',      label: 'Inscription Mint',      flag: OrdpoolTransactionFlags.ordpool_inscription_mint, important: true, tooltip: true, txPage: true, },
-    ordpool_inscription_transfer: { key: 'ordpool_inscription_transfer',  label: 'Inscription Transfer',  flag: OrdpoolTransactionFlags.ordpool_inscription_transfer, important: true, tooltip: true, txPage: true, },
-    ordpool_inscription_burn:     { key: 'ordpool_inscription_burn',      label: 'Inscription Burn',      flag: OrdpoolTransactionFlags.ordpool_inscription_burn, important: true, tooltip: true, txPage: true, },
+
+    /* inscription content-type buckets (added in parser v2.1.0) */
+    ordpool_inscription_image:    { key: 'ordpool_inscription_image',     label: 'Inscription Image',     flag: OrdpoolTransactionFlags.ordpool_inscription_image, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription_text:     { key: 'ordpool_inscription_text',      label: 'Inscription Text',      flag: OrdpoolTransactionFlags.ordpool_inscription_text, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription_json:     { key: 'ordpool_inscription_json',      label: 'Inscription JSON',      flag: OrdpoolTransactionFlags.ordpool_inscription_json, important: true, tooltip: true, txPage: true, },
 
     ordpool_rune_etch:            { key: 'ordpool_rune_etch',             label: 'Rune Etch',             flag: OrdpoolTransactionFlags.ordpool_rune_etch, important: true, tooltip: true, txPage: true, },
     ordpool_rune_mint:            { key: 'ordpool_rune_mint',             label: 'Rune Mint',             flag: OrdpoolTransactionFlags.ordpool_rune_mint, important: true, tooltip: true, txPage: true, },
     ordpool_rune_cenotaph:        { key: 'ordpool_rune_cenotaph',         label: 'Rune Cenotaph',         flag: OrdpoolTransactionFlags.ordpool_rune_cenotaph, important: true, tooltip: true, txPage: true, },
-    ordpool_rune_transfer:        { key: 'ordpool_rune_transfer',         label: 'Rune Transfer',         flag: OrdpoolTransactionFlags.ordpool_rune_transfer, important: true, tooltip: true, txPage: true, },
-    ordpool_rune_burn:            { key: 'ordpool_rune_burn',             label: 'Rune Burn',             flag: OrdpoolTransactionFlags.ordpool_rune_burn, important: true, tooltip: true, txPage: true, },
 
     ordpool_brc20_deploy:         { key: 'ordpool_brc20_deploy',          label: 'BRC-20 Deploy',         flag: OrdpoolTransactionFlags.ordpool_brc20_deploy, important: true, tooltip: true, txPage: true, },
     ordpool_brc20_mint:           { key: 'ordpool_brc20_mint',            label: 'BRC-20 Mint',           flag: OrdpoolTransactionFlags.ordpool_brc20_mint, important: true, tooltip: true, txPage: true, },
