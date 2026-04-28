@@ -8,7 +8,7 @@ Fork of mempool.space backend with ordpool indexing for digital artifacts (inscr
 
 ### Node Version
 
-Requires **Node.js v20 or higher**. Also requires a **Rust toolchain** for the native `rust-gbt` module (built during `npm install`).
+Requires **Node.js v24** (see `.nvmrc`). Also requires a **Rust toolchain** for the native `rust-gbt` module (built during `npm install`).
 
 ### Prerequisites
 
