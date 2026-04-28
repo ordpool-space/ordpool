@@ -121,7 +121,8 @@ export class Cat21MintComponent implements OnInit {
               BigInt(0)
             );
 
-            const transactionFee = BigInt(simulation1.vsize * feeRate);
+            // feeRate can be fractional (e.g. 0.5 sat/vB), so we ceil to avoid BigInt crash
+            const transactionFee = BigInt(Math.ceil(simulation1.vsize * feeRate));
 
             // simulate the transaction again, with exact transactionFee
             const simulation2 = this.cat21Service.simulateTransaction(
@@ -199,7 +200,7 @@ export class Cat21MintComponent implements OnInit {
     this.cfeeRate.setValidators([
       Validators.required,
       Validators.min(this.minRequiredFee),
-      fullNumberValidator()
+      // fullNumberValidator() -- removed: sub-sat fee rates (e.g. 0.5 sat/vB) are valid now
     ]);
 
     if (this.cfeeRate.value < this.minRequiredFee) {
