@@ -205,9 +205,6 @@ export const FilterGroups: { label: string, filters: Filter[]}[] = [
   { label: $localize`Sighash Flags`, filters: ['sighash_all', 'sighash_none', 'sighash_single', 'sighash_default', 'sighash_acp'] },
   */
   // HACK --- Ordpool Flags
-  // Order: top three by weighting (inscription / rune / cat21), then BRC-20
-  // and Atomicals (high volume), then Counterparty (OG since 2014), then the
-  // Stamps family (parent + SRC-* descendants), Labitbu last (10k complete).
   { label: 'Ordpool Flags', filters: [
     'ordpool_inscription',
     'ordpool_rune',
