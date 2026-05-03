@@ -74,10 +74,13 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       working-directory: backend
+      # Artifact branch is `stage_prod` (underscore) — same convention as
+      # build-frontend.yml and the cat21-indexer build pipelines. Server-
+      # side ordpool-backend-deploy.sh fetches origin/stage_prod.
       run: |
         npx angular-cli-ghpages \
           --repo=https://github.com/ordpool-space/ordpool-backend-build.git \
-          --branch=main \
+          --branch=stage_prod \
           --dir=deploy \
           --name="The Buildbot" \
           --email=noreply@haushoppe.art \
