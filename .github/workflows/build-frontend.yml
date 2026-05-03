@@ -45,10 +45,14 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       working-directory: frontend
+      # NOTE: artifact branch is `stage_prod` (underscore), matching the
+      # ship-trigger branch on the source repo. Cloudflare Pages serves
+      # ordpool.space from this branch. Do NOT use `stage-prod` (hyphen) —
+      # that's the legacy v1 artifact branch, left in place for archival.
       run: |
         npx angular-cli-ghpages \
           --repo=https://github.com/ordpool-space/ordpool-frontend-build.git \
-          --branch=main \
+          --branch=stage_prod \
           --dir=dist/mempool/browser \
           --name="The Buildbot" \
           --email=noreply@haushoppe.art \
