@@ -205,7 +205,22 @@ export const FilterGroups: { label: string, filters: Filter[]}[] = [
   { label: $localize`Sighash Flags`, filters: ['sighash_all', 'sighash_none', 'sighash_single', 'sighash_default', 'sighash_acp'] },
   */
   // HACK --- Ordpool Flags
-  { label: 'Ordpool Flags', filters: [/*'ordpool_atomical',*/ 'ordpool_cat21', 'ordpool_inscription', 'ordpool_rune',  'ordpool_brc20', 'ordpool_src20'] },
+  // Order: top three by weighting (inscription / rune / cat21), then BRC-20
+  // and Atomicals (high volume), then Counterparty (OG since 2014), then the
+  // Stamps family (parent + SRC-* descendants), Labitbu last (10k complete).
+  { label: 'Ordpool Flags', filters: [
+    'ordpool_inscription',
+    'ordpool_rune',
+    'ordpool_cat21',
+    'ordpool_brc20',
+    'ordpool_atomical',
+    'ordpool_counterparty',
+    'ordpool_stamp',
+    'ordpool_src20',
+    'ordpool_src721',
+    'ordpool_src101',
+    'ordpool_labitbu',
+  ] },
 
 ].map(group => ({ label: group.label, filters: group.filters.map(filter => TransactionFilters[filter] || null).filter(f => f != null) }));
 
