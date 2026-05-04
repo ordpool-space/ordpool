@@ -3,7 +3,11 @@ name: Build Frontend
 on:
   workflow_dispatch:
   push:
-    branches: [ stage_prod ]
+    # Two stages share the same backend (api.ordpool.space) — only the
+    # frontend artifact branch differs. Pushing to stage_prod deploys to
+    # ordpool.space; pushing to stage_test deploys to a Pages preview
+    # branch (test domain, e.g. test.ordpool.space).
+    branches: [ stage_prod, stage_test ]
     paths:
       - 'frontend/**'
       - '.github/workflows/build-frontend.yml'
@@ -45,14 +49,14 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       working-directory: frontend
-      # NOTE: artifact branch is `stage_prod` (underscore), matching the
-      # ship-trigger branch on the source repo. Cloudflare Pages serves
-      # ordpool.space from this branch. Do NOT use `stage-prod` (hyphen) —
-      # that's the legacy v1 artifact branch, left in place for archival.
+      # Artifact branch matches the source ref: stage_prod → stage_prod,
+      # stage_test → stage_test. Cloudflare Pages serves ordpool.space from
+      # stage_prod; the stage_test branch is for a Pages preview/test
+      # domain that shares the same api.ordpool.space backend.
       run: |
         npx angular-cli-ghpages \
           --repo=https://github.com/ordpool-space/ordpool-frontend-build.git \
-          --branch=stage_prod \
+          --branch=${{ github.ref_name }} \
           --dir=dist/mempool/browser \
           --name="The Buildbot" \
           --email=noreply@haushoppe.art \
