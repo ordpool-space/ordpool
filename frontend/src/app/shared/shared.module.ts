@@ -10,10 +10,12 @@ import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, fa
   faCircleXmark, faCalendarCheck, faMoneyBillTrendUp, faRobot, faShareNodes, faCreditCard, faMicroscope, faExclamationTriangle, faLockOpen, faPaperclip, faAddressCard,
   faMedal, faBug, faFilePdf, faPiggyBank, faLayerGroup, faHeart, faCashRegister, faCodeFork, faCode,
   faCalendar, faPause, faPlay,
-  // HACK -- Ordpool: faCubes used in master-page.component.html ('Blocks' / 'MEMEpool' nav).
-  // Came in via the April 2026 upstream-mempool merge; without registration the SPA crashes
-  // at runtime with "Could not find icon with iconName=cubes and prefix=fas".
-  faCubes,
+  // HACK -- Ordpool: icons used in upstream master-page.component.html (nav links) +
+  // pool.component.html that arrived via the April 2026 upstream-mempool merge but
+  // were never added to the registry. Without these, the SPA crashes at runtime with
+  // "Could not find icon with iconName=<x> and prefix=fas" the moment the master-page
+  // template tries to render the nav.
+  faCubes, faBook, faChartArea, faFaucetDrip, faHammer, faCheckCircle, faTimesCircle,
 } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollModule } from 'ngx-infinite-scroll';
 import { MenuComponent } from '@components/menu/menu.component';
@@ -566,6 +568,13 @@ export class SharedModule {
     library.addIcons(faCode);
     library.addIcons(faPause);
     library.addIcons(faPlay);
-    library.addIcons(faCubes); // HACK -- Ordpool: see import comment above
+    // HACK -- Ordpool: post-upstream-merge missing registrations. See import comment.
+    library.addIcons(faCubes);
+    library.addIcons(faBook);
+    library.addIcons(faChartArea);
+    library.addIcons(faFaucetDrip);
+    library.addIcons(faHammer);
+    library.addIcons(faCheckCircle);
+    library.addIcons(faTimesCircle);
   }
 }
