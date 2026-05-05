@@ -22,8 +22,11 @@ class OrdpoolDatabaseMigration {
       await this.$executeQuery(`INSERT INTO state VALUES('ordpool_schema_version', 0, NULL);`);
     }
 
-    logger.debug('ORDPOOL MIGRATIONS: Current state.ordpool_schema_version ' + ordpoolDatabaseSchemaVersion, 'Ordpool');
-    logger.debug('ORDPOOL MIGRATIONS: Latest OrdpoolDatabaseMigration.currentVersion is ' + OrdpoolDatabaseMigration.currentVersion, 'Ordpool');
+    // Bump these two from debug → notice so journalctl's default config
+    // ("info and above") preserves them. We need to be able to confirm from
+    // the journal whether a migration was attempted on every deploy.
+    logger.notice('ORDPOOL MIGRATIONS: Current state.ordpool_schema_version ' + ordpoolDatabaseSchemaVersion, 'Ordpool');
+    logger.notice('ORDPOOL MIGRATIONS: Latest OrdpoolDatabaseMigration.currentVersion is ' + OrdpoolDatabaseMigration.currentVersion, 'Ordpool');
 
     if (ordpoolDatabaseSchemaVersion >= OrdpoolDatabaseMigration.currentVersion) {
       logger.debug('ORDPOOL MIGRATIONS: Nothing to do.', 'Ordpool');
@@ -35,7 +38,13 @@ class OrdpoolDatabaseMigration {
         await this.$migrateTableSchemaFromVersion(ordpoolDatabaseSchemaVersion);
         logger.notice(`ORDPOOL MIGRATIONS: OK. Database schema have been migrated from version ${ordpoolDatabaseSchemaVersion} to ${OrdpoolDatabaseMigration.currentVersion} (latest version)`, 'Ordpool');
       } catch (e) {
+        // Fail loud. The pre-existing message claimed "aborting" but only
+        // logged + returned, leaving the service running with a stale schema
+        // — exactly what bit us on 2026-05-04 (35h of broken homepage). Now
+        // we re-throw: startServer's try/catch wraps and aborts the process,
+        // systemd retries hit StartLimit, OnFailure fires, alert email lands.
         logger.err('ORDPOOL MIGRATIONS: Unable to migrate database, aborting. ' + e, 'Ordpool');
+        throw new Error('OrdpoolDatabaseMigration failed: ' + (e instanceof Error ? e.message : String(e)));
       }
     }
 
