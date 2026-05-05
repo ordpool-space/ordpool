@@ -2,14 +2,21 @@ import { LineSeriesOption } from 'echarts';
 
 import {
   Aggregation,
+  AtomicalOpsStatistic,
+  Cat21StatStatistic,
   ChartType,
+  CounterpartyMessagesStatistic,
   FeeStatistic,
+  InscriptionCompressionStatistic,
   InscriptionSizeStatistic,
+  InscriptionTypeFeeStatistic,
+  InscriptionTypeSizeStatistic,
   InscriptionTypeStatistic,
   Interval,
   MintStatistic,
   NewTokenStatistic,
   ProtocolStatistic,
+  RuneActivityStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 
 // Helper type to map ChartType to the corresponding statistic type
@@ -20,6 +27,13 @@ type ExtractStatistic<T extends ChartType> =
   T extends 'inscription-sizes' ? InscriptionSizeStatistic :
   T extends 'protocols' ? ProtocolStatistic :
   T extends 'inscription-types' ? InscriptionTypeStatistic :
+  T extends 'inscription-type-sizes' ? InscriptionTypeSizeStatistic :
+  T extends 'inscription-type-fees' ? InscriptionTypeFeeStatistic :
+  T extends 'inscription-compression' ? InscriptionCompressionStatistic :
+  T extends 'cat21-stats' ? Cat21StatStatistic :
+  T extends 'rune-activity' ? RuneActivityStatistic :
+  T extends 'atomical-ops' ? AtomicalOpsStatistic :
+  T extends 'counterparty-messages' ? CounterpartyMessagesStatistic :
   never;
 
 /**
@@ -100,6 +114,45 @@ export function getSeriesData<T extends ChartType>(
       { name: 'Text', type: 'line', data: stats.map((stat) => [stat.minTime, stat.inscriptionTexts]) },
       { name: 'JSON', type: 'line', data: stats.map((stat) => [stat.minTime, stat.inscriptionJsons]) },
     ],
+    'inscription-type-sizes': (stats: InscriptionTypeSizeStatistic[]) => [
+      { name: 'Images — total envelope', type: 'line', data: stats.map((stat) => [stat.minTime, stat.imageTotalEnvelopeSize]) },
+      { name: 'Images — total content',  type: 'line', data: stats.map((stat) => [stat.minTime, stat.imageTotalContentSize]) },
+      { name: 'Text — total envelope',   type: 'line', data: stats.map((stat) => [stat.minTime, stat.textTotalEnvelopeSize]) },
+      { name: 'Text — total content',    type: 'line', data: stats.map((stat) => [stat.minTime, stat.textTotalContentSize]) },
+      { name: 'JSON — total envelope',   type: 'line', data: stats.map((stat) => [stat.minTime, stat.jsonTotalEnvelopeSize]) },
+      { name: 'JSON — total content',    type: 'line', data: stats.map((stat) => [stat.minTime, stat.jsonTotalContentSize]) },
+    ],
+    'inscription-type-fees': (stats: InscriptionTypeFeeStatistic[]) => [
+      { name: 'Image mint fees', type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesInscriptionImageMints]) },
+      { name: 'Text mint fees',  type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesInscriptionTextMints]) },
+      { name: 'JSON mint fees',  type: 'line', data: stats.map((stat) => [stat.minTime, stat.feesInscriptionJsonMints]) },
+    ],
+    'inscription-compression': (stats: InscriptionCompressionStatistic[]) => [
+      { name: 'Brotli count',          type: 'line', data: stats.map((stat) => [stat.minTime, stat.brotliCount]) },
+      { name: 'Gzip count',            type: 'line', data: stats.map((stat) => [stat.minTime, stat.gzipCount]) },
+      { name: 'Compressed bytes',      type: 'line', data: stats.map((stat) => [stat.minTime, stat.compressedEnvelopeBytes]) },
+    ],
+    'cat21-stats': (stats: Cat21StatStatistic[]) => [
+      { name: 'CAT-21 mints',           type: 'line', data: stats.map((stat) => [stat.minTime, stat.cat21Mints]) },
+      { name: 'Genesis cats',           type: 'line', data: stats.map((stat) => [stat.minTime, stat.cat21GenesisCount]) },
+      { name: 'Avg fee rate (sat/vB)',  type: 'line', data: stats.map((stat) => [stat.minTime, stat.cat21AvgFeeRate ?? 0]) },
+    ],
+    'rune-activity': (stats: RuneActivityStatistic[]) => [
+      { name: 'Unique runes minted',                            type: 'line', data: stats.map((stat) => [stat.minTime, stat.uniqueMints]) },
+      { name: 'Unique runes minted (excluding ⧉ UNCOMMON•GOODS)', type: 'line', data: stats.map((stat) => [stat.minTime, stat.uniqueMintsNonUncommon]) },
+      { name: 'Top mint count',                                  type: 'line', data: stats.map((stat) => [stat.minTime, stat.topMintCount]) },
+      { name: 'Top mint count (excluding ⧉ UNCOMMON•GOODS)',     type: 'line', data: stats.map((stat) => [stat.minTime, stat.topMintCountNonUncommon]) },
+    ],
+    // atomical-ops + counterparty-messages return one row per (period, op).
+    // Single aggregate line for now; per-op breakdown is a follow-up
+    // (needs grouping the rows by `operation` / `messageType` and emitting
+    // one series per distinct value — depends on the time-series UI design).
+    'atomical-ops': (stats: AtomicalOpsStatistic[]) => [
+      { name: 'Atomical operations', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
+    ],
+    'counterparty-messages': (stats: CounterpartyMessagesStatistic[]) => [
+      { name: 'Counterparty messages', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
+    ],
   })(statistics);
 }
 
@@ -112,6 +165,8 @@ export function getSeriesData<T extends ChartType>(
 export function getTooltipContent(
   type: ChartType,
   stat: MintStatistic | NewTokenStatistic | FeeStatistic | InscriptionSizeStatistic | ProtocolStatistic | InscriptionTypeStatistic
+       | InscriptionTypeSizeStatistic | InscriptionTypeFeeStatistic | InscriptionCompressionStatistic
+       | Cat21StatStatistic | RuneActivityStatistic | AtomicalOpsStatistic | CounterpartyMessagesStatistic
 ): string {
 
   const baseContent = `
@@ -242,6 +297,13 @@ export function formatChartHeading(chartType: ChartType): string {
     'inscription-sizes': 'Inscription Sizes',
     protocols: 'Other Protocols',
     'inscription-types': 'Inscription Types',
+    'inscription-type-sizes': 'Inscription Type Sizes',
+    'inscription-type-fees': 'Inscription Type Fees',
+    'inscription-compression': 'Inscription Compression',
+    'cat21-stats': 'CAT-21 Stats',
+    'rune-activity': 'Rune Activity',
+    'atomical-ops': 'Atomical Operations',
+    'counterparty-messages': 'Counterparty Messages',
   };
 
   return chartTypeHeadings[chartType];
@@ -262,6 +324,13 @@ export function formatChartDescription(chartType: ChartType, interval: Interval,
     'inscription-sizes': 'This chart analyzes the sizes of inscriptions during minting activities, showing total sizes, largest sizes, and average sizes for both envelope and content data.',
     protocols: 'This chart tracks activity from older Bitcoin meta-protocols: Counterparty, Stamp, SRC-721 and SRC-101.',
     'inscription-types': 'This chart breaks down inscriptions by content type: images (any image/* MIME), text (text/plain, text/html, etc.), and JSON (application/json or text/plain bodies that parse as JSON objects). The same mint can contribute to multiple buckets — a JSON inscribed as text/plain hits both Text and JSON.',
+    'inscription-type-sizes': 'Per-content-type envelope and content sizes for inscriptions, broken into image, text, and JSON buckets. Shows whether one bucket dominates the bytes, even when the counts look balanced.',
+    'inscription-type-fees': 'Per-content-type fees for inscription mints (image, text, JSON). The three sub-totals sum to ≤ the total inscription mint fees — each tx attributes to at most one bucket.',
+    'inscription-compression': 'Compression telemetry for inscriptions: brotli vs gzip counts and total compressed envelope bytes. Useful for tracking how much of the inscription weight is compressed.',
+    'cat21-stats': 'CAT-21 block aggregates: total mints, genesis cats minted (the rare hash-derived trait, ~1 per 256), and average fee rate per cat.',
+    'rune-activity': 'Rune mint activity: distinct runes seeing mints + the top single-rune mint count. Each metric is shown twice — overall and excluding UNCOMMON•GOODS (rune 1:0, which dominates every rune mint stat).',
+    'atomical-ops': 'Atomical operations breakdown by op type (nft/ft/dft/dmt/mod/evt/sl/dat).',
+    'counterparty-messages': 'Counterparty message activity per period — sends, dispensers, fairmints, bets, sweeps, and the rest of the 22+ message types.',
   };
 
   const intervalDescriptions: Record<Interval, string> = {
