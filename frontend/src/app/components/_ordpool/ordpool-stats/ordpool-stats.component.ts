@@ -1,4 +1,4 @@
-import { AsyncPipe, UpperCasePipe } from '@angular/common';
+import { AsyncPipe, DecimalPipe, UpperCasePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { EChartsOption } from 'echarts';
@@ -13,6 +13,7 @@ import {
   OrdpoolStatisticResponse,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
 import { GraphsModule } from '../../../graphs/graphs.module';
+import { IndexerProgressService } from '../../../services/ordinals/indexer-progress.service';
 import { OrdpoolApiService } from '../../../services/ordinals/ordpool-api.service';
 import { SeoService } from '../../../services/seo.service';
 import { SharedModule } from '../../../shared/shared.module';
@@ -32,6 +33,7 @@ import {
   imports: [
     UpperCasePipe,
     AsyncPipe,
+    DecimalPipe,
     RouterLink,
     SharedModule,
     GraphsModule
@@ -45,6 +47,11 @@ export class OrdpoolStatsComponent {
   private route = inject(ActivatedRoute);
   private ordpoolApiService = inject(OrdpoolApiService);
   private seoService = inject(SeoService);
+  private indexerProgress = inject(IndexerProgressService);
+
+  /** Live indexer-progress payload, polled once per minute. The template
+   *  reads this with the async pipe to render the lag/skip banner. */
+  indexerProgress$ = this.indexerProgress.progress$;
 
   statistics$ = this.route.paramMap.pipe(
     tap(() => this.loading = true),

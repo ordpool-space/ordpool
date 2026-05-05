@@ -1,3 +1,19 @@
+.ordpool-status-banner {
+  background-color: rgba(255, 153, 0, 0.12);
+  border: 1px solid rgba(255, 153, 0, 0.5);
+  color: #ffcf80;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+
+  div + div {
+    margin-top: 0.4rem;
+  }
+
+  strong {
+    color: #ffb24d;
+  }
+}
+
 .menu {
   flex-grow: 1;
   padding: 0 35px;

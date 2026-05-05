@@ -975,6 +975,36 @@ class OrdpoolBlocksRepository {
       timestamp: row.timestamp
     }));
   }
+
+  /**
+   * Highest block height with a row in `ordpool_stats`, or `null` when the
+   * stats table is empty. The indexer processes ASC from `firstStatsHeight`,
+   * so this is the indexer's frontier. Read by /health/indexer-progress.
+   */
+  async getMaxStatsHeight(): Promise<number | null> {
+    const [rows] = await DB.query(
+      `SELECT MAX(b.height) AS h FROM ordpool_stats s JOIN blocks b ON b.hash = s.hash`
+    ) as any;
+    const h = rows[0]?.h;
+    return h === null || h === undefined ? null : Number(h);
+  }
+
+  /**
+   * Count of blocks at or above `startHeight` that still need ordpool stats
+   * (no row in `ordpool_stats`, not in `ordpool_stats_skipped`). Mirrors the
+   * query inside `getBlocksWithoutOrdpoolStatsInRange` minus the LIMIT.
+   */
+  async getPendingStatsCount(startHeight: number): Promise<number> {
+    const [rows] = await DB.query(
+      `SELECT COUNT(*) AS c
+       FROM blocks
+       WHERE height >= ?
+         AND NOT EXISTS (SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.hash)
+         AND NOT EXISTS (SELECT 1 FROM ordpool_stats_skipped WHERE ordpool_stats_skipped.height = blocks.height)`,
+      [startHeight]
+    ) as any;
+    return Number(rows[0]?.c ?? 0);
+  }
 }
 
 

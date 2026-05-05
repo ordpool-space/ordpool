@@ -1,3 +1,30 @@
+@if(indexerProgress$ | async; as progress) {
+  @if(!progress.ok || progress.skippedCount > 0) {
+    <div class="ordpool-status-banner mb-3" role="status">
+      @if(!progress.ok) {
+        <div>
+          <strong>Indexer is lagging.</strong>
+          @if(progress.lagMinutes !== null) {
+            Last successful block was about {{ progress.lagMinutes | number }} minutes ago.
+          }
+          Stats below may be incomplete until it catches up.
+          @if(progress.pendingCount > 0) {
+            ({{ progress.pendingCount | number }} blocks pending.)
+          }
+        </div>
+      }
+      @if(progress.skippedCount > 0) {
+        <div>
+          <strong>{{ progress.skippedCount | number }}
+            {{ progress.skippedCount === 1 ? 'block was' : 'blocks were' }} skipped</strong>
+          by the indexer due to corrupt artifacts.
+          They will be re-processed after the next ordpool-parser update.
+        </div>
+      }
+    </div>
+  }
+}
+
 @if(statistics$ | async; as statistics) {
 
 <div class="mb-3 d-flex menu">

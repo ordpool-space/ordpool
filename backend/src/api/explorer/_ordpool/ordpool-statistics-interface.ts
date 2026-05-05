@@ -177,3 +177,27 @@ export function isProtocolStatistic(stat: OrdpoolStatisticResponse): stat is Pro
 export function isInscriptionTypeStatistic(stat: OrdpoolStatisticResponse): stat is InscriptionTypeStatistic {
   return 'inscriptionImages' in stat || 'inscriptionTexts' in stat || 'inscriptionJsons' in stat;
 }
+
+/**
+ * Payload shape of `GET /api/v1/health/indexer-progress`.
+ *
+ * Exposes everything the heartbeat script and the frontend need to answer:
+ * is the indexer healthy, where is its frontier, how fast is it moving, and
+ * what's the per-block status (queued / skipped / pre-Ordinals / done).
+ *
+ * `frontierHeight` and `blocksPerMinute` are nullable: `null` before any
+ * blocks have been processed in this process lifetime, otherwise present.
+ */
+export interface IndexerProgress {
+  ok: boolean;
+  lastSuccessAt: string | null;
+  lagMinutes: number | null;
+  maxLagMinutes: number;
+  skippedCount: number;
+  skippedHeights: number[];
+  frontierHeight: number | null;
+  tipHeight: number;
+  firstStatsHeight: number;
+  pendingCount: number;
+  blocksPerMinute: number | null;
+}
