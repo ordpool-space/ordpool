@@ -18,14 +18,15 @@ class OrdpoolStatisticsApi {
     const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
     const sqlInterval = getSqlInterval(interval);
 
-    // Satellite-table-driven charts use their own JOIN target + extra
-    // GROUP BY discriminator (operation / message_type). Build the query
-    // separately rather than overloading the per-time aggregation path.
+    // Satellite-table charts use their own JOIN target + an extra GROUP BY
+    // discriminator (one series per operation / message_type).
     if (type === 'atomical-ops') {
-      return this.getAtomicalOpsBreakdown(firstInscriptionHeight, sqlInterval, aggregation);
+      return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
+        'ordpool_stats_atomical_op', 'sat.operation', 'operation');
     }
     if (type === 'counterparty-messages') {
-      return this.getCounterpartyMessagesBreakdown(firstInscriptionHeight, sqlInterval, aggregation);
+      return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
+        'ordpool_stats_counterparty', 'sat.message_type', 'messageType');
     }
 
     const selectClause = this.getSelectClause(type);
@@ -50,16 +51,13 @@ class OrdpoolStatisticsApi {
     }
   }
 
-  /**
-   * Per-operation breakdown for the atomical-ops chart. Joins
-   * ordpool_stats_atomical_op (one row per atomical mint/update) and groups
-   * by operation type AND time bucket, so the response is one row per
-   * (period, operation) combination.
-   */
-  private async getAtomicalOpsBreakdown(
+  private async getSatelliteBreakdown(
     firstInscriptionHeight: number,
     sqlInterval: string,
-    aggregation: Aggregation
+    aggregation: Aggregation,
+    satelliteTable: string,
+    discriminatorCol: string,
+    discriminatorAlias: string,
   ): Promise<OrdpoolStatisticResponse[]> {
     const groupByTime = this.getGroupByClause(aggregation).replace(/^GROUP BY/, '');
     const query = `
@@ -68,55 +66,20 @@ class OrdpoolStatisticsApi {
         MAX(b.height) AS maxHeight,
         MIN(UNIX_TIMESTAMP(b.blockTimestamp)) AS minTime,
         MAX(UNIX_TIMESTAMP(b.blockTimestamp)) AS maxTime,
-        ao.operation AS operation,
+        ${discriminatorCol} AS ${discriminatorAlias},
         COUNT(*) AS count
       FROM blocks b
-      JOIN ordpool_stats_atomical_op ao ON ao.hash = b.hash
+      JOIN ${satelliteTable} sat ON sat.hash = b.hash
       WHERE b.height >= ${firstInscriptionHeight}
         AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
-      GROUP BY ${groupByTime}, ao.operation
+      GROUP BY ${groupByTime}, ${discriminatorCol}
       ORDER BY b.blockTimestamp DESC
     `;
     try {
       const [rows] : any[] = await DB.query(query);
       return rows;
     } catch (error) {
-      logger.err(`Error executing atomical-ops query: ${error}`, 'Ordpool');
-      throw error;
-    }
-  }
-
-  /**
-   * Per-message-type breakdown for the counterparty-messages chart.
-   * Same pattern as getAtomicalOpsBreakdown, joining
-   * ordpool_stats_counterparty.
-   */
-  private async getCounterpartyMessagesBreakdown(
-    firstInscriptionHeight: number,
-    sqlInterval: string,
-    aggregation: Aggregation
-  ): Promise<OrdpoolStatisticResponse[]> {
-    const groupByTime = this.getGroupByClause(aggregation).replace(/^GROUP BY/, '');
-    const query = `
-      SELECT
-        MIN(b.height) AS minHeight,
-        MAX(b.height) AS maxHeight,
-        MIN(UNIX_TIMESTAMP(b.blockTimestamp)) AS minTime,
-        MAX(UNIX_TIMESTAMP(b.blockTimestamp)) AS maxTime,
-        cp.message_type AS messageType,
-        COUNT(*) AS count
-      FROM blocks b
-      JOIN ordpool_stats_counterparty cp ON cp.hash = b.hash
-      WHERE b.height >= ${firstInscriptionHeight}
-        AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
-      GROUP BY ${groupByTime}, cp.message_type
-      ORDER BY b.blockTimestamp DESC
-    `;
-    try {
-      const [rows] : any[] = await DB.query(query);
-      return rows;
-    } catch (error) {
-      logger.err(`Error executing counterparty-messages query: ${error}`, 'Ordpool');
+      logger.err(`Error executing ${satelliteTable} breakdown query: ${error}`, 'Ordpool');
       throw error;
     }
   }

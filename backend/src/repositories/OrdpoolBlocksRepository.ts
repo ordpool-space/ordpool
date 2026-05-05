@@ -324,71 +324,52 @@ interface OrdpoolStatColumn {
 }
 
 const camelToSnake = (s: string): string => s.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
-// Section helpers: each takes a list of camelCase field names and emits one
-// OrdpoolStatColumn per field with `<section>_<snake>` SQL column, the
-// matching camelCase alias, and typed get/set lambdas. TypeScript checks
-// the field names against the actual OrdpoolStats shape.
-const amountCols = (...fields: (keyof OrdpoolStats['amounts'])[]): OrdpoolStatColumn[] =>
+const MOST_ACTIVE_MINT_TRUNC = 20;
+const TRUNCATED_PLACEHOLDER = `LEFT(?, ${MOST_ACTIVE_MINT_TRUNC})`;
+
+/** Emit one OrdpoolStatColumn per camelCase field, mapping
+ *  `field` ↔ `${colPrefix}_${snake_field}` (SQL) ↔ `${aliasPrefix}${PascalField}` (camelCase).
+ *  `pick` returns the section object on a stats — typically a top-level key
+ *  (`s => s.amounts`) but can drill deeper (`s => s.inscriptions.image`). */
+const sectionCols = <Section extends object>(
+  colPrefix: string,
+  aliasPrefix: string,
+  pick: (s: OrdpoolStats) => Section,
+  fields: (keyof Section & string)[],
+): OrdpoolStatColumn[] =>
   fields.map(f => ({
-    col:   'amounts_' + camelToSnake(f as string),
-    alias: 'amounts'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
-    val:   s => s.amounts[f],
-    set:   (t, v) => { (t.amounts as any)[f] = v; },
-  }));
-const feeCols = (...fields: (keyof OrdpoolStats['fees'])[]): OrdpoolStatColumn[] =>
-  fields.map(f => ({
-    col:   'fees_' + camelToSnake(f as string),
-    alias: 'fees'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
-    val:   s => s.fees[f],
-    set:   (t, v) => { (t.fees as any)[f] = v; },
-  }));
-const cat21Cols = (...fields: (keyof OrdpoolStats['cat21'])[]): OrdpoolStatColumn[] =>
-  fields.map(f => ({
-    col:   'cat21_' + camelToSnake(f as string),
-    alias: 'cat21'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
-    val:   s => s.cat21[f],
-    set:   (t, v) => { (t.cat21 as any)[f] = v; },
-  }));
-const runeCols = (...fields: (keyof OrdpoolStats['runes'])[]): OrdpoolStatColumn[] =>
-  fields.map(f => ({
-    col:   'runes_' + camelToSnake(f as string),
-    alias: 'runes'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
-    val:   s => s.runes[f],
-    set:   (t, v) => { (t.runes as any)[f] = v; },
+    col:   `${colPrefix}_${camelToSnake(f)}`,
+    alias: aliasPrefix + cap(f),
+    val:   s => (pick(s) as any)[f],
+    set:   (t, v) => { (pick(t) as any)[f] = v; },
   }));
 
-// All 8 fields of an InscriptionSizeAggregate. Used 4× — once for the global
-// aggregate and once per content-type bucket (image/text/json).
+/** All 8 fields of an InscriptionSizeAggregate. Used 4× — global + per-bucket. */
+const INSCRIPTION_SIZE_FIELDS: (keyof InscriptionSizeAggregate)[] = [
+  'totalEnvelopeSize', 'totalContentSize',
+  'largestEnvelopeSize', 'largestContentSize',
+  'largestEnvelopeInscriptionId', 'largestContentInscriptionId',
+  'averageEnvelopeSize', 'averageContentSize',
+];
+
 const inscriptionSizeCols = (
-  colPrefix: string,                                              // e.g. 'inscriptions_image'
-  aliasPrefix: string,                                            // e.g. 'inscriptionsImage'
+  colPrefix: string,
+  aliasPrefix: string,
   pick: (s: OrdpoolStats) => InscriptionSizeAggregate,
-  pickTarget: (t: OrdpoolStats) => InscriptionSizeAggregate,
-): OrdpoolStatColumn[] => {
-  const fields: (keyof InscriptionSizeAggregate)[] = [
-    'totalEnvelopeSize', 'totalContentSize',
-    'largestEnvelopeSize', 'largestContentSize',
-    'largestEnvelopeInscriptionId', 'largestContentInscriptionId',
-    'averageEnvelopeSize', 'averageContentSize',
-  ];
-  return fields.map(f => ({
-    col:   `${colPrefix}_${camelToSnake(f as string)}`,
-    alias: aliasPrefix + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
-    val:   s => pick(s)[f],
-    set:   (t, v) => { (pickTarget(t) as any)[f] = v; },
-  }));
-};
+): OrdpoolStatColumn[] =>
+  sectionCols(colPrefix, aliasPrefix, pick, INSCRIPTION_SIZE_FIELDS);
 
-const truncated20 = (
+const truncatedMostActive = (
   col: string,
   alias: string,
   val: (s: OrdpoolStats) => unknown,
   set: (t: OrdpoolStats, v: any) => void,
-): OrdpoolStatColumn => ({ col, alias, placeholder: 'LEFT(?, 20)', val, set });
+): OrdpoolStatColumn => ({ col, alias, placeholder: TRUNCATED_PLACEHOLDER, val, set });
 
 export const ORDPOOL_STATS_COLUMNS: OrdpoolStatColumn[] = [
-  ...amountCols(
+  ...sectionCols('amounts', 'amounts', s => s.amounts, [
     'atomical', 'atomicalMint', 'atomicalUpdate',
     'counterparty', 'stamp', 'src721', 'src101',
     'cat21', 'cat21Mint',
@@ -396,47 +377,51 @@ export const ORDPOOL_STATS_COLUMNS: OrdpoolStatColumn[] = [
     'rune', 'runeEtch', 'runeMint', 'runeCenotaph',
     'brc20', 'brc20Deploy', 'brc20Mint', 'brc20Transfer',
     'src20', 'src20Deploy', 'src20Mint', 'src20Transfer',
-  ),
-  ...feeCols(
+  ]),
+  ...sectionCols('fees', 'fees', s => s.fees, [
     'runeMints', 'nonUncommonRuneMints', 'brc20Mints', 'src20Mints',
     'cat21Mints', 'atomicals', 'inscriptionMints',
     'inscriptionImageMints', 'inscriptionTextMints', 'inscriptionJsonMints',
-  ),
-  ...inscriptionSizeCols('inscriptions',       'inscriptions',      s => s.inscriptions,       t => t.inscriptions),
-  ...inscriptionSizeCols('inscriptions_image', 'inscriptionsImage', s => s.inscriptions.image, t => t.inscriptions.image),
-  ...inscriptionSizeCols('inscriptions_text',  'inscriptionsText',  s => s.inscriptions.text,  t => t.inscriptions.text),
-  ...inscriptionSizeCols('inscriptions_json',  'inscriptionsJson',  s => s.inscriptions.json,  t => t.inscriptions.json),
-  {
-    col: 'inscriptions_brotli_count', alias: 'inscriptionsBrotliCount',
-    val: s => s.inscriptions.brotliCount,
-    set: (t, v) => { t.inscriptions.brotliCount = v; },
-  },
-  {
-    col: 'inscriptions_gzip_count', alias: 'inscriptionsGzipCount',
-    val: s => s.inscriptions.gzipCount,
-    set: (t, v) => { t.inscriptions.gzipCount = v; },
-  },
-  {
-    col: 'inscriptions_compressed_envelope_bytes', alias: 'inscriptionsCompressedEnvelopeBytes',
-    val: s => s.inscriptions.compressedEnvelopeBytes,
-    set: (t, v) => { t.inscriptions.compressedEnvelopeBytes = v; },
-  },
-  ...cat21Cols('genesisCount', 'avgFeeRate', 'minFeeRate', 'maxFeeRate'),
-  ...runeCols('uniqueMintsCount', 'uniqueMintsCountNonUncommon', 'topMintCount', 'topMintCountNonUncommon'),
-  truncated20('runes_most_active_mint',              'runesMostActiveMint',
+  ]),
+  ...inscriptionSizeCols('inscriptions',       'inscriptions',      s => s.inscriptions),
+  ...inscriptionSizeCols('inscriptions_image', 'inscriptionsImage', s => s.inscriptions.image),
+  ...inscriptionSizeCols('inscriptions_text',  'inscriptionsText',  s => s.inscriptions.text),
+  ...inscriptionSizeCols('inscriptions_json',  'inscriptionsJson',  s => s.inscriptions.json),
+  ...sectionCols('inscriptions', 'inscriptions', s => s.inscriptions, [
+    'brotliCount', 'gzipCount', 'compressedEnvelopeBytes',
+  ]),
+  ...sectionCols('cat21', 'cat21', s => s.cat21, [
+    'genesisCount', 'avgFeeRate', 'minFeeRate', 'maxFeeRate',
+  ]),
+  ...sectionCols('runes', 'runes', s => s.runes, [
+    'uniqueMintsCount', 'uniqueMintsCountNonUncommon', 'topMintCount', 'topMintCountNonUncommon',
+  ]),
+  truncatedMostActive('runes_most_active_mint',              'runesMostActiveMint',
               s => s.runes.mostActiveMint,              (t, v) => { t.runes.mostActiveMint = v; }),
-  truncated20('runes_most_active_non_uncommon_mint', 'runesMostActiveNonUncommonMint',
+  truncatedMostActive('runes_most_active_non_uncommon_mint', 'runesMostActiveNonUncommonMint',
               s => s.runes.mostActiveNonUncommonMint,   (t, v) => { t.runes.mostActiveNonUncommonMint = v; }),
-  truncated20('brc20_most_active_mint',              'brc20MostActiveMint',
+  truncatedMostActive('brc20_most_active_mint',              'brc20MostActiveMint',
               s => s.brc20.mostActiveMint,              (t, v) => { t.brc20.mostActiveMint = v; }),
-  truncated20('src20_most_active_mint',              'src20MostActiveMint',
+  truncatedMostActive('src20_most_active_mint',              'src20MostActiveMint',
               s => s.src20.mostActiveMint,              (t, v) => { t.src20.mostActiveMint = v; }),
+  // analyser_version doubles as the "is this row populated?" sentinel —
+  // formatDbBlockIntoOrdpoolStats returns undefined when it's 0.
   {
     col: 'analyser_version', alias: 'analyserVersion',
     val: s => s.version,
     set: (t, v) => { t.version = v; },
   },
 ];
+
+// Static parts of the INSERT — column list, placeholder list, and the SQL
+// string itself. Computed once at module load. Per-call work in
+// saveBlockOrdpoolStatsInDatabase is reduced to one .map() over the spec
+// to materialise the param values.
+const ORDPOOL_STATS_INSERT_SQL = (() => {
+  const cols = ['hash', 'height', ...ORDPOOL_STATS_COLUMNS.map(c => c.col)];
+  const phs  = ['?',    '?',     ...ORDPOOL_STATS_COLUMNS.map(c => c.placeholder ?? '?')];
+  return `INSERT INTO ordpool_stats(${cols.join(', ')}) VALUES (${phs.join(', ')})`;
+})();
 
 
 class OrdpoolBlocksRepository {
@@ -461,16 +446,11 @@ class OrdpoolBlocksRepository {
 
       const stats = block.extras.ordpoolStats;
 
-      // Single source of truth: column list, placeholder list, and params
-      // array all derive from ORDPOOL_STATS_COLUMNS in the same .map() pass,
-      // so positional drift between them is impossible.
-      const cols         = ['hash', 'height', ...ORDPOOL_STATS_COLUMNS.map(c => c.col)];
-      const placeholders = ['?',    '?',     ...ORDPOOL_STATS_COLUMNS.map(c => c.placeholder ?? '?')];
-      const params       = [block.id, block.height, ...ORDPOOL_STATS_COLUMNS.map(c => c.val(stats))];
-
-      const query = `INSERT INTO ordpool_stats(${cols.join(', ')}) VALUES (${placeholders.join(', ')})`;
-
-      await DB.query(query, params, 'silent');
+      // SQL is precomputed at module load; per-call work is just materialising
+      // the param values. Positional alignment is preserved because both
+      // the SQL and the params iterate ORDPOOL_STATS_COLUMNS in the same order.
+      const params = [block.id, block.height, ...ORDPOOL_STATS_COLUMNS.map(c => c.val(stats))];
+      await DB.query(ORDPOOL_STATS_INSERT_SQL, params, 'silent');
 
       logger.debug(`$saveBlockOrdpoolStatsInDatabase() - Block ${block.height} successfully stored!`, 'Ordpool');
 
@@ -508,9 +488,6 @@ class OrdpoolBlocksRepository {
     result.src20.src20MintActivity    = compactToMintActivity(dbBlk.src20MintActivity);
     result.src20.src20DeployAttempts  = compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts);
     result.cat21.minimalCat21MintActivity = compactToMinimalCat21Mints(dbBlk.cat21MintActivity);
-    // Block-detail responses don't carry the atomical_op /
-    // counterparty per-row satellite arrays — chart endpoints
-    // query those tables directly via GROUP BY.
 
     return result;
   }
