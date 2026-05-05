@@ -323,7 +323,10 @@ interface OrdpoolStatColumn {
   set: (target: OrdpoolStats, value: any) => void; // read: assign into stats
 }
 
+/** Convert camelCase to snake_case, e.g. `runeMints` → `rune_mints`. */
 const camelToSnake = (s: string): string => s.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+
+/** Capitalise the first character, e.g. `mints` → `Mints`. */
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 const MOST_ACTIVE_MINT_TRUNC = 20;
@@ -354,6 +357,16 @@ const INSCRIPTION_SIZE_FIELDS: (keyof InscriptionSizeAggregate)[] = [
   'averageEnvelopeSize', 'averageContentSize',
 ];
 
+/**
+ * Emit the 8 OrdpoolStatColumn entries for one InscriptionSizeAggregate
+ * group (totals, largests + their inscription IDs, averages). Used 4×: once
+ * for the global aggregate and once per content-type bucket.
+ *
+ * @param colPrefix   - SQL column prefix, e.g. `'inscriptions_image'`.
+ * @param aliasPrefix - camelCase alias prefix, e.g. `'inscriptionsImage'`.
+ * @param pick        - Pick the aggregate to read/write inside an
+ *                      OrdpoolStats, e.g. `s => s.inscriptions.image`.
+ */
 const inscriptionSizeCols = (
   colPrefix: string,
   aliasPrefix: string,
@@ -361,6 +374,11 @@ const inscriptionSizeCols = (
 ): OrdpoolStatColumn[] =>
   sectionCols(colPrefix, aliasPrefix, pick, INSCRIPTION_SIZE_FIELDS);
 
+/**
+ * Build a column entry whose placeholder is `LEFT(?, 20)` so MariaDB
+ * truncates the value server-side. Used for the four `*_most_active_mint`
+ * columns where the source string can exceed the column width.
+ */
 const truncatedMostActive = (
   col: string,
   alias: string,
@@ -464,6 +482,16 @@ class OrdpoolBlocksRepository {
     }
   }
 
+  /**
+   * Build the OrdpoolStats object the frontend consumes from a joined
+   * blocks + ordpool_stats + satellite-tables row. Returns `undefined`
+   * when `analyser_version` is 0 — the marker for "block exists but
+   * ordpool hasn't indexed it yet" (every column is at its default
+   * value, no real signal to show).
+   *
+   * @param dbBlk - One row from BlocksRepository's ordpool-aware SELECT.
+   * @returns Populated OrdpoolStats, or undefined for unindexed blocks.
+   */
   public formatDbBlockIntoOrdpoolStats(dbBlk: OrdpoolDatabaseBlock): OrdpoolStats | undefined {
 
     if (!dbBlk.analyserVersion) {
@@ -488,6 +516,11 @@ class OrdpoolBlocksRepository {
     result.src20.src20MintActivity    = compactToMintActivity(dbBlk.src20MintActivity);
     result.src20.src20DeployAttempts  = compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts);
     result.cat21.minimalCat21MintActivity = compactToMinimalCat21Mints(dbBlk.cat21MintActivity);
+
+    // atomicals.atomicalOps and counterparty.counterpartyMessages stay empty
+    // here. Block-detail responses skip the per-row satellite arrays;
+    // /api/v1/ordpool/statistics/atomical-ops and …/counterparty-messages
+    // query the satellite tables directly via GROUP BY.
 
     return result;
   }
