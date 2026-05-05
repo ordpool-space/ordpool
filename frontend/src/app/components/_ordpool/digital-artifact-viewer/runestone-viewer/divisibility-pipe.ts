@@ -24,7 +24,7 @@ export class DivisibilityPipe implements PipeTransform {
   transform(value: number | bigint, divisibility: number | undefined, locale: string = 'en-US'): string {
 
     // if no divisibility is set, this yields to 0
-    // see http://localhost:4200/tx/7923e59abd8f8ab40dcc7915ae864d8b7ad6776811ba4d478f42248a7827a7f3
+    // see https://ordpool.space/tx/7923e59abd8f8ab40dcc7915ae864d8b7ad6776811ba4d478f42248a7827a7f3
     divisibility = divisibility || 0;
 
     // completely wrong type

@@ -30,8 +30,8 @@ export class CodeViewerComponent {
   constructor(private cd: ChangeDetectorRef) { }
 
 
-  // css: http://localhost:4200/tx/73eb12c506adaf02e219229b1c800ea1caa70c86a981e8fdb9e231237957224fi0
-  // js: http://localhost:4200/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db
+  // css: https://ordpool.space/tx/73eb12c506adaf02e219229b1c800ea1caa70c86a981e8fdb9e231237957224fi0
+  // js: https://ordpool.space/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db
   formatWithPrettier(source: string, contentType: string ) {
 
     let parser = '';
