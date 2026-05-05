@@ -51,6 +51,12 @@ class OrdpoolStatisticsApi {
     }
   }
 
+  /** Per-discriminator breakdown for charts whose data lives in a satellite
+   *  table (atomical-ops, counterparty-messages). Each chart has one row per
+   *  (period, discriminator) combination — one ECharts series per distinct
+   *  discriminator value. Examples:
+   *    atomical-ops          → discriminator = sat.operation
+   *    counterparty-messages → discriminator = sat.message_type   */
   private async getSatelliteBreakdown(
     firstInscriptionHeight: number,
     sqlInterval: string,
@@ -59,6 +65,7 @@ class OrdpoolStatisticsApi {
     discriminatorCol: string,
     discriminatorAlias: string,
   ): Promise<OrdpoolStatisticResponse[]> {
+    // Strip the leading 'GROUP BY' so we can append our discriminator column.
     const groupByTime = this.getGroupByClause(aggregation).replace(/^GROUP BY/, '');
     const query = `
       SELECT

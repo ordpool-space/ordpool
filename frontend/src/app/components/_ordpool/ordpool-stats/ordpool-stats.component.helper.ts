@@ -37,6 +37,17 @@ type ExtractStatistic<T extends ChartType> =
   T extends 'counterparty-messages' ? CounterpartyMessagesStatistic :
   never;
 
+/**
+ * Maps a ChartType to its corresponding data handler. Each chart type has
+ * an associated statistic shape (see `ExtractStatistic`); this dispatcher
+ * picks the matching handler and narrows the input type accordingly so
+ * the handler body sees the concrete statistic shape, not the union.
+ *
+ * @param type  - The chart type (e.g. `'mints'`, `'fees'`, `'rune-activity'`).
+ * @param cases - One handler per ChartType; TypeScript enforces exhaustiveness.
+ * @returns A callback that takes the per-chart statistic array and returns
+ *          ECharts line series options.
+ */
 export function matchType<T extends ChartType>(
   type: T,
   cases: { [K in ChartType]: (stats: ExtractStatistic<K>[]) => LineSeriesOption[] }
@@ -145,6 +156,17 @@ export function getSeriesData<T extends ChartType>(
   })(statistics);
 }
 
+/**
+ * Builds the tooltip HTML shown on chart hover. Different chart types pull
+ * different fields out of the statistic — the body branches on `type` to
+ * format the right metrics. Returns a special "block not yet indexed"
+ * message when every per-chart-type metric is null (e.g. the period is
+ * after the indexer's tip).
+ *
+ * @param type - The chart type currently rendered.
+ * @param stat - The statistics record for the hovered period.
+ * @returns Tooltip HTML content as a string.
+ */
 export function getTooltipContent(
   type: ChartType,
   stat: OrdpoolStatisticResponse,
