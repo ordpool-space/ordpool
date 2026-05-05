@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 2;
+  private static currentVersion = 3;
 
   private queryTimeout = 3600_000;
 
@@ -418,6 +418,141 @@ class OrdpoolDatabaseMigration {
         ADD COLUMN IF NOT EXISTS amounts_inscription_image  INT UNSIGNED NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS amounts_inscription_text   INT UNSIGNED NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS amounts_inscription_json   INT UNSIGNED NOT NULL DEFAULT 0;`);
+    }
+
+    // v3: full ordpool_stats package + poison-block skip list + clean re-index.
+    //
+    //   1. ordpool_stats_skipped: poison-block tracking. The missing-stats
+    //      indexer used to retry the same failing block forever — block
+    //      869,599's corrupt brotli inscription crashed the parser every 2
+    //      minutes for hours with no alarm. After K consecutive failures
+    //      on the same height we upsert here and the missing-stats query
+    //      excludes it. Recovery after a parser fix:
+    //        DELETE FROM ordpool_stats_skipped;                    -- retry all
+    //        DELETE FROM ordpool_stats_skipped WHERE height = X;   -- one block
+    //
+    //   2. Drop labitbu columns. Labitbu is a one-time event (10,000 WebPs
+    //      in blocks 908,072–908,196). The flag still fires for that
+    //      historical window in the parser, but block-level stats add no
+    //      signal going forward.
+    //
+    //   3. Add inscription per-content-type size aggregates (image / text /
+    //      json), per-bucket mint fees, compression telemetry. Each
+    //      inscription lands in exactly one bucket (priority json > image >
+    //      text). Lets us answer "are image inscriptions getting bigger?".
+    //
+    //   4. Add CAT-21 block aggregates (genesisCount, fee-rate min/avg/max).
+    //      Cat *numbers* aren't recorded — those come from cat21-ord /
+    //      cat21-indexer downstream.
+    //
+    //   5. Add rune block aggregates with UNCOMMON•GOODS split: every
+    //      metric ships in pairs (overall + non-uncommon variant).
+    //      UNCOMMON•GOODS (rune 1:0) dominates every "most active" stat in
+    //      ~every block, so the non-uncommon variant is the second story
+    //      worth recording alongside the headline.
+    //
+    //   6. Two new satellite tables: ordpool_stats_atomical_op (per atomical
+    //      operation: mint / update with ticker for FT-family) and
+    //      ordpool_stats_counterparty (per Counterparty message type, for
+    //      per-message-type breakdown charts).
+    //
+    //   7. TRUNCATE everything and let the indexer rebuild. Existing rows
+    //      were written under v2.1 parser semantics and now have new
+    //      DEFAULT-0 columns. Cleanest path: wipe + re-index from
+    //      firstInscriptionHeight on first restart.
+    if (version <= 3) {
+      queries.push(`CREATE TABLE IF NOT EXISTS ordpool_stats_skipped (
+        height           INT(10) UNSIGNED NOT NULL,
+        hash             VARCHAR(65) NOT NULL,
+        first_failed_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_failed_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        failure_count    INT UNSIGNED NOT NULL DEFAULT 1,
+        last_error       TEXT DEFAULT NULL,
+        PRIMARY KEY (height)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+      queries.push(`ALTER TABLE ordpool_stats
+        DROP COLUMN IF EXISTS amounts_labitbu,
+        DROP COLUMN IF EXISTS fees_labitbus,
+
+        ADD COLUMN IF NOT EXISTS fees_inscription_image_mints  INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS fees_inscription_text_mints   INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS fees_inscription_json_mints   INT UNSIGNED NOT NULL DEFAULT 0,
+
+        ADD COLUMN IF NOT EXISTS inscriptions_image_total_envelope_size              INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_total_content_size               INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_largest_envelope_size            INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_largest_content_size             INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_largest_envelope_inscription_id  VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_largest_content_inscription_id   VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_average_envelope_size            INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_image_average_content_size             INT UNSIGNED NOT NULL DEFAULT 0,
+
+        ADD COLUMN IF NOT EXISTS inscriptions_text_total_envelope_size               INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_total_content_size                INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_largest_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_largest_content_size              INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_largest_envelope_inscription_id   VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_largest_content_inscription_id    VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_average_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_text_average_content_size              INT UNSIGNED NOT NULL DEFAULT 0,
+
+        ADD COLUMN IF NOT EXISTS inscriptions_json_total_envelope_size               INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_total_content_size                INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_largest_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_largest_content_size              INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_largest_envelope_inscription_id   VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_largest_content_inscription_id    VARCHAR(100) CHARACTER SET ascii DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_average_envelope_size             INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_json_average_content_size              INT UNSIGNED NOT NULL DEFAULT 0,
+
+        ADD COLUMN IF NOT EXISTS inscriptions_brotli_count                INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_gzip_count                  INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS inscriptions_compressed_envelope_bytes   INT UNSIGNED NOT NULL DEFAULT 0,
+
+        ADD COLUMN IF NOT EXISTS cat21_genesis_count                      INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS cat21_avg_fee_rate                       DOUBLE       DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS cat21_min_fee_rate                       DOUBLE       DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS cat21_max_fee_rate                       DOUBLE       DEFAULT NULL,
+
+        ADD COLUMN IF NOT EXISTS runes_unique_mints_count                 INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS runes_unique_mints_count_non_uncommon    INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS runes_top_mint_count                     INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS runes_top_mint_count_non_uncommon        INT UNSIGNED NOT NULL DEFAULT 0;`);
+
+      queries.push(`CREATE TABLE IF NOT EXISTS ordpool_stats_atomical_op (
+        id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+        hash        VARCHAR(65) NOT NULL,
+        height      INT(10) UNSIGNED NOT NULL,
+        txid        VARCHAR(65) NOT NULL,
+        operation   ENUM('nft','ft','dft','dmt','dat','mod','evt','sl') NOT NULL,
+        ticker      VARCHAR(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+        UNIQUE KEY (hash, txid, operation),
+        INDEX idx_height (height)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+      queries.push(`CREATE TABLE IF NOT EXISTS ordpool_stats_counterparty (
+        id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+        hash            VARCHAR(65) NOT NULL,
+        height          INT(10) UNSIGNED NOT NULL,
+        txid            VARCHAR(65) NOT NULL,
+        message_type    VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+        message_type_id INT UNSIGNED NOT NULL,
+        UNIQUE KEY (hash, txid),
+        INDEX idx_height (height),
+        INDEX idx_message_type (message_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+
+      queries.push(`TRUNCATE TABLE ordpool_stats;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_rune_mint;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_brc20_mint;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_src20_mint;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_rune_etch;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_brc20_deploy;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_src20_deploy;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_cat21_mint;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_atomical_op;`);
+      queries.push(`TRUNCATE TABLE ordpool_stats_counterparty;`);
     }
 
     return queries;

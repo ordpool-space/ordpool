@@ -122,17 +122,17 @@ export const TransactionFilters: { [key: string]: Filter } = {
 
     // HACK --- Ordpool Flags
     /* ordpool flags */
-    ordpool_atomical:             { key: 'ordpool_atomical',              label: 'Atomical',              flag: OrdpoolTransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
-    ordpool_cat21:                { key: 'ordpool_cat21',                 label: 'CAT-21',                flag: OrdpoolTransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
-    ordpool_inscription:          { key: 'ordpool_inscription',           label: 'Inscription',           flag: OrdpoolTransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
-    ordpool_rune:                 { key: 'ordpool_rune',                  label: 'Rune',                  flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
+    ordpool_atomical:             { key: 'ordpool_atomical',              label: 'Atomicals',             flag: OrdpoolTransactionFlags.ordpool_atomical, important: true, tooltip: true, txPage: true, },
+    ordpool_cat21:                { key: 'ordpool_cat21',                 label: '😺 CAT-21',             flag: OrdpoolTransactionFlags.ordpool_cat21, important: true, tooltip: true, txPage: true, },
+    ordpool_inscription:          { key: 'ordpool_inscription',           label: 'Inscriptions',          flag: OrdpoolTransactionFlags.ordpool_inscription, important: true, tooltip: true, txPage: true, },
+    ordpool_rune:                 { key: 'ordpool_rune',                  label: 'Runes',                 flag: OrdpoolTransactionFlags.ordpool_rune, important: true, tooltip: true, txPage: true, },
     ordpool_brc20:                { key: 'ordpool_brc20',                 label: 'BRC-20',                flag: OrdpoolTransactionFlags.ordpool_brc20, important: true, tooltip: true, txPage: true, },
     ordpool_src20:                { key: 'ordpool_src20',                 label: 'SRC-20',                flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
-    ordpool_labitbu:              { key: 'ordpool_labitbu',               label: 'Labitbu',               flag: OrdpoolTransactionFlags.ordpool_labitbu, important: true, tooltip: true, txPage: true, },
+    ordpool_labitbu:              { key: 'ordpool_labitbu',               label: 'Labitbus',              flag: OrdpoolTransactionFlags.ordpool_labitbu, important: true, tooltip: true, txPage: true, },
 
     /* ordpool flags promoted in v2.1.0 from orphan-detected to first-class */
     ordpool_counterparty:         { key: 'ordpool_counterparty',          label: 'Counterparty',          flag: OrdpoolTransactionFlags.ordpool_counterparty, important: true, tooltip: true, txPage: true, },
-    ordpool_stamp:                { key: 'ordpool_stamp',                 label: 'Stamp',                 flag: OrdpoolTransactionFlags.ordpool_stamp, important: true, tooltip: true, txPage: true, },
+    ordpool_stamp:                { key: 'ordpool_stamp',                 label: 'Stamps',                flag: OrdpoolTransactionFlags.ordpool_stamp, important: true, tooltip: true, txPage: true, },
     ordpool_src721:               { key: 'ordpool_src721',                label: 'SRC-721',               flag: OrdpoolTransactionFlags.ordpool_src721, important: true, tooltip: true, txPage: true, },
     ordpool_src101:               { key: 'ordpool_src101',                label: 'SRC-101',               flag: OrdpoolTransactionFlags.ordpool_src101, important: true, tooltip: true, txPage: true, },
 
