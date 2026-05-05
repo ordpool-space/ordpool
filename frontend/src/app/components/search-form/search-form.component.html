@@ -8,7 +8,7 @@
     </div>
     <div>
       <!-- HACK: btn-secondary instead of btn-purple -->
-      <button [disabled]="isSearching" type="submit" class="btn btn-block btn-secondary">
+      <button [disabled]="isSearching" type="submit" class="btn btn-block btn-secondary me-2">
         <fa-icon *ngIf="!(isTypeaheading$ | async) else searchLoading" [icon]="['fas', 'search']" [fixedWidth]="true" i18n-title="search-form.search-title" title="Search"></fa-icon>
       </button>
     </div>

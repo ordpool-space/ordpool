@@ -114,12 +114,15 @@ app-atomical-viewer {
 
 // moves app-block-filters out of the block overview
 // no "gray" blocking anymore
+// HEIGHT: must fit "Ordpool Flags" h5 + 2 wrapped rows of filter badges
+// (11 flags don't fit in one row anymore: Inscription, Rune, CAT-21,
+//  BRC-20, Atomical, Counterparty, Stamp, SRC-20, SRC-721, SRC-101, Labitbu).
 .block-overview-graph {
-  margin-top: 80px;
+  margin-top: 110px;
 }
 
 .block-filters {
-  height: 80px !important;
+  height: 110px !important;
 
   h5 {
     margin-top: 0 !important;
@@ -128,7 +131,7 @@ app-atomical-viewer {
 }
 
 app-block-filters > div {
-  margin-top: -80px;
+  margin-top: -110px;
 }
 
 // completely hide accelerated status (this is still shown for some txns)
