@@ -71,7 +71,7 @@ class OrdpoolMissingStats {
 
   /**
    * Wall-clock timestamp of the last per-block successful save. Read by the
-   * /api/v1/internal/indexer-progress route to prove the indexer is making
+   * /api/v1/health/indexer-progress route to prove the indexer is making
    * progress; the heartbeat script alerts when this goes stale.
    */
   private lastSuccessAt: number | null = null;
