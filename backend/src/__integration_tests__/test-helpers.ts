@@ -2,6 +2,7 @@ import DB from '../database';
 import config from '../config';
 import logger from '../logger';
 import databaseMigration from '../api/database-migration';
+import ordpoolDatabaseMigration from '../api/ordpool-database-migration';
 
 /**
  * Initialize the test database with schema migrations
@@ -14,6 +15,44 @@ export async function setupTestDatabase(): Promise<void> {
     logger.err('Failed to setup test database: ' + (error instanceof Error ? error.message : error));
     throw error;
   }
+}
+
+/**
+ * Initialize the test database with both upstream + ordpool migrations.
+ * Use this for tests that touch ordpool_stats* tables.
+ */
+export async function setupOrdpoolTestDatabase(): Promise<void> {
+  await setupTestDatabase();
+  await ordpoolDatabaseMigration.$initializeOrMigrateDatabase();
+}
+
+/**
+ * Wipe ordpool_stats* row data (preserves schema). Run between tests
+ * that exercise INSERT paths so each test starts from empty.
+ */
+export async function cleanupOrdpoolStats(): Promise<void> {
+  const tables = [
+    'ordpool_stats',
+    'ordpool_stats_skipped',
+    'ordpool_stats_rune_mint',
+    'ordpool_stats_brc20_mint',
+    'ordpool_stats_src20_mint',
+    'ordpool_stats_rune_etch',
+    'ordpool_stats_brc20_deploy',
+    'ordpool_stats_src20_deploy',
+    'ordpool_stats_cat21_mint',
+    'ordpool_stats_atomical_op',
+    'ordpool_stats_counterparty',
+  ];
+  await DB.query('SET FOREIGN_KEY_CHECKS = 0');
+  for (const table of tables) {
+    try {
+      await DB.query(`TRUNCATE TABLE ${table}`, [], 'silent');
+    } catch (e) {
+      // table may not exist yet on a partial-migration DB; ignore
+    }
+  }
+  await DB.query('SET FOREIGN_KEY_CHECKS = 1');
 }
 
 /**

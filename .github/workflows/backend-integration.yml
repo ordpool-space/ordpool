@@ -5,7 +5,9 @@ on:
     types: [opened, synchronize]
   push:
     branches:
-      - master
+      - master  # upstream mempool default branch
+      - main    # ordpool default branch (post-v2 rename)
+      - stage_prod  # ordpool deploy branch — must be green before deploy
 
 permissions:
   contents: read
