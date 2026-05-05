@@ -33,7 +33,7 @@
     <br *ngIf="showDetails">
 
     @if (contentTypeInstructions$ && contentTypeInstructions$ | async; as instructions) {
-      
+
       @if (instructions.whatToShow === 'json') {
         <app-json-viewer
           [text]="instructions.content"
@@ -46,6 +46,17 @@
             contentType: _parsedInscription.contentType
           }"
         />
+      } @else if (instructions.whatToShow === 'decode-failure') {
+        <div class="alert alert-warning">
+          <strong>Decode failure:</strong>
+          @if (instructions.reason === 'invalid-data') {
+            inscription content is malformed (compression header doesn't match the body).
+          } @else if (instructions.reason === 'size-limit') {
+            inscription content exceeds the safe decompression budget.
+          } @else {
+            content could not be decoded.
+          }
+        </div>
       } @else {
         <app-preview-viewer
           [parsedInscription]="_parsedInscription"

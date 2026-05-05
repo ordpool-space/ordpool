@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
-import { InscriptionParserService, InscriptionPreviewService, ParsedInscription } from 'ordpool-parser';
+import { DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, ParsedInscription } from 'ordpool-parser';
 import { map, Observable } from 'rxjs';
 
 import { ElectrsApiService } from '../../../../services/electrs-api.service';
@@ -40,7 +40,8 @@ export class InscriptionViewerComponent {
 
   contentTypeInstructions$: Promise<{
     content: string | undefined,
-    whatToShow: 'json' | 'code' | 'preview'
+    whatToShow: 'json' | 'code' | 'preview' | 'decode-failure',
+    reason?: DecodeFailureReason,
   }> | undefined;
 
   @Input() showDetails = false;
