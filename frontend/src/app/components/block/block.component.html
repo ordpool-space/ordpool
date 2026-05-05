@@ -46,9 +46,10 @@
         <table class="table table-borderless table-striped table-dark">
           
           <!-- HACK: START Ordpool Stats -->
-          <app-block-ordpool-stats 
+          <app-block-ordpool-stats
             [ordpoolStats]="block?.extras?.ordpoolStats"
             [blockId]="block?.id"
+            [blockHeight]="block?.height"
             [showSkeleton]="block && !isLoadingBlock"
             [blockConversion]="blockConversion" />
           <!-- HACK: END Ordpool Stats -->

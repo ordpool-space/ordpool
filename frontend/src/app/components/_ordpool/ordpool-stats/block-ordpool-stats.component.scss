@@ -39,3 +39,16 @@ small {
   float: left;
   margin: 2px;
 }
+
+.ordpool-status-cell {
+  padding: 0.75rem 0.5rem;
+}
+
+.status-label {
+  font-weight: 600;
+}
+
+.status-detail {
+  color: var(--transparent-fg);
+  font-size: 0.9em;
+}

@@ -81,6 +81,36 @@ class OrdpoolMissingStats {
   }
 
   /**
+   * Rolling window of recent successful save timestamps (ms since epoch),
+   * capped at RATE_WINDOW_SIZE. Used to compute blocks-per-minute for the
+   * /health/indexer-progress endpoint so the frontend can show an ETA on
+   * queued blocks. Bounded array; oldest entry shifts off when full.
+   */
+  private static readonly RATE_WINDOW_SIZE = 50;
+  private static readonly RATE_MIN_SAMPLES = 5;
+  private successWindow: number[] = [];
+
+  /**
+   * Returns the current indexing rate in blocks-per-minute over the rolling
+   * window, or `null` when there aren't enough recent samples (e.g. shortly
+   * after process start, or after a long idle period).
+   */
+  getBlocksPerMinute(): number | null {
+    if (this.successWindow.length < OrdpoolMissingStats.RATE_MIN_SAMPLES) {
+      return null;
+    }
+    const oldest = this.successWindow[0];
+    const newest = this.successWindow[this.successWindow.length - 1];
+    const spanMs = newest - oldest;
+    if (spanMs <= 0) {
+      return null;
+    }
+    // (n-1) intervals across spanMs gives the per-block period.
+    const blocks = this.successWindow.length - 1;
+    return (blocks / spanMs) * 60_000;
+  }
+
+  /**
    * Indicates whether a task is currently running.
    * Prevents overlapping task executions.
    */
@@ -171,6 +201,10 @@ class OrdpoolMissingStats {
 
           processedCount++;
           this.lastSuccessAt = Date.now();
+          this.successWindow.push(this.lastSuccessAt);
+          if (this.successWindow.length > OrdpoolMissingStats.RATE_WINDOW_SIZE) {
+            this.successWindow.shift();
+          }
           this.failureCount.delete(block.height);
         } catch (error) {
           // Per-block failure path (introduced 2026-05-05 after block 869,599's

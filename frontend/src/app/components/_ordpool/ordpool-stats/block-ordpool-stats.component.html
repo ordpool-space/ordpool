@@ -330,4 +330,78 @@
     <tr><th colspan="2">General Block Data</th></tr>
   </thead>
 
+} @else if (status() === 'pre-ordinals' || status() === 'queued' || status() === 'skipped') {
+  <thead class="text-primary">
+    <tr><th colspan="2">Ordpool Status</th></tr>
+  </thead>
+  <tbody>
+    @switch (status()) {
+      @case ('pre-ordinals') {
+        <tr>
+          <td colspan="2" class="ordpool-status-cell">
+            <span class="status-label">Outside the indexing range</span><br>
+            <span class="status-detail">Block-level stats start at the height of the first inscription@if (firstStatsHeight() !== null) {
+              (block #{{ firstStatsHeight() | number }})}.
+              Older Bitcoin assets such as Counterparty are still parsed when you
+              open an individual transaction.</span>
+          </td>
+        </tr>
+      }
+      @case ('queued') {
+        <tr>
+          <td class="td-width">Indexing</td>
+          <td>
+            <span class="badge badge-warning">Queued</span>
+            <span class="status-detail"> &nbsp;Waiting in the indexer queue.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Position in queue</td>
+          <td>
+            <strong>{{ queuePosition() | number }}</strong> blocks ahead
+            @if (frontierHeight() !== null) {
+              <span class="status-detail">
+                (frontier at #{{ frontierHeight() | number }})
+              </span>
+            }
+          </td>
+        </tr>
+        @if (eta(); as etaRange) {
+          <tr>
+            <td>Estimated time</td>
+            <td>
+              ~{{ etaRange.lo | number }} to {{ etaRange.hi | number }} minutes
+              @if (blocksPerMinute(); as rate) {
+                <span class="status-detail">
+                  (current rate {{ rate }} blocks / min)
+                </span>
+              }
+            </td>
+          </tr>
+        } @else {
+          <tr>
+            <td>Estimated time</td>
+            <td><span class="status-detail">Calculating&hellip;</span></td>
+          </tr>
+        }
+      }
+      @case ('skipped') {
+        <tr>
+          <td colspan="2" class="ordpool-status-cell">
+            <span class="status-label">Skipped by the indexer</span><br>
+            <span class="status-detail">A corrupt artifact in this block crashed the parser
+              repeatedly, so the whole block was set aside to keep the indexer moving.
+              The next ordpool-parser update will re-process it.</span>
+          </td>
+        </tr>
+      }
+    }
+    <tr class="bg-box">
+      <td colspan="2"></td>
+    </tr>
+  </tbody>
+
+  <thead class="text-primary">
+    <tr><th colspan="2">General Block Data</th></tr>
+  </thead>
 }

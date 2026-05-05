@@ -1,8 +1,10 @@
 import { Application, Request, Response } from 'express';
-import { InscriptionPreviewService, ParsedInscription, PreviewInstructions } from 'ordpool-parser';
+import { getFirstInscriptionHeight, InscriptionPreviewService, ParsedInscription, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
+import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
+import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
 import { Aggregation, ChartType, Interval } from './ordpool-statistics-interface';
@@ -25,19 +27,29 @@ class GeneralOrdpoolRoutes {
   }
 
   /**
-   * Public health endpoint. Returns 200 with the indexer's last-success
-   * timestamp + skipped-block count when the missing-stats indexer is making
-   * progress (lag <= MAX_LAG_MINUTES); 503 when stale. The body is
-   * non-sensitive operational data — safe for the heartbeat script to poll
-   * locally and for users to view in the browser.
+   * Public health + progress endpoint. Returns 200 when the missing-stats
+   * indexer is making progress (lag <= MAX_LAG_MINUTES), 503 when stale.
+   * The body is non-sensitive operational data — safe for the heartbeat
+   * script to poll locally, for users to view in the browser, and for the
+   * frontend to surface as queue/ETA info on the block detail page and as
+   * a lag/skip banner on the Ordpool Stats page.
    *
-   * @returns JSON `{ ok, lastSuccessAt, lagMinutes, maxLagMinutes, skippedCount }`.
+   * @returns JSON `{ ok, lastSuccessAt, lagMinutes, maxLagMinutes,
+   *                  skippedCount, skippedHeights, frontierHeight, tipHeight,
+   *                  firstStatsHeight, pendingCount, blocksPerMinute }`.
    */
   private async $getIndexerProgress(req: Request, res: Response): Promise<void> {
     try {
-      const lastSuccessAt = OrdpoolMissingStats.getLastSuccessAt();
-      const skippedCount = await ordpoolSkippedBlocksRepository.getSkippedCount();
+      const firstStatsHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
 
+      const [skippedCount, skippedHeights, frontierHeight, pendingCount] = await Promise.all([
+        ordpoolSkippedBlocksRepository.getSkippedCount(),
+        ordpoolSkippedBlocksRepository.getSkippedHeights(),
+        ordpoolBlocksRepository.getMaxStatsHeight(),
+        ordpoolBlocksRepository.getPendingStatsCount(firstStatsHeight),
+      ]);
+
+      const lastSuccessAt = OrdpoolMissingStats.getLastSuccessAt();
       const lagMs = lastSuccessAt === null ? null : Date.now() - lastSuccessAt.getTime();
       const lagMinutes = lagMs === null ? null : Math.round(lagMs / 60000);
       const fresh = lagMs !== null && lagMs <= MAX_LAG_MINUTES * 60 * 1000;
@@ -49,6 +61,12 @@ class GeneralOrdpoolRoutes {
         lagMinutes,
         maxLagMinutes: MAX_LAG_MINUTES,
         skippedCount,
+        skippedHeights,
+        frontierHeight,
+        tipHeight: blocks.getCurrentBlockHeight(),
+        firstStatsHeight,
+        pendingCount,
+        blocksPerMinute: OrdpoolMissingStats.getBlocksPerMinute(),
       });
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : String(e));
