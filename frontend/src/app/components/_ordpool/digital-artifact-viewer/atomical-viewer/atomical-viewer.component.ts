@@ -3,7 +3,7 @@ import { ParsedAtomical } from 'ordpool-parser';
 
 /**
  * Test cases:
- * http://localhost:4200/tx/1d2f39f54320631d0432fa495a45a4f298a2ca1b18adef8e4356e327d003a694 (etching Z•Z•Z•Z•Z•FEHU•Z•Z•Z•Z•Z)
+ * https://ordpool.space/tx/1d2f39f54320631d0432fa495a45a4f298a2ca1b18adef8e4356e327d003a694 (etching Z•Z•Z•Z•Z•FEHU•Z•Z•Z•Z•Z)
  */
 @Component({
   selector: 'app-atomical-viewer',

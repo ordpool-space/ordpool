@@ -90,7 +90,7 @@
     "ngx-echarts": "~20.0.2",
     "ngx-highlightjs": "^10.0.0",
     "ngx-infinite-scroll": "^20.0.0",
-    "ordpool-parser": "github:ordpool-space/ordpool-parser#766800004ada38593b771fb671799891b521bcc8",
+    "ordpool-parser": "github:ordpool-space/ordpool-parser#9754454ba80b9fcb8dc058b026eb4f8fc5ffca9a",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",
     "sats-connect": "^1.1.2",
