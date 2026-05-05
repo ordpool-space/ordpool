@@ -82,6 +82,14 @@ footer .row.link-tree {
   display: flex;
   justify-content: space-between;
   flex-wrap: nowrap;
+
+  // Bootstrap 5's `.row > *` rule forces width: 100% on every direct child.
+  // With nowrap + 3 children, the third (Legal column) gets pushed off-screen.
+  > * {
+    width: auto;
+    max-width: none;
+  }
+
   &.services {
     @media (min-width: 1201px) {
       padding-left: 65px;
