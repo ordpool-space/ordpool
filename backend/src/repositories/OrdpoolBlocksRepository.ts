@@ -26,7 +26,6 @@ export interface OrdpoolDatabaseBlock {
   amountsAtomicalMint: number;
   amountsAtomicalUpdate: number;
 
-  amountsLabitbu: number;
   amountsCounterparty: number;
   amountsStamp: number;
   amountsSrc721: number;
@@ -62,8 +61,10 @@ export interface OrdpoolDatabaseBlock {
   feesSrc20Mints: number;
   feesCat21Mints: number;
   feesAtomicals: number;
-  feesLabitbus: number;
   feesInscriptionMints: number;
+  feesInscriptionImageMints: number;
+  feesInscriptionTextMints: number;
+  feesInscriptionJsonMints: number;
 
   inscriptionsTotalEnvelopeSize: number;
   inscriptionsTotalContentSize: number;
@@ -73,6 +74,53 @@ export interface OrdpoolDatabaseBlock {
   inscriptionsLargestContentInscriptionId: string | null;
   inscriptionsAverageEnvelopeSize: number;
   inscriptionsAverageContentSize: number;
+
+  // Per-content-type inscription size aggregates (image bucket)
+  inscriptionsImageTotalEnvelopeSize: number;
+  inscriptionsImageTotalContentSize: number;
+  inscriptionsImageLargestEnvelopeSize: number;
+  inscriptionsImageLargestContentSize: number;
+  inscriptionsImageLargestEnvelopeInscriptionId: string | null;
+  inscriptionsImageLargestContentInscriptionId: string | null;
+  inscriptionsImageAverageEnvelopeSize: number;
+  inscriptionsImageAverageContentSize: number;
+
+  // Text bucket
+  inscriptionsTextTotalEnvelopeSize: number;
+  inscriptionsTextTotalContentSize: number;
+  inscriptionsTextLargestEnvelopeSize: number;
+  inscriptionsTextLargestContentSize: number;
+  inscriptionsTextLargestEnvelopeInscriptionId: string | null;
+  inscriptionsTextLargestContentInscriptionId: string | null;
+  inscriptionsTextAverageEnvelopeSize: number;
+  inscriptionsTextAverageContentSize: number;
+
+  // JSON bucket
+  inscriptionsJsonTotalEnvelopeSize: number;
+  inscriptionsJsonTotalContentSize: number;
+  inscriptionsJsonLargestEnvelopeSize: number;
+  inscriptionsJsonLargestContentSize: number;
+  inscriptionsJsonLargestEnvelopeInscriptionId: string | null;
+  inscriptionsJsonLargestContentInscriptionId: string | null;
+  inscriptionsJsonAverageEnvelopeSize: number;
+  inscriptionsJsonAverageContentSize: number;
+
+  // Compression telemetry
+  inscriptionsBrotliCount: number;
+  inscriptionsGzipCount: number;
+  inscriptionsCompressedEnvelopeBytes: number;
+
+  // CAT-21 block-level aggregates
+  cat21GenesisCount: number;
+  cat21AvgFeeRate: number | null;
+  cat21MinFeeRate: number | null;
+  cat21MaxFeeRate: number | null;
+
+  // Rune block-level aggregates (with UNCOMMON•GOODS split)
+  runesUniqueMintsCount: number;
+  runesUniqueMintsCountNonUncommon: number;
+  runesTopMintCount: number;
+  runesTopMintCountNonUncommon: number;
 
   runesMostActiveMint: string | null;
   runesMostActiveNonUncommonMint: string | null;
@@ -89,6 +137,8 @@ export interface OrdpoolDatabaseBlock {
   runeEtchAttempts: string;
   brc20DeployAttempts: string;
   src20DeployAttempts: string;
+  atomicalOps: string;
+  counterpartyMessages: string;
 }
 
 export const ORDPOOL_BLOCK_DB_FIELDS = `
@@ -98,7 +148,6 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.amounts_atomical_mint                        AS amountsAtomicalMint,
   ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,
 
-  ordpool_stats.amounts_labitbu                              AS amountsLabitbu,
   ordpool_stats.amounts_counterparty                         AS amountsCounterparty,
   ordpool_stats.amounts_stamp                                AS amountsStamp,
   ordpool_stats.amounts_src721                               AS amountsSrc721,
@@ -128,30 +177,77 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.amounts_src20_mint                           AS amountsSrc20Mint,
   ordpool_stats.amounts_src20_transfer                       AS amountsSrc20Transfer,
 
-  ordpool_stats.fees_rune_mints                              AS feesRuneMints,                             /* 26 */
-  ordpool_stats.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,                  /* 27 */
-  ordpool_stats.fees_brc20_mints                             AS feesBrc20Mints,                            /* 28 */
-  ordpool_stats.fees_src20_mints                             AS feesSrc20Mints,                            /* 29 */
-  ordpool_stats.fees_cat21_mints                             AS feesCat21Mints,                            /* 30 */
-  ordpool_stats.fees_atomicals                               AS feesAtomicals,                             /* 31 */
-  ordpool_stats.fees_labitbus                                AS feesLabitbus,                              /* 31b */
-  ordpool_stats.fees_inscription_mints                       AS feesInscriptionMints,                      /* 32 */
+  ordpool_stats.fees_rune_mints                              AS feesRuneMints,
+  ordpool_stats.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,
+  ordpool_stats.fees_brc20_mints                             AS feesBrc20Mints,
+  ordpool_stats.fees_src20_mints                             AS feesSrc20Mints,
+  ordpool_stats.fees_cat21_mints                             AS feesCat21Mints,
+  ordpool_stats.fees_atomicals                               AS feesAtomicals,
+  ordpool_stats.fees_inscription_mints                       AS feesInscriptionMints,
+  ordpool_stats.fees_inscription_image_mints                 AS feesInscriptionImageMints,
+  ordpool_stats.fees_inscription_text_mints                  AS feesInscriptionTextMints,
+  ordpool_stats.fees_inscription_json_mints                  AS feesInscriptionJsonMints,
 
-  ordpool_stats.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,             /* 33 */
-  ordpool_stats.inscriptions_total_content_size              AS inscriptionsTotalContentSize,              /* 34 */
-  ordpool_stats.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,           /* 35 */
-  ordpool_stats.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,            /* 36 */
-  ordpool_stats.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,  /* 37 */
-  ordpool_stats.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,   /* 38 */
-  ordpool_stats.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,           /* 39 */
-  ordpool_stats.inscriptions_average_content_size            AS inscriptionsAverageContentSize,            /* 40 */
+  ordpool_stats.inscriptions_total_envelope_size             AS inscriptionsTotalEnvelopeSize,
+  ordpool_stats.inscriptions_total_content_size              AS inscriptionsTotalContentSize,
+  ordpool_stats.inscriptions_largest_envelope_size           AS inscriptionsLargestEnvelopeSize,
+  ordpool_stats.inscriptions_largest_content_size            AS inscriptionsLargestContentSize,
+  ordpool_stats.inscriptions_largest_envelope_inscription_id AS inscriptionsLargestEnvelopeInscriptionId,
+  ordpool_stats.inscriptions_largest_content_inscription_id  AS inscriptionsLargestContentInscriptionId,
+  ordpool_stats.inscriptions_average_envelope_size           AS inscriptionsAverageEnvelopeSize,
+  ordpool_stats.inscriptions_average_content_size            AS inscriptionsAverageContentSize,
 
-  ordpool_stats.runes_most_active_mint                       AS runesMostActiveMint,                       /* 41 */
-  ordpool_stats.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,            /* 42 */
-  ordpool_stats.brc20_most_active_mint                       AS brc20MostActiveMint,                       /* 43 */
-  ordpool_stats.src20_most_active_mint                       AS src20MostActiveMint,                       /* 44 */
+  /* per-content-type inscription size aggregates */
+  ordpool_stats.inscriptions_image_total_envelope_size              AS inscriptionsImageTotalEnvelopeSize,
+  ordpool_stats.inscriptions_image_total_content_size               AS inscriptionsImageTotalContentSize,
+  ordpool_stats.inscriptions_image_largest_envelope_size            AS inscriptionsImageLargestEnvelopeSize,
+  ordpool_stats.inscriptions_image_largest_content_size             AS inscriptionsImageLargestContentSize,
+  ordpool_stats.inscriptions_image_largest_envelope_inscription_id  AS inscriptionsImageLargestEnvelopeInscriptionId,
+  ordpool_stats.inscriptions_image_largest_content_inscription_id   AS inscriptionsImageLargestContentInscriptionId,
+  ordpool_stats.inscriptions_image_average_envelope_size            AS inscriptionsImageAverageEnvelopeSize,
+  ordpool_stats.inscriptions_image_average_content_size             AS inscriptionsImageAverageContentSize,
 
-  ordpool_stats.analyser_version                             AS analyserVersion,                           /* 45 */
+  ordpool_stats.inscriptions_text_total_envelope_size               AS inscriptionsTextTotalEnvelopeSize,
+  ordpool_stats.inscriptions_text_total_content_size                AS inscriptionsTextTotalContentSize,
+  ordpool_stats.inscriptions_text_largest_envelope_size             AS inscriptionsTextLargestEnvelopeSize,
+  ordpool_stats.inscriptions_text_largest_content_size              AS inscriptionsTextLargestContentSize,
+  ordpool_stats.inscriptions_text_largest_envelope_inscription_id   AS inscriptionsTextLargestEnvelopeInscriptionId,
+  ordpool_stats.inscriptions_text_largest_content_inscription_id    AS inscriptionsTextLargestContentInscriptionId,
+  ordpool_stats.inscriptions_text_average_envelope_size             AS inscriptionsTextAverageEnvelopeSize,
+  ordpool_stats.inscriptions_text_average_content_size              AS inscriptionsTextAverageContentSize,
+
+  ordpool_stats.inscriptions_json_total_envelope_size               AS inscriptionsJsonTotalEnvelopeSize,
+  ordpool_stats.inscriptions_json_total_content_size                AS inscriptionsJsonTotalContentSize,
+  ordpool_stats.inscriptions_json_largest_envelope_size             AS inscriptionsJsonLargestEnvelopeSize,
+  ordpool_stats.inscriptions_json_largest_content_size              AS inscriptionsJsonLargestContentSize,
+  ordpool_stats.inscriptions_json_largest_envelope_inscription_id   AS inscriptionsJsonLargestEnvelopeInscriptionId,
+  ordpool_stats.inscriptions_json_largest_content_inscription_id    AS inscriptionsJsonLargestContentInscriptionId,
+  ordpool_stats.inscriptions_json_average_envelope_size             AS inscriptionsJsonAverageEnvelopeSize,
+  ordpool_stats.inscriptions_json_average_content_size              AS inscriptionsJsonAverageContentSize,
+
+  /* compression telemetry */
+  ordpool_stats.inscriptions_brotli_count                  AS inscriptionsBrotliCount,
+  ordpool_stats.inscriptions_gzip_count                    AS inscriptionsGzipCount,
+  ordpool_stats.inscriptions_compressed_envelope_bytes     AS inscriptionsCompressedEnvelopeBytes,
+
+  /* CAT-21 block-level aggregates */
+  ordpool_stats.cat21_genesis_count                        AS cat21GenesisCount,
+  ordpool_stats.cat21_avg_fee_rate                         AS cat21AvgFeeRate,
+  ordpool_stats.cat21_min_fee_rate                         AS cat21MinFeeRate,
+  ordpool_stats.cat21_max_fee_rate                         AS cat21MaxFeeRate,
+
+  /* Rune block-level aggregates (with UNCOMMON•GOODS split) */
+  ordpool_stats.runes_unique_mints_count                   AS runesUniqueMintsCount,
+  ordpool_stats.runes_unique_mints_count_non_uncommon      AS runesUniqueMintsCountNonUncommon,
+  ordpool_stats.runes_top_mint_count                       AS runesTopMintCount,
+  ordpool_stats.runes_top_mint_count_non_uncommon          AS runesTopMintCountNonUncommon,
+
+  ordpool_stats.runes_most_active_mint                       AS runesMostActiveMint,
+  ordpool_stats.runes_most_active_non_uncommon_mint          AS runesMostActiveNonUncommonMint,
+  ordpool_stats.brc20_most_active_mint                       AS brc20MostActiveMint,
+  ordpool_stats.src20_most_active_mint                       AS src20MostActiveMint,
+
+  ordpool_stats.analyser_version                             AS analyserVersion,
 
   -- Mint Activities
   GROUP_CONCAT(DISTINCT CONCAT(rune_mint.identifier, ',',  rune_mint.count)  ORDER BY rune_mint.count DESC) AS runeMintActivity,
@@ -235,7 +331,6 @@ class OrdpoolBlocksRepository {
         amounts_atomical_mint,
         amounts_atomical_update,
 
-        amounts_labitbu,
         amounts_counterparty,
         amounts_stamp,
         amounts_src721,
@@ -271,8 +366,10 @@ class OrdpoolBlocksRepository {
         fees_src20_mints,
         fees_cat21_mints,
         fees_atomicals,
-        fees_labitbus,
         fees_inscription_mints,
+        fees_inscription_image_mints,
+        fees_inscription_text_mints,
+        fees_inscription_json_mints,
 
         inscriptions_total_envelope_size,
         inscriptions_total_content_size,
@@ -283,6 +380,47 @@ class OrdpoolBlocksRepository {
         inscriptions_average_envelope_size,
         inscriptions_average_content_size,
 
+        inscriptions_image_total_envelope_size,
+        inscriptions_image_total_content_size,
+        inscriptions_image_largest_envelope_size,
+        inscriptions_image_largest_content_size,
+        inscriptions_image_largest_envelope_inscription_id,
+        inscriptions_image_largest_content_inscription_id,
+        inscriptions_image_average_envelope_size,
+        inscriptions_image_average_content_size,
+
+        inscriptions_text_total_envelope_size,
+        inscriptions_text_total_content_size,
+        inscriptions_text_largest_envelope_size,
+        inscriptions_text_largest_content_size,
+        inscriptions_text_largest_envelope_inscription_id,
+        inscriptions_text_largest_content_inscription_id,
+        inscriptions_text_average_envelope_size,
+        inscriptions_text_average_content_size,
+
+        inscriptions_json_total_envelope_size,
+        inscriptions_json_total_content_size,
+        inscriptions_json_largest_envelope_size,
+        inscriptions_json_largest_content_size,
+        inscriptions_json_largest_envelope_inscription_id,
+        inscriptions_json_largest_content_inscription_id,
+        inscriptions_json_average_envelope_size,
+        inscriptions_json_average_content_size,
+
+        inscriptions_brotli_count,
+        inscriptions_gzip_count,
+        inscriptions_compressed_envelope_bytes,
+
+        cat21_genesis_count,
+        cat21_avg_fee_rate,
+        cat21_min_fee_rate,
+        cat21_max_fee_rate,
+
+        runes_unique_mints_count,
+        runes_unique_mints_count_non_uncommon,
+        runes_top_mint_count,
+        runes_top_mint_count_non_uncommon,
+
         runes_most_active_mint,
         runes_most_active_non_uncommon_mint,
         brc20_most_active_mint,
@@ -291,14 +429,13 @@ class OrdpoolBlocksRepository {
         analyser_version
 
       ) VALUE (
-        ?,
-        ?,
+        ?,  /* hash */
+        ?,  /* height */
 
         ?,  /* amounts_atomical */
         ?,  /* amounts_atomical_mint */
         ?,  /* amounts_atomical_update */
 
-        ?,  /* amounts_labitbu */
         ?,  /* amounts_counterparty */
         ?,  /* amounts_stamp */
         ?,  /* amounts_src721 */
@@ -334,88 +471,176 @@ class OrdpoolBlocksRepository {
         ?,  /* fees_src20_mints */
         ?,  /* fees_cat21_mints */
         ?,  /* fees_atomicals */
-        ?,  /* fees_labitbus */
         ?,  /* fees_inscription_mints */
+        ?,  /* fees_inscription_image_mints */
+        ?,  /* fees_inscription_text_mints */
+        ?,  /* fees_inscription_json_mints */
 
-        ?,  /* 33 inscriptions_total_envelope_size */
-        ?,  /* 34 inscriptions_total_content_size */
-        ?,  /* 35 inscriptions_largest_envelope_size */
-        ?,  /* 36 inscriptions_largest_content_size */
-        ?,  /* 37 inscriptions_largest_envelope_inscription_id */
-        ?,  /* 38 inscriptions_largest_content_inscription_id */
-        ?,  /* 39 inscriptions_average_envelope_size */
-        ?,  /* 40 inscriptions_average_content_size */
+        ?,  /* inscriptions_total_envelope_size */
+        ?,  /* inscriptions_total_content_size */
+        ?,  /* inscriptions_largest_envelope_size */
+        ?,  /* inscriptions_largest_content_size */
+        ?,  /* inscriptions_largest_envelope_inscription_id */
+        ?,  /* inscriptions_largest_content_inscription_id */
+        ?,  /* inscriptions_average_envelope_size */
+        ?,  /* inscriptions_average_content_size */
 
-        LEFT(?, 20),  /* 41 runes_most_active_mint - truncated to 20 ASCII characters */
-        LEFT(?, 20),  /* 42 runes_most_active_non_uncommon_mint - truncated to 20 ASCII characters */
-        LEFT(?, 20),  /* 43 brc20_most_active_mint - truncated to 20 Unicode characters (between 1 and 4 bytes) */
-        LEFT(?, 20),  /* 44 src20_most_active_mint - truncated to 20 Unicode characters (between 1 and 4 bytes) */
+        ?,  /* inscriptions_image_total_envelope_size */
+        ?,  /* inscriptions_image_total_content_size */
+        ?,  /* inscriptions_image_largest_envelope_size */
+        ?,  /* inscriptions_image_largest_content_size */
+        ?,  /* inscriptions_image_largest_envelope_inscription_id */
+        ?,  /* inscriptions_image_largest_content_inscription_id */
+        ?,  /* inscriptions_image_average_envelope_size */
+        ?,  /* inscriptions_image_average_content_size */
 
-        ?   /* 45 analyser_version */
+        ?,  /* inscriptions_text_total_envelope_size */
+        ?,  /* inscriptions_text_total_content_size */
+        ?,  /* inscriptions_text_largest_envelope_size */
+        ?,  /* inscriptions_text_largest_content_size */
+        ?,  /* inscriptions_text_largest_envelope_inscription_id */
+        ?,  /* inscriptions_text_largest_content_inscription_id */
+        ?,  /* inscriptions_text_average_envelope_size */
+        ?,  /* inscriptions_text_average_content_size */
+
+        ?,  /* inscriptions_json_total_envelope_size */
+        ?,  /* inscriptions_json_total_content_size */
+        ?,  /* inscriptions_json_largest_envelope_size */
+        ?,  /* inscriptions_json_largest_content_size */
+        ?,  /* inscriptions_json_largest_envelope_inscription_id */
+        ?,  /* inscriptions_json_largest_content_inscription_id */
+        ?,  /* inscriptions_json_average_envelope_size */
+        ?,  /* inscriptions_json_average_content_size */
+
+        ?,  /* inscriptions_brotli_count */
+        ?,  /* inscriptions_gzip_count */
+        ?,  /* inscriptions_compressed_envelope_bytes */
+
+        ?,  /* cat21_genesis_count */
+        ?,  /* cat21_avg_fee_rate */
+        ?,  /* cat21_min_fee_rate */
+        ?,  /* cat21_max_fee_rate */
+
+        ?,  /* runes_unique_mints_count */
+        ?,  /* runes_unique_mints_count_non_uncommon */
+        ?,  /* runes_top_mint_count */
+        ?,  /* runes_top_mint_count_non_uncommon */
+
+        LEFT(?, 20),  /* runes_most_active_mint */
+        LEFT(?, 20),  /* runes_most_active_non_uncommon_mint */
+        LEFT(?, 20),  /* brc20_most_active_mint */
+        LEFT(?, 20),  /* src20_most_active_mint */
+
+        ?   /* analyser_version */
       )`;
+
+      const stats = block.extras.ordpoolStats;
+      const ins = stats.inscriptions;
 
       const params: any[] = [
         block.id,
         block.height,
 
-        block.extras.ordpoolStats.amounts.atomical,
-        block.extras.ordpoolStats.amounts.atomicalMint,
-        block.extras.ordpoolStats.amounts.atomicalUpdate,
+        stats.amounts.atomical,
+        stats.amounts.atomicalMint,
+        stats.amounts.atomicalUpdate,
 
-        block.extras.ordpoolStats.amounts.labitbu,
-        block.extras.ordpoolStats.amounts.counterparty,
-        block.extras.ordpoolStats.amounts.stamp,
-        block.extras.ordpoolStats.amounts.src721,
-        block.extras.ordpoolStats.amounts.src101,
+        stats.amounts.counterparty,
+        stats.amounts.stamp,
+        stats.amounts.src721,
+        stats.amounts.src101,
 
-        block.extras.ordpoolStats.amounts.cat21,
-        block.extras.ordpoolStats.amounts.cat21Mint,
+        stats.amounts.cat21,
+        stats.amounts.cat21Mint,
 
-        block.extras.ordpoolStats.amounts.inscription,
-        block.extras.ordpoolStats.amounts.inscriptionMint,
-        block.extras.ordpoolStats.amounts.inscriptionImage,
-        block.extras.ordpoolStats.amounts.inscriptionText,
-        block.extras.ordpoolStats.amounts.inscriptionJson,
+        stats.amounts.inscription,
+        stats.amounts.inscriptionMint,
+        stats.amounts.inscriptionImage,
+        stats.amounts.inscriptionText,
+        stats.amounts.inscriptionJson,
 
-        block.extras.ordpoolStats.amounts.rune,
-        block.extras.ordpoolStats.amounts.runeEtch,
-        block.extras.ordpoolStats.amounts.runeMint,
-        block.extras.ordpoolStats.amounts.runeCenotaph,
+        stats.amounts.rune,
+        stats.amounts.runeEtch,
+        stats.amounts.runeMint,
+        stats.amounts.runeCenotaph,
 
-        block.extras.ordpoolStats.amounts.brc20,
-        block.extras.ordpoolStats.amounts.brc20Deploy,
-        block.extras.ordpoolStats.amounts.brc20Mint,
-        block.extras.ordpoolStats.amounts.brc20Transfer,
+        stats.amounts.brc20,
+        stats.amounts.brc20Deploy,
+        stats.amounts.brc20Mint,
+        stats.amounts.brc20Transfer,
 
-        block.extras.ordpoolStats.amounts.src20,
-        block.extras.ordpoolStats.amounts.src20Deploy,
-        block.extras.ordpoolStats.amounts.src20Mint,
-        block.extras.ordpoolStats.amounts.src20Transfer,
+        stats.amounts.src20,
+        stats.amounts.src20Deploy,
+        stats.amounts.src20Mint,
+        stats.amounts.src20Transfer,
 
-        block.extras.ordpoolStats.fees.runeMints,                             // 26
-        block.extras.ordpoolStats.fees.nonUncommonRuneMints,                  // 27
-        block.extras.ordpoolStats.fees.brc20Mints,                            // 28
-        block.extras.ordpoolStats.fees.src20Mints,                            // 29
-        block.extras.ordpoolStats.fees.cat21Mints,                            // 30
-        block.extras.ordpoolStats.fees.atomicals,                             // 31
-        block.extras.ordpoolStats.fees.labitbus,                             // 31b
-        block.extras.ordpoolStats.fees.inscriptionMints,                      // 32
+        stats.fees.runeMints,
+        stats.fees.nonUncommonRuneMints,
+        stats.fees.brc20Mints,
+        stats.fees.src20Mints,
+        stats.fees.cat21Mints,
+        stats.fees.atomicals,
+        stats.fees.inscriptionMints,
+        stats.fees.inscriptionImageMints,
+        stats.fees.inscriptionTextMints,
+        stats.fees.inscriptionJsonMints,
 
-        block.extras.ordpoolStats.inscriptions.totalEnvelopeSize,             // 33
-        block.extras.ordpoolStats.inscriptions.totalContentSize,              // 34
-        block.extras.ordpoolStats.inscriptions.largestEnvelopeSize,           // 35
-        block.extras.ordpoolStats.inscriptions.largestContentSize,            // 36
-        block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId,  // 37
-        block.extras.ordpoolStats.inscriptions.largestContentInscriptionId,   // 38
-        block.extras.ordpoolStats.inscriptions.averageEnvelopeSize,           // 39
-        block.extras.ordpoolStats.inscriptions.averageContentSize,            // 40
+        ins.totalEnvelopeSize,
+        ins.totalContentSize,
+        ins.largestEnvelopeSize,
+        ins.largestContentSize,
+        ins.largestEnvelopeInscriptionId,
+        ins.largestContentInscriptionId,
+        ins.averageEnvelopeSize,
+        ins.averageContentSize,
 
-        block.extras.ordpoolStats.runes.mostActiveMint,                       // 41
-        block.extras.ordpoolStats.runes.mostActiveNonUncommonMint,            // 42
-        block.extras.ordpoolStats.brc20.mostActiveMint,                       // 43
-        block.extras.ordpoolStats.src20.mostActiveMint,                       // 44
+        ins.image.totalEnvelopeSize,
+        ins.image.totalContentSize,
+        ins.image.largestEnvelopeSize,
+        ins.image.largestContentSize,
+        ins.image.largestEnvelopeInscriptionId,
+        ins.image.largestContentInscriptionId,
+        ins.image.averageEnvelopeSize,
+        ins.image.averageContentSize,
 
-        block.extras.ordpoolStats.version                                     // 45
+        ins.text.totalEnvelopeSize,
+        ins.text.totalContentSize,
+        ins.text.largestEnvelopeSize,
+        ins.text.largestContentSize,
+        ins.text.largestEnvelopeInscriptionId,
+        ins.text.largestContentInscriptionId,
+        ins.text.averageEnvelopeSize,
+        ins.text.averageContentSize,
+
+        ins.json.totalEnvelopeSize,
+        ins.json.totalContentSize,
+        ins.json.largestEnvelopeSize,
+        ins.json.largestContentSize,
+        ins.json.largestEnvelopeInscriptionId,
+        ins.json.largestContentInscriptionId,
+        ins.json.averageEnvelopeSize,
+        ins.json.averageContentSize,
+
+        ins.brotliCount,
+        ins.gzipCount,
+        ins.compressedEnvelopeBytes,
+
+        stats.cat21.genesisCount,
+        stats.cat21.avgFeeRate,
+        stats.cat21.minFeeRate,
+        stats.cat21.maxFeeRate,
+
+        stats.runes.uniqueMintsCount,
+        stats.runes.uniqueMintsCountNonUncommon,
+        stats.runes.topMintCount,
+        stats.runes.topMintCountNonUncommon,
+
+        stats.runes.mostActiveMint,
+        stats.runes.mostActiveNonUncommonMint,
+        stats.brc20.mostActiveMint,
+        stats.src20.mostActiveMint,
+
+        stats.version
       ];
 
       await DB.query(query, params, 'silent');
@@ -444,7 +669,6 @@ class OrdpoolBlocksRepository {
         atomicalMint: dbBlk.amountsAtomicalMint,
         atomicalUpdate: dbBlk.amountsAtomicalUpdate,
 
-        labitbu: dbBlk.amountsLabitbu,
         counterparty: dbBlk.amountsCounterparty,
         stamp: dbBlk.amountsStamp,
         src721: dbBlk.amountsSrc721,
@@ -481,27 +705,65 @@ class OrdpoolBlocksRepository {
         src20Mints: dbBlk.feesSrc20Mints,
         cat21Mints: dbBlk.feesCat21Mints,
         atomicals: dbBlk.feesAtomicals,
-        labitbus: dbBlk.feesLabitbus,
-        inscriptionMints: dbBlk.feesInscriptionMints
+        inscriptionMints: dbBlk.feesInscriptionMints,
+        inscriptionImageMints: dbBlk.feesInscriptionImageMints,
+        inscriptionTextMints: dbBlk.feesInscriptionTextMints,
+        inscriptionJsonMints: dbBlk.feesInscriptionJsonMints,
       },
       inscriptions: {
         totalEnvelopeSize: dbBlk.inscriptionsTotalEnvelopeSize,
         totalContentSize: dbBlk.inscriptionsTotalContentSize,
-
         largestEnvelopeSize: dbBlk.inscriptionsLargestEnvelopeSize,
         largestContentSize: dbBlk.inscriptionsLargestContentSize,
-
         largestEnvelopeInscriptionId: dbBlk.inscriptionsLargestEnvelopeInscriptionId,
         largestContentInscriptionId: dbBlk.inscriptionsLargestContentInscriptionId,
-
         averageEnvelopeSize: dbBlk.inscriptionsAverageEnvelopeSize,
-        averageContentSize: dbBlk.inscriptionsAverageContentSize
+        averageContentSize: dbBlk.inscriptionsAverageContentSize,
+
+        image: {
+          totalEnvelopeSize: dbBlk.inscriptionsImageTotalEnvelopeSize,
+          totalContentSize: dbBlk.inscriptionsImageTotalContentSize,
+          largestEnvelopeSize: dbBlk.inscriptionsImageLargestEnvelopeSize,
+          largestContentSize: dbBlk.inscriptionsImageLargestContentSize,
+          largestEnvelopeInscriptionId: dbBlk.inscriptionsImageLargestEnvelopeInscriptionId,
+          largestContentInscriptionId: dbBlk.inscriptionsImageLargestContentInscriptionId,
+          averageEnvelopeSize: dbBlk.inscriptionsImageAverageEnvelopeSize,
+          averageContentSize: dbBlk.inscriptionsImageAverageContentSize,
+        },
+        text: {
+          totalEnvelopeSize: dbBlk.inscriptionsTextTotalEnvelopeSize,
+          totalContentSize: dbBlk.inscriptionsTextTotalContentSize,
+          largestEnvelopeSize: dbBlk.inscriptionsTextLargestEnvelopeSize,
+          largestContentSize: dbBlk.inscriptionsTextLargestContentSize,
+          largestEnvelopeInscriptionId: dbBlk.inscriptionsTextLargestEnvelopeInscriptionId,
+          largestContentInscriptionId: dbBlk.inscriptionsTextLargestContentInscriptionId,
+          averageEnvelopeSize: dbBlk.inscriptionsTextAverageEnvelopeSize,
+          averageContentSize: dbBlk.inscriptionsTextAverageContentSize,
+        },
+        json: {
+          totalEnvelopeSize: dbBlk.inscriptionsJsonTotalEnvelopeSize,
+          totalContentSize: dbBlk.inscriptionsJsonTotalContentSize,
+          largestEnvelopeSize: dbBlk.inscriptionsJsonLargestEnvelopeSize,
+          largestContentSize: dbBlk.inscriptionsJsonLargestContentSize,
+          largestEnvelopeInscriptionId: dbBlk.inscriptionsJsonLargestEnvelopeInscriptionId,
+          largestContentInscriptionId: dbBlk.inscriptionsJsonLargestContentInscriptionId,
+          averageEnvelopeSize: dbBlk.inscriptionsJsonAverageEnvelopeSize,
+          averageContentSize: dbBlk.inscriptionsJsonAverageContentSize,
+        },
+
+        brotliCount: dbBlk.inscriptionsBrotliCount,
+        gzipCount: dbBlk.inscriptionsGzipCount,
+        compressedEnvelopeBytes: dbBlk.inscriptionsCompressedEnvelopeBytes,
       },
       runes: {
         mostActiveMint: dbBlk.runesMostActiveMint,
         mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
         runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity),
-        runeEtchAttempts: compactToRuneEtchAttempts(dbBlk.runeEtchAttempts)
+        runeEtchAttempts: compactToRuneEtchAttempts(dbBlk.runeEtchAttempts),
+        uniqueMintsCount: dbBlk.runesUniqueMintsCount,
+        uniqueMintsCountNonUncommon: dbBlk.runesUniqueMintsCountNonUncommon,
+        topMintCount: dbBlk.runesTopMintCount,
+        topMintCountNonUncommon: dbBlk.runesTopMintCountNonUncommon,
       },
       brc20: {
         mostActiveMint: dbBlk.brc20MostActiveMint,
@@ -514,7 +776,20 @@ class OrdpoolBlocksRepository {
         src20DeployAttempts: compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts)
       },
       cat21: {
-        minimalCat21MintActivity: compactToMinimalCat21Mints(dbBlk.cat21MintActivity)
+        minimalCat21MintActivity: compactToMinimalCat21Mints(dbBlk.cat21MintActivity),
+        genesisCount: dbBlk.cat21GenesisCount,
+        avgFeeRate: dbBlk.cat21AvgFeeRate,
+        minFeeRate: dbBlk.cat21MinFeeRate,
+        maxFeeRate: dbBlk.cat21MaxFeeRate,
+      },
+      // Block-detail responses don't carry the per-row satellite arrays;
+      // chart endpoints query ordpool_stats_atomical_op /
+      // ordpool_stats_counterparty directly via GROUP BY.
+      atomicals: {
+        atomicalOps: [],
+      },
+      counterparty: {
+        counterpartyMessages: [],
       },
       version: dbBlk.analyserVersion
     };
@@ -930,6 +1205,9 @@ class OrdpoolBlocksRepository {
       WHERE height >= ?
         AND NOT EXISTS (
           SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.hash
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ordpool_stats_skipped WHERE ordpool_stats_skipped.height = blocks.height
         )
       ORDER BY height ASC
       LIMIT ?
