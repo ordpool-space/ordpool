@@ -7,6 +7,16 @@
 /content/* https://api.ordpool.space/content/:splat 301
 /preview/* https://api.ordpool.space/preview/:splat 301
 
+# mempool.space-shape /api/* URLs. ordpool is a mempool fork; users
+# follow mempool's docs and expect those examples to work against
+# ordpool.space too. The v2 SPA itself uses absolute apiBaseUrl
+# 'https://api.ordpool.space', so this 301 only fires for external
+# API consumers (curl, scripts, the upstream docs and FAQ).
+# WebSocket (/api/v1/ws) intentionally not listed — 301 doesn't carry
+# Upgrade headers; WS clients should connect to wss://api.ordpool.space.
+/api/v1/* https://api.ordpool.space/api/v1/:splat 301
+/api/* https://api.ordpool.space/api/:splat 301
+
 # Recursion endpoints — sent to ordinals.com. cat21-ord runs with
 # --index-cat21 and only indexes cats, so it can't answer non-cat
 # recursive lookups. /r/* is the modern form; the four below are the
