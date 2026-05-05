@@ -223,17 +223,23 @@ export class StateService {
   searchFocus$: Subject<boolean> = new Subject<boolean>();
   menuOpen$: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
-  // HACK - or by default, "classic by default", all filters on by default
-  // activeGoggles$: BehaviorSubject<ActiveFilter> = new BehaviorSubject({ mode: 'and', filters: [], gradient: 'age' });
+  // HACK -- Ordpool: every parent ordpool flag on by default (the user
+  // wants to see what's happening on L1 across all protocols out of the
+  // box; sub-op flags stay off so the chip set isn't overwhelming).
   activeGoggles$: BehaviorSubject<ActiveFilter> = new BehaviorSubject({
     mode: 'or',
     filters: [
-      // 'ordpool_atomical',
+      'ordpool_atomical',
       'ordpool_cat21',
       'ordpool_inscription',
       'ordpool_rune',
       'ordpool_brc20',
-      'ordpool_src20'
+      'ordpool_src20',
+      'ordpool_labitbu',
+      'ordpool_counterparty',
+      'ordpool_stamp',
+      'ordpool_src721',
+      'ordpool_src101',
     ],
     gradient: 'fee'
   });

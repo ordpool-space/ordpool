@@ -11,8 +11,15 @@ export type ChartType =
   | 'new-tokens'
   | 'fees'
   | 'inscription-sizes'
-  | 'protocols'           // counterparty / stamp / src721 / src101 amounts per period
-  | 'inscription-types';  // inscription content-type buckets (image / text / json)
+  | 'protocols'              // counterparty / stamp / src721 / src101 amounts per period
+  | 'inscription-types'      // inscription content-type buckets (image / text / json)
+  | 'inscription-type-sizes' // image/text/json envelope+content size series
+  | 'inscription-type-fees'  // per-bucket inscription mint fees
+  | 'inscription-compression'// brotli / gzip counts + compressed-bytes share
+  | 'cat21-stats'            // CAT-21 block aggregates: genesis count, fee-rate spread
+  | 'rune-activity'          // unique runes minted + top mint count, in pairs
+  | 'atomical-ops'           // per-operation counts from satellite (dft/nft/mod/...)
+  | 'counterparty-messages'; // per-message-type counts from satellite
 
 export interface BaseStatistic {
   minHeight: number;
@@ -41,6 +48,7 @@ export interface FeeStatistic extends BaseStatistic {
   feesBrc20Mints?: number;
   feesSrc20Mints?: number;
   feesCat21Mints?: number;
+  feesAtomicals?: number;
   feesInscriptionMints?: number;
 }
 
@@ -71,13 +79,81 @@ export interface InscriptionTypeStatistic extends BaseStatistic {
   inscriptionJsons?: number;
 }
 
+// Image/text/json sub-aggregate sizes per period.
+export interface InscriptionTypeSizeStatistic extends BaseStatistic {
+  imageTotalEnvelopeSize?: number;
+  imageTotalContentSize?: number;
+  imageAvgEnvelopeSize?: number;
+  imageAvgContentSize?: number;
+  textTotalEnvelopeSize?: number;
+  textTotalContentSize?: number;
+  textAvgEnvelopeSize?: number;
+  textAvgContentSize?: number;
+  jsonTotalEnvelopeSize?: number;
+  jsonTotalContentSize?: number;
+  jsonAvgEnvelopeSize?: number;
+  jsonAvgContentSize?: number;
+}
+
+// Per-bucket inscription mint fees per period.
+export interface InscriptionTypeFeeStatistic extends BaseStatistic {
+  feesInscriptionImageMints?: number;
+  feesInscriptionTextMints?: number;
+  feesInscriptionJsonMints?: number;
+}
+
+// Compression telemetry per period.
+export interface InscriptionCompressionStatistic extends BaseStatistic {
+  brotliCount?: number;
+  gzipCount?: number;
+  compressedEnvelopeBytes?: number;
+}
+
+// CAT-21 block aggregates per period.
+export interface Cat21StatStatistic extends BaseStatistic {
+  cat21Mints?: number;
+  cat21GenesisCount?: number;
+  cat21AvgFeeRate?: number | null;
+  cat21MinFeeRate?: number | null;
+  cat21MaxFeeRate?: number | null;
+}
+
+// Rune block aggregates per period — both overall + non-uncommon variants in
+// the same response. UI shows both lines together (don't hide UNCOMMON•GOODS,
+// it's the truth).
+export interface RuneActivityStatistic extends BaseStatistic {
+  uniqueMints?: number;
+  uniqueMintsNonUncommon?: number;
+  topMintCount?: number;
+  topMintCountNonUncommon?: number;
+}
+
+// Per-operation atomical counts from the satellite table.
+export interface AtomicalOpsStatistic extends BaseStatistic {
+  operation?: string;
+  count?: number;
+}
+
+// Per-message-type counterparty counts from the satellite table.
+export interface CounterpartyMessagesStatistic extends BaseStatistic {
+  messageType?: string;
+  count?: number;
+}
+
 export type OrdpoolStatisticResponse =
   MintStatistic |
   NewTokenStatistic |
   FeeStatistic |
   InscriptionSizeStatistic |
   ProtocolStatistic |
-  InscriptionTypeStatistic;
+  InscriptionTypeStatistic |
+  InscriptionTypeSizeStatistic |
+  InscriptionTypeFeeStatistic |
+  InscriptionCompressionStatistic |
+  Cat21StatStatistic |
+  RuneActivityStatistic |
+  AtomicalOpsStatistic |
+  CounterpartyMessagesStatistic;
 
 export function isMintStatistic(stat: OrdpoolStatisticResponse): stat is MintStatistic {
   return 'cat21Mints' in stat;

@@ -1128,6 +1128,30 @@ class OrdpoolBlocksRepository {
       );
 
     }
+
+    // Insert Atomical operations (mint / update / etc.) into the satellite
+    // table. The parser already filters out x/y/z FT UTXO transfer ops.
+    for (const { txId, operation, ticker } of stats.atomicals.atomicalOps) {
+      await DB.query(
+        `INSERT INTO ordpool_stats_atomical_op (hash, height, txid, operation, ticker)
+         VALUES (?, ?, ?, ?, LEFT(?, 40))
+         ON DUPLICATE KEY UPDATE ticker = VALUES(ticker)`,
+        [hash, height, txId, operation, ticker ?? null]
+      );
+    }
+
+    // Insert Counterparty messages into the satellite table. One row per
+    // counterparty tx, capturing message_type for per-message-type charts.
+    for (const { txId, messageType, messageTypeId } of stats.counterparty.counterpartyMessages) {
+      await DB.query(
+        `INSERT INTO ordpool_stats_counterparty (hash, height, txid, message_type, message_type_id)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           message_type = VALUES(message_type),
+           message_type_id = VALUES(message_type_id)`,
+        [hash, height, txId, messageType, messageTypeId]
+      );
+    }
   }
 
   /**
