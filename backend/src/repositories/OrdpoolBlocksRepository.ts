@@ -5,7 +5,9 @@ import {
   compactToMintActivity,
   compactToRuneEtchAttempts,
   compactToSrc20DeployAttempts,
+  getEmptyStats,
   getFirstInscriptionHeight,
+  InscriptionSizeAggregate,
   OrdpoolStats,
   sanitizeU128,
   sanitizeU64,
@@ -303,6 +305,140 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
 `;
 
 
+/**
+ * One entry per column on `ordpool_stats`. Drives BOTH directions — INSERT
+ * (via `val`) and the SELECT/format-function read path (via `alias` + `set`).
+ * Single source of truth for the schema/value mapping; positional drift is
+ * architecturally impossible.
+ *
+ * `placeholder` defaults to '?'. Override for SQL-side transforms like
+ * `LEFT(?, 20)` on the most-active-mint columns where the value needs
+ * server-side truncation to keep column widths sane.
+ */
+interface OrdpoolStatColumn {
+  col: string;                                     // snake_case DB column
+  alias: string;                                   // camelCase SELECT alias / OrdpoolDatabaseBlock field
+  placeholder?: string;
+  val: (s: OrdpoolStats) => unknown;               // write: read from stats
+  set: (target: OrdpoolStats, value: any) => void; // read: assign into stats
+}
+
+const camelToSnake = (s: string): string => s.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+
+// Section helpers: each takes a list of camelCase field names and emits one
+// OrdpoolStatColumn per field with `<section>_<snake>` SQL column, the
+// matching camelCase alias, and typed get/set lambdas. TypeScript checks
+// the field names against the actual OrdpoolStats shape.
+const amountCols = (...fields: (keyof OrdpoolStats['amounts'])[]): OrdpoolStatColumn[] =>
+  fields.map(f => ({
+    col:   'amounts_' + camelToSnake(f as string),
+    alias: 'amounts'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
+    val:   s => s.amounts[f],
+    set:   (t, v) => { (t.amounts as any)[f] = v; },
+  }));
+const feeCols = (...fields: (keyof OrdpoolStats['fees'])[]): OrdpoolStatColumn[] =>
+  fields.map(f => ({
+    col:   'fees_' + camelToSnake(f as string),
+    alias: 'fees'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
+    val:   s => s.fees[f],
+    set:   (t, v) => { (t.fees as any)[f] = v; },
+  }));
+const cat21Cols = (...fields: (keyof OrdpoolStats['cat21'])[]): OrdpoolStatColumn[] =>
+  fields.map(f => ({
+    col:   'cat21_' + camelToSnake(f as string),
+    alias: 'cat21'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
+    val:   s => s.cat21[f],
+    set:   (t, v) => { (t.cat21 as any)[f] = v; },
+  }));
+const runeCols = (...fields: (keyof OrdpoolStats['runes'])[]): OrdpoolStatColumn[] =>
+  fields.map(f => ({
+    col:   'runes_' + camelToSnake(f as string),
+    alias: 'runes'  + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
+    val:   s => s.runes[f],
+    set:   (t, v) => { (t.runes as any)[f] = v; },
+  }));
+
+// All 8 fields of an InscriptionSizeAggregate. Used 4× — once for the global
+// aggregate and once per content-type bucket (image/text/json).
+const inscriptionSizeCols = (
+  colPrefix: string,                                              // e.g. 'inscriptions_image'
+  aliasPrefix: string,                                            // e.g. 'inscriptionsImage'
+  pick: (s: OrdpoolStats) => InscriptionSizeAggregate,
+  pickTarget: (t: OrdpoolStats) => InscriptionSizeAggregate,
+): OrdpoolStatColumn[] => {
+  const fields: (keyof InscriptionSizeAggregate)[] = [
+    'totalEnvelopeSize', 'totalContentSize',
+    'largestEnvelopeSize', 'largestContentSize',
+    'largestEnvelopeInscriptionId', 'largestContentInscriptionId',
+    'averageEnvelopeSize', 'averageContentSize',
+  ];
+  return fields.map(f => ({
+    col:   `${colPrefix}_${camelToSnake(f as string)}`,
+    alias: aliasPrefix + (f as string).charAt(0).toUpperCase() + (f as string).slice(1),
+    val:   s => pick(s)[f],
+    set:   (t, v) => { (pickTarget(t) as any)[f] = v; },
+  }));
+};
+
+const truncated20 = (
+  col: string,
+  alias: string,
+  val: (s: OrdpoolStats) => unknown,
+  set: (t: OrdpoolStats, v: any) => void,
+): OrdpoolStatColumn => ({ col, alias, placeholder: 'LEFT(?, 20)', val, set });
+
+export const ORDPOOL_STATS_COLUMNS: OrdpoolStatColumn[] = [
+  ...amountCols(
+    'atomical', 'atomicalMint', 'atomicalUpdate',
+    'counterparty', 'stamp', 'src721', 'src101',
+    'cat21', 'cat21Mint',
+    'inscription', 'inscriptionMint', 'inscriptionImage', 'inscriptionText', 'inscriptionJson',
+    'rune', 'runeEtch', 'runeMint', 'runeCenotaph',
+    'brc20', 'brc20Deploy', 'brc20Mint', 'brc20Transfer',
+    'src20', 'src20Deploy', 'src20Mint', 'src20Transfer',
+  ),
+  ...feeCols(
+    'runeMints', 'nonUncommonRuneMints', 'brc20Mints', 'src20Mints',
+    'cat21Mints', 'atomicals', 'inscriptionMints',
+    'inscriptionImageMints', 'inscriptionTextMints', 'inscriptionJsonMints',
+  ),
+  ...inscriptionSizeCols('inscriptions',       'inscriptions',      s => s.inscriptions,       t => t.inscriptions),
+  ...inscriptionSizeCols('inscriptions_image', 'inscriptionsImage', s => s.inscriptions.image, t => t.inscriptions.image),
+  ...inscriptionSizeCols('inscriptions_text',  'inscriptionsText',  s => s.inscriptions.text,  t => t.inscriptions.text),
+  ...inscriptionSizeCols('inscriptions_json',  'inscriptionsJson',  s => s.inscriptions.json,  t => t.inscriptions.json),
+  {
+    col: 'inscriptions_brotli_count', alias: 'inscriptionsBrotliCount',
+    val: s => s.inscriptions.brotliCount,
+    set: (t, v) => { t.inscriptions.brotliCount = v; },
+  },
+  {
+    col: 'inscriptions_gzip_count', alias: 'inscriptionsGzipCount',
+    val: s => s.inscriptions.gzipCount,
+    set: (t, v) => { t.inscriptions.gzipCount = v; },
+  },
+  {
+    col: 'inscriptions_compressed_envelope_bytes', alias: 'inscriptionsCompressedEnvelopeBytes',
+    val: s => s.inscriptions.compressedEnvelopeBytes,
+    set: (t, v) => { t.inscriptions.compressedEnvelopeBytes = v; },
+  },
+  ...cat21Cols('genesisCount', 'avgFeeRate', 'minFeeRate', 'maxFeeRate'),
+  ...runeCols('uniqueMintsCount', 'uniqueMintsCountNonUncommon', 'topMintCount', 'topMintCountNonUncommon'),
+  truncated20('runes_most_active_mint',              'runesMostActiveMint',
+              s => s.runes.mostActiveMint,              (t, v) => { t.runes.mostActiveMint = v; }),
+  truncated20('runes_most_active_non_uncommon_mint', 'runesMostActiveNonUncommonMint',
+              s => s.runes.mostActiveNonUncommonMint,   (t, v) => { t.runes.mostActiveNonUncommonMint = v; }),
+  truncated20('brc20_most_active_mint',              'brc20MostActiveMint',
+              s => s.brc20.mostActiveMint,              (t, v) => { t.brc20.mostActiveMint = v; }),
+  truncated20('src20_most_active_mint',              'src20MostActiveMint',
+              s => s.src20.mostActiveMint,              (t, v) => { t.src20.mostActiveMint = v; }),
+  {
+    col: 'analyser_version', alias: 'analyserVersion',
+    val: s => s.version,
+    set: (t, v) => { t.version = v; },
+  },
+];
+
+
 class OrdpoolBlocksRepository {
   /**
    * Save indexed block data in the database
@@ -323,325 +459,16 @@ class OrdpoolBlocksRepository {
 
       await this.saveTokenActivity(block.id, block.height, block.extras.ordpoolStats);
 
-      const query = `INSERT INTO ordpool_stats(
-        hash,
-        height,
-
-        amounts_atomical,
-        amounts_atomical_mint,
-        amounts_atomical_update,
-
-        amounts_counterparty,
-        amounts_stamp,
-        amounts_src721,
-        amounts_src101,
-
-        amounts_cat21,
-        amounts_cat21_mint,
-
-        amounts_inscription,
-        amounts_inscription_mint,
-        amounts_inscription_image,
-        amounts_inscription_text,
-        amounts_inscription_json,
-
-        amounts_rune,
-        amounts_rune_etch,
-        amounts_rune_mint,
-        amounts_rune_cenotaph,
-
-        amounts_brc20,
-        amounts_brc20_deploy,
-        amounts_brc20_mint,
-        amounts_brc20_transfer,
-
-        amounts_src20,
-        amounts_src20_deploy,
-        amounts_src20_mint,
-        amounts_src20_transfer,
-
-        fees_rune_mints,
-        fees_non_uncommon_rune_mints,
-        fees_brc20_mints,
-        fees_src20_mints,
-        fees_cat21_mints,
-        fees_atomicals,
-        fees_inscription_mints,
-        fees_inscription_image_mints,
-        fees_inscription_text_mints,
-        fees_inscription_json_mints,
-
-        inscriptions_total_envelope_size,
-        inscriptions_total_content_size,
-        inscriptions_largest_envelope_size,
-        inscriptions_largest_content_size,
-        inscriptions_largest_envelope_inscription_id,
-        inscriptions_largest_content_inscription_id,
-        inscriptions_average_envelope_size,
-        inscriptions_average_content_size,
-
-        inscriptions_image_total_envelope_size,
-        inscriptions_image_total_content_size,
-        inscriptions_image_largest_envelope_size,
-        inscriptions_image_largest_content_size,
-        inscriptions_image_largest_envelope_inscription_id,
-        inscriptions_image_largest_content_inscription_id,
-        inscriptions_image_average_envelope_size,
-        inscriptions_image_average_content_size,
-
-        inscriptions_text_total_envelope_size,
-        inscriptions_text_total_content_size,
-        inscriptions_text_largest_envelope_size,
-        inscriptions_text_largest_content_size,
-        inscriptions_text_largest_envelope_inscription_id,
-        inscriptions_text_largest_content_inscription_id,
-        inscriptions_text_average_envelope_size,
-        inscriptions_text_average_content_size,
-
-        inscriptions_json_total_envelope_size,
-        inscriptions_json_total_content_size,
-        inscriptions_json_largest_envelope_size,
-        inscriptions_json_largest_content_size,
-        inscriptions_json_largest_envelope_inscription_id,
-        inscriptions_json_largest_content_inscription_id,
-        inscriptions_json_average_envelope_size,
-        inscriptions_json_average_content_size,
-
-        inscriptions_brotli_count,
-        inscriptions_gzip_count,
-        inscriptions_compressed_envelope_bytes,
-
-        cat21_genesis_count,
-        cat21_avg_fee_rate,
-        cat21_min_fee_rate,
-        cat21_max_fee_rate,
-
-        runes_unique_mints_count,
-        runes_unique_mints_count_non_uncommon,
-        runes_top_mint_count,
-        runes_top_mint_count_non_uncommon,
-
-        runes_most_active_mint,
-        runes_most_active_non_uncommon_mint,
-        brc20_most_active_mint,
-        src20_most_active_mint,
-
-        analyser_version
-
-      ) VALUE (
-        ?,  /* hash */
-        ?,  /* height */
-
-        ?,  /* amounts_atomical */
-        ?,  /* amounts_atomical_mint */
-        ?,  /* amounts_atomical_update */
-
-        ?,  /* amounts_counterparty */
-        ?,  /* amounts_stamp */
-        ?,  /* amounts_src721 */
-        ?,  /* amounts_src101 */
-
-        ?,  /* amounts_cat21 */
-        ?,  /* amounts_cat21_mint */
-
-        ?,  /* amounts_inscription */
-        ?,  /* amounts_inscription_mint */
-        ?,  /* amounts_inscription_image */
-        ?,  /* amounts_inscription_text */
-        ?,  /* amounts_inscription_json */
-
-        ?,  /* amounts_rune */
-        ?,  /* amounts_rune_etch */
-        ?,  /* amounts_rune_mint */
-        ?,  /* amounts_rune_cenotaph */
-
-        ?,  /* amounts_brc20 */
-        ?,  /* amounts_brc20_deploy */
-        ?,  /* amounts_brc20_mint */
-        ?,  /* amounts_brc20_transfer */
-
-        ?,  /* amounts_src20 */
-        ?,  /* amounts_src20_deploy */
-        ?,  /* amounts_src20_mint */
-        ?,  /* amounts_src20_transfer */
-
-        ?,  /* fees_rune_mints */
-        ?,  /* fees_non_uncommon_rune_mints */
-        ?,  /* fees_brc20_mints */
-        ?,  /* fees_src20_mints */
-        ?,  /* fees_cat21_mints */
-        ?,  /* fees_atomicals */
-        ?,  /* fees_inscription_mints */
-        ?,  /* fees_inscription_image_mints */
-        ?,  /* fees_inscription_text_mints */
-        ?,  /* fees_inscription_json_mints */
-
-        ?,  /* inscriptions_total_envelope_size */
-        ?,  /* inscriptions_total_content_size */
-        ?,  /* inscriptions_largest_envelope_size */
-        ?,  /* inscriptions_largest_content_size */
-        ?,  /* inscriptions_largest_envelope_inscription_id */
-        ?,  /* inscriptions_largest_content_inscription_id */
-        ?,  /* inscriptions_average_envelope_size */
-        ?,  /* inscriptions_average_content_size */
-
-        ?,  /* inscriptions_image_total_envelope_size */
-        ?,  /* inscriptions_image_total_content_size */
-        ?,  /* inscriptions_image_largest_envelope_size */
-        ?,  /* inscriptions_image_largest_content_size */
-        ?,  /* inscriptions_image_largest_envelope_inscription_id */
-        ?,  /* inscriptions_image_largest_content_inscription_id */
-        ?,  /* inscriptions_image_average_envelope_size */
-        ?,  /* inscriptions_image_average_content_size */
-
-        ?,  /* inscriptions_text_total_envelope_size */
-        ?,  /* inscriptions_text_total_content_size */
-        ?,  /* inscriptions_text_largest_envelope_size */
-        ?,  /* inscriptions_text_largest_content_size */
-        ?,  /* inscriptions_text_largest_envelope_inscription_id */
-        ?,  /* inscriptions_text_largest_content_inscription_id */
-        ?,  /* inscriptions_text_average_envelope_size */
-        ?,  /* inscriptions_text_average_content_size */
-
-        ?,  /* inscriptions_json_total_envelope_size */
-        ?,  /* inscriptions_json_total_content_size */
-        ?,  /* inscriptions_json_largest_envelope_size */
-        ?,  /* inscriptions_json_largest_content_size */
-        ?,  /* inscriptions_json_largest_envelope_inscription_id */
-        ?,  /* inscriptions_json_largest_content_inscription_id */
-        ?,  /* inscriptions_json_average_envelope_size */
-        ?,  /* inscriptions_json_average_content_size */
-
-        ?,  /* inscriptions_brotli_count */
-        ?,  /* inscriptions_gzip_count */
-        ?,  /* inscriptions_compressed_envelope_bytes */
-
-        ?,  /* cat21_genesis_count */
-        ?,  /* cat21_avg_fee_rate */
-        ?,  /* cat21_min_fee_rate */
-        ?,  /* cat21_max_fee_rate */
-
-        ?,  /* runes_unique_mints_count */
-        ?,  /* runes_unique_mints_count_non_uncommon */
-        ?,  /* runes_top_mint_count */
-        ?,  /* runes_top_mint_count_non_uncommon */
-
-        LEFT(?, 20),  /* runes_most_active_mint */
-        LEFT(?, 20),  /* runes_most_active_non_uncommon_mint */
-        LEFT(?, 20),  /* brc20_most_active_mint */
-        LEFT(?, 20),  /* src20_most_active_mint */
-
-        ?   /* analyser_version */
-      )`;
-
       const stats = block.extras.ordpoolStats;
-      const ins = stats.inscriptions;
 
-      const params: any[] = [
-        block.id,
-        block.height,
+      // Single source of truth: column list, placeholder list, and params
+      // array all derive from ORDPOOL_STATS_COLUMNS in the same .map() pass,
+      // so positional drift between them is impossible.
+      const cols         = ['hash', 'height', ...ORDPOOL_STATS_COLUMNS.map(c => c.col)];
+      const placeholders = ['?',    '?',     ...ORDPOOL_STATS_COLUMNS.map(c => c.placeholder ?? '?')];
+      const params       = [block.id, block.height, ...ORDPOOL_STATS_COLUMNS.map(c => c.val(stats))];
 
-        stats.amounts.atomical,
-        stats.amounts.atomicalMint,
-        stats.amounts.atomicalUpdate,
-
-        stats.amounts.counterparty,
-        stats.amounts.stamp,
-        stats.amounts.src721,
-        stats.amounts.src101,
-
-        stats.amounts.cat21,
-        stats.amounts.cat21Mint,
-
-        stats.amounts.inscription,
-        stats.amounts.inscriptionMint,
-        stats.amounts.inscriptionImage,
-        stats.amounts.inscriptionText,
-        stats.amounts.inscriptionJson,
-
-        stats.amounts.rune,
-        stats.amounts.runeEtch,
-        stats.amounts.runeMint,
-        stats.amounts.runeCenotaph,
-
-        stats.amounts.brc20,
-        stats.amounts.brc20Deploy,
-        stats.amounts.brc20Mint,
-        stats.amounts.brc20Transfer,
-
-        stats.amounts.src20,
-        stats.amounts.src20Deploy,
-        stats.amounts.src20Mint,
-        stats.amounts.src20Transfer,
-
-        stats.fees.runeMints,
-        stats.fees.nonUncommonRuneMints,
-        stats.fees.brc20Mints,
-        stats.fees.src20Mints,
-        stats.fees.cat21Mints,
-        stats.fees.atomicals,
-        stats.fees.inscriptionMints,
-        stats.fees.inscriptionImageMints,
-        stats.fees.inscriptionTextMints,
-        stats.fees.inscriptionJsonMints,
-
-        ins.totalEnvelopeSize,
-        ins.totalContentSize,
-        ins.largestEnvelopeSize,
-        ins.largestContentSize,
-        ins.largestEnvelopeInscriptionId,
-        ins.largestContentInscriptionId,
-        ins.averageEnvelopeSize,
-        ins.averageContentSize,
-
-        ins.image.totalEnvelopeSize,
-        ins.image.totalContentSize,
-        ins.image.largestEnvelopeSize,
-        ins.image.largestContentSize,
-        ins.image.largestEnvelopeInscriptionId,
-        ins.image.largestContentInscriptionId,
-        ins.image.averageEnvelopeSize,
-        ins.image.averageContentSize,
-
-        ins.text.totalEnvelopeSize,
-        ins.text.totalContentSize,
-        ins.text.largestEnvelopeSize,
-        ins.text.largestContentSize,
-        ins.text.largestEnvelopeInscriptionId,
-        ins.text.largestContentInscriptionId,
-        ins.text.averageEnvelopeSize,
-        ins.text.averageContentSize,
-
-        ins.json.totalEnvelopeSize,
-        ins.json.totalContentSize,
-        ins.json.largestEnvelopeSize,
-        ins.json.largestContentSize,
-        ins.json.largestEnvelopeInscriptionId,
-        ins.json.largestContentInscriptionId,
-        ins.json.averageEnvelopeSize,
-        ins.json.averageContentSize,
-
-        ins.brotliCount,
-        ins.gzipCount,
-        ins.compressedEnvelopeBytes,
-
-        stats.cat21.genesisCount,
-        stats.cat21.avgFeeRate,
-        stats.cat21.minFeeRate,
-        stats.cat21.maxFeeRate,
-
-        stats.runes.uniqueMintsCount,
-        stats.runes.uniqueMintsCountNonUncommon,
-        stats.runes.topMintCount,
-        stats.runes.topMintCountNonUncommon,
-
-        stats.runes.mostActiveMint,
-        stats.runes.mostActiveNonUncommonMint,
-        stats.brc20.mostActiveMint,
-        stats.src20.mostActiveMint,
-
-        stats.version
-      ];
+      const query = `INSERT INTO ordpool_stats(${cols.join(', ')}) VALUES (${placeholders.join(', ')})`;
 
       await DB.query(query, params, 'silent');
 
@@ -663,136 +490,29 @@ class OrdpoolBlocksRepository {
       return undefined;
     }
 
-    return {
-      amounts: {
-        atomical: dbBlk.amountsAtomical,
-        atomicalMint: dbBlk.amountsAtomicalMint,
-        atomicalUpdate: dbBlk.amountsAtomicalUpdate,
+    // Apply the spec: every ordpool_stats column → corresponding OrdpoolStats
+    // field via the column's `set` function. Same source of truth as INSERT.
+    const result = getEmptyStats();
+    const dbBlkAny = dbBlk as unknown as Record<string, unknown>;
+    for (const c of ORDPOOL_STATS_COLUMNS) {
+      c.set(result, dbBlkAny[c.alias]);
+    }
 
-        counterparty: dbBlk.amountsCounterparty,
-        stamp: dbBlk.amountsStamp,
-        src721: dbBlk.amountsSrc721,
-        src101: dbBlk.amountsSrc101,
+    // Satellite GROUP_CONCAT'd fields aren't part of the per-column spec
+    // (they aggregate JOIN'd rows from sibling tables). Wire them in
+    // separately via the existing compactor helpers.
+    result.runes.runeMintActivity     = compactToMintActivity(dbBlk.runeMintActivity);
+    result.runes.runeEtchAttempts     = compactToRuneEtchAttempts(dbBlk.runeEtchAttempts);
+    result.brc20.brc20MintActivity    = compactToMintActivity(dbBlk.brc20MintActivity);
+    result.brc20.brc20DeployAttempts  = compactToBrc20DeployAttempts(dbBlk.brc20DeployAttempts);
+    result.src20.src20MintActivity    = compactToMintActivity(dbBlk.src20MintActivity);
+    result.src20.src20DeployAttempts  = compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts);
+    result.cat21.minimalCat21MintActivity = compactToMinimalCat21Mints(dbBlk.cat21MintActivity);
+    // Block-detail responses don't carry the atomical_op /
+    // counterparty per-row satellite arrays — chart endpoints
+    // query those tables directly via GROUP BY.
 
-        cat21: dbBlk.amountsCat21,
-        cat21Mint: dbBlk.amountsCat21Mint,
-
-        inscription: dbBlk.amountsInscription,
-        inscriptionMint: dbBlk.amountsInscriptionMint,
-        inscriptionImage: dbBlk.amountsInscriptionImage,
-        inscriptionText: dbBlk.amountsInscriptionText,
-        inscriptionJson: dbBlk.amountsInscriptionJson,
-
-        rune: dbBlk.amountsRune,
-        runeEtch: dbBlk.amountsRuneEtch,
-        runeMint: dbBlk.amountsRuneMint,
-        runeCenotaph: dbBlk.amountsRuneCenotaph,
-
-        brc20: dbBlk.amountsBrc20,
-        brc20Deploy: dbBlk.amountsBrc20Deploy,
-        brc20Mint: dbBlk.amountsBrc20Mint,
-        brc20Transfer: dbBlk.amountsBrc20Transfer,
-
-        src20: dbBlk.amountsSrc20,
-        src20Deploy: dbBlk.amountsSrc20Deploy,
-        src20Mint: dbBlk.amountsSrc20Mint,
-        src20Transfer: dbBlk.amountsSrc20Transfer
-      },
-      fees: {
-        runeMints: dbBlk.feesRuneMints,
-        nonUncommonRuneMints: dbBlk.feesNonUncommonRuneMints,
-        brc20Mints: dbBlk.feesBrc20Mints,
-        src20Mints: dbBlk.feesSrc20Mints,
-        cat21Mints: dbBlk.feesCat21Mints,
-        atomicals: dbBlk.feesAtomicals,
-        inscriptionMints: dbBlk.feesInscriptionMints,
-        inscriptionImageMints: dbBlk.feesInscriptionImageMints,
-        inscriptionTextMints: dbBlk.feesInscriptionTextMints,
-        inscriptionJsonMints: dbBlk.feesInscriptionJsonMints,
-      },
-      inscriptions: {
-        totalEnvelopeSize: dbBlk.inscriptionsTotalEnvelopeSize,
-        totalContentSize: dbBlk.inscriptionsTotalContentSize,
-        largestEnvelopeSize: dbBlk.inscriptionsLargestEnvelopeSize,
-        largestContentSize: dbBlk.inscriptionsLargestContentSize,
-        largestEnvelopeInscriptionId: dbBlk.inscriptionsLargestEnvelopeInscriptionId,
-        largestContentInscriptionId: dbBlk.inscriptionsLargestContentInscriptionId,
-        averageEnvelopeSize: dbBlk.inscriptionsAverageEnvelopeSize,
-        averageContentSize: dbBlk.inscriptionsAverageContentSize,
-
-        image: {
-          totalEnvelopeSize: dbBlk.inscriptionsImageTotalEnvelopeSize,
-          totalContentSize: dbBlk.inscriptionsImageTotalContentSize,
-          largestEnvelopeSize: dbBlk.inscriptionsImageLargestEnvelopeSize,
-          largestContentSize: dbBlk.inscriptionsImageLargestContentSize,
-          largestEnvelopeInscriptionId: dbBlk.inscriptionsImageLargestEnvelopeInscriptionId,
-          largestContentInscriptionId: dbBlk.inscriptionsImageLargestContentInscriptionId,
-          averageEnvelopeSize: dbBlk.inscriptionsImageAverageEnvelopeSize,
-          averageContentSize: dbBlk.inscriptionsImageAverageContentSize,
-        },
-        text: {
-          totalEnvelopeSize: dbBlk.inscriptionsTextTotalEnvelopeSize,
-          totalContentSize: dbBlk.inscriptionsTextTotalContentSize,
-          largestEnvelopeSize: dbBlk.inscriptionsTextLargestEnvelopeSize,
-          largestContentSize: dbBlk.inscriptionsTextLargestContentSize,
-          largestEnvelopeInscriptionId: dbBlk.inscriptionsTextLargestEnvelopeInscriptionId,
-          largestContentInscriptionId: dbBlk.inscriptionsTextLargestContentInscriptionId,
-          averageEnvelopeSize: dbBlk.inscriptionsTextAverageEnvelopeSize,
-          averageContentSize: dbBlk.inscriptionsTextAverageContentSize,
-        },
-        json: {
-          totalEnvelopeSize: dbBlk.inscriptionsJsonTotalEnvelopeSize,
-          totalContentSize: dbBlk.inscriptionsJsonTotalContentSize,
-          largestEnvelopeSize: dbBlk.inscriptionsJsonLargestEnvelopeSize,
-          largestContentSize: dbBlk.inscriptionsJsonLargestContentSize,
-          largestEnvelopeInscriptionId: dbBlk.inscriptionsJsonLargestEnvelopeInscriptionId,
-          largestContentInscriptionId: dbBlk.inscriptionsJsonLargestContentInscriptionId,
-          averageEnvelopeSize: dbBlk.inscriptionsJsonAverageEnvelopeSize,
-          averageContentSize: dbBlk.inscriptionsJsonAverageContentSize,
-        },
-
-        brotliCount: dbBlk.inscriptionsBrotliCount,
-        gzipCount: dbBlk.inscriptionsGzipCount,
-        compressedEnvelopeBytes: dbBlk.inscriptionsCompressedEnvelopeBytes,
-      },
-      runes: {
-        mostActiveMint: dbBlk.runesMostActiveMint,
-        mostActiveNonUncommonMint: dbBlk.runesMostActiveNonUncommonMint,
-        runeMintActivity: compactToMintActivity(dbBlk.runeMintActivity),
-        runeEtchAttempts: compactToRuneEtchAttempts(dbBlk.runeEtchAttempts),
-        uniqueMintsCount: dbBlk.runesUniqueMintsCount,
-        uniqueMintsCountNonUncommon: dbBlk.runesUniqueMintsCountNonUncommon,
-        topMintCount: dbBlk.runesTopMintCount,
-        topMintCountNonUncommon: dbBlk.runesTopMintCountNonUncommon,
-      },
-      brc20: {
-        mostActiveMint: dbBlk.brc20MostActiveMint,
-        brc20MintActivity: compactToMintActivity(dbBlk.brc20MintActivity),
-        brc20DeployAttempts: compactToBrc20DeployAttempts(dbBlk.brc20DeployAttempts)
-      },
-      src20: {
-        mostActiveMint: dbBlk.src20MostActiveMint,
-        src20MintActivity: compactToMintActivity(dbBlk.src20MintActivity),
-        src20DeployAttempts: compactToSrc20DeployAttempts(dbBlk.src20DeployAttempts)
-      },
-      cat21: {
-        minimalCat21MintActivity: compactToMinimalCat21Mints(dbBlk.cat21MintActivity),
-        genesisCount: dbBlk.cat21GenesisCount,
-        avgFeeRate: dbBlk.cat21AvgFeeRate,
-        minFeeRate: dbBlk.cat21MinFeeRate,
-        maxFeeRate: dbBlk.cat21MaxFeeRate,
-      },
-      // Block-detail responses don't carry the per-row satellite arrays;
-      // chart endpoints query ordpool_stats_atomical_op /
-      // ordpool_stats_counterparty directly via GROUP BY.
-      atomicals: {
-        atomicalOps: [],
-      },
-      counterparty: {
-        counterpartyMessages: [],
-      },
-      version: dbBlk.analyserVersion
-    };
+    return result;
   }
 
   /**
