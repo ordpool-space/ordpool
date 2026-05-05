@@ -19,7 +19,10 @@ jobs:
       matrix:
         node: ["24.13.0"]
       fail-fast: false
-    runs-on: mempool-ci
+    # `mempool-ci` upstream is a self-hosted runner ordpool doesn't have access
+    # to, so jobs queued forever. Use the free `ubuntu-latest` GHA runner —
+    # has Docker preinstalled, which is all this workflow needs.
+    runs-on: ubuntu-latest
 
     name: Backend Integration Tests - node ${{ matrix.node }}
     
