@@ -17,6 +17,17 @@ class OrdpoolStatisticsApi {
 
     const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
     const sqlInterval = getSqlInterval(interval);
+
+    // Satellite-table-driven charts use their own JOIN target + extra
+    // GROUP BY discriminator (operation / message_type). Build the query
+    // separately rather than overloading the per-time aggregation path.
+    if (type === 'atomical-ops') {
+      return this.getAtomicalOpsBreakdown(firstInscriptionHeight, sqlInterval, aggregation);
+    }
+    if (type === 'counterparty-messages') {
+      return this.getCounterpartyMessagesBreakdown(firstInscriptionHeight, sqlInterval, aggregation);
+    }
+
     const selectClause = this.getSelectClause(type);
     const groupByClause = this.getGroupByClause(aggregation);
 
@@ -35,6 +46,77 @@ class OrdpoolStatisticsApi {
       return rows;
     } catch (error) {
       logger.err(`Error executing query: ${error}`, 'Ordpool');
+      throw error;
+    }
+  }
+
+  /**
+   * Per-operation breakdown for the atomical-ops chart. Joins
+   * ordpool_stats_atomical_op (one row per atomical mint/update) and groups
+   * by operation type AND time bucket, so the response is one row per
+   * (period, operation) combination.
+   */
+  private async getAtomicalOpsBreakdown(
+    firstInscriptionHeight: number,
+    sqlInterval: string,
+    aggregation: Aggregation
+  ): Promise<OrdpoolStatisticResponse[]> {
+    const groupByTime = this.getGroupByClause(aggregation).replace(/^GROUP BY/, '');
+    const query = `
+      SELECT
+        MIN(b.height) AS minHeight,
+        MAX(b.height) AS maxHeight,
+        MIN(UNIX_TIMESTAMP(b.blockTimestamp)) AS minTime,
+        MAX(UNIX_TIMESTAMP(b.blockTimestamp)) AS maxTime,
+        ao.operation AS operation,
+        COUNT(*) AS count
+      FROM blocks b
+      JOIN ordpool_stats_atomical_op ao ON ao.hash = b.hash
+      WHERE b.height >= ${firstInscriptionHeight}
+        AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
+      GROUP BY ${groupByTime}, ao.operation
+      ORDER BY b.blockTimestamp DESC
+    `;
+    try {
+      const [rows] : any[] = await DB.query(query);
+      return rows;
+    } catch (error) {
+      logger.err(`Error executing atomical-ops query: ${error}`, 'Ordpool');
+      throw error;
+    }
+  }
+
+  /**
+   * Per-message-type breakdown for the counterparty-messages chart.
+   * Same pattern as getAtomicalOpsBreakdown, joining
+   * ordpool_stats_counterparty.
+   */
+  private async getCounterpartyMessagesBreakdown(
+    firstInscriptionHeight: number,
+    sqlInterval: string,
+    aggregation: Aggregation
+  ): Promise<OrdpoolStatisticResponse[]> {
+    const groupByTime = this.getGroupByClause(aggregation).replace(/^GROUP BY/, '');
+    const query = `
+      SELECT
+        MIN(b.height) AS minHeight,
+        MAX(b.height) AS maxHeight,
+        MIN(UNIX_TIMESTAMP(b.blockTimestamp)) AS minTime,
+        MAX(UNIX_TIMESTAMP(b.blockTimestamp)) AS maxTime,
+        cp.message_type AS messageType,
+        COUNT(*) AS count
+      FROM blocks b
+      JOIN ordpool_stats_counterparty cp ON cp.hash = b.hash
+      WHERE b.height >= ${firstInscriptionHeight}
+        AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
+      GROUP BY ${groupByTime}, cp.message_type
+      ORDER BY b.blockTimestamp DESC
+    `;
+    try {
+      const [rows] : any[] = await DB.query(query);
+      return rows;
+    } catch (error) {
+      logger.err(`Error executing counterparty-messages query: ${error}`, 'Ordpool');
       throw error;
     }
   }
@@ -72,6 +154,7 @@ class OrdpoolStatisticsApi {
           SUM(bos.fees_brc20_mints) AS feesBrc20Mints,
           SUM(bos.fees_src20_mints) AS feesSrc20Mints,
           SUM(bos.fees_cat21_mints) AS feesCat21Mints,
+          SUM(bos.fees_atomicals) AS feesAtomicals,
           SUM(bos.fees_inscription_mints) AS feesInscriptionMints
         `;
       case 'inscription-sizes':
@@ -98,6 +181,57 @@ class OrdpoolStatisticsApi {
           SUM(bos.amounts_inscription_image) AS inscriptionImages,
           SUM(bos.amounts_inscription_text) AS inscriptionTexts,
           SUM(bos.amounts_inscription_json) AS inscriptionJsons
+        `;
+      case 'inscription-type-sizes':
+        return `
+          ${baseClause},
+          SUM(bos.inscriptions_image_total_envelope_size) AS imageTotalEnvelopeSize,
+          SUM(bos.inscriptions_image_total_content_size)  AS imageTotalContentSize,
+          AVG(bos.inscriptions_image_average_envelope_size) AS imageAvgEnvelopeSize,
+          AVG(bos.inscriptions_image_average_content_size)  AS imageAvgContentSize,
+          SUM(bos.inscriptions_text_total_envelope_size)  AS textTotalEnvelopeSize,
+          SUM(bos.inscriptions_text_total_content_size)   AS textTotalContentSize,
+          AVG(bos.inscriptions_text_average_envelope_size) AS textAvgEnvelopeSize,
+          AVG(bos.inscriptions_text_average_content_size)  AS textAvgContentSize,
+          SUM(bos.inscriptions_json_total_envelope_size)  AS jsonTotalEnvelopeSize,
+          SUM(bos.inscriptions_json_total_content_size)   AS jsonTotalContentSize,
+          AVG(bos.inscriptions_json_average_envelope_size) AS jsonAvgEnvelopeSize,
+          AVG(bos.inscriptions_json_average_content_size)  AS jsonAvgContentSize
+        `;
+      case 'inscription-type-fees':
+        return `
+          ${baseClause},
+          SUM(bos.fees_inscription_image_mints) AS feesInscriptionImageMints,
+          SUM(bos.fees_inscription_text_mints)  AS feesInscriptionTextMints,
+          SUM(bos.fees_inscription_json_mints)  AS feesInscriptionJsonMints
+        `;
+      case 'inscription-compression':
+        return `
+          ${baseClause},
+          SUM(bos.inscriptions_brotli_count)             AS brotliCount,
+          SUM(bos.inscriptions_gzip_count)               AS gzipCount,
+          SUM(bos.inscriptions_compressed_envelope_bytes) AS compressedEnvelopeBytes
+        `;
+      case 'cat21-stats':
+        return `
+          ${baseClause},
+          SUM(bos.amounts_cat21_mint)  AS cat21Mints,
+          SUM(bos.cat21_genesis_count) AS cat21GenesisCount,
+          AVG(bos.cat21_avg_fee_rate)  AS cat21AvgFeeRate,
+          MIN(bos.cat21_min_fee_rate)  AS cat21MinFeeRate,
+          MAX(bos.cat21_max_fee_rate)  AS cat21MaxFeeRate
+        `;
+      case 'rune-activity':
+        // Returns both overall and non-uncommon series in one response so the
+        // chart shows both lines together — UNCOMMON•GOODS dominance is real
+        // and worth surfacing alongside the "what other runes are happening"
+        // signal.
+        return `
+          ${baseClause},
+          SUM(bos.runes_unique_mints_count)              AS uniqueMints,
+          SUM(bos.runes_unique_mints_count_non_uncommon) AS uniqueMintsNonUncommon,
+          MAX(bos.runes_top_mint_count)                  AS topMintCount,
+          MAX(bos.runes_top_mint_count_non_uncommon)     AS topMintCountNonUncommon
         `;
       default:
         throw new Error('Invalid chart type: ' + type);
