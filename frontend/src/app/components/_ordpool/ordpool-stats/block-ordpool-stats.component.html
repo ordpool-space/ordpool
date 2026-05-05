@@ -82,7 +82,7 @@
             <app-truncate
               [text]="largestEnvelopeInscriptionId"
               [lastChars]="5"
-              [link]="['/tx/' | relativeUrl, largestEnvelopeInscriptionId]"
+              [link]="['/tx/' | relativeUrl, largestEnvelopeInscriptionId.split('i')[0]]"
               [maxWidth]="250"
               ><app-clipboard [text]="largestEnvelopeInscriptionId" />
             </app-truncate>
