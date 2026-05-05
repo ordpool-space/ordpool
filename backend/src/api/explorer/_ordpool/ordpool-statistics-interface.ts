@@ -118,9 +118,8 @@ export interface Cat21StatStatistic extends BaseStatistic {
   cat21MaxFeeRate?: number | null;
 }
 
-// Rune block aggregates per period — both overall + non-uncommon variants in
-// the same response. UI shows both lines together (don't hide UNCOMMON•GOODS,
-// it's the truth).
+// Rune block aggregates per period — both overall + non-uncommon variants
+// in the same response so consumers can render both series.
 export interface RuneActivityStatistic extends BaseStatistic {
   uniqueMints?: number;
   uniqueMintsNonUncommon?: number;

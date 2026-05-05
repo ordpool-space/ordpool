@@ -15,6 +15,7 @@ import {
   Interval,
   MintStatistic,
   NewTokenStatistic,
+  OrdpoolStatisticResponse,
   ProtocolStatistic,
   RuneActivityStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
@@ -36,14 +37,6 @@ type ExtractStatistic<T extends ChartType> =
   T extends 'counterparty-messages' ? CounterpartyMessagesStatistic :
   never;
 
-/**
- * A utility function to map the chart type to its corresponding data handler.
- * Ensures type safety and clear mappings for each chart type.
- * 
- * @param type - The chart type (e.g., 'mints', 'new-tokens', 'fees', 'inscription-sizes').
- * @param cases - A map of chart types to their respective handlers.
- * @returns A callback function for the specified chart type.
- */
 export function matchType<T extends ChartType>(
   type: T,
   cases: { [K in ChartType]: (stats: ExtractStatistic<K>[]) => LineSeriesOption[] }
@@ -143,10 +136,6 @@ export function getSeriesData<T extends ChartType>(
       { name: 'Top mint count',                                  type: 'line', data: stats.map((stat) => [stat.minTime, stat.topMintCount]) },
       { name: 'Top mint count (excluding ⧉ UNCOMMON•GOODS)',     type: 'line', data: stats.map((stat) => [stat.minTime, stat.topMintCountNonUncommon]) },
     ],
-    // atomical-ops + counterparty-messages return one row per (period, op).
-    // Single aggregate line for now; per-op breakdown is a follow-up
-    // (needs grouping the rows by `operation` / `messageType` and emitting
-    // one series per distinct value — depends on the time-series UI design).
     'atomical-ops': (stats: AtomicalOpsStatistic[]) => [
       { name: 'Atomical operations', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
     ],
@@ -156,17 +145,9 @@ export function getSeriesData<T extends ChartType>(
   })(statistics);
 }
 
-/**
- * Generates tooltip content based on the chart type.
- * @param type - The chart type.
- * @param stat - The statistics object to generate the tooltip content from.
- * @returns Tooltip HTML content as a string.
- */
 export function getTooltipContent(
   type: ChartType,
-  stat: MintStatistic | NewTokenStatistic | FeeStatistic | InscriptionSizeStatistic | ProtocolStatistic | InscriptionTypeStatistic
-       | InscriptionTypeSizeStatistic | InscriptionTypeFeeStatistic | InscriptionCompressionStatistic
-       | Cat21StatStatistic | RuneActivityStatistic | AtomicalOpsStatistic | CounterpartyMessagesStatistic
+  stat: OrdpoolStatisticResponse,
 ): string {
 
   const baseContent = `
