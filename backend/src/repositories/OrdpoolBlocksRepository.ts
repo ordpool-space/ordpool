@@ -982,30 +982,96 @@ class OrdpoolBlocksRepository {
    * Highest block height with a row in `ordpool_stats`, or `null` when the
    * stats table is empty. The indexer processes ASC from `firstStatsHeight`,
    * so this is the indexer's frontier. Read by /health/indexer-progress.
+   *
+   * Cached because the public route is unauthenticated and a naive caller
+   * (or attacker) could otherwise hammer this MAX-over-JOIN once per HTTP
+   * request. The frontier moves at indexer rate (a few blocks per minute
+   * at most), so a 30s TTL is well within "live enough" for the heartbeat
+   * script and the stats-page banner.
    */
   async getMaxStatsHeight(): Promise<number | null> {
-    const [rows] = await DB.query(
-      `SELECT MAX(b.height) AS h FROM ordpool_stats s JOIN blocks b ON b.hash = s.hash`
-    ) as any;
-    const h = rows[0]?.h;
-    return h === null || h === undefined ? null : Number(h);
+    return this.getCachedOrFetch('maxStatsHeight', async () => {
+      const [rows] = await DB.query(
+        `SELECT MAX(b.height) AS h FROM ordpool_stats s JOIN blocks b ON b.hash = s.hash`
+      ) as any;
+      const h = rows[0]?.h;
+      return h === null || h === undefined ? null : Number(h);
+    });
   }
 
   /**
    * Count of blocks at or above `startHeight` that still need ordpool stats
-   * (no row in `ordpool_stats`, not in `ordpool_stats_skipped`). Mirrors the
-   * query inside `getBlocksWithoutOrdpoolStatsInRange` minus the LIMIT.
+   * (no row in `ordpool_stats`, not in `ordpool_stats_skipped`). Read by
+   * /health/indexer-progress.
+   *
+   * Computed by arithmetic over three small/indexed COUNTs rather than a
+   * NOT EXISTS scan over the full blocks table. The original query took
+   * ~10s under backfill load and exposed a DDoS vector on the public
+   * endpoint; the arithmetic version is sub-second and the cache below
+   * makes per-request cost trivial.
+   *
+   *   pendingCount = eligibleBlocks - processedBlocks - skippedBlocks
+   *
+   * where eligibleBlocks is the count of `blocks` rows at or above
+   * `startHeight` (indexed range scan), processedBlocks is the row count
+   * of `ordpool_stats` joined with blocks at or above `startHeight`, and
+   * skippedBlocks is the row count of `ordpool_stats_skipped` at or
+   * above `startHeight`.
+   *
+   * The cache is keyed by startHeight so callers passing different
+   * thresholds don't collide; in practice only one is ever used.
    */
   async getPendingStatsCount(startHeight: number): Promise<number> {
-    const [rows] = await DB.query(
-      `SELECT COUNT(*) AS c
-       FROM blocks
-       WHERE height >= ?
-         AND NOT EXISTS (SELECT 1 FROM ordpool_stats WHERE ordpool_stats.hash = blocks.hash)
-         AND NOT EXISTS (SELECT 1 FROM ordpool_stats_skipped WHERE ordpool_stats_skipped.height = blocks.height)`,
-      [startHeight]
-    ) as any;
-    return Number(rows[0]?.c ?? 0);
+    return this.getCachedOrFetch(`pendingStatsCount:${startHeight}`, async () => {
+      const [rows] = await DB.query(
+        `SELECT
+           (SELECT COUNT(*) FROM blocks WHERE height >= ?)                                      AS eligible,
+           (SELECT COUNT(*) FROM ordpool_stats s JOIN blocks b ON b.hash = s.hash
+              WHERE b.height >= ?)                                                              AS processed,
+           (SELECT COUNT(*) FROM ordpool_stats_skipped WHERE height >= ?)                       AS skipped`,
+        [startHeight, startHeight, startHeight]
+      ) as any;
+      const r = rows[0] || {};
+      return Math.max(0, Number(r.eligible ?? 0) - Number(r.processed ?? 0) - Number(r.skipped ?? 0));
+    });
+  }
+
+  /**
+   * Lightweight in-memory TTL cache + single-flight gate for
+   * /health/indexer-progress's slow components. Two HTTP requests that
+   * arrive on a cold cache share the same DB roundtrip; subsequent
+   * requests within the TTL get the cached value instantly. The cache
+   * lives in this Node process only — the indexer's primary purpose
+   * (writing blocks into ordpool_stats) is unaffected.
+   */
+  private static readonly STATS_CACHE_TTL_MS = 30_000;
+  private statsCache: Map<string, { value: unknown; expiresAt: number }> = new Map();
+  private statsInflight: Map<string, Promise<unknown>> = new Map();
+
+  private async getCachedOrFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    const now = Date.now();
+    const cached = this.statsCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.value as T;
+    }
+    const inflight = this.statsInflight.get(key);
+    if (inflight) {
+      return inflight as Promise<T>;
+    }
+    const promise = (async () => {
+      try {
+        const value = await fetcher();
+        this.statsCache.set(key, {
+          value,
+          expiresAt: Date.now() + OrdpoolBlocksRepository.STATS_CACHE_TTL_MS,
+        });
+        return value;
+      } finally {
+        this.statsInflight.delete(key);
+      }
+    })();
+    this.statsInflight.set(key, promise);
+    return promise;
   }
 }
 
