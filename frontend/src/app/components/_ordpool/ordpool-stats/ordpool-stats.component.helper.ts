@@ -1,4 +1,5 @@
 import { LineSeriesOption } from 'echarts';
+import { ATOMICAL_OPERATION_LABELS, AtomicalOperation } from 'ordpool-parser';
 
 import {
   Aggregation,
@@ -19,6 +20,18 @@ import {
   ProtocolStatistic,
   RuneActivityStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
+
+/**
+ * Map an `ordpool_stats_atomical_op.operation` value to a human-readable
+ * series label. The backend stores the raw opcode (`x`, `y`, `z`) for the
+ * three single-letter ops; ATOMICAL_OPERATION_LABELS turns them into
+ * `splat` / `split` / `custom-color`. Multi-letter ops pass through
+ * unchanged. Unknown values fall back to the raw string so we never lose
+ * data in the chart legend.
+ */
+function atomicalOpLabel(operation: string): string {
+  return ATOMICAL_OPERATION_LABELS[operation as AtomicalOperation] ?? operation;
+}
 
 // Helper type to map ChartType to the corresponding statistic type
 type ExtractStatistic<T extends ChartType> =
@@ -147,9 +160,24 @@ export function getSeriesData<T extends ChartType>(
       { name: 'Top mint count',                                  type: 'line', data: stats.map((stat) => [stat.minTime, stat.topMintCount]) },
       { name: 'Top mint count (excluding ⧉ UNCOMMON•GOODS)',     type: 'line', data: stats.map((stat) => [stat.minTime, stat.topMintCountNonUncommon]) },
     ],
-    'atomical-ops': (stats: AtomicalOpsStatistic[]) => [
-      { name: 'Atomical operations', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
-    ],
+    'atomical-ops': (stats: AtomicalOpsStatistic[]) => {
+      // The API returns one row per (period, operation) pair. Group rows by
+      // operation, render one series per distinct op with the ATOMICAL_OPERATION_LABELS
+      // display label (splat / split / custom-color for the single-letter ops,
+      // raw multi-letter codes like nft / mint-nft-realm / dft otherwise).
+      const byOp = new Map<string, [number, number | undefined][]>();
+      for (const row of stats) {
+        const op = row.operation ?? 'unknown';
+        const points = byOp.get(op) ?? [];
+        points.push([row.minTime, row.count]);
+        byOp.set(op, points);
+      }
+      return Array.from(byOp.entries()).map(([op, data]) => ({
+        name: atomicalOpLabel(op),
+        type: 'line',
+        data,
+      }));
+    },
     'counterparty-messages': (stats: CounterpartyMessagesStatistic[]) => [
       { name: 'Counterparty messages', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
     ],
@@ -268,6 +296,14 @@ export function getTooltipContent(
       `
       );
     }
+    case 'atomical-ops': {
+      const s = stat as AtomicalOpsStatistic;
+      return baseContent + `${atomicalOpLabel(s.operation ?? 'unknown')}: ${s.count ?? 0}`;
+    }
+    case 'counterparty-messages': {
+      const s = stat as CounterpartyMessagesStatistic;
+      return baseContent + `${s.messageType ?? 'unknown'}: ${s.count ?? 0}`;
+    }
     default:
       throw new Error(`Unsupported chart type: ${type}`);
   }
@@ -332,7 +368,7 @@ export function formatChartDescription(chartType: ChartType, interval: Interval,
     'inscription-compression': 'Compression telemetry for inscriptions: brotli vs gzip counts and total compressed envelope bytes. Useful for tracking how much of the inscription weight is compressed.',
     'cat21-stats': 'CAT-21 block aggregates: total mints, genesis cats minted (the rare hash-derived trait, ~1 per 256), and average fee rate per cat.',
     'rune-activity': 'Rune mint activity: distinct runes seeing mints + the top single-rune mint count. Each metric is shown twice — overall and excluding UNCOMMON•GOODS (rune 1:0, which dominates every rune mint stat).',
-    'atomical-ops': 'Atomical operations breakdown by op type (nft/ft/dft/dmt/mod/evt/sl/dat).',
+    'atomical-ops': 'Atomical operations breakdown by op type (nft / ft / dft / dmt / dat / mod / evt / sl / splat / split / custom-color).',
     'counterparty-messages': 'Counterparty message activity per period — sends, dispensers, fairmints, bets, sweeps, and the rest of the 22+ message types.',
   };
 
