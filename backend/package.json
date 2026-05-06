@@ -52,7 +52,7 @@
     "express": "~4.22.1",
     "maxmind": "~4.3.11",
     "mysql2": "~3.20.0",
-    "ordpool-parser": "github:ordpool-space/ordpool-parser#f8f1664dc16743a1999c8e78b32ab0ad9df6a39a",
+    "ordpool-parser": "github:ordpool-space/ordpool-parser#90a3249b9303c48931657d65a9861903689e6a33",
     "rust-gbt": "file:./rust-gbt",
     "redis": "^4.7.0",
     "socks-proxy-agent": "~7.0.0",
