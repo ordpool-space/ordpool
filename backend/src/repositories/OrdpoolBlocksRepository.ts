@@ -1043,7 +1043,11 @@ class OrdpoolBlocksRepository {
    * lives in this Node process only — the indexer's primary purpose
    * (writing blocks into ordpool_stats) is unaffected.
    */
-  private static readonly STATS_CACHE_TTL_MS = 30_000;
+  // 120s exceeds the frontend's 60s IndexerProgressService poll interval,
+  // so consecutive polls hit the cache instead of fragmenting around the
+  // TTL boundary. Freshness cost: at most a couple of blocks of staleness
+  // for frontierHeight / pendingCount, well below user-perceptible.
+  private static readonly STATS_CACHE_TTL_MS = 120_000;
   private statsCache: Map<string, { value: unknown; expiresAt: number }> = new Map();
   private statsInflight: Map<string, Promise<unknown>> = new Map();
 
