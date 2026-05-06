@@ -859,8 +859,10 @@ class OrdpoolBlocksRepository {
 
     }
 
-    // Insert Atomical operations (mint / update / etc.) into the satellite
-    // table. The parser already filters out x/y/z FT UTXO transfer ops.
+    // Insert Atomical operations (mint / update / FT UTXO transfer) into the
+    // satellite table. Stored values are the raw single- or multi-letter
+    // opcodes from the witness envelope; the consumer maps to display labels
+    // via ordpool-parser's ATOMICAL_OPERATION_LABELS.
     for (const { txId, operation, ticker } of stats.atomicals.atomicalOps) {
       await DB.query(
         `INSERT INTO ordpool_stats_atomical_op (hash, height, txid, operation, ticker)
