@@ -8,11 +8,9 @@ import logger from './logger';
 // audio, video, model, pdf, markdown, ...) emit HTML that loads small CSS/JS
 // helpers via relative paths like /resources/inscription-assets/preview-text.css.
 // Inside the iframe at api.ordpool.space/preview/<id> these resolve to
-// api.ordpool.space/resources/... — but the static assets only live on the SPA
-// host (ordpool.space), where Angular ships them as build artifacts.
-//
-// Result before this proxy: every non-renderDirectly preview rendered as a
-// blank/black iframe because the helper script never loaded.
+// api.ordpool.space/resources/..., but the static assets only live on the SPA
+// host (ordpool.space), where Angular ships them as build artifacts. Without
+// this proxy the helper scripts 404 and the iframe renders blank.
 //
 // We stream the assets through the backend over HTTPS rather than 301-redirect
 // because module scripts (`<script type="module">`) require CORS allow-origin
