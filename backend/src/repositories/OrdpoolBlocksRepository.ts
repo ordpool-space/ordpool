@@ -1004,19 +1004,18 @@ class OrdpoolBlocksRepository {
    * (no row in `ordpool_stats`, not in `ordpool_stats_skipped`). Read by
    * /health/indexer-progress.
    *
-   * Computed by arithmetic over three small/indexed COUNTs rather than a
-   * NOT EXISTS scan over the full blocks table. The original query took
-   * ~10s under backfill load and exposed a DDoS vector on the public
-   * endpoint; the arithmetic version is sub-second and the cache below
-   * makes per-request cost trivial.
+   * Computed by arithmetic over three indexed range-scans:
    *
    *   pendingCount = eligibleBlocks - processedBlocks - skippedBlocks
    *
-   * where eligibleBlocks is the count of `blocks` rows at or above
-   * `startHeight` (indexed range scan), processedBlocks is the row count
-   * of `ordpool_stats` joined with blocks at or above `startHeight`, and
-   * skippedBlocks is the row count of `ordpool_stats_skipped` at or
-   * above `startHeight`.
+   * eligibleBlocks: count of `blocks` rows at or above `startHeight`.
+   * processedBlocks: count of `ordpool_stats` rows joined to blocks at
+   * or above `startHeight`. skippedBlocks: count of
+   * `ordpool_stats_skipped` rows at or above `startHeight`.
+   *
+   * Each summand is sub-second on indexed columns; together with the
+   * cache below the public endpoint stays cheap regardless of request
+   * volume.
    *
    * The cache is keyed by startHeight so callers passing different
    * thresholds don't collide; in practice only one is ever used.
