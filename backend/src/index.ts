@@ -18,6 +18,7 @@ import mempool from './api/mempool';
 import elementsParser from './api/liquid/elements-parser';
 import databaseMigration from './api/database-migration';
 import { createElectrsProxyMiddleware } from './electrs-proxy-middleware';
+import { createInscriptionAssetsProxyMiddleware } from './inscription-assets-proxy-middleware';
 import syncAssets from './sync-assets';
 import icons from './api/liquid/icons';
 import { Common } from './api/common';
@@ -154,6 +155,9 @@ class Server {
       })
       // HACK --- Ordpool: cheap nginx replacement (see electrs-proxy-middleware.ts).
       .use('/api', createElectrsProxyMiddleware(config.ESPLORA?.REST_API_URL))
+      // HACK --- Ordpool: serve inscription-preview helper assets through the
+      // backend so that iframes hosted at api.ordpool.space can resolve them.
+      .use('/resources/inscription-assets', createInscriptionAssetsProxyMiddleware())
       .use(express.urlencoded({ extended: true, limit: '10mb' }))
       .use(express.text({ type: ['text/plain', 'application/base64'], limit: '10mb' }))
       .use(express.json({ limit: '10mb' }))
