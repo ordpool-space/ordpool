@@ -561,12 +561,11 @@ class OrdpoolDatabaseMigration {
       // 'operation' at row 1" when an INSERT carries a value not in that
       // ENUM, which after POISON_THRESHOLD failures put the whole block
       // into ordpool_stats_skipped. Widen to VARCHAR(16) so unfamiliar
-      // opcode strings just store as-is — analytics that care about
+      // opcode strings just store as-is. Analytics that care about
       // 'nft' / 'ft' / 'dft' / etc. can still WHERE-filter, and unknown
       // values become a passive data point rather than a stop-the-block
       // event. Then clear ordpool_stats_skipped so the indexer requeues
-      // the previously-poisoned blocks (16 as of 2026-05-06) on the
-      // widened schema.
+      // the previously-poisoned blocks on the widened schema.
       queries.push(`ALTER TABLE ordpool_stats_atomical_op MODIFY COLUMN operation VARCHAR(16) NOT NULL;`);
       queries.push(`DELETE FROM ordpool_stats_skipped;`);
     }
