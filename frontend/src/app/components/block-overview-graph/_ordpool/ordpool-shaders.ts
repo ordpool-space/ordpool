@@ -95,7 +95,10 @@ varying mediump vec2 vCoord;
 varying mediump vec2 vCorner;
 
 uniform sampler2D uSampler;
-uniform float now;
+// `now` is also declared in the vertex shader (which defaults to highp for
+// floats). WebGL link errors with "Precisions of uniform 'now' differ between
+// VERTEX and FRAGMENT shaders." unless we match it explicitly here.
+uniform highp float now;
 
 // Procedural rotating-arc spinner drawn in slot-local UV space (vCorner).
 // Returns a [0..1] intensity; 1 = full white sweep highlight, 0 = leave the
