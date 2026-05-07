@@ -14,7 +14,7 @@
  *
  * # Pipeline
  *
- *   1. CPU side: HTMLCanvasElement (1024² → 2048² after first saturation).
+ *   1. CPU side: HTMLCanvasElement (1024² → 2048² when the smaller atlas runs out of room).
  *      `requestSlot()` allocates a power-of-two pixel rectangle via the
  *      quadtree allocator and kicks off a fetch for `/content/<txid>` (or
  *      `/stamp-content/<txid>`, `/atomical-content/<txid>` depending on
@@ -40,13 +40,15 @@
  * fetches retry twice (500 ms / 2 s) before being added to a FIFO failure
  * cache so transient flaps don't permanently blacklist a txid.
  *
- * # Saturation
+ * # Running out of room ("atlas full")
  *
- * On first full, the atlas expands once from 1024² to 2048² (4× capacity)
- * by allocating a larger canvas, blitting the existing pixel buffer at
- * (0, 0) — slot positions are preserved — and recreating the GPU texture.
- * The second saturation is logged once via `console.error` and the
- * affected sprite stays at flat colour; further saturations are silent.
+ * On the first allocation that doesn't fit, the atlas expands once from
+ * 1024² to 2048² (4× capacity) by allocating a larger canvas, blitting the
+ * existing pixel buffer at (0, 0) — slot positions are preserved — and
+ * recreating the GPU texture. If the 2048² atlas also fills, one
+ * `console.error` reports it and the affected sprite stays at flat colour;
+ * further "atlas full" events are silent so the console doesn't flood when
+ * a single scene rebuild fires the same condition for many sprites.
  *
  * # No spinner
  *
@@ -61,10 +63,11 @@ import * as quadtree from './ordpool-quadtree-allocator';
 /** Initial atlas edge length in pixels. Used by the component as the default
  *  uniform value before any allocation has happened. */
 export const ATLAS_SIZE = 1024;
-/** Maximum atlas edge length. The atlas doubles once on first saturation;
- *  any further fills emit a one-shot console.error and fall back to the
- *  flat-colour rendering path. 2048² stays well below `gl.MAX_TEXTURE_SIZE`
- *  (≥ 4096 universally, typically 8192–16384) and uses ~16 MB of GPU memory. */
+/** Maximum atlas edge length. The atlas doubles once when it first runs out
+ *  of room; any further "atlas full" event emits a one-shot console.error and
+ *  the sprite falls back to flat colour. 2048² stays well below
+ *  `gl.MAX_TEXTURE_SIZE` (≥ 4096 universally, typically 8192–16384) and uses
+ *  ~16 MB of GPU memory. */
 export const MAX_ATLAS_SIZE = 2048;
 const SLOT_QUANTUM = 32;
 const MIN_SLOT = 32;
@@ -114,7 +117,7 @@ export class OrdpoolInscriptionAtlas {
   private dirtyTexture = false;
   /** True after we've run out of room at MAX_ATLAS_SIZE. Used to suppress
    *  repeat console.error spam when many sprites can't fit in the same scene. */
-  private saturationLogged = false;
+  private atlasFullLogged = false;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -125,8 +128,9 @@ export class OrdpoolInscriptionAtlas {
   }
 
   /** Current atlas edge length in pixels. Starts at `ATLAS_SIZE`, doubles to
-   *  `MAX_ATLAS_SIZE` on first saturation. The shader's `atlasSize` uniform
-   *  must track this — the component reads it every frame in the run loop. */
+   *  `MAX_ATLAS_SIZE` when the smaller atlas runs out of room. The shader's
+   *  `atlasSize` uniform must track this — the component reads it every frame
+   *  in the run loop. */
   get size(): number {
     return this.currentSize;
   }
@@ -197,20 +201,24 @@ export class OrdpoolInscriptionAtlas {
       existing.sprite = sprite;
       if (existing.status === 'loaded') {
         sprite.setTexture(quadtree.packSlot(existing.node));
+      } else {
+        // status === 'pending' (failed entries are deleted, not parked here).
+        // Match the new-entry path so the rejoiner sees a spinner, not a flat tile.
+        sprite.setLoading();
       }
       return true;
     }
     const slotPx = computeSlotSize(vsize);
     let node = quadtree.insert(this.root, slotPx);
     if (!node && this.currentSize < MAX_ATLAS_SIZE) {
-      // First saturation: double the atlas (1024 → 2048) and try again.
-      // The expansion preserves every existing slot, so already-loaded
-      // textures stay correctly addressed by their existing packed slots.
+      // First time we run out of room: double the atlas (1024 → 2048) and
+      // try again. The expansion preserves every existing slot, so already-
+      // loaded textures stay correctly addressed by their existing packed slots.
       this.expand();
       node = quadtree.insert(this.root, slotPx);
     }
     if (!node) {
-      this.logSaturationOnce(slotPx);
+      this.logAtlasFullOnce(slotPx);
       return false;
     }
     const entry: AtlasEntry = {
@@ -224,8 +232,27 @@ export class OrdpoolInscriptionAtlas {
       abort: () => undefined,
     };
     this.entries.set(txid, entry);
+    // Show the loading spinner immediately. Stays visible through retry
+    // backoffs until either onload (→ setTexture) or final onerror (→ clearTexture).
+    sprite.setLoading();
     this.queueFetch(entry);
     return true;
+  }
+
+  /**
+   * True iff at least one entry is still pending (in flight, queued, or
+   * waiting on a retry backoff). The component reads this every frame in
+   * its render loop so the procedural spinner keeps animating while images
+   * are loading — without it the loop would settle and the spinner would
+   * freeze mid-rotation.
+   */
+  hasPendingFetches(): boolean {
+    for (const entry of this.entries.values()) {
+      if (entry.status === 'pending') {
+        return true;
+      }
+    }
+    return false;
   }
 
   releaseSlot(txid: string): void {
@@ -248,7 +275,7 @@ export class OrdpoolInscriptionAtlas {
 
   /**
    * Tear down: cancel in-flight fetches, drop the GPU texture, reset the
-   * saturation log gate. Called from the component's `ngOnDestroy`.
+   * atlas-full log gate. Called from the component's `ngOnDestroy`.
    */
   destroy(): void {
     for (const entry of this.entries.values()) {
@@ -258,7 +285,7 @@ export class OrdpoolInscriptionAtlas {
     this.failed.clear();
     this.fetchQueue = [];
     this.inFlight = 0;
-    this.saturationLogged = false;
+    this.atlasFullLogged = false;
     if (this.gl && this.texture) {
       this.gl.deleteTexture(this.texture);
     }
@@ -339,9 +366,9 @@ export class OrdpoolInscriptionAtlas {
    * since the quadtree expansion makes the old root the top-left child of
    * the new root — and recreates the GPU texture.
    *
-   * Called once per atlas instance, on first saturation in `requestSlot`.
-   * Beyond `MAX_ATLAS_SIZE` we don't expand further; further full conditions
-   * are reported by `logSaturationOnce`.
+   * Called once per atlas instance, the first time `requestSlot` runs out
+   * of room. Beyond `MAX_ATLAS_SIZE` we don't expand further; further
+   * "atlas full" conditions are reported by `logAtlasFullOnce`.
    */
   private expand(): void {
     const newSize = this.currentSize * 2;
@@ -360,16 +387,16 @@ export class OrdpoolInscriptionAtlas {
     this.allocateTexture();
   }
 
-  private logSaturationOnce(slotPx: number): void {
-    if (this.saturationLogged) {
+  private logAtlasFullOnce(slotPx: number): void {
+    if (this.atlasFullLogged) {
       return;
     }
-    this.saturationLogged = true;
+    this.atlasFullLogged = true;
     // eslint-disable-next-line no-console
     console.error(
-      `[ordpool-atlas] saturated at ${this.currentSize}×${this.currentSize}px ` +
+      `[ordpool-atlas] atlas full at ${this.currentSize}×${this.currentSize}px ` +
       `(${this.entries.size} slots in flight); refusing slot of ${slotPx}px. ` +
-      `Sprite will fall back to flat colour. Subsequent saturations are silent.`
+      `Sprite will fall back to flat colour. Subsequent atlas-full events are silent.`
     );
   }
 

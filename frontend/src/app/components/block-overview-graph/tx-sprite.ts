@@ -22,8 +22,10 @@ export default class TxSprite {
 
   iAmACat: boolean;
 
-  // HACK -- Ordpool inscription image previews: per-sprite texture state
-  // 0 = render flat colour (default). 1 = sample the inscription atlas at packedSlot.
+  // HACK -- Ordpool artifact image previews: per-sprite render state.
+  //   0 = flat colour (default — non-image tx, or atlas-full fallback).
+  //   1 = procedural loading-spinner over the flat colour (fetch in flight).
+  //   2 = sample the artifact atlas at packedSlot (image loaded onto GPU).
   private ordpoolIsTextureFlag = 0;
   private ordpoolPackedSlot = 0;
 
@@ -180,30 +182,36 @@ export default class TxSprite {
     this.vertexArray.setData(this.vertexPointer, this.vertexData);
   }
 
-  // HACK -- Ordpool inscription image previews: switch this sprite into atlas-sampling mode.
-  // Called by OrdpoolInscriptionAtlas once the inscription image has been blitted into its slot.
+  // HACK -- Ordpool artifact image previews: switch this sprite into atlas-sampling mode.
+  // Called once the artifact image has been blitted into its atlas slot.
   setTexture(packedSlot: number): void {
-    this.ordpoolIsTextureFlag = 1;
-    this.ordpoolPackedSlot = packedSlot;
-    const vertexStride = VI.length + 4;
-    for (let vertex = 0; vertex < 6; vertex++) {
-      this.vertexData[(vertex * vertexStride) + 2] = 1;
-      this.vertexData[(vertex * vertexStride) + 3] = packedSlot;
-    }
-    this.vertexArray.setData(this.vertexPointer, this.vertexData);
+    this.writeOrdpoolTextureState(2, packedSlot);
   }
 
-  // HACK -- Ordpool inscription image previews: drop back to flat colour rendering.
+  // HACK -- Ordpool artifact image previews: switch this sprite into the
+  // procedural-spinner mode. Called when the atlas allocates a slot but the
+  // fetch is still in flight. The shader doesn't need a packed slot for the
+  // spinner (it draws in slot-local UV space) but we keep the field cleared
+  // so a subsequent failure → clearTexture() leaves a clean slate.
+  setLoading(): void {
+    this.writeOrdpoolTextureState(1, 0);
+  }
+
+  // HACK -- Ordpool artifact image previews: drop back to flat colour rendering.
   clearTexture(): void {
     if (this.ordpoolIsTextureFlag === 0 && this.ordpoolPackedSlot === 0) {
       return;
     }
-    this.ordpoolIsTextureFlag = 0;
-    this.ordpoolPackedSlot = 0;
+    this.writeOrdpoolTextureState(0, 0);
+  }
+
+  private writeOrdpoolTextureState(flag: number, packedSlot: number): void {
+    this.ordpoolIsTextureFlag = flag;
+    this.ordpoolPackedSlot = packedSlot;
     const vertexStride = VI.length + 4;
     for (let vertex = 0; vertex < 6; vertex++) {
-      this.vertexData[(vertex * vertexStride) + 2] = 0;
-      this.vertexData[(vertex * vertexStride) + 3] = 0;
+      this.vertexData[(vertex * vertexStride) + 2] = flag;
+      this.vertexData[(vertex * vertexStride) + 3] = packedSlot;
     }
     this.vertexArray.setData(this.vertexPointer, this.vertexData);
   }

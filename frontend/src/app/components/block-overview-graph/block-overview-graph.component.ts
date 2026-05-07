@@ -83,7 +83,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   // HACK -- Ordpool artifact image previews: atlas owns the inscription/stamp/atomical texture.
   ordpoolAtlas: OrdpoolInscriptionAtlas;
   // HACK -- Ordpool: cached atlasSize uniform location. Pushed every frame
-  // because the atlas can expand at runtime (1024 → 2048 on first saturation).
+  // because the atlas can expand at runtime (1024 → 2048 when it first runs out of room).
   ordpoolAtlasSizeUniform: WebGLUniformLocation | null = null;
   running: boolean;
   scene: BlockScene;
@@ -544,7 +544,13 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     }
 
     /* LOOP */
-    if (this.running && this.scene && now <= (this.scene.animateUntil + 500)) {
+    // HACK -- Ordpool artifact image previews: the procedural loading spinner
+    // is driven by the `now` uniform, so the render loop must keep firing
+    // while any fetch is in flight. Without this the loop would settle to
+    // the 1s heartbeat as soon as scene animation ended, freezing the spinner.
+    const stillAnimating = this.scene && now <= (this.scene.animateUntil + 500);
+    const stillLoading = this.ordpoolAtlas?.hasPendingFetches() === true;
+    if (this.running && (stillAnimating || stillLoading)) {
       this.doRun();
     } else {
       clearTimeout(this.animationHeartBeat);
