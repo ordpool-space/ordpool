@@ -190,7 +190,10 @@ class GeneralOrdpoolRoutes {
 }
 
 
-function isBareTxid(value: string): boolean {
+// Exported for testing. Bare txid = 64 hex chars with no `iN` suffix.
+// The /content/ route uses this to decide whether to look up a specific
+// inscription index or pick the first image-bearing one in the tx.
+export function isBareTxid(value: string): boolean {
   return /^[0-9a-fA-F]{64}$/.test(value);
 }
 
