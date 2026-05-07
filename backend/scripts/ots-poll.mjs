@@ -3,9 +3,8 @@
  * OpenTimestamps calendar polling prototype.
  *
  * Polls every known public OTS calendar's `/` endpoint with
- * `Accept: application/json` and tracks observed Bitcoin transactions
- * (confirmed and mempool/pending), wallet addresses (which rotate every
- * commit), and per-calendar liveness. Writes a single JSON state file so
+ * `Accept: application/json` and harvests observed Bitcoin transactions
+ * (confirmed and mempool/pending). Writes a single JSON state file so
  * subsequent runs can dedupe and detect newly-seen txs.
  *
  * Zero deps. Pure Node 18+ built-ins (fetch, fs, setInterval).
@@ -48,7 +47,7 @@ function parseArgs(argv) {
 
 function loadState() {
   if (!existsSync(STATE_PATH)) {
-    return { calendars: {}, txs: {}, addresses: {}, polls: 0 };
+    return { calendars: {}, txs: {}, polls: 0 };
   }
   return JSON.parse(readFileSync(STATE_PATH, 'utf8'));
 }
@@ -78,33 +77,17 @@ async function fetchCalendar(cal) {
 }
 
 function pollCalendar(cal, body, state, now) {
-  // Snapshot calendar-level state.
-  const prev = state.calendars[cal.name];
-  const addr = body.address;
-  const addressRotated = prev && prev.current_address && prev.current_address !== addr;
-
+  // Snapshot calendar-level liveness only. Anything else (address, balance,
+  // tip, pending_commitments) we read fresh from the next poll if we ever
+  // need it -- not worth persisting.
   state.calendars[cal.name] = {
     url: cal.url,
     operator: cal.operator,
     version: body.version,
-    current_address: addr,
-    pending_commitments: body.pending_commitments,
-    txs_waiting_for_confirmation: body.txs_waiting_for_confirmation,
-    most_recent_tx: body.most_recent_tx,
-    tip: body.tip,
-    block_height: body.block_height,
-    balance: body.balance,
-    time_between_transactions: body.time_between_transactions,
-    fees_in_last_week: body.fees_in_last_week,
     last_poll_at: now,
     last_poll_ok: true,
     last_error: null,
   };
-
-  // Track every observed receive address (one per rotation).
-  if (addr && !state.addresses[addr]) {
-    state.addresses[addr] = { calendar: cal.name, first_seen_at: now };
-  }
 
   // Walk the transactions array. Each item may be confirmed (has blockheight)
   // or mempool (no blockheight, confirmations=0).
@@ -125,15 +108,12 @@ function pollCalendar(cal, body, state, now) {
       state.txs[txid] = {
         calendar: cal.name,
         first_seen_at: now,
-        first_seen_confirmations: tx.confirmations ?? 0,
         confirmed_at: !isPending ? now : null,
         blockhash: tx.blockhash ?? null,
         blockheight: tx.blockheight ?? null,
         blocktime: tx.blocktime ?? null,
-        broadcast_time: tx.time ?? null,
         fee: tx.fee ?? null,
         feerate: tx.feerate ?? null,
-        bip125_replaceable: tx['bip125-replaceable'] ?? null,
       };
     } else if (!existing.confirmed_at && !isPending) {
       newlyConfirmed++;
@@ -144,19 +124,14 @@ function pollCalendar(cal, body, state, now) {
     }
   }
 
-  return { newCount, newlyConfirmed, pendingNow, total: txList.length, addressRotated };
+  return { newCount, newlyConfirmed, pendingNow, total: txList.length };
 }
 
 function summary(state) {
   const txEntries = Object.entries(state.txs);
   const confirmed = txEntries.filter(([, t]) => t.confirmed_at !== null).length;
   const pending = txEntries.length - confirmed;
-  return {
-    total_txs: txEntries.length,
-    confirmed,
-    pending,
-    addresses_seen: Object.keys(state.addresses).length,
-  };
+  return { total_txs: txEntries.length, confirmed, pending };
 }
 
 async function poll(state) {
@@ -180,11 +155,9 @@ async function poll(state) {
       continue;
     }
     const stats = pollCalendar(cal, r.body, state, now);
-    const rot = stats.addressRotated ? ' ROT' : '';
     lines.push(
       `[${now}] ${cal.name.padEnd(9)}: total=${String(stats.total).padStart(3)} new=${stats.newCount} ` +
-      `confirmed+=${stats.newlyConfirmed} mempool=${stats.pendingNow}${rot} ` +
-      `addr=${r.body.address.slice(0, 14)}...`
+      `confirmed+=${stats.newlyConfirmed} mempool=${stats.pendingNow}`
     );
   }
 
@@ -193,7 +166,7 @@ async function poll(state) {
   if (state.polls === 1 || state.polls % 10 === 0) {
     const s = summary(state);
     console.log(
-      `[${now}] === poll #${state.polls}  unique_txs=${s.total_txs} (confirmed=${s.confirmed} pending=${s.pending})  addresses=${s.addresses_seen} ===`
+      `[${now}] === poll #${state.polls}  unique_txs=${s.total_txs} (confirmed=${s.confirmed} pending=${s.pending}) ===`
     );
   }
 }
