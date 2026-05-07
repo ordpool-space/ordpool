@@ -54,15 +54,20 @@ describe('Common.getTransactionFlags — async parser integration', () => {
     expect(resultBigInt & OrdpoolTransactionFlags.ordpool_cat21_mint).toBe(OrdpoolTransactionFlags.ordpool_cat21_mint);
   });
 
-  it('still calls the parser on the early-return path (tx.flags already set)', async () => {
+  it('skips the parser on the early-return path so we don\'t re-parse a tx whose flags are baked in', async () => {
     const ordpool = OrdpoolTransactionFlags.ordpool_rune | OrdpoolTransactionFlags.ordpool_rune_etch;
     parseSpy.mockImplementation(async (_tx, flags: bigint) => flags | ordpool);
 
     const tx = createMockTx();
+    // First call: tx.flags is undefined → full classification + parser runs once.
     tx.flags = await Common.getTransactionFlags(tx, 840000);
-    const second = await Common.getTransactionFlags(tx, 840000);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    expect(BigInt(tx.flags) & OrdpoolTransactionFlags.ordpool_rune).toBe(OrdpoolTransactionFlags.ordpool_rune);
 
-    expect(parseSpy).toHaveBeenCalledTimes(2);
+    // Second call: tx.flags is set → early-return; parser is NOT called again.
+    // Ordpool bits stay because they're already baked into tx.flags from the first call.
+    const second = await Common.getTransactionFlags(tx, 840000);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
     expect(BigInt(second) & OrdpoolTransactionFlags.ordpool_rune).toBe(OrdpoolTransactionFlags.ordpool_rune);
     expect(BigInt(second) & OrdpoolTransactionFlags.ordpool_rune_etch).toBe(OrdpoolTransactionFlags.ordpool_rune_etch);
   });
