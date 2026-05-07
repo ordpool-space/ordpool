@@ -123,12 +123,12 @@ describe('ordpool-quadtree-allocator', () => {
       expect(root.full).toBe(true);
     });
 
-    it('skips fully-saturated subtrees on subsequent inserts', () => {
+    it('skips fully-allocated subtrees on subsequent inserts', () => {
       const root = createRoot(ATLAS);
       const half = ATLAS / 2;
       const quarter = ATLAS / 4;
 
-      // Saturate the first quadrant with quarter-size slots.
+      // Fill the first quadrant with quarter-size slots.
       insert(root, quarter);
       insert(root, quarter);
       insert(root, quarter);
@@ -139,7 +139,7 @@ describe('ordpool-quadtree-allocator', () => {
       expect(firstQuadrant.full).toBe(true);
       expect(root.full).toBe(false);
 
-      // Next half-size insert must skip the saturated first quadrant
+      // Next half-size insert must skip the now-full first quadrant
       // and land in the next available quadrant (top-right at half,0).
       const next = insert(root, half)!;
       expect(next.x).toBe(half);
@@ -186,12 +186,12 @@ describe('ordpool-quadtree-allocator', () => {
       const half = ATLAS / 2;
       const quarter = ATLAS / 4;
 
-      // Saturate the first quadrant with quarter-size slots.
+      // Fill the first quadrant with quarter-size slots.
       const q1 = insert(root, quarter)!;
       insert(root, quarter);
       insert(root, quarter);
       insert(root, quarter);
-      // Saturate the rest of the atlas with half-size slots.
+      // Fill the rest of the atlas with half-size slots.
       insert(root, half);
       insert(root, half);
       insert(root, half);
@@ -314,7 +314,7 @@ describe('ordpool-quadtree-allocator', () => {
 
     it('makes ~3/4 of the new atlas available for fresh allocations', () => {
       const root = createRoot(1024);
-      // Saturate the original 1024² with 512² slots (4 slots = full)
+      // Fill the original 1024² with 512² slots (4 slots = full)
       insert(root, 512);
       insert(root, 512);
       insert(root, 512);

@@ -13,10 +13,14 @@
     coordinate is flipped to match the un-flipped texImage2D upload of a
     canvas2d (which has top-left origin, while WebGL textures default to
     bottom-left).
-  - The fragment shader has a two-way branch: sample the atlas when
-    `vIsTexture > 0.5`, fall back to the flat colour otherwise. The atlas
-    sample is composited over the colour using the texture's own alpha,
-    so transparent pixels in the inscription show the underlying tx tint.
+  - The fragment shader has a tristate branch on `vIsTexture`:
+      `> 1.5` — sample the atlas. The texture is composited over the flat
+        colour using the image's own alpha, so transparent pixels in the
+        inscription show the underlying tx tint.
+      `> 0.5` — render a procedural rotating-arc spinner over the flat
+        colour, driven by the existing `now` uniform. No texture asset
+        required; arc + ring math runs in ~10 GPU instructions per pixel.
+      `else`  — flat colour fallback.
 
   Atlas size and slot quantum match `OrdpoolInscriptionAtlas` (1024 px /
   32 px). The numeric constants in the shader match `packSlot()`'s
@@ -27,6 +31,7 @@ export const ordpoolVertexShaderSrc = `
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
 varying mediump vec2 vCoord;
+varying mediump vec2 vCorner;
 
 attribute vec4 offset;
 attribute vec4 posX;
@@ -70,6 +75,9 @@ void main() {
   vColor = vec4(red, green, blue, alpha);
 
   vIsTexture = offset.z;
+  // Slot-local UV. Interpolates linearly to (0..1, 0..1) across the quad,
+  // used by the loading-spinner branch in the fragment shader.
+  vCorner = corner;
   float spriteX = mod(offset.w, 512.0) * 32.0;
   float spriteY = mod(floor(offset.w / 512.0), 512.0) * 32.0;
   float pxSize = floor(offset.w / 262144.0) * 32.0;
@@ -84,17 +92,41 @@ precision mediump float;
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
 varying mediump vec2 vCoord;
+varying mediump vec2 vCorner;
 
 uniform sampler2D uSampler;
+uniform float now;
+
+// Procedural rotating-arc spinner drawn in slot-local UV space (vCorner).
+// Returns a [0..1] intensity; 1 = full white sweep highlight, 0 = leave the
+// underlying color alone. Width and rotation speed are tuned for visibility
+// at small (32–64 px) slot sizes without dominating large slots.
+float ordpoolSpinnerIntensity(vec2 vc, float t) {
+  vec2 p = vc - 0.5;
+  float dist = length(p);
+  // Annulus between 0.30 and 0.45 of the slot, anti-aliased on both edges.
+  float ring = smoothstep(0.45, 0.42, dist) * (1.0 - smoothstep(0.30, 0.33, dist));
+  // Rotating sweep: bright at the leading edge of an arc, fading away
+  // around the rest of the circle. now is in ms, 0.003 ≈ one rev / 2 s.
+  float angle = atan(p.y, p.x);
+  float rotation = t * 0.003;
+  float arc = mod(angle + rotation, 6.283185);
+  float sweep = smoothstep(2.5, 0.0, arc);
+  return ring * sweep;
+}
 
 void main() {
-  if (vIsTexture > 0.5) {
+  vec4 base = vColor;
+  if (vIsTexture > 1.5) {
     vec4 tex = texture2D(uSampler, vCoord);
-    gl_FragColor.rgb = tex.rgb * tex.a + vColor.rgb * (1.0 - tex.a);
-    gl_FragColor.a = vColor.a;
-  } else {
-    gl_FragColor = vColor;
+    base.rgb = tex.rgb * tex.a + vColor.rgb * (1.0 - tex.a);
+    base.a = vColor.a;
+  } else if (vIsTexture > 0.5) {
+    float lit = ordpoolSpinnerIntensity(vCorner, now);
+    base.rgb = mix(vColor.rgb, vec3(1.0), lit * 0.85);
+    base.a = vColor.a;
   }
+  gl_FragColor = base;
   gl_FragColor.rgb *= gl_FragColor.a;
 }
 `;

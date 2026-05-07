@@ -7,12 +7,12 @@
  * # Layout
  *
  * The atlas is a square of `size` pixels (currently 1024, expandable to 2048
- * on first saturation). Allocation requests are power-of-two slot sizes
- * (32, 64, 128, 256, 512). Free space is tracked as a tree of nodes; when a
- * request lands deeper than the current subdivision, the parent node is
- * "budded" into 4 equal quadrants and recursion continues into them. The
- * `full` flag propagates upward so we can short-circuit search through
- * saturated subtrees.
+ * when the smaller atlas runs out of room). Allocation requests are
+ * power-of-two slot sizes (32, 64, 128, 256, 512). Free space is tracked as
+ * a tree of nodes; when a request lands deeper than the current
+ * subdivision, the parent node is "budded" into 4 equal quadrants and
+ * recursion continues into them. The `full` flag propagates upward so we
+ * can short-circuit search through fully-allocated subtrees.
  *
  * # Coordinate convention
  *
@@ -63,7 +63,7 @@ export interface QuadNode {
   budded: boolean;
   /** True when the node holds an allocation (only meaningful on leaves). */
   filled: boolean;
-  /** Saturation flag — true when this subtree has zero free leaves. Used to short-circuit insert(). */
+  /** True when this subtree has zero free leaves. Used to short-circuit insert(). */
   full: boolean;
   /** Four equal-size sub-quadrants (top-left, top-right, bottom-left, bottom-right) when budded. */
   children: QuadNode[] | null;
