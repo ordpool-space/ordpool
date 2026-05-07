@@ -89,42 +89,66 @@ function pollCalendar(cal, body, state, now) {
     last_error: null,
   };
 
-  // Walk the transactions array. Each item may be confirmed (has blockheight)
-  // or mempool (no blockheight, confirmations=0).
+  // Walk the confirmed-only `transactions[]` array. The server filters out
+  // unconfirmed txs (rpc.py:227 `confirmations > 0`). For mempool txs see
+  // the separate `most_recent_tx` handling below.
   const txList = Array.isArray(body.transactions) ? body.transactions : [];
   let newCount = 0;
   let newlyConfirmed = 0;
-  let pendingNow = 0;
 
   for (const tx of txList) {
     const txid = tx.txid;
     if (!txid) continue;
-    const isPending = !tx.blockheight || tx.confirmations === 0;
-    if (isPending) pendingNow++;
-
     const existing = state.txs[txid];
     if (!existing) {
       newCount++;
       state.txs[txid] = {
         calendar: cal.name,
         first_seen_at: now,
-        confirmed_at: !isPending ? now : null,
+        confirmed_at: now,
         blockhash: tx.blockhash ?? null,
         blockheight: tx.blockheight ?? null,
         blocktime: tx.blocktime ?? null,
         fee: tx.fee ?? null,
         feerate: tx.feerate ?? null,
       };
-    } else if (!existing.confirmed_at && !isPending) {
+    } else if (!existing.confirmed_at) {
       newlyConfirmed++;
       existing.confirmed_at = now;
       existing.blockhash = tx.blockhash ?? null;
       existing.blockheight = tx.blockheight ?? null;
       existing.blocktime = tx.blocktime ?? null;
+      existing.fee = tx.fee ?? existing.fee ?? null;
+      existing.feerate = tx.feerate ?? existing.feerate ?? null;
     }
   }
 
-  return { newCount, newlyConfirmed, pendingNow, total: txList.length };
+  // Mempool tracking: the calendar's latest unconfirmed tx (RBF-replaced
+  // older ones aren't surfaced as txids -- only the count via prior_versions).
+  // Frequent polling captures each version when it's the current most_recent_tx.
+  let newPending = 0;
+  const mr = body.most_recent_tx;
+  if (mr && mr !== 'None' && !state.txs[mr]) {
+    newPending++;
+    state.txs[mr] = {
+      calendar: cal.name,
+      first_seen_at: now,
+      confirmed_at: null,
+      blockhash: null,
+      blockheight: null,
+      blocktime: null,
+      fee: null,
+      feerate: null,
+    };
+  }
+
+  return {
+    newCount,
+    newlyConfirmed,
+    newPending,
+    pendingNow: body.txs_waiting_for_confirmation ?? 0,
+    total: txList.length,
+  };
 }
 
 function summary(state) {
@@ -155,9 +179,11 @@ async function poll(state) {
       continue;
     }
     const stats = pollCalendar(cal, r.body, state, now);
+    const newPendingMark = stats.newPending ? ' MEMPOOL+' : '';
     lines.push(
-      `[${now}] ${cal.name.padEnd(9)}: total=${String(stats.total).padStart(3)} new=${stats.newCount} ` +
-      `confirmed+=${stats.newlyConfirmed} mempool=${stats.pendingNow}`
+      `[${now}] ${cal.name.padEnd(9)}: confirmed=${String(stats.total).padStart(3)} ` +
+      `new=${stats.newCount} confirmed+=${stats.newlyConfirmed} ` +
+      `pending=${stats.pendingNow}${newPendingMark}`
     );
   }
 
