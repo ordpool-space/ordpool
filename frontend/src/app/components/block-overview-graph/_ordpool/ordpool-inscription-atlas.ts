@@ -31,6 +31,9 @@ const MAX_CONCURRENT_FETCHES = 8;
 // 4096 fits the worst-case visible-tx count for several hundred blocks; older entries
 // drop off via FIFO eviction and would simply re-fetch (cheap when /content/ 404s).
 const MAX_FAILED_ENTRIES = 4096;
+// Each fetch gets up to RETRY_DELAYS.length retries before going to the failure cache.
+// Backoff grows so a flapping origin doesn't get hammered. ms.
+const RETRY_DELAYS = [500, 2000];
 
 // Three artifact kinds map to three backend routes that all return a single
 // renderable image. The atlas doesn't care about the kind beyond URL building;
@@ -50,6 +53,7 @@ interface AtlasEntry {
   sprite: TxSprite | null;
   refCount: number;
   status: 'pending' | 'loaded' | 'failed';
+  attempts: number;
   abort: () => void;
 }
 
@@ -127,6 +131,7 @@ export class OrdpoolInscriptionAtlas {
       sprite,
       refCount: 1,
       status: 'pending',
+      attempts: 0,
       abort: () => undefined,
     };
     this.entries.set(txid, entry);
@@ -178,12 +183,18 @@ export class OrdpoolInscriptionAtlas {
 
   private runFetch(entry: AtlasEntry): void {
     this.inFlight++;
+    entry.attempts++;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     let aborted = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     entry.abort = () => {
       aborted = true;
       img.src = '';
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
     };
     img.onload = () => {
       this.inFlight--;
@@ -199,14 +210,26 @@ export class OrdpoolInscriptionAtlas {
     img.onerror = () => {
       this.inFlight--;
       this.drainQueue();
-      if (aborted) {
+      if (aborted || this.entries.get(entry.txid) !== entry) {
+        return;
+      }
+      // Retry on the next backoff slot, then give up. Covers transient 502s,
+      // network flaps, and the brief window between a tx hitting the mempool
+      // and the backend's parser observing it.
+      const backoffIndex = entry.attempts - 1;
+      if (backoffIndex < RETRY_DELAYS.length) {
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (aborted || this.entries.get(entry.txid) !== entry) {
+            return;
+          }
+          this.queueFetch(entry);
+        }, RETRY_DELAYS[backoffIndex]);
         return;
       }
       this.rememberFailure(entry.txid);
-      if (this.entries.get(entry.txid) === entry) {
-        quadtree.remove(entry.node);
-        this.entries.delete(entry.txid);
-      }
+      quadtree.remove(entry.node);
+      this.entries.delete(entry.txid);
     };
     // For inscriptions a bare txid (no `iN`) is interpreted by the backend as
     // "first image-bearing inscription in this tx", so batch reveals where the
