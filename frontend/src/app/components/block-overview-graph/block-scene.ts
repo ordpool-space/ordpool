@@ -4,6 +4,9 @@ import { TransactionStripped } from '@interfaces/node-api.interface';
 import { Color, Position, Square, ViewUpdateParams } from '@components/block-overview-graph/sprite-types';
 import { defaultColorFunction, contrastColorFunction } from '@components/block-overview-graph/utils';
 import { ThemeService } from '@app/services/theme.service';
+// HACK -- Ordpool inscription image previews: scene exposes the atlas to TxView
+// so each tx can register/release its inscription slot.
+import { OrdpoolInscriptionAtlas } from '@components/block-overview-graph/_ordpool/ordpool-inscription-atlas';
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};
@@ -30,11 +33,17 @@ export default class BlockScene {
   layout: BlockLayout;
   animateUntil = 0;
   dirty: boolean;
+  // HACK -- Ordpool inscription image previews: optional atlas reference, read by TxView.
+  ordpoolAtlas: OrdpoolInscriptionAtlas | null = null;
 
-  constructor({ width, height, resolution, blockLimit, animationDuration, animationOffset, orientation, flip, vertexArray, theme, highlighting, colorFunction }:
+  constructor({ width, height, resolution, blockLimit, animationDuration, animationOffset, orientation, flip, vertexArray, theme, highlighting, colorFunction, ordpoolAtlas }:
       { width: number, height: number, resolution: number, blockLimit: number, animationDuration: number, animationOffset: number,
-        orientation: string, flip: boolean, vertexArray: FastVertexArray, theme: ThemeService, highlighting: boolean, colorFunction: ((tx: TxView) => Color) | null }
+        orientation: string, flip: boolean, vertexArray: FastVertexArray, theme: ThemeService, highlighting: boolean, colorFunction: ((tx: TxView) => Color) | null,
+        // HACK -- Ordpool inscription image previews
+        ordpoolAtlas?: OrdpoolInscriptionAtlas | null }
   ) {
+    // HACK -- Ordpool inscription image previews
+    this.ordpoolAtlas = ordpoolAtlas || null;
     this.init({ width, height, resolution, blockLimit, animationDuration, animationOffset, orientation, flip, vertexArray, theme, highlighting, colorFunction });
   }
 

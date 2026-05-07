@@ -5,10 +5,13 @@ import { ordpoolColors } from '@components/block-overview-graph/utils';
 const attribKeys = ['a', 'b', 't', 'v'];
 const updateKeys = ['x', 'y', 's', 'r', 'g', 'b', 'a'];
 
+// HACK -- Ordpool inscription image previews: vertex layout was [cornerX, cornerY, ...VI(28)] = 30 floats.
+// Widened to [cornerX, cornerY, isTextureFlag, packedSlot, ...VI(28)] = 32 floats so each vertex carries
+// the inscription atlas slot. See _ordpool/ordpool-inscription-atlas.ts and _ordpool/ordpool-shaders.ts.
 export default class TxSprite {
-  static vertexSize = 30;
+  static vertexSize = 32;
   static vertexCount = 6;
-  static dataSize: number = (30 * 6);
+  static dataSize: number = (32 * 6);
 
   vertexArray: FastVertexArray;
   vertexPointer: number;
@@ -18,6 +21,11 @@ export default class TxSprite {
   tempAttributes: OptionalAttributes;
 
   iAmACat: boolean;
+
+  // HACK -- Ordpool inscription image previews: per-sprite texture state
+  // 0 = render flat colour (default). 1 = sample the inscription atlas at packedSlot.
+  private ordpoolIsTextureFlag = 0;
+  private ordpoolPackedSlot = 0;
 
   constructor(params: SpriteUpdateParams, vertexArray: FastVertexArray) {
     const offsetTime = params.start;
@@ -153,17 +161,50 @@ export default class TxSprite {
 
     // update vertex data in place
     // ugly, but avoids overhead of allocating large temporary arrays
-    const vertexStride = VI.length + 2;
+    // HACK -- Ordpool inscription image previews: stride bumped from VI.length+2 to VI.length+4
+    // to fit the texture flag and packed atlas slot per vertex.
+    const vertexStride = VI.length + 4;
     for (let vertex = 0; vertex < 6; vertex++) {
       this.vertexData[vertex * vertexStride] = (this.iAmACat ? cat21VertexOffsetFactors : vertexOffsetFactors)[vertex][0];
       this.vertexData[(vertex * vertexStride) + 1] = (this.iAmACat ? cat21VertexOffsetFactors : vertexOffsetFactors)[vertex][1];
+      // HACK -- Ordpool: isTextureFlag + packedSlot fill the third and fourth float of `offset`
+      this.vertexData[(vertex * vertexStride) + 2] = this.ordpoolIsTextureFlag;
+      this.vertexData[(vertex * vertexStride) + 3] = this.ordpoolPackedSlot;
       for (let step = 0; step < VI.length; step++) {
         // components of each field in the vertex array are defined by an entry in VI:
         // VI[i].a is the attribute, VI[i].f is the inner field, VI[i].offA and VI[i].offB are offset factors
-        this.vertexData[(vertex * vertexStride) + step + 2] = attributes[VI[step].a][VI[step].f];
+        this.vertexData[(vertex * vertexStride) + step + 4] = attributes[VI[step].a][VI[step].f];
       }
     }
 
+    this.vertexArray.setData(this.vertexPointer, this.vertexData);
+  }
+
+  // HACK -- Ordpool inscription image previews: switch this sprite into atlas-sampling mode.
+  // Called by OrdpoolInscriptionAtlas once the inscription image has been blitted into its slot.
+  setTexture(packedSlot: number): void {
+    this.ordpoolIsTextureFlag = 1;
+    this.ordpoolPackedSlot = packedSlot;
+    const vertexStride = VI.length + 4;
+    for (let vertex = 0; vertex < 6; vertex++) {
+      this.vertexData[(vertex * vertexStride) + 2] = 1;
+      this.vertexData[(vertex * vertexStride) + 3] = packedSlot;
+    }
+    this.vertexArray.setData(this.vertexPointer, this.vertexData);
+  }
+
+  // HACK -- Ordpool inscription image previews: drop back to flat colour rendering.
+  clearTexture(): void {
+    if (this.ordpoolIsTextureFlag === 0 && this.ordpoolPackedSlot === 0) {
+      return;
+    }
+    this.ordpoolIsTextureFlag = 0;
+    this.ordpoolPackedSlot = 0;
+    const vertexStride = VI.length + 4;
+    for (let vertex = 0; vertex < 6; vertex++) {
+      this.vertexData[(vertex * vertexStride) + 2] = 0;
+      this.vertexData[(vertex * vertexStride) + 3] = 0;
+    }
     this.vertexArray.setData(this.vertexPointer, this.vertexData);
   }
 

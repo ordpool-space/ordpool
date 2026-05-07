@@ -12,6 +12,10 @@ import { Subscription } from 'rxjs';
 import { defaultColorFunction, setOpacity, defaultAuditColors, defaultColors, ageColorFunction, contrastColorFunction, contrastAuditColors, contrastColors, ordpoolColorFunction } from '@components/block-overview-graph/utils';
 import { ActiveFilter, FilterMode, toFlags } from '@app/shared/filters.utils';
 import { detectWebGL } from '@app/shared/graphs.utils';
+// HACK -- Ordpool inscription image previews: shaders moved into a dedicated file so the atlas
+// vertex/fragment pair is grep-friendly and out of this upstream component.
+import { ordpoolVertexShaderSrc, ordpoolFragmentShaderSrc } from '@components/block-overview-graph/_ordpool/ordpool-shaders';
+import { ATLAS_SIZE, OrdpoolInscriptionAtlas } from '@components/block-overview-graph/_ordpool/ordpool-inscription-atlas';
 
 const unmatchedOpacity = 0.2;
 const unmatchedAuditColors = {
@@ -76,6 +80,8 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   cssHeight: number;
   shaderProgram: WebGLProgram;
   vertexArray: FastVertexArray;
+  // HACK -- Ordpool inscription image previews: atlas owns the inscription texture.
+  ordpoolAtlas: OrdpoolInscriptionAtlas;
   running: boolean;
   scene: BlockScene;
   hoverTx: TxView | void;
@@ -115,6 +121,11 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
     this.vertexArray = new FastVertexArray(512, TxSprite.dataSize);
+    // HACK -- Ordpool inscription image previews: instantiate atlas alongside the vertex array.
+    // GL texture allocation is deferred to initCanvas() once the context exists.
+    if (this.stateService.isBrowser) {
+      this.ordpoolAtlas = new OrdpoolInscriptionAtlas();
+    }
     this.searchSubscription = this.stateService.searchText$.subscribe((text) => {
       this.searchText = text;
       this.updateSearchHighlight();
@@ -189,6 +200,11 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     }
     this.vertexArray.destroy();
     this.vertexArray = null;
+    // HACK -- Ordpool inscription image previews: release atlas texture + cancel in-flight image fetches.
+    if (this.ordpoolAtlas) {
+      this.ordpoolAtlas.destroy();
+      this.ordpoolAtlas = null;
+    }
     this.themeStateSubscription?.unsubscribe();
     this.searchSubscription?.unsubscribe();
   }
@@ -329,18 +345,25 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
+    // HACK -- Ordpool inscription image previews: use shaders that decode the atlas slot from offset.zw
     const shaderSet = [
       {
         type: this.gl.VERTEX_SHADER,
-        src: vertShaderSrc
+        src: ordpoolVertexShaderSrc
       },
       {
         type: this.gl.FRAGMENT_SHADER,
-        src: fragShaderSrc
+        src: ordpoolFragmentShaderSrc
       }
     ];
 
     this.shaderProgram = this.buildShaderProgram(shaderSet);
+
+    // HACK -- Ordpool inscription image previews: allocate the atlas texture against the live GL context.
+    // Survives a context-loss restore because initCanvas() runs again.
+    if (this.ordpoolAtlas) {
+      this.ordpoolAtlas.init(this.gl);
+    }
 
     this.gl.useProgram(this.shaderProgram);
 
@@ -396,7 +419,9 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
         this.scene = new BlockScene({ width: this.displayWidth, height: this.displayHeight, resolution: this.resolution,
           blockLimit: this.blockLimit, orientation: this.orientation, flip: this.flip, vertexArray: this.vertexArray, theme: this.themeService,
           highlighting: this.auditHighlighting, animationDuration: this.animationDuration, animationOffset: this.animationOffset,
-        colorFunction: this.getColorFunction() });
+          // HACK -- Ordpool inscription image previews: scene needs atlas to register/release tx slots.
+          ordpoolAtlas: this.ordpoolAtlas,
+          colorFunction: this.getColorFunction() });
         this.start();
       }
     }
@@ -465,6 +490,13 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
       this.gl.uniform2f(this.gl.getUniformLocation(this.shaderProgram, 'screenSize'), this.displayWidth, this.displayHeight);
       // frame timestamp
       this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'now'), now);
+      // HACK -- Ordpool inscription image previews: feed the atlas texture + size into the shader.
+      // bind() also flushes any pending canvas → texImage2D upload from a recent image arrival.
+      if (this.ordpoolAtlas) {
+        this.ordpoolAtlas.bind(0);
+        this.gl.uniform1i(this.gl.getUniformLocation(this.shaderProgram, 'uSampler'), 0);
+        this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'atlasSize'), ATLAS_SIZE);
+      }
 
       if (this.vertexArray.dirty) {
         /* SET UP SHADER ATTRIBUTES */
@@ -720,7 +752,9 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
 
 // WebGL shader attributes
 const attribs = {
-  offset: { type: 'FLOAT', count: 2, pointer: null, offset: 0 },
+  // HACK -- Ordpool inscription image previews: offset widened from vec2 to vec4 to carry
+  // [cornerX, cornerY, isTextureFlag, packedSlot]. See _ordpool/ordpool-shaders.ts.
+  offset: { type: 'FLOAT', count: 4, pointer: null, offset: 0 },
   posX: { type: 'FLOAT', count: 4, pointer: null, offset: 0 },
   posY: { type: 'FLOAT', count: 4, pointer: null, offset: 0 },
   posR: { type: 'FLOAT', count: 4, pointer: null, offset: 0 },
@@ -740,6 +774,8 @@ for (let i = 0, offset = 0; i < Object.keys(attribs).length; i++) {
   offset += (attrib.count * 4);
 }
 
+/* HACK -- Ordpool inscription image previews: replaced by ordpoolVertexShaderSrc / ordpoolFragmentShaderSrc
+   in _ordpool/ordpool-shaders.ts. Originals preserved for upstream merge tracking.
 const vertShaderSrc = `
 varying lowp vec4 vColor;
 
@@ -798,3 +834,4 @@ void main() {
   gl_FragColor.rgb *= gl_FragColor.a;
 }
 `;
+*/

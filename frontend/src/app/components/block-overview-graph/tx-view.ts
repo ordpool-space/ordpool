@@ -4,6 +4,7 @@ import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from '@components
 import { hexToColor } from '@components/block-overview-graph/utils';
 import BlockScene from '@components/block-overview-graph/block-scene';
 import { TransactionStripped } from '@interfaces/node-api.interface';
+// HACK -- Ordpool inscription image previews: TransactionFlags includes ordpool_inscription_image (bigint)
 import { TransactionFlags } from '@app/shared/filters.utils';
 
 const hoverTransitionTime = 300;
@@ -50,6 +51,10 @@ export default class TxView implements TransactionStripped {
 
   dirty: boolean;
 
+  // HACK -- Ordpool inscription image previews: tracks whether this tx has been registered
+  // with the inscription atlas, so destroy() knows to release it.
+  private ordpoolAtlasRegistered = false;
+
   constructor(tx: TransactionStripped, scene: BlockScene) {
     this.scene = scene;
     this.context = tx.context;
@@ -75,6 +80,11 @@ export default class TxView implements TransactionStripped {
   }
 
   destroy(): void {
+    // HACK -- Ordpool inscription image previews: free the atlas slot before tearing down the sprite.
+    if (this.ordpoolAtlasRegistered && this.scene?.ordpoolAtlas) {
+      this.scene.ordpoolAtlas.releaseSlot(this.txid);
+      this.ordpoolAtlasRegistered = false;
+    }
     if (this.sprite) {
       this.sprite.destroy();
       this.sprite = null;
@@ -117,6 +127,18 @@ export default class TxView implements TransactionStripped {
         toSpriteUpdate(params),
         this.vertexArray
       );
+      // HACK -- Ordpool inscription image previews: register an atlas slot for image-bearing
+      // inscriptions large enough to actually see (vsize > 250). Atlas falls back to flat
+      // colour while the image is in flight or if the fetch fails.
+      if (
+        !this.ordpoolAtlasRegistered &&
+        this.scene?.ordpoolAtlas &&
+        this.vsize > 250 &&
+        (this.bigintFlags & TransactionFlags.ordpool_inscription_image) > 0n
+      ) {
+        this.ordpoolAtlasRegistered = true;
+        this.scene.ordpoolAtlas.requestSlot(this.txid, this.vsize, this.sprite);
+      }
       // apply any pending hover event
       if (this.hover) {
         params.duration = Math.max(params.duration, hoverTransitionTime);
