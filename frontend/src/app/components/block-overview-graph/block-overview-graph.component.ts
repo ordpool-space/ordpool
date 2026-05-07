@@ -128,6 +128,9 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     // GL texture allocation is deferred to initCanvas() once the context exists.
     if (this.stateService.isBrowser) {
       this.ordpoolAtlas = new OrdpoolInscriptionAtlas();
+      // HACK -- Ordpool: the atlas calls onUpdate after every image load so the new
+      // texture lands on screen even if the render loop has settled to heartbeat.
+      this.ordpoolAtlas.onUpdate = () => this.start();
     }
     this.searchSubscription = this.stateService.searchText$.subscribe((text) => {
       this.searchText = text;
