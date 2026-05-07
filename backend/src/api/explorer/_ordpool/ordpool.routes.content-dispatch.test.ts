@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 
-import generalOrdpoolRoutes, { isBareTxid } from './ordpool.routes';
+import generalOrdpoolRoutes from './ordpool.routes';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
-import { InscriptionPreviewService } from 'ordpool-parser';
+import ordpoolStampsApi from './ordpool-stamps.api';
+import ordpoolAtomicalsApi from './ordpool-atomicals.api';
+import { DigitalArtifactType } from 'ordpool-parser';
 
 // Same factory-mock pattern as ordpool.routes.test.ts: short-circuit the
 // module-load chain so the suite boots without a real config file.
@@ -17,6 +19,8 @@ jest.mock('./ordpool-inscriptions.api', () => ({
     $getFirstImageInscription: jest.fn(),
   },
 }));
+jest.mock('./ordpool-stamps.api', () => ({ __esModule: true, default: { $getStamp: jest.fn() } }));
+jest.mock('./ordpool-atomicals.api', () => ({ __esModule: true, default: { $getFirstAtomicalImage: jest.fn() } }));
 jest.mock('./ordpool-statistics.api', () => ({ __esModule: true, default: {} }));
 jest.mock('../../../config', () => ({
   __esModule: true,
@@ -44,24 +48,10 @@ function fakeInscription(): any {
   };
 }
 
-describe('isBareTxid', () => {
-  it.each([
-    ['64 lowercase hex chars', '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799', true],
-    ['64 uppercase hex chars', 'A'.repeat(64), true],
-    ['64 mixed-case hex chars', 'aBcDeF12'.repeat(8), true],
-    ['txid with i0 suffix', '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0', false],
-    ['txid with i37 suffix', '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i37', false],
-    ['63 hex chars (one short)', 'a'.repeat(63), false],
-    ['65 hex chars (one too many)', 'a'.repeat(65), false],
-    ['64 chars with one non-hex letter', 'g' + 'a'.repeat(63), false],
-    ['empty string', '', false],
-    ['just an integer index', '0', false],
-  ])('%s -> %s', (_label, value, expected) => {
-    expect(isBareTxid(value)).toBe(expected);
-  });
-});
-
 describe('getInscriptionContent route handler dispatch', () => {
+  // isValidTxid lives in ordpool-parser and has its own dedicated unit test in
+  // inscription-parser.service.helper.spec.ts. Here we verify the route handler
+  // dispatches on it correctly.
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -143,6 +133,134 @@ describe('getInscriptionContent route handler dispatch', () => {
     const res = makeRes();
 
     await (generalOrdpoolRoutes as any).getInscriptionContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('getStampContent route handler', () => {
+
+  const fakeStamp: any = {
+    type: DigitalArtifactType.Stamp,
+    contentType: 'image/png',
+    contentSize: 4,
+    getDataRaw: () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    getContent: () => '',
+    getDataUri: () => 'data:image/png;base64,...',
+  };
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('serves the stamp bytes with its content-type when found', async () => {
+    (ordpoolStampsApi.$getStamp as jest.Mock).mockResolvedValue(fakeStamp);
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getStampContent(req, res);
+
+    expect(ordpoolStampsApi.$getStamp).toHaveBeenCalledWith(TXID);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Length', 4);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('returns 400 for an invalid txid', async () => {
+    const req = { params: { txid: 'not-a-txid' } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getStampContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ordpoolStampsApi.$getStamp).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an inscription-shaped id (must be bare txid)', async () => {
+    const req = { params: { txid: `${TXID}i0` } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getStampContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ordpoolStampsApi.$getStamp).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the txid carries no stamp', async () => {
+    (ordpoolStampsApi.$getStamp as jest.Mock).mockResolvedValue(undefined);
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getStampContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns 500 when the resolver throws', async () => {
+    (ordpoolStampsApi.$getStamp as jest.Mock).mockRejectedValue(new Error('boom'));
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getStampContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('getAtomicalContent route handler', () => {
+
+  const fakeFile: any = {
+    name: 'image.png',
+    contentType: 'image/png',
+    data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    getContent: () => '',
+    getData: () => '',
+    getDataUri: () => 'data:image/png;base64,...',
+  };
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('serves the first image-bearing file when one is found', async () => {
+    (ordpoolAtomicalsApi.$getFirstAtomicalImage as jest.Mock).mockResolvedValue(fakeFile);
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getAtomicalContent(req, res);
+
+    expect(ordpoolAtomicalsApi.$getFirstAtomicalImage).toHaveBeenCalledWith(TXID);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Length', 4);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('returns 400 for an invalid txid', async () => {
+    const req = { params: { txid: 'nope' } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getAtomicalContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ordpoolAtomicalsApi.$getFirstAtomicalImage).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when no image-bearing file exists in the atomical', async () => {
+    (ordpoolAtomicalsApi.$getFirstAtomicalImage as jest.Mock).mockResolvedValue(undefined);
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getAtomicalContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns 500 when the resolver throws', async () => {
+    (ordpoolAtomicalsApi.$getFirstAtomicalImage as jest.Mock).mockRejectedValue(new Error('boom'));
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getAtomicalContent(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
   });

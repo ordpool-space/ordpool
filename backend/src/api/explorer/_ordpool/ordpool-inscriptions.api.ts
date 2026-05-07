@@ -1,8 +1,6 @@
-import { InscriptionParserService, isValidInscriptionId, ParsedInscription } from 'ordpool-parser';
+import { InscriptionParserService, isImageContentType, isValidInscriptionId, ParsedInscription } from 'ordpool-parser';
 
-import bitcoinApi from '../../bitcoin/bitcoin-api-factory';
-import { IEsploraApi } from '../../bitcoin/esplora-api.interface';
-import memPool from '../../mempool';
+import { $fetchTxByTxid } from './ordpool-tx-fetch.helper';
 
 
 
@@ -57,7 +55,7 @@ class OrdpoolInscriptionsApi {
       return undefined;
     }
 
-    const first = inscriptions.find((i) => (i.contentType || '').startsWith('image/'));
+    const first = inscriptions.find((i) => isImageContentType(i.contentType));
     if (!first) {
       return undefined;
     }
@@ -73,23 +71,9 @@ class OrdpoolInscriptionsApi {
   }
 
   private async $parseTxInscriptions(txId: string): Promise<ParsedInscription[] | undefined> {
-    const mempool = memPool.getMempool();
-    let transaction = mempool[txId] as IEsploraApi.Transaction;
+    const transaction = await $fetchTxByTxid(txId);
     if (!transaction) {
-      try {
-        // skipConversion=false so the bitcoind RPC shape (vin[].txinwitness) is
-        // converted into the Esplora shape (vin[].witness) that the parser
-        // reads. With skipConversion=true the parser sees no witness array
-        // and returns []; that's how every preview/content lookup silently
-        // 404'd until the tx happened to be in mempool (which is already
-        // stored in Esplora shape on this code path's other branch).
-        transaction = await bitcoinApi.$getRawTransaction(txId, false, false, false);
-      } catch (error: any) {
-        if (error.response && error.response.status === 404) {
-          return undefined;
-        }
-        throw error;
-      }
+      return undefined;
     }
     return InscriptionParserService.parse(transaction);
   }

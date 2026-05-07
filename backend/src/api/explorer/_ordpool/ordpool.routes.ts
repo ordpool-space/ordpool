@@ -1,12 +1,14 @@
 import { Application, Request, Response } from 'express';
-import { getFirstInscriptionHeight, InscriptionPreviewService, ParsedInscription, PreviewInstructions } from 'ordpool-parser';
+import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
 import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
+import ordpoolAtomicalsApi from './ordpool-atomicals.api';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
+import ordpoolStampsApi from './ordpool-stamps.api';
 import { Aggregation, ChartType, Interval } from './ordpool-statistics-interface';
 import ordpoolStatisticsApi from './ordpool-statistics.api';
 
@@ -23,7 +25,9 @@ class GeneralOrdpoolRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:type/:interval/:aggregation', this.$getOrdpoolStatistics)
       .get(config.MEMPOOL.API_URL_PREFIX + 'health/indexer-progress', this.$getIndexerProgress)
       .get('/content/:inscriptionId', this.getInscriptionContent)
-      .get('/preview/:inscriptionId', this.getInscriptionPreview);
+      .get('/preview/:inscriptionId', this.getInscriptionPreview)
+      .get('/stamp-content/:txid', this.getStampContent)
+      .get('/atomical-content/:txid', this.getAtomicalContent);
   }
 
   /**
@@ -131,7 +135,7 @@ class GeneralOrdpoolRoutes {
       // A bare 64-hex txid (no `iN` suffix) means: return the first image-bearing
       // inscription in this tx. Used by the block-overview atlas, which doesn't know
       // which inscription index in a batch reveal carries the image.
-      const inscription = isBareTxid(inscriptionId)
+      const inscription = isValidTxid(inscriptionId)
         ? await ordpoolInscriptionsApi.$getFirstImageInscription(inscriptionId)
         : await ordpoolInscriptionsApi.$getInscriptionOrDelegeate(inscriptionId);
 
@@ -187,15 +191,55 @@ class GeneralOrdpoolRoutes {
       res.status(500).send('Internal server error: ' + error);
     }
   }
+
+  // Test cases (live URLs once shipped):
+  //   PNG stamp: https://ordpool.space/stamp-content/516e62beeffb26fb37f8e95e809274e5bbde76eb75a28357f6bbcd4eedbfe8ca
+  //   SVG stamp: https://ordpool.space/stamp-content/085e0ccbf674dfd5934eb635d392250afb4b6ce41ceb1347335f6f0e64c2f7d6
+  //   HTML stamp: https://ordpool.space/stamp-content/3dfc964777a27da2b93eddbe5a5da06923a1e1c7a80a386e884187dfb88877ff
+  private async getStampContent(req: Request, res: Response): Promise<void> {
+    const txid = req.params.txid;
+
+    if (!txid || !isValidTxid(txid)) {
+      res.status(400).send('Valid txid is required.');
+      return;
+    }
+
+    try {
+      const stamp = await ordpoolStampsApi.$getStamp(txid);
+      if (!stamp) {
+        res.status(404).send('Stamp not found in this transaction.');
+        return;
+      }
+      sendStamp(res, stamp);
+    } catch (error) {
+      res.status(500).send('Internal server error: ' + error);
+    }
+  }
+
+  // Test cases (live URLs once shipped):
+  //   ATOM DFT (PNG): https://ordpool.space/atomical-content/1d2f39f54320631d0432fa495a45a4f298a2ca1b18adef8e4356e327d003a694
+  // No image-bearing file in the atomical → 404, same as a stamp without image.
+  private async getAtomicalContent(req: Request, res: Response): Promise<void> {
+    const txid = req.params.txid;
+
+    if (!txid || !isValidTxid(txid)) {
+      res.status(400).send('Valid txid is required.');
+      return;
+    }
+
+    try {
+      const file = await ordpoolAtomicalsApi.$getFirstAtomicalImage(txid);
+      if (!file) {
+        res.status(404).send('No image-bearing file in this atomical.');
+        return;
+      }
+      sendAtomicalFile(res, file);
+    } catch (error) {
+      res.status(500).send('Internal server error: ' + error);
+    }
+  }
 }
 
-
-// Exported for testing. Bare txid = 64 hex chars with no `iN` suffix.
-// The /content/ route uses this to decide whether to look up a specific
-// inscription index or pick the first image-bearing one in the tx.
-export function isBareTxid(value: string): boolean {
-  return /^[0-9a-fA-F]{64}$/.test(value);
-}
 
 function sendInscription(res: Response, inscription: ParsedInscription): void {
 
@@ -225,6 +269,19 @@ function sendPreview(res: Response, previewInstructions: PreviewInstructions): v
 
   // Send the preview HTML
   res.status(200).send(previewInstructions.previewContent);
+}
+
+function sendStamp(res: Response, stamp: ParsedStamp): void {
+  res.setHeader('Content-Type', stamp.contentType);
+  const bytes = stamp.getDataRaw();
+  res.setHeader('Content-Length', bytes.length);
+  res.status(200).send(Buffer.from(bytes));
+}
+
+function sendAtomicalFile(res: Response, file: AtomicalFile): void {
+  res.setHeader('Content-Type', file.contentType);
+  res.setHeader('Content-Length', file.data.length);
+  res.status(200).send(Buffer.from(file.data));
 }
 
 export default new GeneralOrdpoolRoutes();

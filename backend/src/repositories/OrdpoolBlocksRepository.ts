@@ -149,9 +149,15 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.amounts_atomical                             AS amountsAtomical,
   ordpool_stats.amounts_atomical_mint                        AS amountsAtomicalMint,
   ordpool_stats.amounts_atomical_update                      AS amountsAtomicalUpdate,
+  ordpool_stats.amounts_atomical_image                       AS amountsAtomicalImage,
+  ordpool_stats.amounts_atomical_text                        AS amountsAtomicalText,
+  ordpool_stats.amounts_atomical_json                        AS amountsAtomicalJson,
 
   ordpool_stats.amounts_counterparty                         AS amountsCounterparty,
   ordpool_stats.amounts_stamp                                AS amountsStamp,
+  ordpool_stats.amounts_stamp_image                          AS amountsStampImage,
+  ordpool_stats.amounts_stamp_text                           AS amountsStampText,
+  ordpool_stats.amounts_stamp_json                           AS amountsStampJson,
   ordpool_stats.amounts_src721                               AS amountsSrc721,
   ordpool_stats.amounts_src101                               AS amountsSrc101,
 
@@ -389,7 +395,8 @@ const truncatedMostActive = (
 export const ORDPOOL_STATS_COLUMNS: OrdpoolStatColumn[] = [
   ...sectionCols('amounts', 'amounts', s => s.amounts, [
     'atomical', 'atomicalMint', 'atomicalUpdate',
-    'counterparty', 'stamp', 'src721', 'src101',
+    'atomicalImage', 'atomicalText', 'atomicalJson',
+    'counterparty', 'stamp', 'stampImage', 'stampText', 'stampJson', 'src721', 'src101',
     'cat21', 'cat21Mint',
     'inscription', 'inscriptionMint', 'inscriptionImage', 'inscriptionText', 'inscriptionJson',
     'rune', 'runeEtch', 'runeMint', 'runeCenotaph',

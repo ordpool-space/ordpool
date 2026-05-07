@@ -28,6 +28,8 @@ jest.mock('../../../repositories/OrdpoolSkippedBlocksRepository', () => ({
   default: { getSkippedCount: jest.fn(), getSkippedHeights: jest.fn() },
 }));
 jest.mock('./ordpool-inscriptions.api', () => ({ __esModule: true, default: {} }));
+jest.mock('./ordpool-stamps.api', () => ({ __esModule: true, default: {} }));
+jest.mock('./ordpool-atomicals.api', () => ({ __esModule: true, default: {} }));
 jest.mock('./ordpool-statistics.api', () => ({ __esModule: true, default: {} }));
 // ordpool-parser is left unmocked: getFirstInscriptionHeight is a pure
 // constant lookup with no side effects, so we exercise the real one.
