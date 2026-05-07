@@ -237,6 +237,9 @@ export class OrdpoolInscriptionAtlas {
       abort: () => undefined,
     };
     this.entries.set(txid, entry);
+    // TEMP-DEBUG: log slot allocation success
+    // eslint-disable-next-line no-console
+    console.debug('[ordpool-atlas] slot allocated', { txid, kind, slotPx, nodeXY: `${node.x},${node.y}` });
     // Show the loading spinner immediately. Stays visible through retry
     // backoffs until either onload (→ setTexture) or final onerror (→ clearTexture).
     sprite.setLoading();
@@ -325,6 +328,9 @@ export class OrdpoolInscriptionAtlas {
     img.onload = () => {
       this.inFlight--;
       this.drainQueue();
+      // TEMP-DEBUG: log every fetch outcome
+      // eslint-disable-next-line no-console
+      console.debug('[ordpool-atlas] onload', { txid: entry.txid, w: img.width, h: img.height, aborted, stillCurrent: this.entries.get(entry.txid) === entry });
       if (aborted || this.entries.get(entry.txid) !== entry) {
         return;
       }
@@ -333,9 +339,12 @@ export class OrdpoolInscriptionAtlas {
       this.dirtyTexture = true;
       entry.sprite?.setTexture(quadtree.packSlot(entry.node));
     };
-    img.onerror = () => {
+    img.onerror = (ev) => {
       this.inFlight--;
       this.drainQueue();
+      // TEMP-DEBUG
+      // eslint-disable-next-line no-console
+      console.debug('[ordpool-atlas] onerror', { txid: entry.txid, attempts: entry.attempts, aborted, src: img.src, evType: typeof ev === 'string' ? ev : (ev as Event)?.type });
       if (aborted || this.entries.get(entry.txid) !== entry) {
         return;
       }
@@ -362,7 +371,11 @@ export class OrdpoolInscriptionAtlas {
     // image sits behind a JSON or text inscription still resolve correctly.
     // Stamps and atomicals have their own routes that return the renderable
     // bytes directly.
-    img.src = `${ARTIFACT_PATHS[entry.kind]}${entry.txid}`;
+    const url = `${ARTIFACT_PATHS[entry.kind]}${entry.txid}`;
+    // TEMP-DEBUG: log fetch start
+    // eslint-disable-next-line no-console
+    console.debug('[ordpool-atlas] fetch start', { txid: entry.txid, url, attempt: entry.attempts });
+    img.src = url;
   }
 
   /**
