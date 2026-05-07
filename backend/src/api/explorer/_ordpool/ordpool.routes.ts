@@ -128,7 +128,12 @@ class GeneralOrdpoolRoutes {
 
     try {
 
-      const inscription = await ordpoolInscriptionsApi.$getInscriptionOrDelegeate(inscriptionId);
+      // A bare 64-hex txid (no `iN` suffix) means: return the first image-bearing
+      // inscription in this tx. Used by the block-overview atlas, which doesn't know
+      // which inscription index in a batch reveal carries the image.
+      const inscription = isBareTxid(inscriptionId)
+        ? await ordpoolInscriptionsApi.$getFirstImageInscription(inscriptionId)
+        : await ordpoolInscriptionsApi.$getInscriptionOrDelegeate(inscriptionId);
 
       if (!inscription) {
         res.status(404).send('Transaction or inscription not found.');
@@ -184,6 +189,10 @@ class GeneralOrdpoolRoutes {
   }
 }
 
+
+function isBareTxid(value: string): boolean {
+  return /^[0-9a-fA-F]{64}$/.test(value);
+}
 
 function sendInscription(res: Response, inscription: ParsedInscription): void {
 
