@@ -39,6 +39,8 @@
 
         <br>
 
+        <!-- HACK -- Ordpool: gated upstream's NO ADVERTISING behind officialMempoolSpace -->
+        <ng-container *ngIf="officialMempoolSpace">
         <h4>NO ADVERTISING</h4>
 
         <p>Out of respect for the Bitcoin community, this website does not display advertising, and generally does not link to external websites. However, external links are made for references to Bitcoin's technical documentation, for acknowledgements of individual members and open-source projects within the Bitcoin community, and for direct contributors and supporters of <a href="https://github.com/mempool/mempool">The Mempool Open Source Project</a>, as follows:</p>
@@ -62,6 +64,16 @@
         <p>However, we reserve the right to remove any links from our website that in our sole discretion are inappropriate. All donations are non-refundable.</p>
 
         <br>
+        </ng-container>
+
+        <!-- HACK -- Ordpool: our own advertising policy for !officialMempoolSpace -->
+        <ng-container *ngIf="!officialMempoolSpace">
+        <h4>REALLY NO ADVERTISING</h4>
+
+        <p>Yes, really. No sponsor logos, no donor walls, no enterprise tiers, no co-branded subdomains, no Accelerator&reg; or Accelerator Pro upsells, no paid SLAs. Just blocks, transactions, and on-chain content. We have fun staying poor!</p>
+
+        <br>
+        </ng-container>
 
         <ng-container *ngIf="officialMempoolSpace">
 
@@ -75,6 +87,8 @@
 
         </ng-container>
 
+        <!-- HACK -- Ordpool: gated upstream's MEMPOOL ACCELERATOR behind officialMempoolSpace -->
+        <ng-container *ngIf="officialMempoolSpace">
         <h4>MEMPOOL ACCELERATOR&reg;</h4>
 
         <p><a href="https://mempool.space/accelerator">Mempool Accelerator&reg;</a> enables members of the Bitcoin community to submit requests for transaction prioritization. </p>
@@ -106,6 +120,7 @@
         </ul>
 
         <br>
+        </ng-container>
 
         <p>EOF</p>
 
