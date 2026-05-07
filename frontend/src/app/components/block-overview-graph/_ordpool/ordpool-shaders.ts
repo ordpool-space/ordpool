@@ -30,7 +30,13 @@
 export const ordpoolVertexShaderSrc = `
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
-varying mediump vec2 vCoord;
+// HACK -- Ordpool: highp, not mediump. mediump only needs ~10-bit mantissa,
+// which is too coarse for UVs into a 1024+ px atlas (texel step ≈ 1/1024 ≈
+// 0.001, near mediump's resolution limit at value ~1.0). Interpolated UVs
+// landed on the wrong texel and the texture sample returned transparent →
+// flat-colored square instead of the inscription image. memepool uses
+// highp for the same reason.
+varying highp vec2 vCoord;
 varying mediump vec2 vCorner;
 
 attribute vec4 offset;
@@ -91,7 +97,13 @@ precision mediump float;
 
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
-varying mediump vec2 vCoord;
+// HACK -- Ordpool: highp, not mediump. mediump only needs ~10-bit mantissa,
+// which is too coarse for UVs into a 1024+ px atlas (texel step ≈ 1/1024 ≈
+// 0.001, near mediump's resolution limit at value ~1.0). Interpolated UVs
+// landed on the wrong texel and the texture sample returned transparent →
+// flat-colored square instead of the inscription image. memepool uses
+// highp for the same reason.
+varying highp vec2 vCoord;
 varying mediump vec2 vCorner;
 
 uniform sampler2D uSampler;
