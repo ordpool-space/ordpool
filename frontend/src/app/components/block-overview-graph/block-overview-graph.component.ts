@@ -371,6 +371,14 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     this.gl.enable(this.gl.BLEND);
     this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA);
 
+    // HACK -- Ordpool inscription image previews: uSampler + atlasSize are constants
+    // for the lifetime of the program — set them once instead of looking them up
+    // on every frame in run(). texture unit 0 matches `ordpoolAtlas.bind(0)`.
+    if (this.ordpoolAtlas) {
+      this.gl.uniform1i(this.gl.getUniformLocation(this.shaderProgram, 'uSampler'), 0);
+      this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'atlasSize'), ATLAS_SIZE);
+    }
+
     const glBuffer = this.gl.createBuffer();
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, glBuffer);
 
@@ -490,13 +498,10 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
       this.gl.uniform2f(this.gl.getUniformLocation(this.shaderProgram, 'screenSize'), this.displayWidth, this.displayHeight);
       // frame timestamp
       this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'now'), now);
-      // HACK -- Ordpool inscription image previews: feed the atlas texture + size into the shader.
-      // bind() also flushes any pending canvas → texImage2D upload from a recent image arrival.
-      if (this.ordpoolAtlas) {
-        this.ordpoolAtlas.bind(0);
-        this.gl.uniform1i(this.gl.getUniformLocation(this.shaderProgram, 'uSampler'), 0);
-        this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'atlasSize'), ATLAS_SIZE);
-      }
+      // HACK -- Ordpool inscription image previews: bind the atlas texture and
+      // flush any pending canvas → texImage2D upload from a recent image arrival.
+      // The uSampler/atlasSize uniforms are set once in initCanvas().
+      this.ordpoolAtlas?.bind(0);
 
       if (this.vertexArray.dirty) {
         /* SET UP SHADER ATTRIBUTES */

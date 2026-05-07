@@ -27,6 +27,10 @@ const SLOT_QUANTUM = 32;
 const MIN_SLOT = 32;
 const MAX_SLOT = 512;
 const MAX_CONCURRENT_FETCHES = 8;
+// Cap the failure set so cross-block browsing doesn't grow it unbounded over a session.
+// 4096 fits the worst-case visible-tx count for several hundred blocks; older entries
+// drop off via FIFO eviction and would simply re-fetch (cheap when /content/ 404s).
+const MAX_FAILED_ENTRIES = 4096;
 
 interface AtlasEntry {
   txid: string;
@@ -81,9 +85,13 @@ export class OrdpoolInscriptionAtlas {
     }
   }
 
-  requestSlot(txid: string, vsize: number, sprite: TxSprite): void {
+  // Returns true if the atlas accepted ownership of this txid (caller should
+  // pair it with a later releaseSlot). Returns false on previously-failed
+  // fetches and on atlas-full conditions, so the caller knows not to release
+  // a slot it never acquired.
+  requestSlot(txid: string, vsize: number, sprite: TxSprite): boolean {
     if (this.failed.has(txid)) {
-      return;
+      return false;
     }
     const existing = this.entries.get(txid);
     if (existing) {
@@ -92,13 +100,13 @@ export class OrdpoolInscriptionAtlas {
       if (existing.status === 'loaded') {
         sprite.setTexture(quadtree.packSlot(existing.node));
       }
-      return;
+      return true;
     }
     const slotPx = computeSlotSize(vsize);
     const node = quadtree.insert(this.root, slotPx);
     if (!node) {
-      // atlas full — let the sprite fall back to flat colour
-      return;
+      // atlas full — sprite stays as flat colour, no retry on later free
+      return false;
     }
     const entry: AtlasEntry = {
       txid,
@@ -110,6 +118,7 @@ export class OrdpoolInscriptionAtlas {
     };
     this.entries.set(txid, entry);
     this.queueFetch(entry);
+    return true;
   }
 
   releaseSlot(txid: string): void {
@@ -122,6 +131,10 @@ export class OrdpoolInscriptionAtlas {
       return;
     }
     entry.abort();
+    // Reset the sprite's texture flag so a leaked TxView (e.g. a future code
+    // path that releases without destroying the sprite) doesn't render against
+    // a freed slot that may now belong to a different inscription.
+    entry.sprite?.clearTexture();
     quadtree.remove(entry.node);
     this.entries.delete(txid);
   }
@@ -176,7 +189,7 @@ export class OrdpoolInscriptionAtlas {
       if (aborted) {
         return;
       }
-      this.failed.add(entry.txid);
+      this.rememberFailure(entry.txid);
       if (this.entries.get(entry.txid) === entry) {
         quadtree.remove(entry.node);
         this.entries.delete(entry.txid);
@@ -186,6 +199,20 @@ export class OrdpoolInscriptionAtlas {
     // inscription in this tx", so batch reveals where the image sits behind a JSON
     // or text inscription still resolve correctly.
     img.src = `/content/${entry.txid}`;
+  }
+
+  private rememberFailure(txid: string): void {
+    if (this.failed.has(txid)) {
+      return;
+    }
+    if (this.failed.size >= MAX_FAILED_ENTRIES) {
+      // Set iteration order is insertion order, so the first key is the oldest.
+      const oldest = this.failed.values().next().value;
+      if (oldest !== undefined) {
+        this.failed.delete(oldest);
+      }
+    }
+    this.failed.add(txid);
   }
 
   private drainQueue(): void {
@@ -210,6 +237,11 @@ export class OrdpoolInscriptionAtlas {
   }
 }
 
+// Map a tx's vsize onto a power-of-two slot size in pixels. The square that
+// will be drawn on screen for a tx of vsize V is roughly sqrt(V) pixels at
+// default zoom; the 1.4 factor leaves headroom so the inscription image
+// doesn't show pixelation when the user zooms in. Bounded to [32, 512] so
+// no single slot can swallow more than 1/4 of the atlas.
 function computeSlotSize(vsize: number): number {
   const target = 1.4 * Math.sqrt(Math.max(vsize, 1));
   let pow = MIN_SLOT;
