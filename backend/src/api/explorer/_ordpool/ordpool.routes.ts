@@ -52,7 +52,15 @@ class GeneralOrdpoolRoutes {
       const lastSuccessAt = OrdpoolMissingStats.getLastSuccessAt();
       const lagMs = lastSuccessAt === null ? null : Date.now() - lastSuccessAt.getTime();
       const lagMinutes = lagMs === null ? null : Math.round(lagMs / 60000);
-      const fresh = lagMs !== null && lagMs <= MAX_LAG_MINUTES * 60 * 1000;
+      // The indexer is healthy if either it has nothing left to do
+      // (pendingCount is 0 — the missing-stats backfill drained), or it
+      // recorded a per-block save within MAX_LAG_MINUTES. Without the
+      // pendingCount short-circuit we'd start returning 503 ~30 min after
+      // backfill completes: lastSuccessAt is set only by the missing-stats
+      // batch save, the live-block ingest path doesn't touch it, so a
+      // fully-caught-up indexer would look stalled.
+      const caughtUp = pendingCount === 0;
+      const fresh = caughtUp || (lagMs !== null && lagMs <= MAX_LAG_MINUTES * 60 * 1000);
 
       res.setHeader('Cache-Control', 'no-store');
       res.status(fresh ? 200 : 503).json({
