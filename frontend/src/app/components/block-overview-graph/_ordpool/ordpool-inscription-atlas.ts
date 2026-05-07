@@ -32,8 +32,20 @@ const MAX_CONCURRENT_FETCHES = 8;
 // drop off via FIFO eviction and would simply re-fetch (cheap when /content/ 404s).
 const MAX_FAILED_ENTRIES = 4096;
 
+// Three artifact kinds map to three backend routes that all return a single
+// renderable image. The atlas doesn't care about the kind beyond URL building;
+// the cache key stays the txid (a tx is exactly one of the three in practice).
+export type OrdpoolArtifactKind = 'inscription' | 'stamp' | 'atomical';
+
+const ARTIFACT_PATHS: Record<OrdpoolArtifactKind, string> = {
+  inscription: '/content/',
+  stamp: '/stamp-content/',
+  atomical: '/atomical-content/',
+};
+
 interface AtlasEntry {
   txid: string;
+  kind: OrdpoolArtifactKind;
   node: quadtree.QuadNode;
   sprite: TxSprite | null;
   refCount: number;
@@ -89,7 +101,7 @@ export class OrdpoolInscriptionAtlas {
   // pair it with a later releaseSlot). Returns false on previously-failed
   // fetches and on atlas-full conditions, so the caller knows not to release
   // a slot it never acquired.
-  requestSlot(txid: string, vsize: number, sprite: TxSprite): boolean {
+  requestSlot(txid: string, vsize: number, sprite: TxSprite, kind: OrdpoolArtifactKind): boolean {
     if (this.failed.has(txid)) {
       return false;
     }
@@ -110,6 +122,7 @@ export class OrdpoolInscriptionAtlas {
     }
     const entry: AtlasEntry = {
       txid,
+      kind,
       node,
       sprite,
       refCount: 1,
@@ -195,10 +208,12 @@ export class OrdpoolInscriptionAtlas {
         this.entries.delete(entry.txid);
       }
     };
-    // Bare txid (no `iN`) is interpreted by the backend as "first image-bearing
-    // inscription in this tx", so batch reveals where the image sits behind a JSON
-    // or text inscription still resolve correctly.
-    img.src = `/content/${entry.txid}`;
+    // For inscriptions a bare txid (no `iN`) is interpreted by the backend as
+    // "first image-bearing inscription in this tx", so batch reveals where the
+    // image sits behind a JSON or text inscription still resolve correctly.
+    // Stamps and atomicals have their own routes that return the renderable
+    // bytes directly.
+    img.src = `${ARTIFACT_PATHS[entry.kind]}${entry.txid}`;
   }
 
   private rememberFailure(txid: string): void {

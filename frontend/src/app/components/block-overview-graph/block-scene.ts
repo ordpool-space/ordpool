@@ -4,13 +4,29 @@ import { TransactionStripped } from '@interfaces/node-api.interface';
 import { Color, Position, Square, ViewUpdateParams } from '@components/block-overview-graph/sprite-types';
 import { defaultColorFunction, contrastColorFunction } from '@components/block-overview-graph/utils';
 import { ThemeService } from '@app/services/theme.service';
-// HACK -- Ordpool inscription image previews
-import { OrdpoolInscriptionAtlas } from '@components/block-overview-graph/_ordpool/ordpool-inscription-atlas';
+// HACK -- Ordpool artifact image previews (inscriptions + stamps + atomicals)
+import { OrdpoolArtifactKind, OrdpoolInscriptionAtlas } from '@components/block-overview-graph/_ordpool/ordpool-inscription-atlas';
 import { TransactionFlags } from '@app/shared/filters.utils';
 
 // Smaller squares can't show recognisable image content; below this vsize we
 // keep the colored fallback rather than fighting subpixel filtering.
 const ORDPOOL_ATLAS_VSIZE_THRESHOLD = 250;
+
+// Priority order used when a tx is somehow flagged with multiple artifact
+// kinds at once (rare in practice — inscriptions vs stamps vs atomicals use
+// disjoint encodings — but the analyser ORs flags so we still pick deterministically).
+function pickArtifactKind(flags: bigint): OrdpoolArtifactKind | null {
+  if ((flags & TransactionFlags.ordpool_inscription_image) !== 0n) {
+    return 'inscription';
+  }
+  if ((flags & TransactionFlags.ordpool_stamp_image) !== 0n) {
+    return 'stamp';
+  }
+  if ((flags & TransactionFlags.ordpool_atomical_image) !== 0n) {
+    return 'atomical';
+  }
+  return null;
+}
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};
@@ -249,24 +265,26 @@ export default class BlockScene {
     this.animateUntil = Math.max(this.animateUntil, tx.setHover(value));
   }
 
-  // HACK -- Ordpool inscription image previews: returns true iff the atlas
-  // accepted ownership of this tx's slot. Encapsulates the eligibility check
-  // (image flag + vsize threshold) so TxView doesn't need to know either rule.
-  requestInscriptionSlot(tx: TxView): boolean {
+  // HACK -- Ordpool artifact image previews: returns true iff the atlas accepted
+  // ownership of this tx's slot. Encapsulates the eligibility check (image-bucket
+  // flag for inscription / stamp / atomical + vsize threshold) so TxView doesn't
+  // need to know any of those rules.
+  requestArtifactSlot(tx: TxView): boolean {
     if (!this.ordpoolAtlas || !tx.sprite) {
       return false;
     }
     if (tx.vsize <= ORDPOOL_ATLAS_VSIZE_THRESHOLD) {
       return false;
     }
-    if ((tx.bigintFlags & TransactionFlags.ordpool_inscription_image) === 0n) {
+    const kind = pickArtifactKind(tx.bigintFlags);
+    if (!kind) {
       return false;
     }
-    return this.ordpoolAtlas.requestSlot(tx.txid, tx.vsize, tx.sprite);
+    return this.ordpoolAtlas.requestSlot(tx.txid, tx.vsize, tx.sprite, kind);
   }
 
-  // HACK -- Ordpool inscription image previews
-  releaseInscriptionSlot(txid: string): void {
+  // HACK -- Ordpool artifact image previews
+  releaseArtifactSlot(txid: string): void {
     this.ordpoolAtlas?.releaseSlot(txid);
   }
 
