@@ -4,7 +4,6 @@ import { SpriteUpdateParams, Square, Color, ViewUpdateParams } from '@components
 import { hexToColor } from '@components/block-overview-graph/utils';
 import BlockScene from '@components/block-overview-graph/block-scene';
 import { TransactionStripped } from '@interfaces/node-api.interface';
-// HACK -- Ordpool inscription image previews: TransactionFlags includes ordpool_inscription_image (bigint)
 import { TransactionFlags } from '@app/shared/filters.utils';
 
 const hoverTransitionTime = 300;
@@ -81,8 +80,8 @@ export default class TxView implements TransactionStripped {
 
   destroy(): void {
     // HACK -- Ordpool inscription image previews: free the atlas slot before tearing down the sprite.
-    if (this.ordpoolAtlasRegistered && this.scene?.ordpoolAtlas) {
-      this.scene.ordpoolAtlas.releaseSlot(this.txid);
+    if (this.ordpoolAtlasRegistered) {
+      this.scene?.releaseInscriptionSlot(this.txid);
       this.ordpoolAtlasRegistered = false;
     }
     if (this.sprite) {
@@ -127,17 +126,11 @@ export default class TxView implements TransactionStripped {
         toSpriteUpdate(params),
         this.vertexArray
       );
-      // HACK -- Ordpool inscription image previews: register an atlas slot for image-bearing
-      // inscriptions large enough to actually see (vsize > 250). Atlas falls back to flat
-      // colour while the image is in flight or if the fetch fails.
-      if (
-        !this.ordpoolAtlasRegistered &&
-        this.scene?.ordpoolAtlas &&
-        this.vsize > 250 &&
-        (this.bigintFlags & TransactionFlags.ordpool_inscription_image) > 0n
-      ) {
+      // HACK -- Ordpool inscription image previews: ask the scene to register
+      // this sprite. Eligibility (image flag, vsize threshold) lives over there
+      // so we only flip the registered flag when the atlas actually took it.
+      if (!this.ordpoolAtlasRegistered && this.scene?.requestInscriptionSlot(this)) {
         this.ordpoolAtlasRegistered = true;
-        this.scene.ordpoolAtlas.requestSlot(this.txid, this.vsize, this.sprite);
       }
       // apply any pending hover event
       if (this.hover) {

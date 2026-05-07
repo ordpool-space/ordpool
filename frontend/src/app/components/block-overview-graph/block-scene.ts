@@ -4,9 +4,13 @@ import { TransactionStripped } from '@interfaces/node-api.interface';
 import { Color, Position, Square, ViewUpdateParams } from '@components/block-overview-graph/sprite-types';
 import { defaultColorFunction, contrastColorFunction } from '@components/block-overview-graph/utils';
 import { ThemeService } from '@app/services/theme.service';
-// HACK -- Ordpool inscription image previews: scene exposes the atlas to TxView
-// so each tx can register/release its inscription slot.
+// HACK -- Ordpool inscription image previews
 import { OrdpoolInscriptionAtlas } from '@components/block-overview-graph/_ordpool/ordpool-inscription-atlas';
+import { TransactionFlags } from '@app/shared/filters.utils';
+
+// Smaller squares can't show recognisable image content; below this vsize we
+// keep the colored fallback rather than fighting subpixel filtering.
+const ORDPOOL_ATLAS_VSIZE_THRESHOLD = 250;
 
 export default class BlockScene {
   scene: { count: number, offset: { x: number, y: number}};
@@ -33,8 +37,10 @@ export default class BlockScene {
   layout: BlockLayout;
   animateUntil = 0;
   dirty: boolean;
-  // HACK -- Ordpool inscription image previews: optional atlas reference, read by TxView.
-  ordpoolAtlas: OrdpoolInscriptionAtlas | null = null;
+  // HACK -- Ordpool inscription image previews: TxView calls back through
+  // requestInscriptionSlot/releaseInscriptionSlot rather than reaching directly
+  // into the atlas, so the eligibility threshold + image-flag check stay here.
+  private ordpoolAtlas: OrdpoolInscriptionAtlas | null = null;
 
   constructor({ width, height, resolution, blockLimit, animationDuration, animationOffset, orientation, flip, vertexArray, theme, highlighting, colorFunction, ordpoolAtlas }:
       { width: number, height: number, resolution: number, blockLimit: number, animationDuration: number, animationOffset: number,
@@ -241,6 +247,27 @@ export default class BlockScene {
 
   setHover(tx: TxView, value: boolean): void {
     this.animateUntil = Math.max(this.animateUntil, tx.setHover(value));
+  }
+
+  // HACK -- Ordpool inscription image previews: returns true iff the atlas
+  // accepted ownership of this tx's slot. Encapsulates the eligibility check
+  // (image flag + vsize threshold) so TxView doesn't need to know either rule.
+  requestInscriptionSlot(tx: TxView): boolean {
+    if (!this.ordpoolAtlas || !tx.sprite) {
+      return false;
+    }
+    if (tx.vsize <= ORDPOOL_ATLAS_VSIZE_THRESHOLD) {
+      return false;
+    }
+    if ((tx.bigintFlags & TransactionFlags.ordpool_inscription_image) === 0n) {
+      return false;
+    }
+    return this.ordpoolAtlas.requestSlot(tx.txid, tx.vsize, tx.sprite);
+  }
+
+  // HACK -- Ordpool inscription image previews
+  releaseInscriptionSlot(txid: string): void {
+    this.ordpoolAtlas?.releaseSlot(txid);
   }
 
   setHighlight(tx: TxView, value: boolean): void {
