@@ -270,18 +270,7 @@ export default class BlockScene {
   // flag for inscription / stamp / atomical + vsize threshold) so TxView doesn't
   // need to know any of those rules.
   requestArtifactSlot(tx: TxView): boolean {
-    // TEMP-DEBUG: instrumented to diagnose why the atlas isn't registering image
-    // inscriptions in production. Logs every call and the reason for rejection so
-    // we can see in DevTools console where the pipeline drops the tx. Remove once
-    // the prod atlas issue is diagnosed.
-    if (!this.ordpoolAtlas) {
-      // eslint-disable-next-line no-console
-      console.debug('[ordpool-scene] no atlas', { txid: tx.txid });
-      return false;
-    }
-    if (!tx.sprite) {
-      // eslint-disable-next-line no-console
-      console.debug('[ordpool-scene] no sprite', { txid: tx.txid });
+    if (!this.ordpoolAtlas || !tx.sprite) {
       return false;
     }
     if (tx.vsize <= ORDPOOL_ATLAS_VSIZE_THRESHOLD) {
@@ -289,12 +278,6 @@ export default class BlockScene {
     }
     const kind = pickArtifactKind(tx.bigintFlags);
     if (!kind) {
-      // Log only when the tx has SOME ordpool flag set, so we don't flood the console
-      // with every non-ordpool tx in the block.
-      if (tx.bigintFlags > 0n) {
-        // eslint-disable-next-line no-console
-        console.debug('[ordpool-scene] no artifact kind', { txid: tx.txid, vsize: tx.vsize, bigintFlags: tx.bigintFlags.toString() });
-      }
       return false;
     }
     return this.ordpoolAtlas.requestSlot(tx.txid, tx.vsize, tx.sprite, kind);

@@ -185,9 +185,6 @@ export default class TxSprite {
   // HACK -- Ordpool artifact image previews: switch this sprite into atlas-sampling mode.
   // Called once the artifact image has been blitted into its atlas slot.
   setTexture(packedSlot: number): void {
-    // TEMP-DEBUG
-    // eslint-disable-next-line no-console
-    console.debug('[ordpool-sprite] setTexture', { packedSlot, vertexPointer: this.vertexPointer });
     this.writeOrdpoolTextureState(2, packedSlot);
   }
 

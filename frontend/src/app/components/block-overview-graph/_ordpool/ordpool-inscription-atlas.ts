@@ -171,9 +171,6 @@ export class OrdpoolInscriptionAtlas {
     this.gl.activeTexture(this.gl.TEXTURE0 + unit);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
     if (this.dirtyTexture) {
-      // TEMP-DEBUG: log every texture upload so we know the canvas is reaching the GPU
-      // eslint-disable-next-line no-console
-      console.debug('[ordpool-atlas] texImage2D upload', { canvasSize: this.canvas.width, currentSize: this.currentSize, loadedCount: Array.from(this.entries.values()).filter(e => e.status === 'loaded').length });
       this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.canvas);
       this.dirtyTexture = false;
     }
@@ -195,11 +192,6 @@ export class OrdpoolInscriptionAtlas {
    * tell "no preview is showing" from "preview never even tried".
    */
   requestSlot(txid: string, vsize: number, sprite: TxSprite, kind: OrdpoolArtifactKind): boolean {
-    // TEMP-DEBUG: tracks every requestSlot call so we can see in DevTools whether the
-    // atlas is being asked at all and why it might be refusing. Remove once the
-    // production atlas issue is diagnosed.
-    // eslint-disable-next-line no-console
-    console.debug('[ordpool-atlas] requestSlot', { txid, kind, vsize, hasAtlas: !!this.gl, currentSize: this.currentSize, entries: this.entries.size, failed: this.failed.has(txid), pending: this.fetchQueue.length, inFlight: this.inFlight });
     if (this.failed.has(txid)) {
       return false;
     }
@@ -240,9 +232,6 @@ export class OrdpoolInscriptionAtlas {
       abort: () => undefined,
     };
     this.entries.set(txid, entry);
-    // TEMP-DEBUG: log slot allocation success
-    // eslint-disable-next-line no-console
-    console.debug('[ordpool-atlas] slot allocated', { txid, kind, slotPx, nodeXY: `${node.x},${node.y}` });
     // Show the loading spinner immediately. Stays visible through retry
     // backoffs until either onload (→ setTexture) or final onerror (→ clearTexture).
     sprite.setLoading();
@@ -331,9 +320,6 @@ export class OrdpoolInscriptionAtlas {
     img.onload = () => {
       this.inFlight--;
       this.drainQueue();
-      // TEMP-DEBUG: log every fetch outcome
-      // eslint-disable-next-line no-console
-      console.debug('[ordpool-atlas] onload', { txid: entry.txid, w: img.width, h: img.height, aborted, stillCurrent: this.entries.get(entry.txid) === entry });
       if (aborted || this.entries.get(entry.txid) !== entry) {
         return;
       }
@@ -342,12 +328,9 @@ export class OrdpoolInscriptionAtlas {
       this.dirtyTexture = true;
       entry.sprite?.setTexture(quadtree.packSlot(entry.node));
     };
-    img.onerror = (ev) => {
+    img.onerror = () => {
       this.inFlight--;
       this.drainQueue();
-      // TEMP-DEBUG
-      // eslint-disable-next-line no-console
-      console.debug('[ordpool-atlas] onerror', { txid: entry.txid, attempts: entry.attempts, aborted, src: img.src, evType: typeof ev === 'string' ? ev : (ev as Event)?.type });
       if (aborted || this.entries.get(entry.txid) !== entry) {
         return;
       }
@@ -374,11 +357,7 @@ export class OrdpoolInscriptionAtlas {
     // image sits behind a JSON or text inscription still resolve correctly.
     // Stamps and atomicals have their own routes that return the renderable
     // bytes directly.
-    const url = `${ARTIFACT_PATHS[entry.kind]}${entry.txid}`;
-    // TEMP-DEBUG: log fetch start
-    // eslint-disable-next-line no-console
-    console.debug('[ordpool-atlas] fetch start', { txid: entry.txid, url, attempt: entry.attempts });
-    img.src = url;
+    img.src = `${ARTIFACT_PATHS[entry.kind]}${entry.txid}`;
   }
 
   /**
@@ -454,9 +433,6 @@ export class OrdpoolInscriptionAtlas {
     this.ctx.imageSmoothingEnabled = scale <= 1;
     this.ctx.clearRect(node.x, node.y, node.size, node.size);
     this.ctx.drawImage(img, sx, sy, sw, sh, node.x + 1, node.y + 1, innerSize, innerSize);
-    // TEMP-DEBUG: confirm the pixels actually landed in the canvas
-    // eslint-disable-next-line no-console
-    console.debug('[ordpool-atlas] drawIntoSlot done', { nodeXY: `${node.x},${node.y}`, slotSize: node.size, innerSize, imgWH: `${w}x${h}`, dest: `${node.x + 1},${node.y + 1} ${innerSize}x${innerSize}` });
   }
 }
 
