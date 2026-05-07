@@ -79,6 +79,8 @@ void main() {
 `;
 
 export const ordpoolFragmentShaderSrc = `
+precision mediump float;
+
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
 varying mediump vec2 vCoord;

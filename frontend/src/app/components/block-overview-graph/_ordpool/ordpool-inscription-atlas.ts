@@ -182,7 +182,10 @@ export class OrdpoolInscriptionAtlas {
         this.entries.delete(entry.txid);
       }
     };
-    img.src = `/content/${entry.txid}i0`;
+    // Bare txid (no `iN`) is interpreted by the backend as "first image-bearing
+    // inscription in this tx", so batch reveals where the image sits behind a JSON
+    // or text inscription still resolve correctly.
+    img.src = `/content/${entry.txid}`;
   }
 
   private drainQueue(): void {
