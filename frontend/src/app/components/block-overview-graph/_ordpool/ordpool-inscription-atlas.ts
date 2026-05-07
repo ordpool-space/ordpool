@@ -192,6 +192,11 @@ export class OrdpoolInscriptionAtlas {
    * tell "no preview is showing" from "preview never even tried".
    */
   requestSlot(txid: string, vsize: number, sprite: TxSprite, kind: OrdpoolArtifactKind): boolean {
+    // TEMP-DEBUG: tracks every requestSlot call so we can see in DevTools whether the
+    // atlas is being asked at all and why it might be refusing. Remove once the
+    // production atlas issue is diagnosed.
+    // eslint-disable-next-line no-console
+    console.debug('[ordpool-atlas] requestSlot', { txid, kind, vsize, hasAtlas: !!this.gl, currentSize: this.currentSize, entries: this.entries.size, failed: this.failed.has(txid), pending: this.fetchQueue.length, inFlight: this.inFlight });
     if (this.failed.has(txid)) {
       return false;
     }
