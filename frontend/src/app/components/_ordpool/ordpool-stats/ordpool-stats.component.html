@@ -22,6 +22,18 @@
         </div>
       }
     </div>
+  } @else if (progress.pendingCount > 0) {
+    <div class="ordpool-status-banner ordpool-status-banner-info mb-3" role="status">
+      <div>
+        <strong>Backfill in progress.</strong>
+        {{ progress.pendingCount | number }} older
+        {{ progress.pendingCount === 1 ? 'block is' : 'blocks are' }} still being indexed.
+        @if (progress.blocksPerMinute !== null && progress.blocksPerMinute > 0) {
+          About {{ progress.blocksPerMinute | number:'1.0-0' }} blocks per minute right now.
+        }
+        Live charts are accurate; long historical ranges will fill in as blocks complete.
+      </div>
+    </div>
   }
 }
 
