@@ -115,6 +115,10 @@ export class OrdpoolInscriptionAtlas {
   private fetchQueue: Array<() => void> = [];
   private inFlight = 0;
   private dirtyTexture = false;
+  /** Optional callback the component sets to kick the render loop. Called
+   *  after every successful image load so the new texture lands on screen
+   *  even if the loop has settled to its 1s heartbeat. */
+  onUpdate: (() => void) | null = null;
   /** True after we've run out of room at MAX_ATLAS_SIZE. Used to suppress
    *  repeat console.error spam when many sprites can't fit in the same scene. */
   private atlasFullLogged = false;
@@ -327,6 +331,11 @@ export class OrdpoolInscriptionAtlas {
       entry.status = 'loaded';
       this.dirtyTexture = true;
       entry.sprite?.setTexture(quadtree.packSlot(entry.node));
+      // Kick the render loop. Without this the loop can settle to its 1s
+      // heartbeat between the last onload and the upload-and-draw frame, so
+      // images land 1s late or — worse — not at all if hasPendingFetches
+      // already returned false on the previous tick.
+      this.onUpdate?.();
     };
     img.onerror = () => {
       this.inFlight--;
