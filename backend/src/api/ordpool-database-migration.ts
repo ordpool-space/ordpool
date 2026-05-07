@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 4;
+  private static currentVersion = 5;
 
   private queryTimeout = 3600_000;
 
@@ -567,6 +567,29 @@ class OrdpoolDatabaseMigration {
       // event. Then clear ordpool_stats_skipped so the indexer requeues
       // the previously-poisoned blocks on the widened schema.
       queries.push(`ALTER TABLE ordpool_stats_atomical_op MODIFY COLUMN operation VARCHAR(16) NOT NULL;`);
+      queries.push(`DELETE FROM ordpool_stats_skipped;`);
+    }
+
+    // v5: stamp + atomical content-type bucket counters.
+    //
+    // Mirrors the inscription_image/text/json triple added in v2 but for
+    // stamps and atomicals. Backfill is purge-driven, not destructive:
+    // delete only the per-block summary rows that had a stamp or atomical,
+    // so the missing-stats indexer re-picks those blocks (the satellite
+    // tables ordpool_stats_atomical_op/counterparty are idempotent on
+    // re-insert via ON DUPLICATE KEY UPDATE, so they don't need touching).
+    // Blocks with no stamps and no atomicals are unaffected — no point
+    // re-indexing them just to set six zero counters.
+    if (version <= 5) {
+      queries.push(`ALTER TABLE ordpool_stats
+        ADD COLUMN IF NOT EXISTS amounts_stamp_image     INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_stamp_text      INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_stamp_json      INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_atomical_image  INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_atomical_text   INT UNSIGNED NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS amounts_atomical_json   INT UNSIGNED NOT NULL DEFAULT 0;`);
+
+      queries.push(`DELETE FROM ordpool_stats WHERE amounts_stamp > 0 OR amounts_atomical > 0;`);
       queries.push(`DELETE FROM ordpool_stats_skipped;`);
     }
 
