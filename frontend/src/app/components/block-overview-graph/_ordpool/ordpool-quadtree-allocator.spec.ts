@@ -1,4 +1,4 @@
-import { createRoot, insert, remove, packSlot, QuadNode } from './ordpool-quadtree-allocator';
+import { createRoot, expand, insert, remove, packSlot, QuadNode } from './ordpool-quadtree-allocator';
 
 const ATLAS = 1024;
 
@@ -253,6 +253,123 @@ describe('ordpool-quadtree-allocator', () => {
       expect(decodedX).toBe(slot.x);
       expect(decodedY).toBe(slot.y);
       expect(decodedSize).toBe(slot.size);
+    });
+  });
+
+  describe('expand', () => {
+    it('doubles the size and returns a new root', () => {
+      const root = createRoot(1024);
+      const newRoot = expand(root);
+      expect(newRoot).not.toBe(root);
+      expect(newRoot.size).toBe(2048);
+      expect(newRoot.x).toBe(0);
+      expect(newRoot.y).toBe(0);
+      expect(newRoot.parent).toBeNull();
+    });
+
+    it('makes the old root the top-left child of the new root', () => {
+      const root = createRoot(1024);
+      const newRoot = expand(root);
+      expect(newRoot.budded).toBe(true);
+      expect(newRoot.children).not.toBeNull();
+      expect(newRoot.children!.length).toBe(4);
+      expect(newRoot.children![0]).toBe(root);
+      expect(root.parent).toBe(newRoot);
+      // The other 3 quadrants are fresh empty leaves
+      for (let i = 1; i < 4; i++) {
+        expect(newRoot.children![i].size).toBe(1024);
+        expect(newRoot.children![i].budded).toBe(false);
+        expect(newRoot.children![i].filled).toBe(false);
+      }
+    });
+
+    it('preserves every existing allocation (their coordinates stay valid)', () => {
+      const root = createRoot(1024);
+      const a = insert(root, 32)!;
+      const b = insert(root, 256)!;
+      const c = insert(root, 512)!;
+
+      const ax = a.x, ay = a.y, asz = a.size;
+      const bx = b.x, by = b.y, bsz = b.size;
+      const cx = c.x, cy = c.y, csz = c.size;
+
+      const newRoot = expand(root);
+
+      // Coordinates are preserved by reference identity AND by value
+      expect(a.x).toBe(ax);
+      expect(a.y).toBe(ay);
+      expect(a.size).toBe(asz);
+      expect(b.x).toBe(bx);
+      expect(b.y).toBe(by);
+      expect(b.size).toBe(bsz);
+      expect(c.x).toBe(cx);
+      expect(c.y).toBe(cy);
+      expect(c.size).toBe(csz);
+
+      // Walking up reaches the new root
+      let n: QuadNode | null = a;
+      while (n && n.parent) { n = n.parent; }
+      expect(n).toBe(newRoot);
+    });
+
+    it('makes ~3/4 of the new atlas available for fresh allocations', () => {
+      const root = createRoot(1024);
+      // Saturate the original 1024² with 512² slots (4 slots = full)
+      insert(root, 512);
+      insert(root, 512);
+      insert(root, 512);
+      insert(root, 512);
+      expect(root.full).toBe(true);
+      expect(insert(root, 512)).toBeNull();
+
+      const newRoot = expand(root);
+      expect(newRoot.full).toBe(false);
+
+      // The 3 fresh quadrants of size 1024 can each be subdivided. Try a 1024² slot:
+      const big = insert(newRoot, 1024);
+      expect(big).not.toBeNull();
+      expect(big!.size).toBe(1024);
+      // Lands at one of the 3 fresh quadrants (1024,0), (0,1024) or (1024,1024)
+      expect([`1024,0`, `0,1024`, `1024,1024`]).toContain(`${big!.x},${big!.y}`);
+    });
+
+    it('rejects expand() on a non-root node', () => {
+      const root = createRoot(1024);
+      insert(root, 512);
+      const child = root.children![0];
+      expect(() => expand(child)).toThrow(/root node/);
+    });
+
+    it('insert() succeeds at slot sizes up to the new root size after expand', () => {
+      const root = createRoot(1024);
+      // Block the original root from holding a 1024 slot
+      insert(root, 32);
+      expect(insert(root, 1024)).toBeNull();
+
+      const newRoot = expand(root);
+      // 2048 root can satisfy a 1024 request via one of the empty quadrants.
+      const slot = insert(newRoot, 1024)!;
+      expect(slot).not.toBeNull();
+      expect(slot.size).toBe(1024);
+    });
+
+    it('packed slot encodings round-trip after expansion', () => {
+      const root = createRoot(1024);
+      const slot = insert(root, 256)!;
+      const packedBefore = packSlot(slot);
+
+      expand(root);
+
+      // The slot's coordinates haven't changed, so the packed integer matches
+      expect(packSlot(slot)).toBe(packedBefore);
+
+      // Decoding still produces the same (x, y, size)
+      const x = (packedBefore % 512) * 32;
+      const y = (Math.floor(packedBefore / 512) % 512) * 32;
+      const sz = Math.floor(packedBefore / 262144) * 32;
+      expect(x).toBe(slot.x);
+      expect(y).toBe(slot.y);
+      expect(sz).toBe(slot.size);
     });
   });
 
