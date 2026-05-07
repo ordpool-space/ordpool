@@ -1,5 +1,6 @@
 import * as bitcoinjs from 'bitcoinjs-lib';
 import { Request } from 'express';
+import { DigitalArtifactAnalyserService } from 'ordpool-parser';
 import { EffectiveFeeStats, MempoolBlockWithTransactions, TransactionExtended, MempoolTransactionExtended, TransactionStripped, WorkingEffectiveFeeStats, TransactionClassified, TransactionFlags } from '../mempool.interfaces';
 import config from '../config';
 import { NodeSocket } from '../repositories/NodesSocketsRepository';
@@ -607,7 +608,8 @@ export class Common {
     return isTaproot || !isNotTaproot;
   }
 
-  static getTransactionFlags(tx: TransactionExtended, height?: number): number {
+  // HACK -- Ordpool: async; awaits ordpool-parser inline.
+  static async getTransactionFlags(tx: TransactionExtended, height?: number): Promise<number> {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
     // Update variable flags (CPFP, RBF)
@@ -624,12 +626,11 @@ export class Common {
       flags |= TransactionFlags.replacement;
     }
 
-    // HACK -- Ordpool: include pre-computed ordpool flags.
-    // These are set by ordpool-parser's analyseTransactions/analyseTransaction as a side effect
-    // on the tx object (tx._ordpoolFlags). This avoids making getTransactionFlags async, which
-    // would cascade async/await changes through 15+ upstream files. See backend/.claude/CLAUDE.md.
-    if ((tx as any)._ordpoolFlags) {
-      flags |= BigInt((tx as any)._ordpoolFlags);
+    // HACK -- Ordpool: parser ORs in artifact flags and returns the combined bigint.
+    try {
+      flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
+    } catch (e) {
+      logger.warn('ordpool-parser analyseTransaction failed: ' + (e instanceof Error ? e.message : e));
     }
 
     // Already processed static flags, no need to do it again
@@ -776,10 +777,11 @@ export class Common {
     return Number(flags);
   }
 
-  static classifyTransaction(tx: TransactionExtended, height?: number): TransactionClassified {
+  // HACK -- Ordpool: async
+  static async classifyTransaction(tx: TransactionExtended, height?: number): Promise<TransactionClassified> {
     let flags = 0;
     try {
-      flags = Common.getTransactionFlags(tx, height);
+      flags = await Common.getTransactionFlags(tx, height);
     } catch (e) {
       logger.warn('Failed to add classification flags to transaction: ' + (e instanceof Error ? e.message : e));
     }
@@ -790,8 +792,9 @@ export class Common {
     };
   }
 
-  static classifyTransactions(txs: TransactionExtended[], height?: number): TransactionClassified[] {
-    return txs.map(tx => Common.classifyTransaction(tx, height));
+  // HACK -- Ordpool: async, parallelised via Promise.all
+  static async classifyTransactions(txs: TransactionExtended[], height?: number): Promise<TransactionClassified[]> {
+    return Promise.all(txs.map(tx => Common.classifyTransaction(tx, height)));
   }
 
   static stripTransaction(tx: TransactionExtended): TransactionStripped {

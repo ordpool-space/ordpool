@@ -654,7 +654,7 @@ class WebsocketHandler {
 
     if (config.MEMPOOL.CLUSTER_MEMPOOL) {
       const cmBlocks = mempool.clusterMempool?.getBlocks(config.MEMPOOL.MEMPOOL_BLOCKS_AMOUNT) ?? [];
-      mempoolBlocks.processClusterMempoolBlocks(cmBlocks, newMempool, mempool.getAccelerations());
+      await mempoolBlocks.processClusterMempoolBlocks(cmBlocks, newMempool, mempool.getAccelerations());
     } else if (config.MEMPOOL.RUST_GBT) {
       await mempoolBlocks.$rustUpdateBlockTemplates(transactionIds, newMempool, added, removed, candidates, true);
     } else {
