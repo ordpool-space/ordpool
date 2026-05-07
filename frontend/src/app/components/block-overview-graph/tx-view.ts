@@ -79,9 +79,9 @@ export default class TxView implements TransactionStripped {
   }
 
   destroy(): void {
-    // HACK -- Ordpool inscription image previews: free the atlas slot before tearing down the sprite.
+    // HACK -- Ordpool artifact image previews: free the atlas slot before tearing down the sprite.
     if (this.ordpoolAtlasRegistered) {
-      this.scene?.releaseInscriptionSlot(this.txid);
+      this.scene?.releaseArtifactSlot(this.txid);
       this.ordpoolAtlasRegistered = false;
     }
     if (this.sprite) {
@@ -126,10 +126,11 @@ export default class TxView implements TransactionStripped {
         toSpriteUpdate(params),
         this.vertexArray
       );
-      // HACK -- Ordpool inscription image previews: ask the scene to register
-      // this sprite. Eligibility (image flag, vsize threshold) lives over there
-      // so we only flip the registered flag when the atlas actually took it.
-      if (!this.ordpoolAtlasRegistered && this.scene?.requestInscriptionSlot(this)) {
+      // HACK -- Ordpool artifact image previews: ask the scene to register
+      // this sprite. Eligibility (image-bucket flag for inscription / stamp /
+      // atomical + vsize threshold) lives over there, so we only flip the
+      // registered flag when the atlas actually took it.
+      if (!this.ordpoolAtlasRegistered && this.scene?.requestArtifactSlot(this)) {
         this.ordpoolAtlasRegistered = true;
       }
       // apply any pending hover event

@@ -60,6 +60,13 @@ let PROXY_CONFIG = [
     proxyTimeout: 30000
   },
   {
+    context: ['/stamp-content/**', '/atomical-content/**'],
+    target: 'http://127.0.0.1:8999',
+    secure: false,
+    changeOrigin: true,
+    proxyTimeout: 30000
+  },
+  {
     context: ['/r/**', '/blockheight', '/blockhash', '/blockhash/**', '/blocktime'],
     target: 'https://ordinals.com',
     secure: false,

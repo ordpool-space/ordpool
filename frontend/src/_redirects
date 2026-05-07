@@ -6,6 +6,8 @@
 # paths). The edge sends them to our v2 backend's SSR handler.
 /content/* https://api.ordpool.space/content/:splat 301
 /preview/* https://api.ordpool.space/preview/:splat 301
+/stamp-content/* https://api.ordpool.space/stamp-content/:splat 301
+/atomical-content/* https://api.ordpool.space/atomical-content/:splat 301
 
 # mempool.space-shape /api/* URLs. ordpool is a mempool fork; users
 # follow mempool's docs and expect those examples to work against
