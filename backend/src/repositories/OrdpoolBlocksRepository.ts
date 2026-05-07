@@ -1004,18 +1004,16 @@ class OrdpoolBlocksRepository {
    * (no row in `ordpool_stats`, not in `ordpool_stats_skipped`). Read by
    * /health/indexer-progress.
    *
-   * Computed by arithmetic over three indexed range-scans:
+   * Computed by arithmetic over three table-level COUNTs:
    *
    *   pendingCount = eligibleBlocks - processedBlocks - skippedBlocks
    *
-   * eligibleBlocks: count of `blocks` rows at or above `startHeight`.
-   * processedBlocks: count of `ordpool_stats` rows joined to blocks at
-   * or above `startHeight`. skippedBlocks: count of
-   * `ordpool_stats_skipped` rows at or above `startHeight`.
-   *
-   * Each summand is sub-second on indexed columns; together with the
-   * cache below the public endpoint stays cheap regardless of request
-   * volume.
+   * eligibleBlocks counts `blocks` rows at or above `startHeight` via the
+   * height index. processedBlocks and skippedBlocks are full table-level
+   * COUNTs of `ordpool_stats` / `ordpool_stats_skipped`; both tables only
+   * ever contain rows for heights at or above `firstStatsHeight` by
+   * indexer construction, so a JOIN against `blocks.height` would be
+   * redundant work.
    *
    * The cache is keyed by startHeight so callers passing different
    * thresholds don't collide; in practice only one is ever used.
@@ -1024,11 +1022,10 @@ class OrdpoolBlocksRepository {
     return this.getCachedOrFetch(`pendingStatsCount:${startHeight}`, async () => {
       const [rows] = await DB.query(
         `SELECT
-           (SELECT COUNT(*) FROM blocks WHERE height >= ?)                                      AS eligible,
-           (SELECT COUNT(*) FROM ordpool_stats s JOIN blocks b ON b.hash = s.hash
-              WHERE b.height >= ?)                                                              AS processed,
-           (SELECT COUNT(*) FROM ordpool_stats_skipped WHERE height >= ?)                       AS skipped`,
-        [startHeight, startHeight, startHeight]
+           (SELECT COUNT(*) FROM blocks WHERE height >= ?) AS eligible,
+           (SELECT COUNT(*) FROM ordpool_stats)            AS processed,
+           (SELECT COUNT(*) FROM ordpool_stats_skipped)    AS skipped`,
+        [startHeight]
       ) as any;
       const r = rows[0] || {};
       return Math.max(0, Number(r.eligible ?? 0) - Number(r.processed ?? 0) - Number(r.skipped ?? 0));
