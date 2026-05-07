@@ -80,8 +80,11 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   cssHeight: number;
   shaderProgram: WebGLProgram;
   vertexArray: FastVertexArray;
-  // HACK -- Ordpool inscription image previews: atlas owns the inscription texture.
+  // HACK -- Ordpool artifact image previews: atlas owns the inscription/stamp/atomical texture.
   ordpoolAtlas: OrdpoolInscriptionAtlas;
+  // HACK -- Ordpool: cached atlasSize uniform location. Pushed every frame
+  // because the atlas can expand at runtime (1024 → 2048 on first saturation).
+  ordpoolAtlasSizeUniform: WebGLUniformLocation | null = null;
   running: boolean;
   scene: BlockScene;
   hoverTx: TxView | void;
@@ -371,12 +374,14 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     this.gl.enable(this.gl.BLEND);
     this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA);
 
-    // HACK -- Ordpool inscription image previews: uSampler + atlasSize are constants
-    // for the lifetime of the program — set them once instead of looking them up
-    // on every frame in run(). texture unit 0 matches `ordpoolAtlas.bind(0)`.
+    // HACK -- Ordpool artifact image previews: uSampler is fixed (texture unit 0
+    // matches `ordpoolAtlas.bind(0)`) so set it once. atlasSize tracks the live
+    // atlas size — atlas can expand from 1024² to 2048² at runtime — so we cache
+    // its uniform location here and push the value each frame in run().
     if (this.ordpoolAtlas) {
       this.gl.uniform1i(this.gl.getUniformLocation(this.shaderProgram, 'uSampler'), 0);
-      this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'atlasSize'), ATLAS_SIZE);
+      this.ordpoolAtlasSizeUniform = this.gl.getUniformLocation(this.shaderProgram, 'atlasSize');
+      this.gl.uniform1f(this.ordpoolAtlasSizeUniform, this.ordpoolAtlas.size);
     }
 
     const glBuffer = this.gl.createBuffer();
@@ -498,10 +503,14 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
       this.gl.uniform2f(this.gl.getUniformLocation(this.shaderProgram, 'screenSize'), this.displayWidth, this.displayHeight);
       // frame timestamp
       this.gl.uniform1f(this.gl.getUniformLocation(this.shaderProgram, 'now'), now);
-      // HACK -- Ordpool inscription image previews: bind the atlas texture and
+      // HACK -- Ordpool artifact image previews: bind the atlas texture and
       // flush any pending canvas → texImage2D upload from a recent image arrival.
-      // The uSampler/atlasSize uniforms are set once in initCanvas().
-      this.ordpoolAtlas?.bind(0);
+      // atlasSize is pushed every frame because the atlas can expand at runtime
+      // (1024 → 2048); uSampler is constant and was set once in initCanvas().
+      if (this.ordpoolAtlas) {
+        this.ordpoolAtlas.bind(0);
+        this.gl.uniform1f(this.ordpoolAtlasSizeUniform, this.ordpoolAtlas.size);
+      }
 
       if (this.vertexArray.dirty) {
         /* SET UP SHADER ATTRIBUTES */

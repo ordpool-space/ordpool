@@ -1,28 +1,71 @@
-/*
-  Inscription image atlas for the block-overview graph.
-
-  Owns a 1024x1024 RGBA canvas, a matching WebGL texture, and a quadtree
-  slot allocator. Block-scene tells us when an inscription tx becomes
-  visible (`requestSlot`) or leaves the scene (`releaseSlot`). We fetch
-  `/content/<txid>i0` for each request, draw the result into the slot
-  rectangle, and tell the sprite to flip its texture flag once the upload
-  is on the GPU. Failed fetches are remembered so a re-add doesn't retry.
-
-  `/content/` stays a same-origin path on purpose: ordpool-backend serves
-  it directly in dev (Angular proxy on :8999), and Cloudflare Pages
-  rewrites it to api.ordpool.space in prod (`_redirects`). That route has
-  permissive CORS (`Access-Control-Allow-Origin: *`), so the canvas stays
-  un-tainted and texImage2D doesn't throw.
-
-  No spinner texture for now — sprites without a loaded image keep their
-  ordpool-tinted flat colour, which is honest about loading state and
-  saves a sampler + an asset.
-*/
+/**
+ * Texture atlas for inscription / stamp / atomical image previews rendered
+ * inside the block-overview graph's tx squares.
+ *
+ * # Why an atlas, not per-tx textures
+ *
+ * Each visible block can carry hundreds of image-bearing artifact txs. One
+ * GL texture per tx would cost a draw-call per sprite (or at minimum a per-
+ * frame texture-bind storm), neither of which fits the existing geometry-
+ * only renderer. A single atlas lets us keep the existing one-draw-call-per-
+ * frame pattern: every sprite samples a sub-rect of the *same* texture; the
+ * vertex shader figures out which sub-rect from a packed integer carried in
+ * the per-vertex `offset` attribute.
+ *
+ * # Pipeline
+ *
+ *   1. CPU side: HTMLCanvasElement (1024² → 2048² after first saturation).
+ *      `requestSlot()` allocates a power-of-two pixel rectangle via the
+ *      quadtree allocator and kicks off a fetch for `/content/<txid>` (or
+ *      `/stamp-content/<txid>`, `/atomical-content/<txid>` depending on
+ *      artifact kind).
+ *   2. `Image()` arrives → `ctx.drawImage(img, …, slot.x+1, slot.y+1, slot.size-2, slot.size-2)`
+ *      blits the image into the canvas, preserving aspect ratio with a
+ *      cover-fit centre crop. The 1-px gutter prevents bilinear sampling
+ *      bleed between neighbouring slots.
+ *   3. `dirtyTexture = true`. The next `bind(unit)` call uploads the entire
+ *      canvas via a single `texImage2D(gl.RGBA, gl.UNSIGNED_BYTE, canvas)` —
+ *      one upload no matter how many images arrived in the same frame.
+ *   4. `sprite.setTexture(packedSlot)` flips the sprite's tristate flag from
+ *      "render flat colour" to "sample atlas at packedSlot". The shader
+ *      decodes the slot back to UVs in the vertex stage.
+ *
+ * # Network posture
+ *
+ * `/content/`, `/stamp-content/`, `/atomical-content/` stay same-origin on
+ * purpose: dev (Angular proxy → :8999), prod (Cloudflare Pages `_redirects`
+ * → api.ordpool.space). Both endpoints reply with `Access-Control-Allow-
+ * Origin: *`, so `<Image crossOrigin="anonymous">` keeps the canvas un-
+ * tainted and `texImage2D(canvas)` is allowed to read the pixels. Failed
+ * fetches retry twice (500 ms / 2 s) before being added to a FIFO failure
+ * cache so transient flaps don't permanently blacklist a txid.
+ *
+ * # Saturation
+ *
+ * On first full, the atlas expands once from 1024² to 2048² (4× capacity)
+ * by allocating a larger canvas, blitting the existing pixel buffer at
+ * (0, 0) — slot positions are preserved — and recreating the GPU texture.
+ * The second saturation is logged once via `console.error` and the
+ * affected sprite stays at flat colour; further saturations are silent.
+ *
+ * # No spinner
+ *
+ * While a fetch is in flight the sprite keeps its ordpool-tinted flat
+ * colour. That's honest about loading state, costs nothing, and saves a
+ * second sampler + asset.
+ */
 
 import TxSprite from '@components/block-overview-graph/tx-sprite';
 import * as quadtree from './ordpool-quadtree-allocator';
 
+/** Initial atlas edge length in pixels. Used by the component as the default
+ *  uniform value before any allocation has happened. */
 export const ATLAS_SIZE = 1024;
+/** Maximum atlas edge length. The atlas doubles once on first saturation;
+ *  any further fills emit a one-shot console.error and fall back to the
+ *  flat-colour rendering path. 2048² stays well below `gl.MAX_TEXTURE_SIZE`
+ *  (≥ 4096 universally, typically 8192–16384) and uses ~16 MB of GPU memory. */
+export const MAX_ATLAS_SIZE = 2048;
 const SLOT_QUANTUM = 32;
 const MIN_SLOT = 32;
 const MAX_SLOT = 512;
@@ -63,11 +106,15 @@ export class OrdpoolInscriptionAtlas {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private root: quadtree.QuadNode;
+  private currentSize = ATLAS_SIZE;
   private entries = new Map<string, AtlasEntry>();
   private failed = new Set<string>();
   private fetchQueue: Array<() => void> = [];
   private inFlight = 0;
   private dirtyTexture = false;
+  /** True after we've run out of room at MAX_ATLAS_SIZE. Used to suppress
+   *  repeat console.error spam when many sprites can't fit in the same scene. */
+  private saturationLogged = false;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -77,15 +124,39 @@ export class OrdpoolInscriptionAtlas {
     this.root = quadtree.createRoot(ATLAS_SIZE);
   }
 
+  /** Current atlas edge length in pixels. Starts at `ATLAS_SIZE`, doubles to
+   *  `MAX_ATLAS_SIZE` on first saturation. The shader's `atlasSize` uniform
+   *  must track this — the component reads it every frame in the run loop. */
+  get size(): number {
+    return this.currentSize;
+  }
+
+  /**
+   * Wire the atlas up to a live WebGL context. Allocates a `currentSize²`
+   * RGBA texture at unit 0 and configures sampling parameters. Call once
+   * after `useProgram()` and again after a context-loss restore.
+   */
   init(gl: WebGLRenderingContext): void {
     this.gl = gl;
-    this.texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_SIZE, ATLAS_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.allocateTexture();
+  }
+
+  /** Internal: allocate (or reallocate after expansion) the GPU texture at
+   *  the atlas's current size. Called from init() and from expand(). */
+  private allocateTexture(): void {
+    if (!this.gl) {
+      return;
+    }
+    if (this.texture) {
+      this.gl.deleteTexture(this.texture);
+    }
+    this.texture = this.gl.createTexture();
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.currentSize, this.currentSize, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
     this.dirtyTexture = true;
   }
 
@@ -101,10 +172,21 @@ export class OrdpoolInscriptionAtlas {
     }
   }
 
-  // Returns true if the atlas accepted ownership of this txid (caller should
-  // pair it with a later releaseSlot). Returns false on previously-failed
-  // fetches and on atlas-full conditions, so the caller knows not to release
-  // a slot it never acquired.
+  /**
+   * Reserve an atlas slot for `txid` of artifact `kind` and start the
+   * background fetch.
+   *
+   * Returns `true` when the atlas took ownership — the caller MUST pair this
+   * with a later `releaseSlot(txid)`. Returns `false` when the atlas refuses:
+   *
+   *  - `txid` is in the failure cache (hard 404 from a prior session attempt)
+   *  - the atlas can't fit a slot of the requested size, even after expansion
+   *
+   * On the second case the affected sprite stays at flat colour. Once the
+   * atlas reaches `MAX_ATLAS_SIZE` and is genuinely full, a one-shot
+   * `console.error` makes the situation observable in DevTools so we can
+   * tell "no preview is showing" from "preview never even tried".
+   */
   requestSlot(txid: string, vsize: number, sprite: TxSprite, kind: OrdpoolArtifactKind): boolean {
     if (this.failed.has(txid)) {
       return false;
@@ -119,9 +201,16 @@ export class OrdpoolInscriptionAtlas {
       return true;
     }
     const slotPx = computeSlotSize(vsize);
-    const node = quadtree.insert(this.root, slotPx);
+    let node = quadtree.insert(this.root, slotPx);
+    if (!node && this.currentSize < MAX_ATLAS_SIZE) {
+      // First saturation: double the atlas (1024 → 2048) and try again.
+      // The expansion preserves every existing slot, so already-loaded
+      // textures stay correctly addressed by their existing packed slots.
+      this.expand();
+      node = quadtree.insert(this.root, slotPx);
+    }
     if (!node) {
-      // atlas full — sprite stays as flat colour, no retry on later free
+      this.logSaturationOnce(slotPx);
       return false;
     }
     const entry: AtlasEntry = {
@@ -157,6 +246,10 @@ export class OrdpoolInscriptionAtlas {
     this.entries.delete(txid);
   }
 
+  /**
+   * Tear down: cancel in-flight fetches, drop the GPU texture, reset the
+   * saturation log gate. Called from the component's `ngOnDestroy`.
+   */
   destroy(): void {
     for (const entry of this.entries.values()) {
       entry.abort();
@@ -165,6 +258,7 @@ export class OrdpoolInscriptionAtlas {
     this.failed.clear();
     this.fetchQueue = [];
     this.inFlight = 0;
+    this.saturationLogged = false;
     if (this.gl && this.texture) {
       this.gl.deleteTexture(this.texture);
     }
@@ -237,6 +331,46 @@ export class OrdpoolInscriptionAtlas {
     // Stamps and atomicals have their own routes that return the renderable
     // bytes directly.
     img.src = `${ARTIFACT_PATHS[entry.kind]}${entry.txid}`;
+  }
+
+  /**
+   * Double the atlas in both dimensions. Allocates a `currentSize × 2` canvas,
+   * copies the existing pixel buffer at (0, 0) — slot positions are preserved
+   * since the quadtree expansion makes the old root the top-left child of
+   * the new root — and recreates the GPU texture.
+   *
+   * Called once per atlas instance, on first saturation in `requestSlot`.
+   * Beyond `MAX_ATLAS_SIZE` we don't expand further; further full conditions
+   * are reported by `logSaturationOnce`.
+   */
+  private expand(): void {
+    const newSize = this.currentSize * 2;
+    const newCanvas = document.createElement('canvas');
+    newCanvas.width = newSize;
+    newCanvas.height = newSize;
+    const newCtx = newCanvas.getContext('2d', { willReadFrequently: false })!;
+    // Copy the existing pixel buffer into the top-left corner. Every loaded
+    // image keeps its (slot.x, slot.y, slot.size), so existing AtlasEntry
+    // node references and packed-slot integers stay valid.
+    newCtx.drawImage(this.canvas, 0, 0);
+    this.canvas = newCanvas;
+    this.ctx = newCtx;
+    this.root = quadtree.expand(this.root);
+    this.currentSize = newSize;
+    this.allocateTexture();
+  }
+
+  private logSaturationOnce(slotPx: number): void {
+    if (this.saturationLogged) {
+      return;
+    }
+    this.saturationLogged = true;
+    // eslint-disable-next-line no-console
+    console.error(
+      `[ordpool-atlas] saturated at ${this.currentSize}×${this.currentSize}px ` +
+      `(${this.entries.size} slots in flight); refusing slot of ${slotPx}px. ` +
+      `Sprite will fall back to flat colour. Subsequent saturations are silent.`
+    );
   }
 
   private rememberFailure(txid: string): void {
