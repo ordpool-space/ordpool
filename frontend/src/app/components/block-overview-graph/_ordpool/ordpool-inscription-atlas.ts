@@ -171,6 +171,9 @@ export class OrdpoolInscriptionAtlas {
     this.gl.activeTexture(this.gl.TEXTURE0 + unit);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
     if (this.dirtyTexture) {
+      // TEMP-DEBUG: log every texture upload so we know the canvas is reaching the GPU
+      // eslint-disable-next-line no-console
+      console.debug('[ordpool-atlas] texImage2D upload', { canvasSize: this.canvas.width, currentSize: this.currentSize, loadedCount: Array.from(this.entries.values()).filter(e => e.status === 'loaded').length });
       this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.canvas);
       this.dirtyTexture = false;
     }
@@ -451,6 +454,9 @@ export class OrdpoolInscriptionAtlas {
     this.ctx.imageSmoothingEnabled = scale <= 1;
     this.ctx.clearRect(node.x, node.y, node.size, node.size);
     this.ctx.drawImage(img, sx, sy, sw, sh, node.x + 1, node.y + 1, innerSize, innerSize);
+    // TEMP-DEBUG: confirm the pixels actually landed in the canvas
+    // eslint-disable-next-line no-console
+    console.debug('[ordpool-atlas] drawIntoSlot done', { nodeXY: `${node.x},${node.y}`, slotSize: node.size, innerSize, imgWH: `${w}x${h}`, dest: `${node.x + 1},${node.y + 1} ${innerSize}x${innerSize}` });
   }
 }
 
