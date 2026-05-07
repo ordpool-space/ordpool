@@ -95,7 +95,7 @@ varying mediump vec2 vCoord;
 varying mediump vec2 vCorner;
 
 uniform sampler2D uSampler;
-// `now` is also declared in the vertex shader (which defaults to highp for
+// 'now' is also declared in the vertex shader (which defaults to highp for
 // floats). WebGL link errors with "Precisions of uniform 'now' differ between
 // VERTEX and FRAGMENT shaders." unless we match it explicitly here.
 uniform highp float now;
