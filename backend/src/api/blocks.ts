@@ -46,12 +46,7 @@ import { parseDATUMTemplateCreator } from '../utils/bitcoin-script';
 import database from '../database';
 import { getBlockFirstSeenFromLogs, getOldestLogTimestampFromLogs, scanLogsForBlocksFirstSeen } from '../utils/file-read';
 
-// HACK -- Ordpool: minimum schema version for blocks_summaries rows that are
-// guaranteed to carry ordpool flags. Anything below this version was written
-// before the cold-load → analyseTransactions enrichment path was wired in
-// (the version 1/2 summaries lack bit 48+ in tx.flags). The classifier sweeps
-// older summaries up to this version; $getStrippedBlockTransactions falls
-// through to a fresh enriched cold-load when an older row is found.
+// HACK -- Ordpool: min summary version that carries ordpool flags. Older rows fall through to a fresh classify.
 const ORDPOOL_BLOCK_SUMMARY_VERSION = 3;
 
 class Blocks {
@@ -240,10 +235,11 @@ class Blocks {
     };
   }
 
-  public summarizeBlockTransactions(hash: string, height: number, transactions: TransactionExtended[]): BlockSummary {
+  // HACK -- Ordpool: async
+  public async summarizeBlockTransactions(hash: string, height: number, transactions: TransactionExtended[]): Promise<BlockSummary> {
     return {
       id: hash,
-      transactions: Common.classifyTransactions(transactions, height),
+      transactions: await Common.classifyTransactions(transactions, height),
     };
   }
 
@@ -569,7 +565,7 @@ class Blocks {
 
     if (config.MEMPOOL.CLUSTER_MEMPOOL) {
       const cmBlocks = mempool.clusterMempool?.getBlocks(config.MEMPOOL.MEMPOOL_BLOCKS_AMOUNT) ?? [];
-      mempoolBlocks.processClusterMempoolBlocks(cmBlocks, _memPool, mempool.getAccelerations());
+      await mempoolBlocks.processClusterMempoolBlocks(cmBlocks, _memPool, mempool.getAccelerations());
     } else if (config.MEMPOOL.RUST_GBT) {
       const added = memPool.limitGBT ? (candidates?.added || []) : [];
       const removed = memPool.limitGBT ? (candidates?.removed || []) : transactions;
@@ -841,9 +837,7 @@ class Blocks {
 
     const currentBlockHeight = this.getCurrentBlockHeight();
 
-    // HACK -- Ordpool: bumped from 1 to ORDPOOL_BLOCK_SUMMARY_VERSION so the
-    // background classifier re-classifies any pre-ordpool-flag-enrichment summary
-    // that's still cached in blocks_summaries.
+    // HACK -- Ordpool
     const targetSummaryVersion: number = ORDPOOL_BLOCK_SUMMARY_VERSION;
     const targetTemplateVersion: number = 1;
 
@@ -886,20 +880,11 @@ class Blocks {
           const blockHash = unclassifiedBlocks[height];
           // fetch transactions
           txs = (await bitcoinApi.$getTxsForBlock(blockHash, true)).map(tx => transactionUtils.extendMempoolTransaction(tx)) || [];
-          // HACK -- Ordpool: enrich cold-loaded txs with _ordpoolFlags before classify+save.
-          // Without this the classifier would persist summaries with NO ordpool bits — the
-          // exact production bug that hid inscription/stamp/atomical filters and the
-          // image atlas on every cache-rebuild after a backend restart.
-          try {
-            await DigitalArtifactAnalyserService.analyseTransactions(txs);
-          } catch (e) {
-            logger.warn('Failed to enrich classifier-batch txs with ordpool flags: ' + (e instanceof Error ? e.message : e));
-          }
           // add CPFP
           const blockCpfpData = calculateGoodBlockCpfp(height, txs, []);
           const cpfpSummary = saveCpfpDataToCpfpSummary(txs, blockCpfpData);
-          // classify
-          const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
+          // HACK -- Ordpool: async
+          const { transactions: classifiedTxs } = await this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
           await BlocksSummariesRepository.$saveTransactions(height, blockHash, classifiedTxs, ORDPOOL_BLOCK_SUMMARY_VERSION);
           if (unclassifiedBlocks[height].version < 2 && targetSummaryVersion === 2) {
             const cpfpClusters = await CpfpRepository.$getClustersAt(height);
@@ -936,8 +921,8 @@ class Blocks {
             }
             const blockCpfpData = calculateGoodBlockCpfp(height, templateTxs?.filter(tx => tx['effectiveFeePerVsize'] != null) as MempoolTransactionExtended[], []);
             const cpfpSummary = saveCpfpDataToCpfpSummary(templateTxs as MempoolTransactionExtended[], blockCpfpData);
-            // classify
-            const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
+            // HACK -- Ordpool: async
+            const { transactions: classifiedTxs } = await this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
             const classifiedTxMap: { [txid: string]: TransactionClassified } = {};
             for (const tx of classifiedTxs) {
               classifiedTxMap[tx.txid] = tx;
@@ -1552,10 +1537,7 @@ class Blocks {
     // Check if it's indexed in db
     if (skipDBLookup === false && Common.blocksSummariesIndexingEnabled() === true) {
       const indexedSummary = await BlocksSummariesRepository.$getByBlockId(hash);
-      // HACK -- Ordpool: require ORDPOOL_BLOCK_SUMMARY_VERSION so pre-enrichment
-      // rows fall through to the cold-load path below (which now enriches with
-      // _ordpoolFlags before summarizing). Without this, a stale row that lacks
-      // bit 48+ in tx.flags would keep getting served until manually invalidated.
+      // HACK -- Ordpool: require >= ORDPOOL_BLOCK_SUMMARY_VERSION; older rows fall through.
       if (
         indexedSummary !== undefined &&
         indexedSummary?.transactions?.length &&
@@ -1569,43 +1551,33 @@ class Blocks {
     let summary: BlockSummary;
     let summaryVersion = 0;
     if (cpfpSummary && !Common.isLiquid()) {
+      // HACK -- Ordpool: async + Promise.all (getTransactionFlags now awaits parser)
+      const classifiedTxs = await Promise.all(cpfpSummary.transactions.map(async tx => {
+        let flags: number = 0;
+        try {
+          flags = await Common.getTransactionFlags(tx, height);
+        } catch (e) {
+          logger.warn('Failed to classify transaction: ' + (e instanceof Error ? e.message : e));
+        }
+        return {
+          txid: tx.txid,
+          time: tx.firstSeen,
+          fee: tx.fee || 0,
+          vsize: tx.vsize,
+          value: Math.round(tx.vout.reduce((acc, vout) => acc + (vout.value ? vout.value : 0), 0)),
+          rate: tx.effectiveFeePerVsize,
+          flags: flags,
+        };
+      }));
       summary = {
         id: hash,
-        transactions: cpfpSummary.transactions.map(tx => {
-          let flags: number = 0;
-          try {
-            flags = Common.getTransactionFlags(tx, height);
-          } catch (e) {
-            logger.warn('Failed to classify transaction: ' + (e instanceof Error ? e.message : e));
-          }
-          return {
-            txid: tx.txid,
-            time: tx.firstSeen,
-            fee: tx.fee || 0,
-            vsize: tx.vsize,
-            value: Math.round(tx.vout.reduce((acc, vout) => acc + (vout.value ? vout.value : 0), 0)),
-            rate: tx.effectiveFeePerVsize,
-            flags: flags,
-          };
-        }),
+        transactions: classifiedTxs,
       };
       summaryVersion = cpfpSummary.version;
     } else {
       const txs = (await bitcoinApi.$getTxsForBlock(hash, true)).map(tx => transactionUtils.extendTransaction(tx));
-      // HACK -- Ordpool: pre-enrich txs with _ordpoolFlags so summarizeBlockTransactions
-      // picks them up via Common.getTransactionFlags's read of tx._ordpoolFlags. Without
-      // this, the cold-load path (block fetched from RPC, no in-memory mempool history)
-      // returns flags WITHOUT bit 48+ ordpool flags — the frontend's per-artifact
-      // filters and the inscription image atlas both go silent. See the
-      // _ordpoolFlags side-effect contract documented in
-      // backend/.claude/CLAUDE.md and ordpool-parser/.claude/CLAUDE.md.
-      try {
-        await DigitalArtifactAnalyserService.analyseTransactions(txs);
-      } catch (e) {
-        logger.warn('Failed to enrich block txs with ordpool flags: ' + (e instanceof Error ? e.message : e));
-      }
-      summary = this.summarizeBlockTransactions(hash, height || 0, txs);
-      // HACK -- Ordpool: enriched cold-load -> v3 (matches ORDPOOL_BLOCK_SUMMARY_VERSION).
+      // HACK -- Ordpool: async + v3
+      summary = await this.summarizeBlockTransactions(hash, height || 0, txs);
       summaryVersion = ORDPOOL_BLOCK_SUMMARY_VERSION;
     }
     if (height == null) {
@@ -1749,17 +1721,8 @@ class Blocks {
           let summaryVersion = 0;
           if (config.MEMPOOL.BACKEND === 'esplora') {
             const txs = (await bitcoinApi.$getTxsForBlock(cleanBlock.hash, cleanBlock.stale)).map(tx => transactionUtils.extendTransaction(tx));
-            // HACK -- Ordpool: same enrichment as the $getStrippedBlockTransactions
-            // cold-load path. This path also persists the summary to the
-            // BlocksSummaries DB cache, so without enrichment the cached row
-            // would permanently lack ordpool flags until invalidated.
-            try {
-              await DigitalArtifactAnalyserService.analyseTransactions(txs);
-            } catch (e) {
-              logger.warn('Failed to enrich block txs with ordpool flags: ' + (e instanceof Error ? e.message : e));
-            }
-            summary = this.summarizeBlockTransactions(cleanBlock.hash, cleanBlock.height, txs);
-            // HACK -- Ordpool: enriched cold-load -> v3 (matches ORDPOOL_BLOCK_SUMMARY_VERSION).
+            // HACK -- Ordpool: async + v3
+            summary = await this.summarizeBlockTransactions(cleanBlock.hash, cleanBlock.height, txs);
             summaryVersion = ORDPOOL_BLOCK_SUMMARY_VERSION;
           } else {
             // Call Core RPC
