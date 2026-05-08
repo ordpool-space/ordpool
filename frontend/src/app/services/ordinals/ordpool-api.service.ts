@@ -9,8 +9,14 @@ import {
   Interval,
   OrdpoolStatisticResponse,
 } from '../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
+import {
+  OrdpoolOtsRow,
+  OrdpoolOtsCalendarStats,
+} from '../../../../../backend/src/repositories/OrdpoolOtsRepository';
 import { StateService } from '../state.service';
 import { environment } from '@environments/environment';
+
+export type { OrdpoolOtsRow, OrdpoolOtsCalendarStats };
 
 
 @Injectable({
@@ -60,5 +66,23 @@ export class OrdpoolApiService {
   getIndexerProgress$(): Observable<IndexerProgress> {
     const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/health/indexer-progress`;
     return this.httpClient.get<IndexerProgress>(url);
+  }
+
+  /** Look up a single tx; returns the OTS row when the tx is a calendar commit. */
+  getOtsTx$(txid: string): Observable<OrdpoolOtsRow> {
+    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/tx/${txid}`;
+    return this.httpClient.get<OrdpoolOtsRow>(url);
+  }
+
+  /** Per-calendar summary for the /ots/calendars dashboard. */
+  getOtsCalendars$(): Observable<OrdpoolOtsCalendarStats[]> {
+    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/calendars`;
+    return this.httpClient.get<OrdpoolOtsCalendarStats[]>(url);
+  }
+
+  /** Most-recent confirmed OTS commits. */
+  getOtsRecent$(limit = 50): Observable<OrdpoolOtsRow[]> {
+    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/recent?limit=${limit}`;
+    return this.httpClient.get<OrdpoolOtsRow[]>(url);
   }
 }

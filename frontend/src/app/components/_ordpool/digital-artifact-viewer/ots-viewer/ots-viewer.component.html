@@ -1,0 +1,45 @@
+@if (loaded && row) {
+  <div class="ots-panel">
+    <strong>◉ OpenTimestamps:</strong>
+    <span title="Calendar that broadcast this commit">{{ row.calendar }}</span>
+    @if (row.confirmedAt) {
+      <span class="badge confirmed">confirmed</span>
+    } @else {
+      <span class="badge pending">pending</span>
+    }
+
+    <table class="mt-2 table table-borderless table-striped w-50">
+      <tbody>
+        <tr>
+          <td>Merkle root</td>
+          <td><code class="smaller-text">{{ row.merkleRoot }}</code></td>
+        </tr>
+        @if (row.blockheight) {
+          <tr>
+            <td>Confirmed in block</td>
+            <td>
+              <a [routerLink]="['/block/' | relativeUrl, row.blockhash]">{{ row.blockheight }}</a>
+            </td>
+          </tr>
+        }
+        @if (row.fee) {
+          <tr>
+            <td>Calendar fee</td>
+            <td>{{ row.fee }} sats &middot; {{ row.feerate }} sat/vB</td>
+          </tr>
+        }
+        <tr>
+          <td>What this is</td>
+          <td class="smaller-text">
+            A Merkle root committed to Bitcoin by the
+            <strong>{{ row.calendar }}</strong> calendar, batching ~thousands of
+            user file hashes into one OP_RETURN. Anyone holding a
+            <a href="https://opentimestamps.org" target="_blank" rel="noopener">.ots receipt</a>
+            for one of those hashes can prove their file existed at or before
+            block {{ row.blockheight ?? 'this block' }} -- with no calendar required.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+}

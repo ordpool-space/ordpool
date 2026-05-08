@@ -1,0 +1,25 @@
+.ots-panel {
+  margin-top: 0.5rem;
+
+  .badge {
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.25rem;
+
+    &.confirmed {
+      background: #1e7e34;
+      color: white;
+    }
+
+    &.pending {
+      background: #b8860b;
+      color: white;
+    }
+  }
+
+  code.smaller-text {
+    font-size: 0.75rem;
+    word-break: break-all;
+  }
+}
