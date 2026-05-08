@@ -101,6 +101,51 @@ describe('Ordpool Database Migration Integration Tests', () => {
     }
   });
 
+  test('v6 ordpool_stats_ots table exists with correct columns', async () => {
+    const [rows]: any = await DB.query(
+      `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'mempool_test' AND TABLE_NAME = 'ordpool_stats_ots'
+        ORDER BY ORDINAL_POSITION`
+    );
+    expect(rows.map((r: any) => r.COLUMN_NAME)).toEqual([
+      'txid', 'calendar', 'merkle_root',
+      'first_seen_at', 'confirmed_at',
+      'blockhash', 'blockheight', 'blocktime', 'fee', 'feerate',
+    ]);
+    const byCol: Record<string, any> = Object.fromEntries(rows.map((r: any) => [r.COLUMN_NAME, r]));
+    // Required fields are NOT NULL.
+    expect(byCol.txid.IS_NULLABLE).toBe('NO');
+    expect(byCol.calendar.IS_NULLABLE).toBe('NO');
+    expect(byCol.merkle_root.IS_NULLABLE).toBe('NO');
+    expect(byCol.first_seen_at.IS_NULLABLE).toBe('NO');
+    // Confirmation-derived fields are NULL until the tx confirms.
+    expect(byCol.confirmed_at.IS_NULLABLE).toBe('YES');
+    expect(byCol.blockhash.IS_NULLABLE).toBe('YES');
+    expect(byCol.blockheight.IS_NULLABLE).toBe('YES');
+    // 32-byte raw payload, not hex.
+    expect(byCol.merkle_root.DATA_TYPE).toBe('binary');
+  });
+
+  test('v6 ordpool_stats_ots primary key is txid', async () => {
+    const [rows]: any = await DB.query(
+      `SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = 'mempool_test'
+          AND TABLE_NAME = 'ordpool_stats_ots'
+          AND CONSTRAINT_NAME = 'PRIMARY'`
+    );
+    expect(rows.map((r: any) => r.COLUMN_NAME)).toEqual(['txid']);
+  });
+
+  test('v6 ordpool_stats_ots indexes exist', async () => {
+    const [rows]: any = await DB.query(
+      `SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = 'mempool_test' AND TABLE_NAME = 'ordpool_stats_ots'`
+    );
+    const names = rows.map((r: any) => r.INDEX_NAME).sort();
+    expect(names).toEqual(['PRIMARY', 'idx_blockheight', 'idx_calendar_blockheight', 'idx_first_seen']);
+  });
+
   test('migration is idempotent — re-running does not error', async () => {
     // setupOrdpoolTestDatabase already ran in beforeAll. Re-run; should
     // detect schema_version === currentVersion and short-circuit cleanly.
