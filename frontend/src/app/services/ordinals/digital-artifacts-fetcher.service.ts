@@ -83,44 +83,20 @@ export class DigitalArtifactsFetcherService {
     this.cachedArtifactsTxns.set(txid, artifacts);
   }
 
-  // TODO
-  /// use this version in the future, but right now our backend is slooooow, 
-  // so we better prefer blockstreamApiService until we have badass resources
-  // /**
-  //  * Fetches a single transaction by ID.
-  //  * Tries fetching from
-  //  *
-  //  * 1. Our own backend
-  //  * 2. fallback: blockstream.info
-  //  * 3. fallback: blockchain.info (warning: has no Testnet support)
-  //  * ... or gives up
-  //  *
-  //  * @param transaction - The transaction object containing the ID (hash).
-  //  * @returns Observable of the transaction data.
-  //  */
-  // fetchTransaction(txid: string): Observable<Transaction> {
-  //   return this.electrsApiService.getTransaction$(txid).pipe(
-  //     catchError(() => this.blockstreamApiService.getTransaction$(txid)),
-  //     catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
-  //     catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
-  //   );
-  // }
-
   /**
-   * Fetches a single transaction by ID.
-   * Tries fetching from
+   * Fetches a single transaction by ID. Order:
    *
-   * 1. blockstream.info - because they are fast
-   * 2. fallback: Our own backend
-   * 3. fallback: blockchain.info (warning: has no Testnet support)
-   * ... or gives up
+   * 1. Our own backend (api.ordpool.space → electrs → bitcoind on happysrv)
+   * 2. fallback: blockstream.info
+   * 3. fallback: blockchain.info (warning: has no testnet support)
+   * ... or gives up.
    *
-   * @param transaction - The transaction object containing the ID (hash).
+   * @param txid The transaction ID.
    * @returns Observable of the transaction data.
    */
   fetchTransaction(txid: string): Observable<Transaction> {
-    return this.blockstreamApiService.getTransaction$(txid).pipe(
-      catchError(() => this.electrsApiService.getTransaction$(txid)),
+    return this.electrsApiService.getTransaction$(txid).pipe(
+      catchError(() => this.blockstreamApiService.getTransaction$(txid)),
       catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
       catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
     );
