@@ -9,3 +9,28 @@
     background-color: #276134;
 
 }
+
+// Always exactly 2 rows of cat thumbnails.
+// Column count adapts to breakpoint; we fetch 12 cats and clip the rest with
+// overflow:hidden so the row count stays at 2 regardless of viewport width.
+.cat-grid {
+  display: grid;
+  gap: 8px;
+  justify-content: center;
+  overflow: hidden;
+  max-height: 200px; // 96*2 + 8 gap → exactly 2 rows at 96px
+
+  // Cells are always 96px; the column count adapts to keep 2 rows.
+  grid-template-columns: repeat(3, 96px); // xs: 3 × 2 = 6 cats
+  @media (min-width: 576px) { grid-template-columns: repeat(4, 96px); } // sm: 4 × 2 = 8
+  @media (min-width: 768px) { grid-template-columns: repeat(5, 96px); } // md: 5 × 2 = 10
+  @media (min-width: 992px) { grid-template-columns: repeat(6, 96px); } // lg+: 6 × 2 = 12
+
+  > a > img {
+    width: 96px;
+    height: 96px;
+    image-rendering: pixelated;
+    border-radius: 4px;
+    display: block;
+  }
+}

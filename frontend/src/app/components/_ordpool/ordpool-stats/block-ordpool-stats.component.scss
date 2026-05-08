@@ -51,4 +51,6 @@ small {
 .status-detail {
   color: var(--transparent-fg);
   font-size: 0.9em;
+  display: block;
+  max-width: 70ch;
 }

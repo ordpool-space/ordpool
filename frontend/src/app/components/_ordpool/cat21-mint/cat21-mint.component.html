@@ -8,16 +8,33 @@
 
       <p class="mx-auto" style="max-width: 800px;">
 
-        Did you know? Every Bitcoin transaction can mint a hidden cat.
-        Rescue the cats and be part of the movement!
+        Did you know? Every Bitcoin transaction can reveal a hidden cat.
+        Mint the cats and be part of the movement!
+        CAT-21 is a meme protocol from the creator of Ordpool.
+        Minting is free; you pay only the network fee.
+        Cats bring joy. Reveal yours.
 
-        <!-- <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">CAT-21</a> -->
-        CAT-21 is a new meme protocol from the creator of Ordpool.
-        The minting process is completely free.
-        So take your chance while fees are low and rescue as many cats as you can!
+      </p>
 
-        And while you're here, you might also want to <a href="https://github.com/ordpool-space/cat-21" target="_blank" style="color:#FF9900; text-decoration: underline;">read the whitepaper</a>.
+      <ng-container *ngIf="latestCatNumbers$ | async as latest">
+        <div *ngIf="latest.length"
+             class="cat-grid mx-auto"
+             style="max-width: 800px; margin-top: 16px;">
+          <a *ngFor="let n of latest"
+             [href]="'https://cat21.space/cat/' + n"
+             target="_blank"
+             rel="noopener"
+             [title]="'Cat #' + n">
+            <img [src]="catImageUrl(n)"
+                 [alt]="'Cat #' + n"
+                 loading="lazy">
+          </a>
+        </div>
+      </ng-container>
 
+      <p class="text-center text-muted" style="margin-top: 16px;">
+        Wanna see more? Every revealed cat lives at
+        <a href="https://cat21.space/" target="_blank" style="color:#FF9900; text-decoration: underline;">cat21.space</a>.
       </p>
 
     </div>
@@ -232,6 +249,13 @@
 
     </ng-container>
   </div>
+
+  <p class="text-center mt-4 mx-auto" style="max-width: 800px;" *ngIf="mintStatus$ | async as s">
+    So far, <strong>{{ s.totalCats | number }} cats</strong> have been revealed.<br>
+    <strong>Proof of Cat Work:</strong>
+    {{ s.proofOfCatWork | number }} sats
+    (≈ {{ s.proofOfCatWork / 1e8 | number:'1.2-2' }} BTC).
+  </p>
 </div>
 
 <div class="container-xl pl-5 pr-5" *ngIf="!enableCat21Mint">
