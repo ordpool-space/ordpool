@@ -5,6 +5,7 @@ import config from '../../../config';
 import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
+import ordpoolOtsRepository from '../../../repositories/OrdpoolOtsRepository';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
 import ordpoolAtomicalsApi from './ordpool-atomicals.api';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
@@ -24,10 +25,64 @@ class GeneralOrdpoolRoutes {
     app
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/statistics/:type/:interval/:aggregation', this.$getOrdpoolStatistics)
       .get(config.MEMPOOL.API_URL_PREFIX + 'health/indexer-progress', this.$getIndexerProgress)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/calendars', this.$getOtsCalendars)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/recent', this.$getOtsRecent)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/tx/:txid', this.$getOtsTx)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
       .get('/atomical-content/:txid', this.getAtomicalContent);
+  }
+
+  /** Per-calendar summary for the /ots/calendars dashboard. */
+  // https://ordpool.space/api/v1/ordpool/ots/calendars
+  private async $getOtsCalendars(req: Request, res: Response): Promise<void> {
+    try {
+      const stats = await ordpoolOtsRepository.getCalendarStats();
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.json(stats);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /** Most-recent confirmed OTS commits across every calendar. */
+  // https://ordpool.space/api/v1/ordpool/ots/recent?limit=50
+  private async $getOtsRecent(req: Request, res: Response): Promise<void> {
+    try {
+      const raw = req.query.limit;
+      const limit = Math.min(Math.max(parseInt(typeof raw === 'string' ? raw : '50', 10) || 50, 1), 500);
+      const rows = await ordpoolOtsRepository.getRecent(limit);
+      res.setHeader('Cache-Control', 'public, max-age=30');
+      res.json(rows);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /** Single tx lookup. 404 if the txid isn't a known OTS commit. */
+  // https://ordpool.space/api/v1/ordpool/ots/tx/8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f
+  private async $getOtsTx(req: Request, res: Response): Promise<void> {
+    try {
+      const txid = req.params.txid;
+      if (!txid || !/^[0-9a-f]{64}$/i.test(txid)) {
+        res.status(400).send('txid must be a 64-char lower-case hex string');
+        return;
+      }
+      const row = await ordpoolOtsRepository.getByTxid(txid.toLowerCase());
+      if (!row) {
+        res.status(404).send('Not an OpenTimestamps calendar commit (or not yet seen).');
+        return;
+      }
+      // Confirmed rows can cache aggressively (data is immutable once confirmed).
+      // Pending rows must not cache because they're about to flip.
+      res.setHeader('Cache-Control', row.confirmedAt
+        ? 'public, max-age=300'
+        : 'no-store');
+      res.json(row);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : String(e));
+    }
   }
 
   /**
