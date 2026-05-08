@@ -43,6 +43,7 @@ export async function cleanupOrdpoolStats(): Promise<void> {
     'ordpool_stats_cat21_mint',
     'ordpool_stats_atomical_op',
     'ordpool_stats_counterparty',
+    'ordpool_stats_ots',
   ];
   await DB.query('SET FOREIGN_KEY_CHECKS = 0');
   for (const table of tables) {

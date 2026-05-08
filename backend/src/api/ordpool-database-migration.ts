@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 5;
+  private static currentVersion = 6;
 
   private queryTimeout = 3600_000;
 
@@ -591,6 +591,38 @@ class OrdpoolDatabaseMigration {
 
       queries.push(`DELETE FROM ordpool_stats WHERE amounts_stamp > 0 OR amounts_atomical > 0;`);
       queries.push(`DELETE FROM ordpool_stats_skipped;`);
+    }
+
+    if (version <= 6) {
+      // OpenTimestamps calendar commits. ONE row per OTS commit txid the
+      // backend has observed via calendar-server polling. Populated by
+      // OrdpoolOtsPoller (api/ots/ordpool-ots-poller.ts) and an in-memory
+      // Set<string> snapshot of every txid here is what the per-tx
+      // pre-enrichment uses to OR ordpool_ots into _ordpoolFlags.
+      //
+      // - merkle_root is the 32-byte OP_RETURN payload (the calendar's
+      //   tip at broadcast); useful for tx-page display + external
+      //   .ots receipt verification.
+      // - confirmed_at + blockhash/blockheight/blocktime/fee/feerate are
+      //   filled in once the tx confirms (pending rows have NULLs).
+      // - ascii_bin keeps txid + blockhash comparisons exact and fast.
+      queries.push(`
+        CREATE TABLE IF NOT EXISTS ordpool_stats_ots (
+          txid              CHAR(64)        NOT NULL PRIMARY KEY,
+          calendar          VARCHAR(16)     NOT NULL,
+          merkle_root       BINARY(32)      NOT NULL,
+          first_seen_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          confirmed_at      DATETIME        NULL,
+          blockhash         CHAR(64)        NULL,
+          blockheight       INT UNSIGNED    NULL,
+          blocktime         INT UNSIGNED    NULL,
+          fee               INT             NULL,
+          feerate           DECIMAL(8,2)    NULL,
+          INDEX idx_blockheight (blockheight),
+          INDEX idx_calendar_blockheight (calendar, blockheight),
+          INDEX idx_first_seen (first_seen_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=ascii COLLATE=ascii_bin;
+      `);
     }
 
     return queries;
