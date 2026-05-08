@@ -22,6 +22,17 @@ import { DigitalArtifactAnalyserService, getFirstInscriptionHeight } from 'ordpo
 // HACK: force a given block for debugging reasons
 // const debugBlock = 839999;
 const debugBlock = null;
+
+// HACK -- Ordpool: genesis hashes for the supported Bitcoin networks. Used
+// to short-circuit $getBlock for genesis (Core can't getrawtransaction the
+// genesis coinbase, so the standard index path 404s).
+const BLOCK_GENESIS_HASHES = [
+  '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f', // mainnet
+  '000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943', // testnet3
+  '00000000da84f2bafbbc53dee25a72ae507ff4914b867c565be350b0da8bf043', // testnet4
+  '00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6', // signet
+  '0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206', // regtest
+];
 import BlocksSummariesRepository from '../repositories/BlocksSummariesRepository';
 import BlocksAuditsRepository from '../repositories/BlocksAuditsRepository';
 import cpfpRepository from '../repositories/CpfpRepository';
@@ -1515,6 +1526,14 @@ class Blocks {
 
     // Not Bitcoin network, return the block as it from the bitcoin backend
     if (['mainnet', 'testnet', 'signet', 'testnet4', 'regtest'].includes(config.MEMPOOL.NETWORK) === false) {
+      return await bitcoinCoreApi.$getBlock(hash);
+    }
+
+    // HACK -- Ordpool: short-circuit genesis. Bitcoin Core treats the genesis
+    // coinbase tx as non-standard (getrawtransaction fails), so $indexBlock's
+    // call to $getTransactionsExtended throws and the route ends up as 404.
+    // Return the bare block from bitcoinCoreApi without trying to extend txs.
+    if (BLOCK_GENESIS_HASHES.includes(hash)) {
       return await bitcoinCoreApi.$getBlock(hash);
     }
 

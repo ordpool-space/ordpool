@@ -37,6 +37,15 @@ export class Cat21MintComponent implements OnInit {
   connectedWallet$ = this.walletService.connectedWallet$;
   selectedFeeRate$ = new BehaviorSubject<number>(0);
 
+  mintStatus$ = this.cat21ApiService.getStatus().pipe(
+    catchError(() => of(null))
+  );
+  latestCatNumbers$ = this.cat21ApiService.getLatestCatNumbers(12).pipe(
+    map(r => r.catNumbers),
+    catchError(() => of([] as number[]))
+  );
+  catImageUrl = (n: number) => this.cat21ApiService.getCatImageUrl(n);
+
   selectedPaymentOutput: {
     simulation: SimulateTransactionResult;
     paymentOutput: TxnOutput;

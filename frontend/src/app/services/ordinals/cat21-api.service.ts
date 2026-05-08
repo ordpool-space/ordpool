@@ -1,15 +1,21 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, interval, startWith, switchMap, takeWhile } from 'rxjs';
+import { Observable, interval, shareReplay, startWith, switchMap, takeWhile } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { WalletService } from './wallet.service';
 
 export interface StatusResult {
-  network: string;
-  indexedCats: number;
-  lastSuccessfulExecution: string;
-  uptime: number;
+  totalCats: number;
+  lastSyncedCatNumber: number;
+  proofOfCatWork: number;
+}
+
+export interface CatNumbersResult {
+  catNumbers: number[];
+  total: number;
+  currentPage: number;
+  itemsPerPage: number;
 }
 
 export interface Cat21 {
@@ -110,6 +116,22 @@ export class Cat21ApiService {
 
   getWhitelistStatus(walletAddress: string): Observable<WhitelistStatusResult> {
     return this.http.get<WhitelistStatusResult>(`${this.baseUrl}/whitelist/status/${walletAddress}`);
+  }
+
+  getStatus(): Observable<StatusResult> {
+    return this.http.get<StatusResult>(`${this.baseUrl}/api/status`).pipe(
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  getLatestCatNumbers(itemsPerPage: number): Observable<CatNumbersResult> {
+    return this.http.get<CatNumbersResult>(`${this.baseUrl}/api/cats/numbers/${itemsPerPage}/1`).pipe(
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  getCatImageUrl(catNumber: number): string {
+    return `${this.baseUrl}/api/cat/${catNumber}/image.webp`;
   }
 
   /*

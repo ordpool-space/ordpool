@@ -564,7 +564,11 @@ export class BlockComponent implements OnInit, OnDestroy {
 
   setNextAndPreviousBlockLink(): void {
     if (this.latestBlock) {
-      if (!this.blockHeight){
+      // HACK -- Ordpool: also hide prev-arrow on block 1.
+      // ordpool-backend can't index genesis (Bitcoin Core treats the genesis
+      // coinbase tx specially, $getTransactionsExtended fails), so navigating
+      // to block 0 returns 404. Don't offer that link.
+      if (!this.blockHeight || this.blockHeight === 1){
         this.showPreviousBlocklink = false;
       } else {
         this.showPreviousBlocklink = true;
