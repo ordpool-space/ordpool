@@ -267,6 +267,12 @@
               "disableHostCheck": true,
               "host": "0.0.0.0",
               "verbose": false
+            },
+            "against-prod": {
+              "proxyConfig": "proxy.conf.against-prod.js",
+              "disableHostCheck": true,
+              "host": "0.0.0.0",
+              "verbose": false
             }
           }
         },

@@ -30,6 +30,7 @@
     "start": "npm run generate-themes && npm run generate-config && npm run sync-assets-dev && npm run ng -- serve -c local-esplora",
     "start:parameterized": "npm run generate-themes && npm run generate-config && npm run sync-assets-dev && npm run ng -- serve -c parameterized",
     "start:local-esplora": "npm run generate-themes && npm run generate-config && npm run sync-assets-dev && npm run ng -- serve -c local-esplora",
+    "start:against-prod": "npm run generate-themes && npm run generate-config && npm run sync-assets-dev && npm run ng -- serve -c against-prod",
     "start:local-prod": "npm run generate-themes && npm run generate-config && npm run sync-assets-dev && npm run ng -- serve -c local-prod",
     "start:mixed": "npm run generate-themes && npm run generate-config && npm run sync-assets-dev && npm run ng -- serve -c mixed",
     "build": "npm run generate-themes && npm run generate-config && npm run ng -- build --configuration production && npm run sync-assets-dev && npm run sync-assets",
