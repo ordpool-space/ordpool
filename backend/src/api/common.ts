@@ -1,6 +1,7 @@
 import * as bitcoinjs from 'bitcoinjs-lib';
 import { Request } from 'express';
 import { DigitalArtifactAnalyserService } from 'ordpool-parser';
+import { addOtsFlag } from './ordpool-ots-flag';
 import { EffectiveFeeStats, MempoolBlockWithTransactions, TransactionExtended, MempoolTransactionExtended, TransactionStripped, WorkingEffectiveFeeStats, TransactionClassified, TransactionFlags } from '../mempool.interfaces';
 import config from '../config';
 import { NodeSocket } from '../repositories/NodesSocketsRepository';
@@ -774,6 +775,15 @@ export class Common {
       flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
     } catch (e) {
       logger.warn('ordpool-parser analyseTransaction failed: ' + (e instanceof Error ? e.message : e));
+    }
+
+    // HACK -- Ordpool OTS: indexer-derived flag, injected here so every
+    // tx-classification path (mempool ingest, block extension, websocket
+    // push) picks it up without needing to call addOtsFlag explicitly.
+    // Cheap O(1) Set lookup -- see api/ordpool-ots-flag.ts.
+    addOtsFlag(tx);
+    if (tx._ordpoolFlags) {
+      flags |= BigInt(tx._ordpoolFlags);
     }
 
     return Number(flags);

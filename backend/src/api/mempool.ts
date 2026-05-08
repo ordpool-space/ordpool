@@ -150,7 +150,8 @@ class Mempool {
       if (config.MEMPOOL.CACHE_ENABLED && config.REDIS.ENABLED) {
         await redisCache.$addTransaction(this.mempoolCache[txid]);
       }
-      // HACK -- Ordpool: async getTransactionFlags awaits parser inline.
+      // HACK -- Ordpool: async getTransactionFlags awaits parser inline +
+      // OR's in OTS flag from the indexer-side set.
       this.mempoolCache[txid].flags = await Common.getTransactionFlags(this.mempoolCache[txid]);
       this.mempoolCache[txid].cpfpChecked = false;
       this.mempoolCache[txid].cpfpDirty = true;
@@ -185,7 +186,8 @@ class Mempool {
           for (const tx of result) {
             const extendedTransaction = transactionUtils.extendMempoolTransaction(tx);
             if (!this.mempoolCache[extendedTransaction.txid]) {
-              // HACK -- Ordpool: async getTransactionFlags
+              // HACK -- Ordpool: async getTransactionFlags awaits parser
+              // inline + OR's in OTS flag from the indexer-side set.
               extendedTransaction.flags = await Common.getTransactionFlags(extendedTransaction);
 
               newTransactions.push(extendedTransaction);
@@ -319,7 +321,8 @@ class Mempool {
           hasChange = true;
           newTransactions.push(transaction);
 
-          // HACK -- Ordpool: async getTransactionFlags
+          // HACK -- Ordpool: async getTransactionFlags awaits parser inline
+          // + OR's in OTS flag from the indexer-side set.
           transaction.flags = await Common.getTransactionFlags(transaction);
 
           if (config.REDIS.ENABLED) {
