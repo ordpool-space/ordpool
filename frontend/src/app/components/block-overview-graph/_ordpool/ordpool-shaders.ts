@@ -1,41 +1,14 @@
-/*
-  WebGL shaders for the block-overview graph, with the ordpool inscription
-  image preview pipeline added on top of mempool's existing geometry-only
-  renderer.
-
-  Differences from upstream's inline shaders in block-overview-graph.component.ts:
-
-  - `offset` is widened from vec2 to vec4. The original .xy stays the
-    per-vertex corner offset (0..1). The new .z is the texture flag
-    (0 = flat colour, 1 = atlas slot). The new .w is the packed slot
-    integer produced by `packSlot()`: x/32 + (y/32)*512 + (size/32)*262144.
-  - The vertex shader decodes the slot back to atlas UVs. The slot's y
-    coordinate is flipped to match the un-flipped texImage2D upload of a
-    canvas2d (which has top-left origin, while WebGL textures default to
-    bottom-left).
-  - The fragment shader has a tristate branch on `vIsTexture`:
-      `> 1.5` — sample the atlas. The texture is composited over the flat
-        colour using the image's own alpha, so transparent pixels in the
-        inscription show the underlying tx tint.
-      `> 0.5` — render a procedural rotating-arc spinner over the flat
-        colour, driven by the existing `now` uniform. No texture asset
-        required; arc + ring math runs in ~10 GPU instructions per pixel.
-      `else`  — flat colour fallback.
-
-  Atlas size and slot quantum match `OrdpoolInscriptionAtlas` (1024 px /
-  32 px). The numeric constants in the shader match `packSlot()`'s
-  encoding: 512 = atlasSize / quantum / 2, 262144 = 512^2.
-*/
+// HACK -- Ordpool artifact image previews: WebGL shader pair, replaces upstream's
+// inline ones in block-overview-graph.component.ts. `offset` is widened from vec2
+// to vec4 (.xy = corner, .z = isTexture flag, .w = packed slot integer). Fragment
+// shader has a tristate branch on vIsTexture: >1.5 atlas, >0.5 procedural spinner,
+// else flat colour. Atlas size + slot quantum match OrdpoolInscriptionAtlas
+// (1024 px / 32 px). vCoord MUST be highp -- mediump rounded UVs to the wrong
+// texel for 1024+px atlases.
 
 export const ordpoolVertexShaderSrc = `
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
-// HACK -- Ordpool: highp, not mediump. mediump only needs ~10-bit mantissa,
-// which is too coarse for UVs into a 1024+ px atlas (texel step ≈ 1/1024 ≈
-// 0.001, near mediump's resolution limit at value ~1.0). Interpolated UVs
-// landed on the wrong texel and the texture sample returned transparent →
-// flat-colored square instead of the inscription image. memepool uses
-// highp for the same reason.
 varying highp vec2 vCoord;
 varying mediump vec2 vCorner;
 
@@ -81,8 +54,6 @@ void main() {
   vColor = vec4(red, green, blue, alpha);
 
   vIsTexture = offset.z;
-  // Slot-local UV. Interpolates linearly to (0..1, 0..1) across the quad,
-  // used by the loading-spinner branch in the fragment shader.
   vCorner = corner;
   float spriteX = mod(offset.w, 512.0) * 32.0;
   float spriteY = mod(floor(offset.w / 512.0), 512.0) * 32.0;
@@ -97,32 +68,16 @@ precision mediump float;
 
 varying lowp vec4 vColor;
 varying lowp float vIsTexture;
-// HACK -- Ordpool: highp, not mediump. mediump only needs ~10-bit mantissa,
-// which is too coarse for UVs into a 1024+ px atlas (texel step ≈ 1/1024 ≈
-// 0.001, near mediump's resolution limit at value ~1.0). Interpolated UVs
-// landed on the wrong texel and the texture sample returned transparent →
-// flat-colored square instead of the inscription image. memepool uses
-// highp for the same reason.
 varying highp vec2 vCoord;
 varying mediump vec2 vCorner;
 
 uniform sampler2D uSampler;
-// 'now' is also declared in the vertex shader (which defaults to highp for
-// floats). WebGL link errors with "Precisions of uniform 'now' differ between
-// VERTEX and FRAGMENT shaders." unless we match it explicitly here.
 uniform highp float now;
 
-// Procedural rotating-arc spinner drawn in slot-local UV space (vCorner).
-// Returns a [0..1] intensity; 1 = full white sweep highlight, 0 = leave the
-// underlying color alone. Width and rotation speed are tuned for visibility
-// at small (32–64 px) slot sizes without dominating large slots.
 float ordpoolSpinnerIntensity(vec2 vc, float t) {
   vec2 p = vc - 0.5;
   float dist = length(p);
-  // Annulus between 0.30 and 0.45 of the slot, anti-aliased on both edges.
   float ring = smoothstep(0.45, 0.42, dist) * (1.0 - smoothstep(0.30, 0.33, dist));
-  // Rotating sweep: bright at the leading edge of an arc, fading away
-  // around the rest of the circle. now is in ms, 0.003 ≈ one rev / 2 s.
   float angle = atan(p.y, p.x);
   float rotation = t * 0.003;
   float arc = mod(angle + rotation, 6.283185);
