@@ -54,6 +54,8 @@ import stratumApi from './api/services/stratum';
 
 // HACK -- Ordpool imports
 import ordpoolDatabaseMigration from './api/ordpool-database-migration';
+import ordpoolOtsTxidSet from './api/ordpool-ots-txid-set';
+import ordpoolOtsPoller from './api/ordpool-ots-poller';
 import generalOrdpoolRoutes from './api/explorer/_ordpool/ordpool.routes';
 import ordpoolIndexer from './ordpool-indexer';
 
@@ -140,6 +142,13 @@ class Server {
 
         // HACK -- Ordpool database migration
         await ordpoolDatabaseMigration.$initializeOrMigrateDatabase();
+
+        // HACK -- Ordpool: bootstrap the in-memory OTS txid set from the
+        // ordpool_stats_ots satellite table, then start the poller so new
+        // calendar commits land continuously. Per-tx OTS labelling
+        // (addOtsFlag in mempool.ts and $getBlockExtended) reads this set.
+        await ordpoolOtsTxidSet.bootstrap();
+        ordpoolOtsPoller.start();
       } catch (e) {
         throw new Error(e instanceof Error ? e.message : 'Error');
       }
