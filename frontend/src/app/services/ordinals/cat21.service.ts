@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
+import { environment } from '@environments/environment';
 import { BehaviorSubject, concatMap, from, map, mergeMap, Observable, of, switchMap, tap, timer, toArray } from 'rxjs';
 
 import { ApiService } from '../api.service';
