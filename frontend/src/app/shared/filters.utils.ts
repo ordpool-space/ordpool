@@ -129,6 +129,7 @@ export const TransactionFilters: { [key: string]: Filter } = {
     ordpool_brc20:                { key: 'ordpool_brc20',                 label: 'BRC-20',                flag: OrdpoolTransactionFlags.ordpool_brc20, important: true, tooltip: true, txPage: true, },
     ordpool_src20:                { key: 'ordpool_src20',                 label: 'SRC-20',                flag: OrdpoolTransactionFlags.ordpool_src20, important: true, tooltip: true, txPage: true, },
     ordpool_labitbu:              { key: 'ordpool_labitbu',               label: 'Labitbus',              flag: OrdpoolTransactionFlags.ordpool_labitbu, important: true, tooltip: true, txPage: true, },
+    ordpool_ots:                  { key: 'ordpool_ots',                   label: 'OpenTimestamps',        flag: OrdpoolTransactionFlags.ordpool_ots, important: true, tooltip: true, txPage: true, },
 
     /* ordpool flags promoted in v2.1.0 from orphan-detected to first-class */
     ordpool_counterparty:         { key: 'ordpool_counterparty',          label: 'Counterparty',          flag: OrdpoolTransactionFlags.ordpool_counterparty, important: true, tooltip: true, txPage: true, },
@@ -217,6 +218,7 @@ export const FilterGroups: { label: string, filters: Filter[]}[] = [
     'ordpool_src721',
     'ordpool_src101',
     'ordpool_labitbu',
+    'ordpool_ots',
   ] },
 
 ].map(group => ({ label: group.label, filters: group.filters.map(filter => TransactionFilters[filter] || null).filter(f => f != null) }));

@@ -153,6 +153,10 @@
           None
         </ng-container>
 
+        <!-- HACK -- Ordpool OTS: tx-page panel for OpenTimestamps calendar
+             commits. Self-hides on non-OTS txs (silent 404 → row=null). -->
+        <app-ots-viewer [txid]="tx.txid" />
+
         <div *ngIf="digitalArtifacts.length">
 
           <app-digital-artifact-viewer

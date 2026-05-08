@@ -147,6 +147,7 @@ import { DigitalArtifactViewerComponent } from '@components/_ordpool/digital-art
 import { InscriptionViewerComponent } from '@components/_ordpool/digital-artifact-viewer/inscription-viewer/inscription-viewer.component';
 import { Src20ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/src20-viewer/src20-viewer.component';
 import { Cat21ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
+import { OtsViewerComponent } from '@components/_ordpool/digital-artifact-viewer/ots-viewer/ots-viewer.component';
 import { RunestoneViewerComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
 import { RunestoneIdToLinkComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
 import { RunestoneIdToTextComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-text.component';
@@ -300,6 +301,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     InscriptionViewerComponent,
     Src20ViewerComponent,
     Cat21ViewerComponent,
+    OtsViewerComponent,
     RunestoneViewerComponent,
     RunestoneIdToLinkComponent,
     RunestoneIdToTextComponent,
@@ -482,6 +484,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     RunestoneIdToLinkComponent,
     RunestoneIdToTextComponent,
     Cat21ViewerComponent,
+    OtsViewerComponent,
     FeesBoxClickableComponent,
   ]
 })
