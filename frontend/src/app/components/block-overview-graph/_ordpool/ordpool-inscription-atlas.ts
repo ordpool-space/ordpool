@@ -175,7 +175,15 @@ export class OrdpoolInscriptionAtlas {
     this.gl.activeTexture(this.gl.TEXTURE0 + unit);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
     if (this.dirtyTexture) {
+      // HACK -- Ordpool: flip-Y on upload so canvas(x, 0) [top row] lands at
+      // texture UV y=1 [top]. The shader's `spriteY = atlasSize - spriteY -
+      // pxSize` flip then reads the slot region correctly. Without this, every
+      // atlas-sample falls into the empty bottom half of the texture and the
+      // composite produces vColor (flat colored square). Memepool sets the
+      // same flag.
+      this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, true);
       this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.canvas);
+      this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, false);
       this.dirtyTexture = false;
     }
   }
