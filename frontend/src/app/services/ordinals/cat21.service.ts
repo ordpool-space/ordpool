@@ -21,19 +21,20 @@ import { KnownOrdinalWalletType } from './wallet.service.types';
 
 export const LAST_CAT21_MINTS = 'LAST_CAT21_MINTS';
 
-const workaroundMempoolBackend = 'https://blockstream.info';
+// Mainnet hits our own electrs proxy on api.ordpool.space. Testnet has no
+// equivalent backend on our side, so we fall back to blockstream.info there
+// (testnet minting is dev-only, low traffic).
+const TESTNET_FALLBACK_BACKEND = 'https://blockstream.info/testnet';
 
 @Injectable({
   providedIn: 'root'
 })
 export class Cat21Service {
 
-  // mempoolApiUrl = environment.apiBaseUrl;
-  mempoolApiUrl = workaroundMempoolBackend;
+  mempoolApiUrl = environment.apiBaseUrl;
 
 
   http = inject(HttpClient);
-  // apiService = inject(ApiService);
   walletService = inject(WalletService);
   storageService = inject(StorageService);
 
@@ -45,8 +46,7 @@ export class Cat21Service {
   constructor() {
     this.walletService.isMainnet$.subscribe(isMainnet => {
       this.isMainnet = isMainnet;
-      // this.mempoolApiUrl = isMainnet ? environment.apiBaseUrl : environment.apiBaseUrl + '/testnet';
-      this.mempoolApiUrl = isMainnet ? workaroundMempoolBackend : workaroundMempoolBackend + '/testnet';
+      this.mempoolApiUrl = isMainnet ? environment.apiBaseUrl : TESTNET_FALLBACK_BACKEND;
     });
 
     const allMint = this.getAllMints();
