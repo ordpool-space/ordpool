@@ -12,7 +12,7 @@ import {
 import {
   OrdpoolOtsRow,
   OrdpoolOtsCalendarStats,
-} from '../../../../../backend/src/repositories/OrdpoolOtsRepository';
+} from '../../../../../backend/src/api/explorer/_ordpool/ordpool-ots-interface';
 import { StateService } from '../state.service';
 import { environment } from '@environments/environment';
 
