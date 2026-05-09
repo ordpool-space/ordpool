@@ -25,7 +25,7 @@
             <span class="ots-stamp-calendar"
                   [class.is-published]="!!c.upgradedBase64"
                   [class.is-error]="c.lastResult === 'error'">
-              <strong>{{ shortHost(c.uri) }}</strong>
+              <strong>{{ c.nickname }}</strong>
               @if (c.upgradedBase64) {
                 <fa-icon [icon]="['fas', 'circle-check']" class="ms-1"></fa-icon>
                 published

@@ -1,25 +1,45 @@
 import logger from '../logger';
 import ordpoolOtsRepository from '../repositories/OrdpoolOtsRepository';
 import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
+import { getOtsCalendars, OtsCalendar as ConfiguredCalendar } from './explorer/_ordpool/ots-calendars-config';
 
 /**
- * One known OTS calendar. URL hardcoded -- python-opentimestamps's
- * DEFAULT_CALENDAR_WHITELIST has been stable for ~10 years and the four
- * canonical operators are unchanged. Promote to mempool-config.json if
- * a fifth ever emerges.
+ * One known OTS calendar -- loaded from ots-calendars.json via the shared
+ * config module so the poller, backfill, proxy whitelist, and frontend
+ * stamp picker all see the same set. Add a calendar by editing the JSON,
+ * not by editing this file.
+ *
+ * `nickname` is the display name AND the stable DB key (column
+ * ordpool_stats_ots.calendar). The calendar's JSON RPC endpoint expects a
+ * trailing slash on the base URL; the loader strips trailing slashes, so
+ * we append '/' here when reading.
  */
 export interface OtsCalendar {
-  name: string;       // 'alice' | 'bob' | 'finney' | 'catallaxy'
+  nickname: string;
   url: string;        // base URL ending in '/'
-  operator: string;   // for telemetry
 }
 
-export const KNOWN_CALENDARS: OtsCalendar[] = [
-  { name: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org/',  operator: 'Peter Todd' },
-  { name: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org/',    operator: 'Peter Todd' },
-  { name: 'finney',    url: 'https://finney.calendar.eternitywall.com/',       operator: 'Eternity Wall' },
-  { name: 'catallaxy', url: 'https://btc.calendar.catallaxy.com/',             operator: 'Bull Bitcoin' },
-];
+function withTrailingSlash(c: ConfiguredCalendar): OtsCalendar {
+  return { nickname: c.nickname, url: c.url.endsWith('/') ? c.url : c.url + '/' };
+}
+
+function knownCalendars(): OtsCalendar[] {
+  return getOtsCalendars().map(withTrailingSlash);
+}
+
+/**
+ * Backwards-compatible export so tests / callers can do
+ *   `KNOWN_CALENDARS.find(c => c.nickname === 'alice')`.
+ * Computed lazily on every property access; safe even before fs/JSON load
+ * completes.
+ */
+export const KNOWN_CALENDARS = new Proxy([] as OtsCalendar[], {
+  get(_target, prop) {
+    const arr = knownCalendars();
+    const v = (arr as any)[prop];
+    return typeof v === 'function' ? v.bind(arr) : v;
+  },
+}) as unknown as OtsCalendar[];
 
 /**
  * Shape of a single entry in the calendar's `transactions[]` array. The
@@ -115,8 +135,8 @@ class OrdpoolOtsPoller {
       body = await this.fetchCalendarJson(cal.url);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      logger.warn(`OTS poll ${cal.name}: fetch failed -- ${message}`, 'Ordpool');
-      return { calendar: cal.name, ok: false, errorMessage: message, newConfirmed: 0, newPending: 0, upgraded: 0, totalSeen: 0 };
+      logger.warn(`OTS poll ${cal.nickname}: fetch failed -- ${message}`, 'Ordpool');
+      return { calendar: cal.nickname, ok: false, errorMessage: message, newConfirmed: 0, newPending: 0, upgraded: 0, totalSeen: 0 };
     }
 
     // The calendar's tip is the canonical 32-byte merkle root we'll attach to
@@ -140,7 +160,7 @@ class OrdpoolOtsPoller {
         if (tx.blockheight !== undefined && tx.blockhash !== undefined && tx.blocktime !== undefined) {
           await ordpoolOtsRepository.upsertConfirmed({
             txid: tx.txid,
-            calendar: cal.name,
+            calendar: cal.nickname,
             merkleRoot,
             blockhash: tx.blockhash,
             blockheight: tx.blockheight,
@@ -159,7 +179,7 @@ class OrdpoolOtsPoller {
           if (existing && !existing.confirmedAt) {
             await ordpoolOtsRepository.upsertConfirmed({
               txid: tx.txid,
-              calendar: cal.name,
+              calendar: cal.nickname,
               merkleRoot: existing.merkleRoot,
               blockhash: tx.blockhash,
               blockheight: tx.blockheight,
@@ -179,12 +199,12 @@ class OrdpoolOtsPoller {
     const mr = body.most_recent_tx;
     if (mr && mr !== 'None' && !ordpoolOtsTxidSet.has(mr)) {
       const merkleRoot = tipHex ?? mr;
-      await ordpoolOtsRepository.upsertPending({ txid: mr, calendar: cal.name, merkleRoot });
+      await ordpoolOtsRepository.upsertPending({ txid: mr, calendar: cal.nickname, merkleRoot });
       ordpoolOtsTxidSet.add(mr);
       newPending++;
     }
 
-    return { calendar: cal.name, ok: true, newConfirmed, newPending, upgraded, totalSeen: txList.length };
+    return { calendar: cal.nickname, ok: true, newConfirmed, newPending, upgraded, totalSeen: txList.length };
   }
 
   private async fetchCalendarJson(url: string): Promise<CalendarResponse> {

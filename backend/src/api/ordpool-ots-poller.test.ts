@@ -32,10 +32,10 @@ const TXID_CONF = '8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8
 const TXID_PENDING = '914a3f3575a1da92035a57bd758da8588fd11776927ab880915f97e66612f773';
 const TXID_OTHER = '054cc18a8162887917a1e6e5c60389bb4b6647167e6936d231466d7b2710f413';
 
-const ALICE = KNOWN_CALENDARS.find(c => c.name === 'alice')!;
-const BOB = KNOWN_CALENDARS.find(c => c.name === 'bob')!;
-const FINNEY = KNOWN_CALENDARS.find(c => c.name === 'finney')!;
-const CATALLAXY = KNOWN_CALENDARS.find(c => c.name === 'catallaxy')!;
+const ALICE = KNOWN_CALENDARS.find(c => c.nickname === 'alice')!;
+const BOB = KNOWN_CALENDARS.find(c => c.nickname === 'bob')!;
+const FINNEY = KNOWN_CALENDARS.find(c => c.nickname === 'finney')!;
+const CATALLAXY = KNOWN_CALENDARS.find(c => c.nickname === 'catallaxy')!;
 
 function emptyResponse(): CalendarResponse {
   return { tip: TIP, transactions: [], most_recent_tx: 'None' };
