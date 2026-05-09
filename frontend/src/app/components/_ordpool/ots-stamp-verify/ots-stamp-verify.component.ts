@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@
 import {
   collectBitcoinAttestations,
   OtsAttestation,
+  OtsNode,
   parseOtsFile,
 } from 'ordpool-parser';
 import { environment } from '@environments/environment';
@@ -10,6 +11,7 @@ import {
   OTS_CALENDARS,
   OtsLocalCalendar,
   OtsStoreService,
+  assembleOtsFile,
   bytesToBase64,
   hexEncode,
 } from './ots-store.service';
@@ -146,27 +148,43 @@ export class OtsStampVerifyComponent {
       OTS_CALENDARS.map(uri => this.postDigestToCalendar(uri, digest)),
     );
 
-    const calendars: OtsLocalCalendar[] = OTS_CALENDARS.map((uri, i) => {
-      const r = replies[i];
-      if (r.status === 'fulfilled') {
+    // For each calendar's reply, parse a single-branch .ots and find the
+    // PendingAttestation node's msg -- that's the commitment used as the
+    // /timestamp/<...> lookup key. Without this, polling 404s forever
+    // because calendars don't index by file hash.
+    const calendars: OtsLocalCalendar[] = await Promise.all(
+      OTS_CALENDARS.map(async (uri, i) => {
+        const r = replies[i];
+        if (r.status === 'fulfilled') {
+          let commitmentHex = '';
+          try {
+            const oneCalOts = assembleOtsFile(digest, [r.value]);
+            const parsed = await parseOtsFile(oneCalOts);
+            commitmentHex = this.findPendingCommitmentHex(parsed.root, uri);
+          } catch {
+            commitmentHex = '';
+          }
+          return {
+            uri,
+            pendingBase64: bytesToBase64(r.value),
+            commitmentHex,
+            upgradedBase64: null,
+            lastCheckedAt: now,
+            lastResult: commitmentHex ? 'pending' as const : 'error' as const,
+            errorMessage: commitmentHex ? null : 'failed to compute commitment',
+          };
+        }
         return {
           uri,
-          pendingBase64: bytesToBase64(r.value),
+          pendingBase64: '',
+          commitmentHex: '',
           upgradedBase64: null,
           lastCheckedAt: now,
-          lastResult: 'pending',
-          errorMessage: null,
+          lastResult: 'error' as const,
+          errorMessage: r.reason instanceof Error ? r.reason.message : 'submit failed',
         };
-      }
-      return {
-        uri,
-        pendingBase64: '',
-        upgradedBase64: null,
-        lastCheckedAt: now,
-        lastResult: 'error',
-        errorMessage: r.reason instanceof Error ? r.reason.message : 'submit failed',
-      };
-    });
+      })
+    );
 
     // If every calendar failed, surface that. Otherwise queue with the
     // surviving calendars; the rest stays in 'error' state in the row.
@@ -298,6 +316,23 @@ export class OtsStampVerifyComponent {
     const out = new Uint8Array(b.length);
     for (let i = 0; i < b.length; i++) out[i] = b[b.length - 1 - i];
     return out;
+  }
+
+  /** Walks the parsed tree, returns the hex of the leaf msg whose attestation
+   *  is `PendingAttestation(uri)` for the given calendar. Empty string if not
+   *  found (shouldn't happen with a well-formed calendar reply). */
+  private findPendingCommitmentHex(root: OtsNode, calendarUri: string): string {
+    const visit = (node: OtsNode): string => {
+      for (const a of node.attestations) {
+        if (a.kind === 'pending' && a.uri === calendarUri) return hexEncode(node.msg);
+      }
+      for (const c of node.children) {
+        const r = visit(c.node);
+        if (r) return r;
+      }
+      return '';
+    };
+    return visit(root);
   }
 
   private maybeRequestNotificationPermission(): void {

@@ -22,8 +22,19 @@ export type OtsCalendarResult = 'pending' | 'published' | 'error' | 'never-check
 
 export interface OtsLocalCalendar {
   uri: string;
-  pendingBase64: string;            // bytes the calendar returned at /digest
-  upgradedBase64: string | null;    // bytes the calendar returned at /timestamp/<hash> once published
+  pendingBase64: string;            // bytes the calendar returned at /digest (ops + PendingAttestation)
+  /**
+   * Lookup key for /timestamp/<commitmentHex>. NOT the file hash.
+   *
+   * The OTS protocol commits the file hash via a calendar-specific chain
+   * of (append/prepend/sha256) ops. The calendar stores the upgraded
+   * timestamp keyed by the COMMITMENT (= msg at the PendingAttestation
+   * node), not the file hash. Querying /timestamp/<file_hash> returns 404
+   * forever even after the calendar publishes. We compute this once at
+   * stamp time by parsing the calendar's /digest reply.
+   */
+  commitmentHex: string;
+  upgradedBase64: string | null;    // bytes the calendar returned at /timestamp/<commitmentHex> once published
   lastCheckedAt: number;
   lastResult: OtsCalendarResult;
   errorMessage: string | null;
@@ -181,7 +192,55 @@ export function assembleOtsFile(fileHash: Uint8Array, subtrees: Uint8Array[]): U
   return out;
 }
 
-/** Get the freshest bytes for a calendar: upgraded if available, else pending. */
+/** Get the freshest bytes for a calendar's branch.
+ *
+ * If the calendar has been upgraded: returns [ops_to_commitment] + [upgrade_response].
+ * The PendingAttestation is dropped (it's redundant once the BitcoinAttestation is in).
+ *
+ * If still pending: returns the original /digest body unchanged.
+ *
+ * The op-walker below has to know enough OTS binary format to find where
+ * the PendingAttestation starts; it's a tight reimplementation of just
+ * the bits we need (no varint complexity, no children — calendar replies
+ * are always single chains).
+ */
 export function bestCalendarBytes(c: OtsLocalCalendar): Uint8Array {
-  return base64ToBytes(c.upgradedBase64 ?? c.pendingBase64);
+  const pending = base64ToBytes(c.pendingBase64);
+  if (!c.upgradedBase64) return pending;
+  const opsOnly = sliceOpsBeforeAttestation(pending);
+  const upgrade = base64ToBytes(c.upgradedBase64);
+  const out = new Uint8Array(opsOnly.length + upgrade.length);
+  out.set(opsOnly, 0);
+  out.set(upgrade, opsOnly.length);
+  return out;
+}
+
+/**
+ * Walk a single-chain calendar body forward, op by op, and return the
+ * prefix that contains every op up to (but not including) the first
+ * attestation marker (0x00). Throws if the body has continuations or
+ * doesn't terminate in an attestation.
+ */
+function sliceOpsBeforeAttestation(body: Uint8Array): Uint8Array {
+  let p = 0;
+  while (p < body.length) {
+    const tag = body[p];
+    if (tag === 0x00) return body.slice(0, p);
+    if (tag === 0xff) throw new Error('OTS body has unexpected continuation');
+    p++;
+    // append (0xf0) and prepend (0xf1) carry varuint-prefixed bytes;
+    // every other op tag has zero-byte payload.
+    if (tag === 0xf0 || tag === 0xf1) {
+      let len = 0, shift = 0;
+      while (true) {
+        const b = body[p++];
+        len |= (b & 0x7f) << shift;
+        if ((b & 0x80) === 0) break;
+        shift += 7;
+        if (shift > 35) throw new Error('OTS varuint overflow');
+      }
+      p += len;
+    }
+  }
+  throw new Error('OTS body has no attestation marker');
 }
