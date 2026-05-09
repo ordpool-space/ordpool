@@ -13,6 +13,7 @@ import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
 import ordpoolStampsApi from './ordpool-stamps.api';
 import { Aggregation, ChartType, Interval } from './ordpool-statistics-interface';
 import ordpoolStatisticsApi from './ordpool-statistics.api';
+import { getOtsCalendarHosts, getOtsCalendarUris } from './ots-calendars-config';
 
 /** If the indexer hasn't recorded a per-block success in this many minutes,
  *  /api/v1/health/indexer-progress returns 503 and the heartbeat script
@@ -31,6 +32,7 @@ class GeneralOrdpoolRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/tx/:txid', this.$getOtsTx)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/block/:height', this.$getOtsBlock)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/upgrade/:calendar/:hash', this.$proxyOtsUpgrade)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/stamp-calendars', this.$getOtsStampCalendars)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -81,12 +83,7 @@ class GeneralOrdpoolRoutes {
    */
   // https://ordpool.space/api/v1/ordpool/ots/upgrade/alice.btc.calendar.opentimestamps.org/<hex>
   private async $proxyOtsUpgrade(req: Request, res: Response): Promise<void> {
-    const allowed = new Set<string>([
-      'alice.btc.calendar.opentimestamps.org',
-      'bob.btc.calendar.opentimestamps.org',
-      'finney.calendar.eternitywall.com',
-      'btc.catallaxy.com',
-    ]);
+    const allowed = getOtsCalendarHosts();
     const calendar = String(req.params.calendar || '').toLowerCase();
     const hash = String(req.params.hash || '').toLowerCase();
     if (!allowed.has(calendar)) {
@@ -119,6 +116,19 @@ class GeneralOrdpoolRoutes {
     } catch {
       res.status(502).send('upstream error');
     }
+  }
+
+  /**
+   * Returns the URI list the frontend Stamp & Verify drop-zone fans out to.
+   *
+   * Source of truth: backend/src/api/explorer/_ordpool/ots-calendars.json.
+   * Edit that file to add or remove a calendar; no code change needed.
+   * Cached at the edge for an hour.
+   */
+  // https://ordpool.space/api/v1/ordpool/ots/stamp-calendars
+  private async $getOtsStampCalendars(req: Request, res: Response): Promise<void> {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.json({ calendars: getOtsCalendarUris() });
   }
 
   /** All OTS commits at a given block height. Empty array if none. */

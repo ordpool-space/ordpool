@@ -35,6 +35,14 @@
   <app-ots-pending-queue></app-ots-pending-queue>
 
   <h2 class="mt-4">Calendars</h2>
+  <p class="smaller-text text-muted">
+    Know an active OpenTimestamps calendar that's missing here? OTS has no
+    on-chain registry, so we can only stamp through calendars we've heard of.
+    <a href="https://github.com/ordpool-space/ordpool/edit/main/backend/src/api/explorer/_ordpool/ots-calendars.json"
+       target="_blank" rel="noopener">
+      Open a one-line PR
+    </a> and we'll add it.
+  </p>
   @if (!calendarsLoaded) {
     <div class="skeleton-loader"></div>
   } @else if (calendars.length === 0) {

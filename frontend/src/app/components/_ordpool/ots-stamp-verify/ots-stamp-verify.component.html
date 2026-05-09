@@ -38,9 +38,11 @@
 
       @case ('queued') {
         <div class="alert alert-success mt-3 mb-0">
-          <strong>Submitted!</strong> <code>{{ status.filename }}</code> is now in
-          the queue below. We'll watch the calendars and finish the receipt
-          automatically. <em>You can drop another file in the meantime.</em>
+          <strong>Submitted!</strong> <code>{{ status.filename }}</code> went out to
+          {{ status.calendars.length }} calendar{{ status.calendars.length === 1 ? '' : 's' }}
+          (<strong>{{ status.calendars.join(', ') }}</strong>) and is now in the queue
+          below. We'll watch them and finish the receipt automatically.
+          <em>You can drop another file in the meantime.</em>
         </div>
       }
 
