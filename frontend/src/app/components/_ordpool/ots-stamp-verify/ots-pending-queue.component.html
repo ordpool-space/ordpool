@@ -53,6 +53,17 @@
             <button type="button" class="btn btn-sm btn-outline-light me-2" (click)="checkNow(s)">Check now</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel(s)">Cancel &amp; forget</button>
           </div>
+          <details class="ots-power-user smaller-text mt-2">
+            <summary>Power user: export raw pending receipt</summary>
+            <p class="text-muted mt-1 mb-1">
+              The bytes below are what the calendars sent us. Save them to a
+              file and run <code>ots upgrade</code> from the official
+              <a href="https://github.com/opentimestamps/opentimestamps-client" target="_blank" rel="noopener">opentimestamps-client</a>
+              if you'd rather upgrade outside the browser. Most users don't
+              need this.
+            </p>
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadPendingRaw(s)">Download .pending.ots</button>
+          </details>
         }
 
         @if (s.status === 'ready') {

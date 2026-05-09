@@ -116,6 +116,7 @@ export class OtsPollerService implements OnDestroy {
     }
 
     const now = Date.now();
+    let firedReadyNotification = false;
     this.store.update(stamp.id, s => {
       const calendars = s.calendars.map(c =>
         c.uri === calendarUri
@@ -130,6 +131,7 @@ export class OtsPollerService implements OnDestroy {
       );
       const anyPublished = calendars.some(c => !!c.upgradedBase64);
       const justBecameReady = anyPublished && s.status === 'queued';
+      if (justBecameReady) firedReadyNotification = true;
       return {
         ...s,
         calendars,
@@ -137,5 +139,25 @@ export class OtsPollerService implements OnDestroy {
         readyAt: justBecameReady ? now : s.readyAt,
       };
     });
+    if (firedReadyNotification) this.notifyReady(stamp.filename);
+  }
+
+  /**
+   * Browser notification when a stamp transitions to 'ready'. Best-effort:
+   * if permission was denied or not requested yet we silently skip; the
+   * tab title and queue UI carry the same signal anyway.
+   */
+  private notifyReady(filename: string): void {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
+    try {
+      new Notification('Your timestamp is ready', {
+        body: `"${filename}" is now anchored to Bitcoin. Download the receipt now.`,
+        icon: '/resources/mempool-cube-logo.png',
+        tag: 'ots-ready-' + filename,   // tag so multi-stamp doesn't spam
+      });
+    } catch {
+      // Some browsers throw on background-tab notifications; ignore.
+    }
   }
 }
