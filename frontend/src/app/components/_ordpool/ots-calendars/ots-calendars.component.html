@@ -1,0 +1,88 @@
+<div class="container-xl ots-calendars">
+  <h1>OpenTimestamps Calendars</h1>
+
+  <p class="lead smaller-text">
+    Public calendar servers aggregate user file hashes into a Merkle tree once
+    per Bitcoin block, then commit the root in an OP_RETURN. Every commit ordpool
+    has indexed is shown below. Calendars are observability conveniences, not
+    trust anchors -- once a `.ots` proof is upgraded, the calendar can disappear
+    and the proof still verifies forever against any Bitcoin node.
+    <a href="https://opentimestamps.org" target="_blank" rel="noopener">Learn more</a>.
+  </p>
+
+  <h2 class="mt-4">Calendars</h2>
+  @if (!calendarsLoaded) {
+    <div class="skeleton-loader"></div>
+  } @else if (calendars.length === 0) {
+    <p class="text-muted">No calendar data yet -- the OTS poller is still warming up.</p>
+  } @else {
+    <table class="table table-borderless table-striped table-dark">
+      <thead>
+        <tr>
+          <th>Calendar</th>
+          <th class="text-right">Total commits indexed</th>
+          <th class="text-right">Last block</th>
+          <th class="text-right">Pending</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (cal of calendars; track cal.calendar) {
+          <tr>
+            <td><strong>{{ cal.calendar }}</strong></td>
+            <td class="text-right">{{ cal.totalCommits | number }}</td>
+            <td class="text-right">
+              @if (cal.lastBlockheight) {
+                <a [routerLink]="['/block/' | relativeUrl, cal.lastBlockheight]">{{ cal.lastBlockheight | number }}</a>
+              } @else {
+                -
+              }
+            </td>
+            <td class="text-right">{{ cal.pendingCount | number }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <h2 class="mt-4">Recent commits</h2>
+  @if (!recentLoaded) {
+    <div class="skeleton-loader"></div>
+  } @else if (recent.length === 0) {
+    <p class="text-muted">No commits indexed yet.</p>
+  } @else {
+    <table class="table table-borderless table-striped table-dark">
+      <thead>
+        <tr>
+          <th>Block</th>
+          <th>Calendar</th>
+          <th>Tx</th>
+          <th>Merkle root</th>
+          <th class="text-right">Fee (sats)</th>
+          <th class="text-right">Fee rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of recent; track row.txid) {
+          <tr>
+            <td>
+              @if (row.blockheight) {
+                <a [routerLink]="['/block/' | relativeUrl, row.blockheight]">{{ row.blockheight | number }}</a>
+              } @else {
+                <span class="badge pending">pending</span>
+              }
+            </td>
+            <td>{{ row.calendar }}</td>
+            <td>
+              <a [routerLink]="['/tx/' | relativeUrl, row.txid]" [title]="row.txid">
+                {{ row.txid | shortenString : 13 }}
+              </a>
+            </td>
+            <td><code class="smaller-text">{{ row.merkleRoot | shortenString : 13 }}</code></td>
+            <td class="text-right">{{ row.fee }}</td>
+            <td class="text-right">{{ row.feerate }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
