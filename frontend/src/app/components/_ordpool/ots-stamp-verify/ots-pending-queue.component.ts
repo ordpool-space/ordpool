@@ -51,7 +51,9 @@ export class OtsPendingQueueComponent implements OnInit, OnDestroy {
     this.resetTabTitle();
   }
 
-  shortHost(uri: string): string {
+  /** Legacy helper kept for any old localStorage row that pre-dates the
+   *  nickname field; new rows always carry `nickname` directly. */
+  private shortHost(uri: string): string {
     try { return new URL(uri).hostname.split('.')[0]; }
     catch { return uri; }
   }
@@ -71,7 +73,7 @@ export class OtsPendingQueueComponent implements OnInit, OnDestroy {
   pendingHosts(s: OtsLocalStamp): string {
     return s.calendars
       .filter(c => !c.upgradedBase64)
-      .map(c => this.shortHost(c.uri))
+      .map(c => c.nickname || this.shortHost(c.uri))
       .join(', ');
   }
 

@@ -11,35 +11,35 @@ Test cases:
 const STORAGE_KEY = 'ordpool:ots:pending';
 const SCHEMA_VERSION = 1;
 
-/**
- * Hardcoded fallback used at stamp time if /ots/calendars hasn't yet been
- * fetched (cold load) OR the fetch failed. Same three the official `ots`
- * CLI uses by default. The live picker (OtsCalendarPickerService) prefers
- * the freshest 3 calendars from our indexer; these are just a safety net.
- */
-export const OTS_FALLBACK_CALENDARS: ReadonlyArray<string> = [
-  'https://alice.btc.calendar.opentimestamps.org',
-  'https://bob.btc.calendar.opentimestamps.org',
-  'https://finney.calendar.eternitywall.com',
-];
+/** One known OTS calendar -- shape matches the backend's
+ *  /api/v1/ordpool/ots/stamp-calendars response (which mirrors
+ *  ots-calendars.json on disk). 'nickname' is the display name AND the
+ *  stable identifier; 'url' is the base URL we POST /digest against. */
+export interface OtsKnownCalendar {
+  nickname: string;
+  url: string;
+}
 
 /**
- * Map a known calendar shortname to its public POST endpoint. Backend
- * includes catallaxy in its proxy whitelist; we add it to the picker's
- * universe so on-chain freshness alone decides who gets used.
+ * Hardcoded fallback used at stamp time if /ots/stamp-calendars hasn't yet
+ * been fetched (cold load) OR the fetch failed. Same set as
+ * backend/.../ots-calendars.json. The live picker
+ * (OtsCalendarPickerService) prefers whatever the backend serves; this is
+ * just a safety net.
  */
-export const OTS_KNOWN_CALENDAR_URIS: Record<string, string> = {
-  alice:     'https://alice.btc.calendar.opentimestamps.org',
-  bob:       'https://bob.btc.calendar.opentimestamps.org',
-  finney:    'https://finney.calendar.eternitywall.com',
-  catallaxy: 'https://btc.catallaxy.com',
-};
+export const OTS_FALLBACK_CALENDARS: ReadonlyArray<OtsKnownCalendar> = Object.freeze([
+  Object.freeze({ nickname: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org' }),
+  Object.freeze({ nickname: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org' }),
+  Object.freeze({ nickname: 'finney',    url: 'https://finney.calendar.eternitywall.com' }),
+  Object.freeze({ nickname: 'catallaxy', url: 'https://ots.btc.catallaxy.com' }),
+]);
 
 export type OtsStampStatus = 'queued' | 'ready' | 'failed';
 export type OtsCalendarResult = 'pending' | 'published' | 'error' | 'never-checked';
 
 export interface OtsLocalCalendar {
-  uri: string;
+  nickname: string;                 // display name; also the stable identifier
+  uri: string;                      // base URL (kept as 'uri' for legacy localStorage entries; same as the picker's 'url')
   pendingBase64: string;            // bytes the calendar returned at /digest (ops + PendingAttestation)
   /**
    * Lookup key for /timestamp/<commitmentHex>. NOT the file hash.

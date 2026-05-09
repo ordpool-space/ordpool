@@ -105,11 +105,14 @@ export class OtsStampVerifyComponent {
   }
 
   pendingCalendarsLabel(uris: string[]): string {
-    return uris.map(u => {
-      try { return new URL(u).hostname.split('.')[0]; }
-      catch { return u; }
-    }).join(', ');
+    return uris.map(u => this.knownNicknameByUri.get(u.replace(/\/+$/, ''))
+      ?? (() => { try { return new URL(u).hostname.split('.')[0]; } catch { return u; } })()
+    ).join(', ');
   }
+
+  /** Populated lazily on first stamp/verify so the verify panel can
+   *  display nicknames for known calendars instead of hostnames. */
+  private knownNicknameByUri = new Map<string, string>();
 
   private async handleFile(file: File): Promise<void> {
     if (file.size > 100 * 1024 * 1024) {
@@ -154,9 +157,9 @@ export class OtsStampVerifyComponent {
     // /api/v1/ordpool/ots/stamp-calendars; falls back to hardcoded if the
     // endpoint is unreachable). We tolerate per-calendar failures: if one
     // is down but the others accept, we still queue a usable stamp.
-    const calendarUris = await this.picker.pick();
+    const known = await this.picker.pick();
     const replies = await Promise.allSettled(
-      calendarUris.map(uri => this.postDigestToCalendar(uri, digest)),
+      known.map(c => this.postDigestToCalendar(c.url, digest)),
     );
 
     // For each calendar's reply, parse a single-branch .ots and find the
@@ -164,19 +167,20 @@ export class OtsStampVerifyComponent {
     // /timestamp/<...> lookup key. Without this, polling 404s forever
     // because calendars don't index by file hash.
     const calendars: OtsLocalCalendar[] = await Promise.all(
-      calendarUris.map(async (uri, i) => {
+      known.map(async (cal, i) => {
         const r = replies[i];
         if (r.status === 'fulfilled') {
           let commitmentHex = '';
           try {
             const oneCalOts = assembleOtsFile(digest, [r.value]);
             const parsed = await parseOtsFile(oneCalOts);
-            commitmentHex = this.findPendingCommitmentHex(parsed.root, uri);
+            commitmentHex = this.findPendingCommitmentHex(parsed.root, cal.url);
           } catch {
             commitmentHex = '';
           }
           return {
-            uri,
+            nickname: cal.nickname,
+            uri: cal.url,
             pendingBase64: bytesToBase64(r.value),
             commitmentHex,
             upgradedBase64: null,
@@ -186,7 +190,8 @@ export class OtsStampVerifyComponent {
           };
         }
         return {
-          uri,
+          nickname: cal.nickname,
+          uri: cal.url,
           pendingBase64: '',
           commitmentHex: '',
           upgradedBase64: null,
@@ -224,9 +229,7 @@ export class OtsStampVerifyComponent {
     this.status = {
       kind: 'queued',
       filename,
-      calendars: calendars
-        .filter(c => !!c.pendingBase64)
-        .map(c => { try { return new URL(c.uri).hostname.split('.')[0]; } catch { return c.uri; } }),
+      calendars: calendars.filter(c => !!c.pendingBase64).map(c => c.nickname),
     };
     this.cdr.markForCheck();
 
@@ -256,6 +259,14 @@ export class OtsStampVerifyComponent {
   private async verifyOts(bytes: Uint8Array): Promise<void> {
     this.status = { kind: 'busy', message: 'Parsing the .ots receipt…' };
     this.cdr.markForCheck();
+
+    // Pre-warm the nickname map so PendingAttestation URIs in the verify
+    // panel can show 'alice' instead of 'alice.btc.calendar.opentimestamps.org'.
+    if (this.knownNicknameByUri.size === 0) {
+      try {
+        for (const c of await this.picker.pick()) this.knownNicknameByUri.set(c.url, c.nickname);
+      } catch { /* picker has its own fallback; map stays empty */ }
+    }
 
     const parsed = await parseOtsFile(bytes);
     const bitcoinAtts = collectBitcoinAttestations(parsed);

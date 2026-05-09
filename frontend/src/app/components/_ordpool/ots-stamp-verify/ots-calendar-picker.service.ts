@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@environments/environment';
 
-import { OTS_FALLBACK_CALENDARS } from './ots-store.service';
+import { OTS_FALLBACK_CALENDARS, OtsKnownCalendar } from './ots-store.service';
 
 /*
 Test cases:
@@ -13,31 +13,32 @@ Test cases:
 */
 
 interface StampCalendarsResponse {
-  calendars: string[];
+  calendars: OtsKnownCalendar[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class OtsCalendarPickerService {
 
   private http = inject(HttpClient);
-  private cache: ReadonlyArray<string> | null = null;
+  private cache: ReadonlyArray<OtsKnownCalendar> | null = null;
 
   /**
-   * Resolves to the list of calendar base URIs the frontend should fan out
-   * to at stamp time. Source of truth is the backend's editable
+   * Resolves to the live calendar set the frontend should fan out to at
+   * stamp time. Source of truth is the backend's editable
    * ots-calendars.json (served at /api/v1/ordpool/ots/stamp-calendars). On
    * any failure we fall back to the hardcoded list so the dropzone still
-   * works -- ordpool stamping is meant to be a stand-alone tool, not
-   * something that breaks the moment the indexer hiccups.
+   * works.
    */
-  async pick(): Promise<readonly string[]> {
+  async pick(): Promise<ReadonlyArray<OtsKnownCalendar>> {
     if (this.cache) return this.cache;
     try {
       const apiBase = environment.apiBaseUrl || '';
       const resp = await firstValueFrom(
         this.http.get<StampCalendarsResponse>(`${apiBase}/api/v1/ordpool/ots/stamp-calendars`),
       );
-      const list = (resp?.calendars ?? []).filter(u => /^https?:\/\//.test(u));
+      const list = (resp?.calendars ?? []).filter(
+        c => c && typeof c.nickname === 'string' && /^https?:\/\//.test(c.url),
+      );
       if (list.length === 0) throw new Error('empty list');
       this.cache = Object.freeze(list);
       return this.cache;

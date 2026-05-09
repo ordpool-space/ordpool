@@ -13,7 +13,7 @@ import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
 import ordpoolStampsApi from './ordpool-stamps.api';
 import { Aggregation, ChartType, Interval } from './ordpool-statistics-interface';
 import ordpoolStatisticsApi from './ordpool-statistics.api';
-import { getOtsCalendarHosts, getOtsCalendarUris } from './ots-calendars-config';
+import { getOtsCalendarHosts, getOtsCalendars } from './ots-calendars-config';
 
 /** If the indexer hasn't recorded a per-block success in this many minutes,
  *  /api/v1/health/indexer-progress returns 503 and the heartbeat script
@@ -128,7 +128,7 @@ class GeneralOrdpoolRoutes {
   // https://ordpool.space/api/v1/ordpool/ots/stamp-calendars
   private async $getOtsStampCalendars(req: Request, res: Response): Promise<void> {
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.json({ calendars: getOtsCalendarUris() });
+    res.json({ calendars: getOtsCalendars() });
   }
 
   /** All OTS commits at a given block height. Empty array if none. */
