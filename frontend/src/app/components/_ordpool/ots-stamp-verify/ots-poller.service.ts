@@ -101,11 +101,17 @@ export class OtsPollerService implements OnDestroy {
     // calendars don't send Access-Control-Allow-Origin on /timestamp/<hash>,
     // so a browser GET would be blocked. The backend just forwards the bytes
     // and the upstream status code.
+    //
+    // CRUCIAL: the lookup key is the commitment (msg at the PendingAttestation
+    // node), NOT the file hash. Calendars index their batches by commitment;
+    // querying by file hash 404s forever.
+    const cal = stamp.calendars.find(c => c.uri === calendarUri);
+    if (!cal || !cal.commitmentHex) return;
     const apiBase = environment.apiBaseUrl || '';
     const calendarHost = (() => {
       try { return new URL(calendarUri).hostname; } catch { return ''; }
     })();
-    const url = `${apiBase}/api/v1/ordpool/ots/upgrade/${calendarHost}/${stamp.fileHashHex}`;
+    const url = `${apiBase}/api/v1/ordpool/ots/upgrade/${calendarHost}/${cal.commitmentHex}`;
     let bodyB64: string | null = null;
     let result: 'pending' | 'published' | 'error' = 'error';
     let errorMessage: string | null = null;
