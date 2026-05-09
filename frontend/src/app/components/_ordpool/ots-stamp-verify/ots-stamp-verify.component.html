@@ -36,12 +36,11 @@
       }
 
       @case ('stamped') {
-        <div class="alert alert-success mt-3 mb-0">
+        <div class="alert alert-warning mt-3 mb-0">
           <p class="mb-2">
-            <strong>Stamped.</strong> The calendar has accepted your file's hash and
-            will commit it in the next Bitcoin block. Save this <code>.ots</code>
-            receipt now: keep it next to your file, you'll need it to verify the
-            timestamp later.
+            <strong>Step 1 of 2 done.</strong> The calendar has accepted your
+            file's hash and will fold it into the next block's Merkle batch.
+            Download this <code>.ots</code> now and keep it next to your file.
           </p>
           <p class="mb-2">
             <code class="smaller-text">SHA-256: {{ status.hashHex }}</code>
@@ -55,10 +54,28 @@
             </a>
           }
           <button type="button" class="btn btn-outline-light btn-sm" (click)="reset()">Stamp another</button>
-          <p class="smaller-text mt-2 mb-0 text-muted">
-            <em>This receipt is "pending" until Bitcoin confirms (~10 minutes).
-            After confirmation, drop the receipt back in to verify it against the
-            actual on-chain block.</em>
+
+          <hr>
+
+          <p class="mb-1">
+            <strong>This receipt is not yet proof.</strong> What you just
+            downloaded contains only a <em>pending calendar attestation</em>.
+            It says <em>"the calendar promised to include this hash"</em>, not
+            yet <em>"Bitcoin confirmed it."</em>
+          </p>
+          <p class="mb-1 smaller-text">
+            <strong>Step 2: upgrade the receipt</strong> a few hours after
+            stamping (allow at least ~10 minutes for Bitcoin, but most calendars
+            wait several blocks before publishing the Merkle path). Upgrading
+            replaces the pending attestation with the full Merkle path leading
+            to the Bitcoin block header. Once upgraded, the proof verifies
+            offline forever, even if every calendar disappears.
+          </p>
+          <p class="mb-0 smaller-text">
+            Upgrade with the official client from
+            <a href="https://opentimestamps.org" target="_blank" rel="noopener">opentimestamps.org</a>
+            (<code>ots upgrade your-file.ots</code>), then drop the upgraded
+            receipt back into this page to see <em>"Valid by block N"</em>.
           </p>
         </div>
       }
