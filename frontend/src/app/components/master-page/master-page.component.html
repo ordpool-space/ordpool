@@ -126,6 +126,13 @@
         </a>
       </li>
 
+      <!-- HACK: OpenTimestamps calendars dashboard (icon-only) -->
+      <li class="nav-item" id="btn-ots-calendars" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(ots/calendars).*' }">
+        <a class="nav-link" [routerLink]="['/ots/calendars' | relativeUrl]" (click)="collapse()">
+          <fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" title="OpenTimestamps calendars"></fa-icon>
+        </a>
+      </li>
+
     </ul>
     <app-search-form [hamburgerOpen]="enterpriseInfo === null && user != null" class="search-form-container" location="top" (searchTriggered)="collapse()"></app-search-form>
   </div>
