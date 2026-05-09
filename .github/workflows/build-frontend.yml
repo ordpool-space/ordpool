@@ -29,9 +29,25 @@ jobs:
       working-directory: frontend
       run: npm ci
 
+    # mempool-frontend-config.json is gitignored, so on CI it doesn't exist
+    # and generate-config defaults to BASE_MODULE=mempool — which picks
+    # src/index.mempool.html as the deploy template (wrong title, og tags).
+    # config:defaults:ordpool writes the right config file then runs
+    # generate-config, so src/index.ordpool.html becomes the template.
+    - name: Configure ordpool defaults
+      working-directory: frontend
+      run: npm run config:defaults:ordpool
+
     - name: Build (production, single English locale — we never translated ordpool components)
       working-directory: frontend
       run: npm run build
+
+    - name: Sanity-check ordpool branding made it into the build
+      working-directory: frontend
+      run: |
+        echo "=== <title> in deployed index.html ==="
+        grep -oE '<title>[^<]+</title>' dist/mempool/browser/index.html
+        grep -q 'ordpool.space' dist/mempool/browser/index.html
 
     - name: Sanity-check the deploy artifact
       working-directory: frontend
