@@ -1,0 +1,97 @@
+@if (stamps.length > 0) {
+  <section class="ots-pending-queue">
+    <h2 class="mt-4">Your stamps</h2>
+    <p class="smaller-text text-muted mb-3">
+      You can close this tab and come back later, your pending stamps are stored
+      in this browser. <strong>Don't clear site data or switch browsers</strong>
+      in the meantime, or we'll lose track of the request. (Your file is fine
+      either way; worst case you'd just stamp it again.)
+    </p>
+
+    @for (s of stamps; track s.id) {
+      <div class="ots-stamp-row" [class.is-ready]="s.status === 'ready'" [class.is-failed]="s.status === 'failed'" [class.is-undownloaded]="s.status === 'ready' && s.downloadCount === 0">
+        <div class="ots-stamp-row-head">
+          <div class="ots-stamp-filename">
+            <fa-icon [icon]="['fas', 'file-alt']" class="me-1"></fa-icon>
+            <strong>{{ s.filename }}</strong>
+          </div>
+          <div class="ots-stamp-meta smaller-text text-muted">
+            submitted {{ s.submittedAt | date:'medium' }}
+          </div>
+        </div>
+
+        <div class="ots-stamp-calendars">
+          @for (c of s.calendars; track c.uri) {
+            <span class="ots-stamp-calendar"
+                  [class.is-published]="!!c.upgradedBase64"
+                  [class.is-error]="c.lastResult === 'error'">
+              <strong>{{ shortHost(c.uri) }}</strong>
+              @if (c.upgradedBase64) {
+                <fa-icon [icon]="['fas', 'circle-check']" class="ms-1"></fa-icon>
+                published
+              } @else if (c.lastResult === 'error') {
+                <fa-icon [icon]="['fas', 'circle-xmark']" class="ms-1"></fa-icon>
+                error
+              } @else {
+                <span class="spinner-border spinner-border-sm ms-1"></span>
+                {{ calendarStatusLabel(c) }}
+              }
+            </span>
+          }
+        </div>
+
+        @if (s.status === 'queued') {
+          <div class="ots-stamp-status alert alert-warning mb-2">
+            <strong>Waiting for Bitcoin.</strong> The calendars are queueing your
+            hash for the next batch. We'll auto-finish it the moment any calendar
+            publishes a Bitcoin block. Usually 10 min to a few hours.
+            @if (isStuck(s)) {
+              <br><span class="smaller-text">This is taking longer than usual; calendars may be backed up.</span>
+            }
+          </div>
+          <div class="ots-stamp-actions">
+            <button type="button" class="btn btn-sm btn-outline-light me-2" (click)="checkNow(s)">Check now</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel(s)">Cancel &amp; forget</button>
+          </div>
+        }
+
+        @if (s.status === 'ready') {
+          <div class="ots-stamp-status alert alert-success mb-2">
+            <strong>✓ Ready.</strong> Your timestamp is anchored to Bitcoin.
+            @if (s.downloadCount === 0) {
+              <strong> Download the receipt now &mdash; we hold your only copy.</strong>
+            } @else {
+              <span class="smaller-text"> Downloaded {{ s.downloadedAt | date:'medium' }}.</span>
+            }
+          </div>
+          <div class="ots-stamp-actions">
+            <button type="button"
+                    class="btn me-2"
+                    [class.btn-primary]="s.downloadCount === 0"
+                    [class.btn-lg]="s.downloadCount === 0"
+                    [class.btn-sm]="s.downloadCount > 0"
+                    [class.btn-outline-light]="s.downloadCount > 0"
+                    (click)="download(s)">
+              <fa-icon [icon]="['fas', 'download']" class="me-1"></fa-icon>
+              {{ s.downloadCount === 0 ? 'DOWNLOAD ME!' : 'Download again' }}
+            </button>
+            @if (canClear(s)) {
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clear(s)">Clear this entry</button>
+            }
+          </div>
+        }
+
+        @if (s.status === 'failed') {
+          <div class="ots-stamp-status alert alert-secondary mb-2">
+            <strong>Stuck.</strong> No calendar has published your hash to Bitcoin
+            in 48 hours. They may be backed up or temporarily down. Re-stamping
+            usually fixes it.
+          </div>
+          <div class="ots-stamp-actions">
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel(s)">Cancel &amp; forget</button>
+          </div>
+        }
+      </div>
+    }
+  </section>
+}

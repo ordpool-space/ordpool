@@ -1,0 +1,82 @@
+:host {
+  display: block;
+}
+
+.ots-pending-queue {
+  .ots-stamp-row {
+    background-color: #181b2d;
+    border: 1px solid #2d3250;
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &.is-ready {
+      border-color: #198754;
+    }
+
+    &.is-undownloaded {
+      border-color: #f7931a;
+      box-shadow: 0 0 0 3px rgba(247, 147, 26, 0.15);
+      animation: ots-pulse 2s ease-in-out infinite;
+    }
+
+    &.is-failed {
+      border-color: #4a5085;
+      opacity: 0.85;
+    }
+  }
+
+  .ots-stamp-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .ots-stamp-calendars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+  }
+
+  .ots-stamp-calendar {
+    color: #9aa0c0;
+    background-color: #11132a;
+    border: 1px solid #2d3250;
+    border-radius: 6px;
+    padding: 4px 10px;
+
+    &.is-published {
+      color: #5cb874;
+      border-color: #198754;
+    }
+
+    &.is-error {
+      color: #d77a7a;
+      border-color: #6e3a3a;
+    }
+
+    strong {
+      color: inherit;
+    }
+  }
+
+  .ots-stamp-status {
+    margin-bottom: 0;
+  }
+
+  .ots-stamp-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+@keyframes ots-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(247, 147, 26, 0.15); }
+  50%      { box-shadow: 0 0 0 6px rgba(247, 147, 26, 0.30); }
+}
