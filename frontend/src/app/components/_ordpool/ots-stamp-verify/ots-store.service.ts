@@ -11,11 +11,29 @@ Test cases:
 const STORAGE_KEY = 'ordpool:ots:pending';
 const SCHEMA_VERSION = 1;
 
-export const OTS_CALENDARS: ReadonlyArray<string> = [
+/**
+ * Hardcoded fallback used at stamp time if /ots/calendars hasn't yet been
+ * fetched (cold load) OR the fetch failed. Same three the official `ots`
+ * CLI uses by default. The live picker (OtsCalendarPickerService) prefers
+ * the freshest 3 calendars from our indexer; these are just a safety net.
+ */
+export const OTS_FALLBACK_CALENDARS: ReadonlyArray<string> = [
   'https://alice.btc.calendar.opentimestamps.org',
   'https://bob.btc.calendar.opentimestamps.org',
   'https://finney.calendar.eternitywall.com',
 ];
+
+/**
+ * Map a known calendar shortname to its public POST endpoint. Backend
+ * includes catallaxy in its proxy whitelist; we add it to the picker's
+ * universe so on-chain freshness alone decides who gets used.
+ */
+export const OTS_KNOWN_CALENDAR_URIS: Record<string, string> = {
+  alice:     'https://alice.btc.calendar.opentimestamps.org',
+  bob:       'https://bob.btc.calendar.opentimestamps.org',
+  finney:    'https://finney.calendar.eternitywall.com',
+  catallaxy: 'https://btc.catallaxy.com',
+};
 
 export type OtsStampStatus = 'queued' | 'ready' | 'failed';
 export type OtsCalendarResult = 'pending' | 'published' | 'error' | 'never-checked';

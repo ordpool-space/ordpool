@@ -1,0 +1,9 @@
+{
+  "_": "Public OpenTimestamps calendars used by ordpool's Stamp & Verify. Each entry is a calendar's base URI (we'll POST <uri>/digest to stamp and GET <uri>/timestamp/<commitment> to upgrade). Edit this file to add or remove calendars; PRs welcome. Verify the calendar is alive by hitting GET <uri>/ in a browser before adding -- a healthy calendar shows a 'Foxglove' or 'OpenTimestamps Calendar' banner. List audited 2026-05-09: see https://github.com/ordpool-space/ordpool/blob/main/PROTOCOL.md or the agent report in the commit history for evidence per calendar.",
+  "calendars": [
+    "https://alice.btc.calendar.opentimestamps.org",
+    "https://bob.btc.calendar.opentimestamps.org",
+    "https://finney.calendar.eternitywall.com",
+    "https://ots.btc.catallaxy.com"
+  ]
+}

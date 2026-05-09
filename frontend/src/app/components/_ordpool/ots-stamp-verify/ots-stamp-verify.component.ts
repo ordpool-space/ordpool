@@ -8,13 +8,13 @@ import {
 import { environment } from '@environments/environment';
 
 import {
-  OTS_CALENDARS,
   OtsLocalCalendar,
   OtsStoreService,
   assembleOtsFile,
   bytesToBase64,
   hexEncode,
 } from './ots-store.service';
+import { OtsCalendarPickerService } from './ots-calendar-picker.service';
 
 /*
 Test cases:
@@ -50,7 +50,7 @@ interface VerifyResult {
 type Status =
   | { kind: 'idle' }
   | { kind: 'busy'; message: string }
-  | { kind: 'queued'; filename: string }
+  | { kind: 'queued'; filename: string; calendars: string[] }
   | { kind: 'verified'; result: VerifyResult }
   | { kind: 'error'; message: string };
 
@@ -65,6 +65,7 @@ export class OtsStampVerifyComponent {
 
   private cdr = inject(ChangeDetectorRef);
   private store = inject(OtsStoreService);
+  private picker = inject(OtsCalendarPickerService);
   private apiBase = environment.apiBaseUrl || '';
 
   status: Status = { kind: 'idle' };
@@ -149,10 +150,13 @@ export class OtsStampVerifyComponent {
 
     const now = Date.now();
 
-    // Parallel POST to all 3 calendars. We tolerate per-calendar failures:
-    // if alice is down but bob/finney accept, we still queue a usable stamp.
+    // Parallel POST to every configured calendar (live list from
+    // /api/v1/ordpool/ots/stamp-calendars; falls back to hardcoded if the
+    // endpoint is unreachable). We tolerate per-calendar failures: if one
+    // is down but the others accept, we still queue a usable stamp.
+    const calendarUris = await this.picker.pick();
     const replies = await Promise.allSettled(
-      OTS_CALENDARS.map(uri => this.postDigestToCalendar(uri, digest)),
+      calendarUris.map(uri => this.postDigestToCalendar(uri, digest)),
     );
 
     // For each calendar's reply, parse a single-branch .ots and find the
@@ -160,7 +164,7 @@ export class OtsStampVerifyComponent {
     // /timestamp/<...> lookup key. Without this, polling 404s forever
     // because calendars don't index by file hash.
     const calendars: OtsLocalCalendar[] = await Promise.all(
-      OTS_CALENDARS.map(async (uri, i) => {
+      calendarUris.map(async (uri, i) => {
         const r = replies[i];
         if (r.status === 'fulfilled') {
           let commitmentHex = '';
@@ -217,7 +221,13 @@ export class OtsStampVerifyComponent {
     // the API isn't available or already decided.
     this.maybeRequestNotificationPermission();
 
-    this.status = { kind: 'queued', filename };
+    this.status = {
+      kind: 'queued',
+      filename,
+      calendars: calendars
+        .filter(c => !!c.pendingBase64)
+        .map(c => { try { return new URL(c.uri).hostname.split('.')[0]; } catch { return c.uri; } }),
+    };
     this.cdr.markForCheck();
 
     // Auto-reset after a short pause so the dropzone is ready for the next file.
