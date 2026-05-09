@@ -1,0 +1,48 @@
+:host {
+  display: block;
+}
+
+.ots-stamp-verify {
+  background-color: #181b2d;
+  border: 1px solid #2d3250;
+
+  .dropzone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    border: 2px dashed #4a5085;
+    border-radius: 8px;
+    cursor: pointer;
+    background-color: #11132a;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+    text-align: center;
+    padding: 20px;
+    margin: 0;
+
+    &:hover,
+    &.dragging {
+      border-color: var(--bs-primary, #f7931a);
+      background-color: #1a1d36;
+    }
+
+    .dropzone-input {
+      display: none;
+    }
+
+    .dropzone-text {
+      color: #9aa0c0;
+      line-height: 1.7;
+
+      strong {
+        color: #fff;
+      }
+    }
+  }
+
+  .verify-result {
+    code {
+      word-break: break-all;
+    }
+  }
+}
