@@ -1,4 +1,5 @@
 import { Application, Request, Response } from 'express';
+import axios from 'axios';
 import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
@@ -29,6 +30,7 @@ class GeneralOrdpoolRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/recent', this.$getOtsRecent)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/tx/:txid', this.$getOtsTx)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/block/:height', this.$getOtsBlock)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/upgrade/:calendar/:hash', this.$proxyOtsUpgrade)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -58,6 +60,61 @@ class GeneralOrdpoolRoutes {
       res.json(rows);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /**
+   * Proxy GET /timestamp/<hash> on a public OTS calendar.
+   *
+   * Why we proxy: the public OTS calendars (alice/bob/finney/...) do not
+   * send `Access-Control-Allow-Origin` on their /timestamp/<hash> responses,
+   * so the browser cannot read the body when polling for an upgrade. Their
+   * /digest POST endpoint DOES allow CORS (when triggered as a "simple"
+   * request, see frontend ots-stamp-verify.component.ts), but /timestamp/
+   * does not. Server-side proxying side-steps the entire issue.
+   *
+   * Hostname is whitelisted so we don't accidentally turn into an open
+   * proxy. The hash is sanity-checked as a 64-char lower-case hex string.
+   *
+   * Cache hint: upstream sets max-age=60 for 404s. We mirror that on the
+   * 404 path so a tab leaving a long-pending stamp doesn't hammer us.
+   */
+  // https://ordpool.space/api/v1/ordpool/ots/upgrade/alice.btc.calendar.opentimestamps.org/<hex>
+  private async $proxyOtsUpgrade(req: Request, res: Response): Promise<void> {
+    const allowed = new Set<string>([
+      'alice.btc.calendar.opentimestamps.org',
+      'bob.btc.calendar.opentimestamps.org',
+      'finney.calendar.eternitywall.com',
+      'btc.catallaxy.com',
+    ]);
+    const calendar = String(req.params.calendar || '').toLowerCase();
+    const hash = String(req.params.hash || '').toLowerCase();
+    if (!allowed.has(calendar)) {
+      res.status(400).send('unknown calendar');
+      return;
+    }
+    if (!/^[0-9a-f]{64}$/.test(hash)) {
+      res.status(400).send('invalid hash');
+      return;
+    }
+    try {
+      const upstream = await axios.get(
+        `https://${calendar}/timestamp/${hash}`,
+        { responseType: 'arraybuffer', timeout: 10000, validateStatus: () => true },
+      );
+      // Default max-age for the pending (404) case mirrors the calendar's
+      // own cache; for the 200 case the response is immutable so we can
+      // cache aggressively. Either way, the frontend's poller treats this
+      // as best-effort -- worst case it just polls again next minute.
+      if (upstream.status === 200) {
+        res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+        res.setHeader('Content-Type', 'application/vnd.opentimestamps.v1');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=60');
+      }
+      res.status(upstream.status).end(Buffer.from(upstream.data));
+    } catch {
+      res.status(502).send('upstream error');
     }
   }
 
