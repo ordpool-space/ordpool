@@ -85,4 +85,10 @@ export class OrdpoolApiService {
     const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/recent?limit=${limit}`;
     return this.httpClient.get<OrdpoolOtsRow[]>(url);
   }
+
+  /** Every OTS commit at a given block height. */
+  getOtsBlock$(height: number): Observable<OrdpoolOtsRow[]> {
+    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/block/${height}`;
+    return this.httpClient.get<OrdpoolOtsRow[]>(url);
+  }
 }

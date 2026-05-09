@@ -1,0 +1,30 @@
+@if (loaded && rows.length > 0) {
+  <div class="ots-block-summary">
+    <span (click)="toggle()" class="toggle">
+      <strong>◉ OpenTimestamps:</strong>
+      <span>{{ rows.length }} {{ rows.length === 1 ? 'calendar commit' : 'calendar commits' }}</span>
+      <span class="chevron">{{ expanded ? '▾' : '▸' }}</span>
+    </span>
+    @if (expanded) {
+      <table class="table table-borderless table-striped table-dark mt-2">
+        <thead>
+          <tr><th>Calendar</th><th>Tx</th><th>Merkle root</th><th>Fee (sats)</th></tr>
+        </thead>
+        <tbody>
+          @for (row of rows; track row.txid) {
+            <tr>
+              <td>{{ row.calendar }}</td>
+              <td>
+                <a [routerLink]="['/tx/' | relativeUrl, row.txid]" title="{{ row.txid }}">
+                  {{ row.txid | shortenString : 13 }}
+                </a>
+              </td>
+              <td><code class="smaller-text">{{ row.merkleRoot | shortenString : 13 }}</code></td>
+              <td>{{ row.fee }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+}

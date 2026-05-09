@@ -54,6 +54,10 @@
             [blockConversion]="blockConversion" />
           <!-- HACK: END Ordpool Stats -->
 
+          <!-- HACK: START Ordpool OTS block-summary (self-hides on zero commits) -->
+          <app-block-ots-summary [blockHeight]="block?.height" />
+          <!-- HACK: END Ordpool OTS block-summary -->
+
           <tbody>
             <ng-container *ngIf="block && !isLoadingBlock; else skeletonRows">
               <tr>
