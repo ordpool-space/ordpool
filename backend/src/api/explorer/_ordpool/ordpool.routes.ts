@@ -93,7 +93,10 @@ class GeneralOrdpoolRoutes {
       res.status(400).send('unknown calendar');
       return;
     }
-    if (!/^[0-9a-f]{64}$/.test(hash)) {
+    // Lower-case hex, even length, max 256 hex chars (128 bytes is more than
+    // generous for any realistic OTS commitment, which is typically 32-48
+    // bytes after the calendar's per-batch suffix bytes).
+    if (!/^[0-9a-f]+$/.test(hash) || hash.length % 2 !== 0 || hash.length > 256) {
       res.status(400).send('invalid hash');
       return;
     }
