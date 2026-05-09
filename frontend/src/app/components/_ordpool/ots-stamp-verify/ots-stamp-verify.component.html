@@ -111,6 +111,18 @@
             }
           }
 
+          @if (status.result.bitcoinAttestations.length > 0 && status.result.pendingCalendars.length > 0) {
+            <div class="alert alert-info mb-2 smaller-text">
+              <strong>Note:</strong> the receipt also has
+              {{ status.result.pendingCalendars.length }} calendar
+              attestation{{ status.result.pendingCalendars.length === 1 ? '' : 's' }}
+              that {{ status.result.pendingCalendars.length === 1 ? 'is' : 'are' }} still pending
+              ({{ pendingCalendarsLabel(status.result.pendingCalendars) }}). The Bitcoin attestation
+              above is already proof on its own; the pending one{{ status.result.pendingCalendars.length === 1 ? '' : 's' }}
+              would just add more redundancy if upgraded later.
+            </div>
+          }
+
           @if (status.result.unknownAttestations > 0) {
             <p class="smaller-text text-muted mb-2">
               The receipt also contains {{ status.result.unknownAttestations }}

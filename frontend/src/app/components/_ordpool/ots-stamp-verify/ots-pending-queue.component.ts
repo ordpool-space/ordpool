@@ -64,6 +64,17 @@ export class OtsPendingQueueComponent implements OnInit, OnDestroy {
     return 'queued';
   }
 
+  readyCount(s: OtsLocalStamp): number {
+    return s.calendars.filter(c => !!c.upgradedBase64).length;
+  }
+
+  pendingHosts(s: OtsLocalStamp): string {
+    return s.calendars
+      .filter(c => !c.upgradedBase64)
+      .map(c => this.shortHost(c.uri))
+      .join(', ');
+  }
+
   isStuck(s: OtsLocalStamp): boolean {
     return s.status === 'queued' && Date.now() - s.submittedAt > 6 * 60 * 60 * 1000;
   }

@@ -103,6 +103,13 @@ export class OtsStampVerifyComponent {
     this.cdr.markForCheck();
   }
 
+  pendingCalendarsLabel(uris: string[]): string {
+    return uris.map(u => {
+      try { return new URL(u).hostname.split('.')[0]; }
+      catch { return u; }
+    }).join(', ');
+  }
+
   private async handleFile(file: File): Promise<void> {
     if (file.size > 100 * 1024 * 1024) {
       this.status = { kind: 'error', message: 'File too large (max 100 MB).' };

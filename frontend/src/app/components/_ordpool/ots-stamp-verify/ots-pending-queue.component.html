@@ -68,7 +68,18 @@
 
         @if (s.status === 'ready') {
           <div class="ots-stamp-status alert alert-success mb-2">
-            <strong>✓ Ready.</strong> Your timestamp is anchored to Bitcoin.
+            <strong>✓ Ready.</strong>
+            <strong>{{ readyCount(s) }} of {{ s.calendars.length }}</strong>
+            calendar{{ s.calendars.length === 1 ? '' : 's' }}
+            anchored your hash to Bitcoin.
+            @if (readyCount(s) < s.calendars.length) {
+              The other {{ s.calendars.length - readyCount(s) }}
+              ({{ pendingHosts(s) }}) {{ s.calendars.length - readyCount(s) === 1 ? 'is' : 'are' }}
+              still pending; if {{ s.calendars.length - readyCount(s) === 1 ? 'it publishes' : 'they publish' }} too,
+              the next download will include {{ s.calendars.length - readyCount(s) === 1 ? 'that anchor' : 'those anchors' }} for extra redundancy.
+            } @else {
+              All calendars published; the receipt has full redundancy.
+            }
             @if (s.downloadCount === 0) {
               <strong> Download the receipt now &mdash; we hold your only copy.</strong>
             } @else {
