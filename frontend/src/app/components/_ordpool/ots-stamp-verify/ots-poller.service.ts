@@ -1,6 +1,7 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { fromEvent, Subscription, timer } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import { environment } from '@environments/environment';
 
 import {
   OtsLocalStamp,
@@ -96,7 +97,15 @@ export class OtsPollerService implements OnDestroy {
    * 404 / 5xx => still pending or transient error; just record the result.
    */
   private async upgradeOne(stamp: OtsLocalStamp, calendarUri: string): Promise<void> {
-    const url = calendarUri + '/timestamp/' + stamp.fileHashHex;
+    // Hit our backend proxy instead of the calendar directly: public OTS
+    // calendars don't send Access-Control-Allow-Origin on /timestamp/<hash>,
+    // so a browser GET would be blocked. The backend just forwards the bytes
+    // and the upstream status code.
+    const apiBase = environment.apiBaseUrl || '';
+    const calendarHost = (() => {
+      try { return new URL(calendarUri).hostname; } catch { return ''; }
+    })();
+    const url = `${apiBase}/api/v1/ordpool/ots/upgrade/${calendarHost}/${stamp.fileHashHex}`;
     let bodyB64: string | null = null;
     let result: 'pending' | 'published' | 'error' = 'error';
     let errorMessage: string | null = null;
