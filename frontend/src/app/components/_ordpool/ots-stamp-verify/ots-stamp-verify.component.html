@@ -2,10 +2,11 @@
   <div class="card-body">
     <h2 class="card-title mb-3">Stamp &amp; Verify</h2>
     <p class="smaller-text text-muted mb-3">
-      Drop a file here to stamp it with a public OpenTimestamps calendar, or drop
-      a <code>.ots</code> receipt to verify it. Everything happens in your
+      Drop a file here to stamp it with three public OpenTimestamps calendars
+      (<code>alice</code>, <code>bob</code>, <code>finney</code>), or drop a
+      <code>.ots</code> receipt to verify one. Everything happens in your
       browser. Stamping sends only the file's SHA-256 hash, never the file
-      itself.
+      itself; we don't operate the calendars and we never see your file.
     </p>
 
     <label class="dropzone"
@@ -35,48 +36,11 @@
         </div>
       }
 
-      @case ('stamped') {
-        <div class="alert alert-warning mt-3 mb-0">
-          <p class="mb-2">
-            <strong>Step 1 of 2 done.</strong> The calendar has accepted your
-            file's hash and will fold it into the next block's Merkle batch.
-            Download this <code>.ots</code> now and keep it next to your file.
-          </p>
-          <p class="mb-2">
-            <code class="smaller-text">SHA-256: {{ status.hashHex }}</code>
-          </p>
-          @if (stampedDownload) {
-            <a class="btn btn-primary btn-sm me-2"
-               [href]="stampedDownload.url"
-               [download]="stampedDownload.filename">
-              <fa-icon [icon]="['fas', 'download']" class="me-1"></fa-icon>
-              Download {{ stampedDownload.filename }}
-            </a>
-          }
-          <button type="button" class="btn btn-outline-light btn-sm" (click)="reset()">Stamp another</button>
-
-          <hr>
-
-          <p class="mb-1">
-            <strong>This receipt is not yet proof.</strong> What you just
-            downloaded contains only a <em>pending calendar attestation</em>.
-            It says <em>"the calendar promised to include this hash"</em>, not
-            yet <em>"Bitcoin confirmed it."</em>
-          </p>
-          <p class="mb-1 smaller-text">
-            <strong>Step 2: upgrade the receipt</strong> a few hours after
-            stamping (allow at least ~10 minutes for Bitcoin, but most calendars
-            wait several blocks before publishing the Merkle path). Upgrading
-            replaces the pending attestation with the full Merkle path leading
-            to the Bitcoin block header. Once upgraded, the proof verifies
-            offline forever, even if every calendar disappears.
-          </p>
-          <p class="mb-0 smaller-text">
-            Upgrade with the official client from
-            <a href="https://opentimestamps.org" target="_blank" rel="noopener">opentimestamps.org</a>
-            (<code>ots upgrade your-file.ots</code>), then drop the upgraded
-            receipt back into this page to see <em>"Valid by block N"</em>.
-          </p>
+      @case ('queued') {
+        <div class="alert alert-success mt-3 mb-0">
+          <strong>Submitted!</strong> <code>{{ status.filename }}</code> is now in
+          the queue below. We'll watch the calendars and finish the receipt
+          automatically. <em>You can drop another file in the meantime.</em>
         </div>
       }
 
@@ -99,9 +63,7 @@
                   }
                 </ul>
                 Once any of these calendars commits to a Bitcoin block (~10 min
-                after stamping), upgrade this <code>.ots</code> via the official
-                OTS client (or this page after upgrade support ships) and drop it
-                back in.
+                to a few hours after stamping), the receipt can be upgraded.
               } @else {
                 No Bitcoin attestation found and no pending calendars listed.
                 The file may have been stamped by a chain we don't verify

@@ -7,6 +7,7 @@ import { EnterpriseService } from '@app/services/enterprise.service';
 import { NavigationService } from '@app/services/navigation.service';
 import { MenuComponent } from '@components/menu/menu.component';
 import { StorageService } from '@app/services/storage.service';
+import { OtsPollerService } from '@components/_ordpool/ots-stamp-verify/ots-poller.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -50,6 +51,10 @@ export class MasterPageComponent implements OnInit, OnDestroy {
     private navigationService: NavigationService,
     private storageService: StorageService,
     private router: Router,
+    // HACK -- Ordpool: ensure the OTS poller boots even if the user never
+    // visits /ots/calendars in this session. It's a singleton that polls
+    // pending stamps in localStorage from page-load until last completion.
+    _otsPoller: OtsPollerService,
   ) {
 
     // HACK -- redirect to block-overwiew

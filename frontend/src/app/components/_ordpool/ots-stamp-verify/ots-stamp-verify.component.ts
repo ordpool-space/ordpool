@@ -6,14 +6,21 @@ import {
 } from 'ordpool-parser';
 import { environment } from '@environments/environment';
 
+import {
+  OTS_CALENDARS,
+  OtsLocalCalendar,
+  OtsStoreService,
+  bytesToBase64,
+  hexEncode,
+} from './ots-store.service';
+
 /*
 Test cases:
-- Real-file stamp roundtrip: drop any small file, get a pending .ots, drop it
-  back in to see "calendar pending" until next block.
-- Real .ots verify: drop the well-known proof for OpenTimestamps' README,
-  expect block 358391 with valid Merkle-root match.
-- Wrong file: drop any .ots first, then drop a different file -- the file's
-  hash should fail to match the .ots root msg.
+- Drop a small text file: parallel POST to all 3 calendars, then a new row
+  appears in the pending-queue below; drop-zone resets to idle.
+- Drop a real .ots: parses, fetches each Bitcoin attestation's block,
+  shows valid/mismatch verdict.
+- Drop a corrupt or empty file: shows a clear error.
 */
 
 const HEADER_MAGIC = new Uint8Array([
@@ -21,17 +28,13 @@ const HEADER_MAGIC = new Uint8Array([
   0x00, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x00, 0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94,
 ]);
 
-// Public OTS calendar. Returns a *pending* .ots binary for the given SHA-256
-// digest. Sends Access-Control-Allow-Origin: *, so a browser POST works.
-const STAMP_CALENDAR_URL = 'https://a.pool.opentimestamps.org/digest';
-
 interface BitcoinAttestationView {
   blockheight: number;
-  expectedMerkleRoot: string;       // hex (display order)
+  expectedMerkleRoot: string;
   blockHash: string | null;
-  actualMerkleRoot: string | null;  // hex from esplora
+  actualMerkleRoot: string | null;
   blockTime: number | null;
-  match: boolean | null;            // null = lookup failed, true/false = compared
+  match: boolean | null;
 }
 
 interface VerifyResult {
@@ -45,7 +48,7 @@ interface VerifyResult {
 type Status =
   | { kind: 'idle' }
   | { kind: 'busy'; message: string }
-  | { kind: 'stamped'; filename: string; hashHex: string }
+  | { kind: 'queued'; filename: string }
   | { kind: 'verified'; result: VerifyResult }
   | { kind: 'error'; message: string };
 
@@ -59,15 +62,11 @@ type Status =
 export class OtsStampVerifyComponent {
 
   private cdr = inject(ChangeDetectorRef);
+  private store = inject(OtsStoreService);
+  private apiBase = environment.apiBaseUrl || '';
 
   status: Status = { kind: 'idle' };
   isDragging = false;
-  private stampedBlobUrl: string | null = null;
-  stampedDownload: { url: string; filename: string } | null = null;
-
-  // Esplora base URL: same convention as the rest of the SPA. In dev this
-  // is empty so requests go via the proxy; in prod it's api.ordpool.space.
-  private apiBase = environment.apiBaseUrl || '';
 
   onDragOver(ev: DragEvent): void {
     ev.preventDefault();
@@ -98,11 +97,6 @@ export class OtsStampVerifyComponent {
   }
 
   reset(): void {
-    if (this.stampedBlobUrl) {
-      URL.revokeObjectURL(this.stampedBlobUrl);
-      this.stampedBlobUrl = null;
-    }
-    this.stampedDownload = null;
     this.status = { kind: 'idle' };
     this.cdr.markForCheck();
   }
@@ -139,64 +133,79 @@ export class OtsStampVerifyComponent {
     this.cdr.markForCheck();
 
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource));
+    const fileHashHex = hexEncode(digest);
 
-    this.status = { kind: 'busy', message: 'Asking the calendar for a timestamp…' };
+    this.status = { kind: 'busy', message: 'Submitting to 3 calendars…' };
     this.cdr.markForCheck();
 
-    // The OTS protocol: POST the raw 32-byte digest, body type
-    // application/vnd.opentimestamps.v1, response is a partial .ots
-    // (just the calendar's pending attestation; the user upgrades it
-    // later once Bitcoin confirms).
-    const resp = await fetch(STAMP_CALENDAR_URL, {
+    const now = Date.now();
+
+    // Parallel POST to all 3 calendars. We tolerate per-calendar failures:
+    // if alice is down but bob/finney accept, we still queue a usable stamp.
+    const replies = await Promise.allSettled(
+      OTS_CALENDARS.map(uri => this.postDigestToCalendar(uri, digest)),
+    );
+
+    const calendars: OtsLocalCalendar[] = OTS_CALENDARS.map((uri, i) => {
+      const r = replies[i];
+      if (r.status === 'fulfilled') {
+        return {
+          uri,
+          pendingBase64: bytesToBase64(r.value),
+          upgradedBase64: null,
+          lastCheckedAt: now,
+          lastResult: 'pending',
+          errorMessage: null,
+        };
+      }
+      return {
+        uri,
+        pendingBase64: '',
+        upgradedBase64: null,
+        lastCheckedAt: now,
+        lastResult: 'error',
+        errorMessage: r.reason instanceof Error ? r.reason.message : 'submit failed',
+      };
+    });
+
+    // If every calendar failed, surface that. Otherwise queue with the
+    // surviving calendars; the rest stays in 'error' state in the row.
+    if (calendars.every(c => !c.pendingBase64)) {
+      throw new Error('All calendars rejected the submission. Check your network and try again.');
+    }
+
+    this.store.add({
+      id: this.uuid(),
+      filename,
+      fileHashAlgo: 'sha256',
+      fileHashHex,
+      submittedAt: now,
+      calendars,
+      status: 'queued',
+      readyAt: null,
+      downloadedAt: null,
+      downloadCount: 0,
+    });
+
+    this.status = { kind: 'queued', filename };
+    this.cdr.markForCheck();
+
+    // Auto-reset after a short pause so the dropzone is ready for the next file.
+    setTimeout(() => {
+      if (this.status.kind === 'queued' && this.status.filename === filename) {
+        this.reset();
+      }
+    }, 6000);
+  }
+
+  private async postDigestToCalendar(uri: string, digest: Uint8Array): Promise<Uint8Array> {
+    const resp = await fetch(uri + '/digest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/vnd.opentimestamps.v1' },
       body: digest as BufferSource,
     });
-    if (!resp.ok) {
-      throw new Error(`Calendar replied ${resp.status} ${resp.statusText}`);
-    }
-    const calendarReply = new Uint8Array(await resp.arrayBuffer());
-
-    // The calendar's reply is a *partial* timestamp (without the header
-    // and without the file-hash). Wrap it into a complete .ots file.
-    const complete = this.assembleOtsFile(digest, calendarReply);
-
-    const blob = new Blob([complete as BlobPart], { type: 'application/vnd.opentimestamps' });
-    if (this.stampedBlobUrl) URL.revokeObjectURL(this.stampedBlobUrl);
-    this.stampedBlobUrl = URL.createObjectURL(blob);
-    this.stampedDownload = {
-      url: this.stampedBlobUrl,
-      filename: filename + '.ots',
-    };
-
-    this.status = {
-      kind: 'stamped',
-      filename: filename + '.ots',
-      hashHex: this.hex(digest),
-    };
-    this.cdr.markForCheck();
-  }
-
-  /**
-   * Build a v1 .ots file from a SHA-256 file digest and the calendar's
-   * partial reply.
-   *
-   * Layout:
-   *   HEADER_MAGIC (31 bytes)
-   *   major version (1 byte = 0x01)
-   *   file-hash op tag (1 byte = 0x08 for sha256)
-   *   file digest (32 bytes)
-   *   calendar reply (the timestamp tree as the calendar serialised it)
-   */
-  private assembleOtsFile(digest: Uint8Array, calendarBody: Uint8Array): Uint8Array {
-    const out = new Uint8Array(HEADER_MAGIC.length + 1 + 1 + digest.length + calendarBody.length);
-    let p = 0;
-    out.set(HEADER_MAGIC, p); p += HEADER_MAGIC.length;
-    out[p++] = 0x01;             // major version
-    out[p++] = 0x08;             // sha256 file-hash op
-    out.set(digest, p);          p += digest.length;
-    out.set(calendarBody, p);
-    return out;
+    if (!resp.ok) throw new Error(uri + ' replied ' + resp.status);
+    return new Uint8Array(await resp.arrayBuffer());
   }
 
   private async verifyOts(bytes: Uint8Array): Promise<void> {
@@ -206,8 +215,6 @@ export class OtsStampVerifyComponent {
     const parsed = await parseOtsFile(bytes);
     const bitcoinAtts = collectBitcoinAttestations(parsed);
 
-    // Walk the tree once to also collect non-bitcoin attestations for the
-    // human-readable summary.
     const pendingCalendars: string[] = [];
     let unknown = 0;
     const visit = (node: { attestations: OtsAttestation[]; children: any[] }) => {
@@ -233,7 +240,7 @@ export class OtsStampVerifyComponent {
       kind: 'verified',
       result: {
         fileHashAlgo: parsed.fileHashAlgo,
-        fileHashHex: this.hex(parsed.fileHash),
+        fileHashHex: hexEncode(parsed.fileHash),
         bitcoinAttestations: view,
         pendingCalendars,
         unknownAttestations: unknown,
@@ -246,7 +253,7 @@ export class OtsStampVerifyComponent {
     blockheight: number,
     expectedRootInternal: Uint8Array,
   ): Promise<BitcoinAttestationView> {
-    const expectedDisplayHex = this.hex(this.reverseBytes(expectedRootInternal));
+    const expectedDisplayHex = hexEncode(this.reverseBytes(expectedRootInternal));
     try {
       const hashResp = await fetch(this.apiBase + '/api/block-height/' + blockheight);
       if (!hashResp.ok) throw new Error('block-height ' + hashResp.status);
@@ -283,13 +290,11 @@ export class OtsStampVerifyComponent {
     return out;
   }
 
-  private hex(b: Uint8Array): string {
-    let s = '';
-    for (let i = 0; i < b.length; i++) {
-      const h = b[i].toString(16);
-      s += h.length === 1 ? '0' + h : h;
+  private uuid(): string {
+    if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+      return (crypto as any).randomUUID();
     }
-    return s;
+    return 'ots-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 
   private errString(e: unknown): string {

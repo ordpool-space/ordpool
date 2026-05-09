@@ -1,0 +1,141 @@
+import { Injectable, OnDestroy } from '@angular/core';
+import { fromEvent, Subscription, timer } from 'rxjs';
+import { filter } from 'rxjs/operators';
+
+import {
+  OtsLocalStamp,
+  OtsStoreService,
+  bytesToBase64,
+} from './ots-store.service';
+
+/*
+Test cases:
+- Tab visible with 1 queued stamp: GET /timestamp/<hash> for each calendar
+  every 60s, until any one returns 200; mark stamp as 'ready'.
+- Tab hidden: polling pauses; resumes immediately on visibilitychange.
+- Stamp older than 48h, still no calendar published: marked as 'failed',
+  polling stops for that stamp.
+- 3 calendars, alice publishes first: stamp flips to 'ready' immediately,
+  poller keeps probing bob/finney for ~60s for multi-anchor redundancy.
+*/
+
+const POLL_INTERVAL_MS = 60_000;
+const MULTI_ANCHOR_GRACE_MS = 90_000;     // after first publish, keep polling siblings this long
+const STUCK_TIMEOUT_MS = 48 * 60 * 60 * 1000;
+
+@Injectable({ providedIn: 'root' })
+export class OtsPollerService implements OnDestroy {
+
+  private tickSub: Subscription | null = null;
+  private visibilitySub: Subscription | null = null;
+  private inflight = new Set<string>();    // stamp.id|calendar.uri keys we're currently fetching
+
+  constructor(private store: OtsStoreService) {
+    if (typeof document !== 'undefined') {
+      this.visibilitySub = fromEvent(document, 'visibilitychange')
+        .pipe(filter(() => document.visibilityState === 'visible'))
+        .subscribe(() => this.tick());
+    }
+    this.start();
+  }
+
+  ngOnDestroy(): void {
+    this.tickSub?.unsubscribe();
+    this.visibilitySub?.unsubscribe();
+  }
+
+  private start(): void {
+    this.tickSub?.unsubscribe();
+    this.tickSub = timer(0, POLL_INTERVAL_MS).subscribe(() => this.tick());
+  }
+
+  /** Force one immediate poll cycle; called by "Check now" buttons. */
+  pokeNow(stampId?: string): void {
+    this.tick(stampId);
+  }
+
+  private tick(only?: string): void {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const now = Date.now();
+    for (const stamp of this.store.snapshot()) {
+      if (only && stamp.id !== only) continue;
+      this.advanceStamp(stamp, now);
+    }
+  }
+
+  private advanceStamp(stamp: OtsLocalStamp, now: number): void {
+    if (stamp.status === 'failed') return;
+
+    // 48h stuck check: not ready AND no successful calendar AND past timeout.
+    if (stamp.status === 'queued' && now - stamp.submittedAt > STUCK_TIMEOUT_MS) {
+      this.store.update(stamp.id, s => ({ ...s, status: 'failed' }));
+      return;
+    }
+
+    // Multi-anchor grace: stop polling siblings ~90s after first publish.
+    const inGrace =
+      stamp.status === 'ready' &&
+      stamp.readyAt !== null &&
+      now - stamp.readyAt < MULTI_ANCHOR_GRACE_MS;
+
+    if (stamp.status === 'ready' && !inGrace) return;
+
+    for (const cal of stamp.calendars) {
+      if (cal.upgradedBase64) continue;
+      const key = stamp.id + '|' + cal.uri;
+      if (this.inflight.has(key)) continue;
+      this.inflight.add(key);
+      this.upgradeOne(stamp, cal.uri).finally(() => this.inflight.delete(key));
+    }
+  }
+
+  /**
+   * GET /timestamp/<hex_hash> on the given calendar. 200 => calendar has
+   * published its batch and the response body is the upgraded subtree;
+   * splice it into the stamp and possibly mark the stamp as ready.
+   * 404 / 5xx => still pending or transient error; just record the result.
+   */
+  private async upgradeOne(stamp: OtsLocalStamp, calendarUri: string): Promise<void> {
+    const url = calendarUri + '/timestamp/' + stamp.fileHashHex;
+    let bodyB64: string | null = null;
+    let result: 'pending' | 'published' | 'error' = 'error';
+    let errorMessage: string | null = null;
+    try {
+      const resp = await fetch(url, { method: 'GET' });
+      if (resp.status === 200) {
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        bodyB64 = bytesToBase64(buf);
+        result = 'published';
+      } else if (resp.status === 404) {
+        result = 'pending';
+      } else {
+        errorMessage = 'HTTP ' + resp.status;
+      }
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'fetch failed';
+    }
+
+    const now = Date.now();
+    this.store.update(stamp.id, s => {
+      const calendars = s.calendars.map(c =>
+        c.uri === calendarUri
+          ? {
+              ...c,
+              upgradedBase64: bodyB64 ?? c.upgradedBase64,
+              lastCheckedAt: now,
+              lastResult: result,
+              errorMessage,
+            }
+          : c
+      );
+      const anyPublished = calendars.some(c => !!c.upgradedBase64);
+      const justBecameReady = anyPublished && s.status === 'queued';
+      return {
+        ...s,
+        calendars,
+        status: anyPublished ? 'ready' : s.status,
+        readyAt: justBecameReady ? now : s.readyAt,
+      };
+    });
+  }
+}

@@ -152,6 +152,7 @@ import { BlockOtsSummaryComponent } from '@components/_ordpool/block-ots-summary
 import { OtsCalendarsComponent } from '@components/_ordpool/ots-calendars/ots-calendars.component';
 import { OtsStampVerifyComponent } from '@components/_ordpool/ots-stamp-verify/ots-stamp-verify.component';
 import { OtsDiagramComponent } from '@components/_ordpool/ots-diagram/ots-diagram.component';
+import { OtsPendingQueueComponent } from '@components/_ordpool/ots-stamp-verify/ots-pending-queue.component';
 import { RunestoneViewerComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
 import { RunestoneIdToLinkComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
 import { RunestoneIdToTextComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-text.component';
@@ -310,6 +311,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     OtsCalendarsComponent,
     OtsStampVerifyComponent,
     OtsDiagramComponent,
+    OtsPendingQueueComponent,
     RunestoneViewerComponent,
     RunestoneIdToLinkComponent,
     RunestoneIdToTextComponent,
@@ -497,6 +499,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     OtsCalendarsComponent,
     OtsStampVerifyComponent,
     OtsDiagramComponent,
+    OtsPendingQueueComponent,
     FeesBoxClickableComponent,
   ]
 })
