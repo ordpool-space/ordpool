@@ -204,9 +204,14 @@ export class OtsStampVerifyComponent {
   }
 
   private async postDigestToCalendar(uri: string, digest: Uint8Array): Promise<Uint8Array> {
+    // text/plain is a CORS-safelisted content type, so no preflight is sent.
+    // The OTS calendars don't validate Content-Type, they only read the body.
+    // If we send 'application/vnd.opentimestamps.v1' (the protocol-canonical
+    // value) the browser preflights with OPTIONS, the calendars 404 the
+    // OPTIONS, and the POST never happens. Verified live against alice.
     const resp = await fetch(uri + '/digest', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/vnd.opentimestamps.v1' },
+      headers: { 'Content-Type': 'text/plain' },
       body: digest as BufferSource,
     });
     if (!resp.ok) throw new Error(uri + ' replied ' + resp.status);
