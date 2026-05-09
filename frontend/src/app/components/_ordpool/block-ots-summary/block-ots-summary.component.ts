@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, Input, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnDestroy } from '@angular/core';
 import { catchError, of, Subject, switchMap, takeUntil } from 'rxjs';
 
 import { OrdpoolApiService, OrdpoolOtsRow } from '../../../services/ordinals/ordpool-api.service';
@@ -27,6 +27,7 @@ Test cases:
 export class BlockOtsSummaryComponent implements OnDestroy {
 
   private api = inject(OrdpoolApiService);
+  private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
   private height$ = new Subject<number>();
 
@@ -39,10 +40,12 @@ export class BlockOtsSummaryComponent implements OnDestroy {
     if (value === null || value === undefined) {
       this.rows = [];
       this.loaded = true;
+      this.cdr.markForCheck();
       return;
     }
     this.loaded = false;
     this.height$.next(value);
+    this.cdr.markForCheck();
   }
 
   constructor() {
@@ -52,11 +55,13 @@ export class BlockOtsSummaryComponent implements OnDestroy {
     ).subscribe(rows => {
       this.rows = rows;
       this.loaded = true;
+      this.cdr.markForCheck();
     });
   }
 
   toggle(): void {
     this.expanded = !this.expanded;
+    this.cdr.markForCheck();
   }
 
   ngOnDestroy(): void {
