@@ -2,12 +2,28 @@
   <h1>OpenTimestamps Calendars</h1>
 
   <p class="lead smaller-text">
-    Public calendar servers aggregate user file hashes into a Merkle tree once
-    per Bitcoin block, then commit the root in an OP_RETURN. Every commit ordpool
-    has indexed is shown below. Calendars are observability conveniences, not
-    trust anchors -- once a `.ots` proof is upgraded, the calendar can disappear
-    and the proof still verifies forever against any Bitcoin node.
-    <a href="https://opentimestamps.org" target="_blank" rel="noopener">Learn more</a>.
+    Bitcoin doesn't just store money. It stores time.
+    <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
+    lets you prove a file existed at a specific block by hashing it, batching that
+    hash with thousands of others into a Merkle tree, and committing the root in a
+    single OP_RETURN. That root is now part of Bitcoin's permanent ledger. Anyone
+    with the file, the <code>.ots</code> proof, and Bitcoin's block headers can
+    verify <em>"this existed by block N"</em>, forever, with no third party in the
+    loop. Photos, contracts, source code, leaked documents&hellip; anything with a
+    hash gets a permanent, math-backed receipt. Ordpool tags every OTS transaction
+    wherever it appears in the explorer, so you can see Bitcoin's notary at work
+    in real time, and you can verify your own <code>.ots</code> receipt right here,
+    against our independent open-source implementation.
+  </p>
+
+  <p class="smaller-text text-muted ots-sidenote">
+    <em>
+      Of course, the gold standard is to put the file itself on-chain as an
+      inscription. We're 100% committed to inscriptions, that's what ordpool
+      is for. But for everything you don't want to inscribe (or can't afford
+      to), OpenTimestamps is the next best thing: a tiny, permanent timestamp
+      anchored in Bitcoin, for almost free.
+    </em>
   </p>
 
   <h2 class="mt-4">Calendars</h2>
