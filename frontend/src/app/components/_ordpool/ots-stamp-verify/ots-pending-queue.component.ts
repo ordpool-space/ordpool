@@ -88,22 +88,13 @@ export class OtsPendingQueueComponent implements OnInit, OnDestroy {
   }
 
   download(stamp: OtsLocalStamp): void {
-    const subtrees = stamp.calendars.map(bestCalendarBytes);
-    const fileHash = base64ToBytes(this.hexToBase64(stamp.fileHashHex));
+    const subtrees = stamp.calendars
+      .map(bestCalendarBytes)
+      .filter(b => b.length > 0);
+    if (subtrees.length === 0) return;
+    const fileHash = this.hexToBytes(stamp.fileHashHex);
     const bytes = assembleOtsFile(fileHash, subtrees);
-    const blob = new Blob([bytes as BlobPart], { type: 'application/vnd.opentimestamps' });
-    const url = URL.createObjectURL(blob);
-    try {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = stamp.filename + '.ots';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } finally {
-      // Revoke after a tick so the click has dispatched.
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
+    this.triggerDownload(bytes, stamp.filename + '.ots');
     this.store.update(stamp.id, s => ({
       ...s,
       downloadedAt: Date.now(),
@@ -111,15 +102,38 @@ export class OtsPendingQueueComponent implements OnInit, OnDestroy {
     }));
   }
 
-  // Convert the stored hex to base64 so we can reuse base64ToBytes.
-  private hexToBase64(hex: string): string {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  /** Power-user export: every calendar's raw pending body, no upgrades. */
+  downloadPendingRaw(stamp: OtsLocalStamp): void {
+    const subtrees = stamp.calendars
+      .filter(c => !!c.pendingBase64)
+      .map(c => base64ToBytes(c.pendingBase64));
+    if (subtrees.length === 0) return;
+    const fileHash = this.hexToBytes(stamp.fileHashHex);
+    const bytes = assembleOtsFile(fileHash, subtrees);
+    this.triggerDownload(bytes, stamp.filename + '.pending.ots');
+  }
+
+  private triggerDownload(bytes: Uint8Array, filename: string): void {
+    const blob = new Blob([bytes as BlobPart], { type: 'application/vnd.opentimestamps' });
+    const url = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    let s = '';
-    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-    return btoa(s);
+  }
+
+  private hexToBytes(hex: string): Uint8Array {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
   }
 
   private updateTabTitle(stamps: OtsLocalStamp[]): void {

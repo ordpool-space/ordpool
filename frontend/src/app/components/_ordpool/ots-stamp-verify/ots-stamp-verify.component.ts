@@ -187,6 +187,11 @@ export class OtsStampVerifyComponent {
       downloadCount: 0,
     });
 
+    // Ask for desktop-notification permission once; we'll fire a single
+    // Notification per stamp when it flips to 'ready'. Skips silently if
+    // the API isn't available or already decided.
+    this.maybeRequestNotificationPermission();
+
     this.status = { kind: 'queued', filename };
     this.cdr.markForCheck();
 
@@ -288,6 +293,12 @@ export class OtsStampVerifyComponent {
     const out = new Uint8Array(b.length);
     for (let i = 0; i < b.length; i++) out[i] = b[b.length - 1 - i];
     return out;
+  }
+
+  private maybeRequestNotificationPermission(): void {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'default') return;
+    try { void Notification.requestPermission(); } catch { /* some envs throw */ }
   }
 
   private uuid(): string {
