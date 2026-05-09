@@ -35,6 +35,7 @@
     "start-production": "node --max-old-space-size=16384 dist/index.js",
     "reindex-updated-pools": "npm run start-production --update-pools",
     "reindex-all-blocks": "npm run start-production --update-pools --reindex-blocks",
+    "ots-backfill": "./node_modules/.bin/ts-node scripts/ots-backfill.ts",
     "test": "./node_modules/.bin/jest",
     "test:ci": "CI=true ./node_modules/.bin/jest --coverage",
     "test:integration": "./node_modules/.bin/jest --config=jest.integration.config.ts --runInBand --forceExit",
