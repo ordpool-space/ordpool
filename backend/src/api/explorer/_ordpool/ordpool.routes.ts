@@ -28,6 +28,7 @@ class GeneralOrdpoolRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/calendars', this.$getOtsCalendars)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/recent', this.$getOtsRecent)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/tx/:txid', this.$getOtsTx)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/block/:height', this.$getOtsBlock)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -54,6 +55,25 @@ class GeneralOrdpoolRoutes {
       const limit = Math.min(Math.max(parseInt(typeof raw === 'string' ? raw : '50', 10) || 50, 1), 500);
       const rows = await ordpoolOtsRepository.getRecent(limit);
       res.setHeader('Cache-Control', 'public, max-age=30');
+      res.json(rows);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /** All OTS commits at a given block height. Empty array if none. */
+  // https://ordpool.space/api/v1/ordpool/ots/block/948192
+  private async $getOtsBlock(req: Request, res: Response): Promise<void> {
+    try {
+      const heightRaw = req.params.height;
+      const height = parseInt(heightRaw, 10);
+      if (!Number.isFinite(height) || height < 0 || height > 10_000_000) {
+        res.status(400).send('height must be a non-negative integer below 10,000,000');
+        return;
+      }
+      const rows = await ordpoolOtsRepository.getByBlockheight(height);
+      // Block-level data is immutable once confirmed, cache hard.
+      res.setHeader('Cache-Control', 'public, max-age=300');
       res.json(rows);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : String(e));
