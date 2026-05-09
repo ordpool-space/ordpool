@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, Input, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnDestroy } from '@angular/core';
 import { catchError, of, Subject, switchMap, takeUntil } from 'rxjs';
 
 import { OrdpoolApiService, OrdpoolOtsRow } from '../../../../services/ordinals/ordpool-api.service';
@@ -25,6 +25,7 @@ Test cases:
 export class OtsViewerComponent implements OnDestroy {
 
   private api = inject(OrdpoolApiService);
+  private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
   private txid$ = new Subject<string>();
 
@@ -36,10 +37,12 @@ export class OtsViewerComponent implements OnDestroy {
     if (!value) {
       this.row = null;
       this.loaded = true;
+      this.cdr.markForCheck();
       return;
     }
     this.loaded = false;
     this.txid$.next(value);
+    this.cdr.markForCheck();
   }
 
   constructor() {
@@ -51,6 +54,7 @@ export class OtsViewerComponent implements OnDestroy {
     ).subscribe(row => {
       this.row = row;
       this.loaded = true;
+      this.cdr.markForCheck();
     });
   }
 

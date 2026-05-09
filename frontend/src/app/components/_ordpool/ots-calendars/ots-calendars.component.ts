@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnDestroy } from '@angular/core';
 import { catchError, of, Subject, takeUntil } from 'rxjs';
 
 import {
@@ -32,6 +32,7 @@ Test cases:
 export class OtsCalendarsComponent implements OnDestroy {
 
   private api = inject(OrdpoolApiService);
+  private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
 
   calendars: OrdpoolOtsCalendarStats[] = [];
@@ -45,6 +46,7 @@ export class OtsCalendarsComponent implements OnDestroy {
       .subscribe(rows => {
         this.calendars = rows;
         this.calendarsLoaded = true;
+        this.cdr.markForCheck();
       });
 
     this.api.getOtsRecent$(50)
@@ -52,6 +54,7 @@ export class OtsCalendarsComponent implements OnDestroy {
       .subscribe(rows => {
         this.recent = rows;
         this.recentLoaded = true;
+        this.cdr.markForCheck();
       });
   }
 
