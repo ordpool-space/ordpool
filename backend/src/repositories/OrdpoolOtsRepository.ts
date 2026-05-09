@@ -1,41 +1,12 @@
 import DB from '../database';
 import logger from '../logger';
+import {
+  OrdpoolOtsRow,
+  OrdpoolOtsConfirmFields,
+  OrdpoolOtsCalendarStats,
+} from '../api/explorer/_ordpool/ordpool-ots-interface';
 
-/**
- * Row shape stored in ordpool_stats_ots. `txid` and `blockhash` are lower-case
- * hex strings (BIN-collated CHAR(64)). `merkleRoot` is the 32-byte OP_RETURN
- * payload, surfaced as a 64-char lower-case hex string for symmetry with the
- * other hash fields. `fee` is in sats (positive); the calendar JSON serves it
- * negatively, the poller normalises before insert.
- */
-export interface OrdpoolOtsRow {
-  txid: string;
-  calendar: string;
-  merkleRoot: string;
-  firstSeenAt: Date;
-  confirmedAt: Date | null;
-  blockhash: string | null;
-  blockheight: number | null;
-  blocktime: number | null;
-  fee: number | null;
-  feerate: string | null;
-}
-
-export interface OrdpoolOtsConfirmFields {
-  blockhash: string;
-  blockheight: number;
-  blocktime: number;
-  fee: number;
-  feerate: string;
-}
-
-export interface OrdpoolOtsCalendarStats {
-  calendar: string;
-  totalCommits: number;
-  lastBlockheight: number | null;
-  lastBlocktime: number | null;
-  pendingCount: number;
-}
+export { OrdpoolOtsRow, OrdpoolOtsConfirmFields, OrdpoolOtsCalendarStats };
 
 function toHex(buf: Buffer | null | undefined): string | null {
   if (!buf) return null;

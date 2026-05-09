@@ -781,9 +781,10 @@ export class Common {
     // tx-classification path (mempool ingest, block extension, websocket
     // push) picks it up without needing to call addOtsFlag explicitly.
     // Cheap O(1) Set lookup -- see api/ordpool-ots-flag.ts.
-    addOtsFlag(tx);
-    if (tx._ordpoolFlags) {
-      flags |= BigInt(tx._ordpoolFlags);
+    addOtsFlag(tx as { txid: string; _ordpoolFlags?: number });
+    const otsFlags = (tx as { _ordpoolFlags?: number })._ordpoolFlags;
+    if (otsFlags) {
+      flags |= BigInt(otsFlags);
     }
 
     return Number(flags);
