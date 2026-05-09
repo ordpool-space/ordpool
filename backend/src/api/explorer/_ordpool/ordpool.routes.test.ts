@@ -27,6 +27,15 @@ jest.mock('../../../repositories/OrdpoolSkippedBlocksRepository', () => ({
   __esModule: true,
   default: { getSkippedCount: jest.fn(), getSkippedHeights: jest.fn() },
 }));
+jest.mock('../../../repositories/OrdpoolOtsRepository', () => ({
+  __esModule: true,
+  default: {
+    getByTxid: jest.fn(),
+    getRecent: jest.fn(),
+    getCalendarStats: jest.fn(),
+    getByBlockheight: jest.fn(),
+  },
+}));
 jest.mock('./ordpool-inscriptions.api', () => ({ __esModule: true, default: {} }));
 jest.mock('./ordpool-stamps.api', () => ({ __esModule: true, default: {} }));
 jest.mock('./ordpool-atomicals.api', () => ({ __esModule: true, default: {} }));

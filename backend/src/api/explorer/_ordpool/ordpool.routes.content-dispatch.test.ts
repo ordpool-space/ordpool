@@ -12,6 +12,7 @@ jest.mock('../../blocks', () => ({ __esModule: true, default: { getCurrentBlockH
 jest.mock('../../ordpool-missing-stats', () => ({ __esModule: true, default: { getLastSuccessAt: jest.fn(), getBlocksPerMinute: jest.fn() } }));
 jest.mock('../../../repositories/OrdpoolBlocksRepository', () => ({ __esModule: true, default: {} }));
 jest.mock('../../../repositories/OrdpoolSkippedBlocksRepository', () => ({ __esModule: true, default: {} }));
+jest.mock('../../../repositories/OrdpoolOtsRepository', () => ({ __esModule: true, default: {} }));
 jest.mock('./ordpool-inscriptions.api', () => ({
   __esModule: true,
   default: {
