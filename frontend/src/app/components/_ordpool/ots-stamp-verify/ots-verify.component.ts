@@ -5,6 +5,7 @@ import {
   errString,
   looksLikeOts,
   parseOtsFile,
+  sha256Stream,
 } from 'ordpool-parser';
 import { environment } from '@environments/environment';
 
@@ -129,18 +130,19 @@ export class OtsVerifyComponent {
 
   private async handleFiles(files: File[]): Promise<void> {
     try {
-      // Categorise by magic-bytes sniff. Order doesn't matter; the user can
-      // drop file-then-ots or ots-then-file or both at once.
-      const cat: { ots: { name: string; bytes: Uint8Array }[]; data: { name: string; bytes: Uint8Array }[] } = { ots: [], data: [] };
+      // Categorise by magic-bytes sniff. We only need the first 32 bytes of
+      // each file to identify a .ots; the data file stays as a streaming
+      // File handle so big-file hashing later doesn't allocate a heap copy.
+      const cat: { ots: { name: string; bytes: Uint8Array }[]; data: File[] } = { ots: [], data: [] };
       for (const f of files) {
-        if (f.size > 100 * 1024 * 1024) {
-          this.status = { kind: 'error', message: `${f.name} is too large (max 100 MB).` };
-          this.cdr.markForCheck();
-          return;
+        const head = new Uint8Array(await f.slice(0, 32).arrayBuffer());
+        if (looksLikeOts(head)) {
+          // .ots receipts are tiny (a few hundred bytes typically). Reading
+          // the whole thing into memory is fine.
+          cat.ots.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+        } else {
+          cat.data.push(f);
         }
-        const bytes = new Uint8Array(await f.arrayBuffer());
-        if (looksLikeOts(bytes)) cat.ots.push({ name: f.name, bytes });
-        else cat.data.push({ name: f.name, bytes });
       }
 
       if (cat.ots.length === 0 && cat.data.length === 1) {
@@ -173,7 +175,7 @@ export class OtsVerifyComponent {
         }
         // If a data file was dropped alongside, run the match step too.
         if (cat.data.length === 1 && this.status.kind === 'verified') {
-          await this.runFileMatch(cat.data[0].name, cat.data[0].bytes);
+          await this.runFileMatch(cat.data[0]);
         }
         return;
       }
@@ -189,20 +191,16 @@ export class OtsVerifyComponent {
    *  .ots-only verify. */
   private async matchAgainstReceipt(file: File): Promise<void> {
     if (!this.lastReceipt) return;
-    if (file.size > 100 * 1024 * 1024) {
-      this.status = { kind: 'error', message: `${file.name} is too large (max 100 MB).` };
-      this.cdr.markForCheck();
-      return;
-    }
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      // Defensively reject if the user accidentally drops a .ots here.
-      if (looksLikeOts(bytes)) {
+      // Peek the first 32 bytes only. Defensively reject if the user
+      // accidentally drops a .ots here.
+      const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+      if (looksLikeOts(head)) {
         this.status = { kind: 'error', message: 'This sub-zone wants the ORIGINAL FILE, not another .ots.' };
         this.cdr.markForCheck();
         return;
       }
-      await this.runFileMatch(file.name, bytes);
+      await this.runFileMatch(file);
     } catch (e) {
       this.status = { kind: 'error', message: errString(e) };
       this.cdr.markForCheck();
@@ -265,7 +263,7 @@ export class OtsVerifyComponent {
     this.cdr.markForCheck();
   }
 
-  private async runFileMatch(filename: string, bytes: Uint8Array): Promise<void> {
+  private async runFileMatch(file: File): Promise<void> {
     if (!this.lastReceipt) return;
     // Capture the receipt view BEFORE we flip into busy so we don't lose it.
     const receipt = this.status.kind === 'verified' ? this.status.receipt : null;
@@ -274,14 +272,16 @@ export class OtsVerifyComponent {
     this.status = { kind: 'busy', message: 'Hashing your file (stays in your browser)…' };
     this.cdr.markForCheck();
 
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource));
+    // Streaming SHA-256 -- handles arbitrarily large files without
+    // materialising them as a single ArrayBuffer.
+    const digest = await sha256Stream(file);
     const yourHashHex = hexEncode(digest);
     const matches = yourHashHex === this.lastReceipt.recordedFileHashHex;
 
     this.status = {
       kind: 'verified',
       receipt,
-      fileMatch: { yourFileHashHex: yourHashHex, matchesReceipt: matches, filename },
+      fileMatch: { yourFileHashHex: yourHashHex, matchesReceipt: matches, filename: file.name },
     };
     this.cdr.markForCheck();
   }
