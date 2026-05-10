@@ -150,7 +150,8 @@ import { Cat21ViewerComponent } from '@components/_ordpool/digital-artifact-view
 import { OtsViewerComponent } from '@components/_ordpool/digital-artifact-viewer/ots-viewer/ots-viewer.component';
 import { BlockOtsSummaryComponent } from '@components/_ordpool/block-ots-summary/block-ots-summary.component';
 import { OtsCalendarsComponent } from '@components/_ordpool/ots-calendars/ots-calendars.component';
-import { OtsStampVerifyComponent } from '@components/_ordpool/ots-stamp-verify/ots-stamp-verify.component';
+import { OtsStampComponent } from '@components/_ordpool/ots-stamp-verify/ots-stamp.component';
+import { OtsVerifyComponent } from '@components/_ordpool/ots-stamp-verify/ots-verify.component';
 import { OtsDiagramComponent } from '@components/_ordpool/ots-diagram/ots-diagram.component';
 import { OtsPendingQueueComponent } from '@components/_ordpool/ots-stamp-verify/ots-pending-queue.component';
 import { RunestoneViewerComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
@@ -309,7 +310,8 @@ import { HighlightModule } from 'ngx-highlightjs';
     OtsViewerComponent,
     BlockOtsSummaryComponent,
     OtsCalendarsComponent,
-    OtsStampVerifyComponent,
+    OtsStampComponent,
+    OtsVerifyComponent,
     OtsDiagramComponent,
     OtsPendingQueueComponent,
     RunestoneViewerComponent,
@@ -497,7 +499,8 @@ import { HighlightModule } from 'ngx-highlightjs';
     OtsViewerComponent,
     BlockOtsSummaryComponent,
     OtsCalendarsComponent,
-    OtsStampVerifyComponent,
+    OtsStampComponent,
+    OtsVerifyComponent,
     OtsDiagramComponent,
     OtsPendingQueueComponent,
     FeesBoxClickableComponent,

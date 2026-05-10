@@ -16,6 +16,15 @@
     independent open-source implementation.
   </p>
 
+  <p>
+    The whole process is <strong>free</strong>. Calendar operators eat the
+    Bitcoin transaction fees out of pocket and amortise them across thousands
+    of users by Merkle-batching. We just route your hash to them; we don't run
+    the calendars and we don't charge anything. Big thanks to the operators
+    keeping this running as a public good (see the <a href="#calendars">list
+    below</a>).
+  </p>
+
   <p class="text-muted ots-sidenote">
     <em>
       Of course, the gold standard is to put the file itself on-chain as an
@@ -29,11 +38,18 @@
 
   <app-ots-diagram class="d-block mt-4"></app-ots-diagram>
 
-  <app-ots-stamp-verify class="d-block mt-4"></app-ots-stamp-verify>
+  <div class="row g-3 mt-1">
+    <div class="col-md-6 d-flex">
+      <app-ots-stamp class="d-block w-100"></app-ots-stamp>
+    </div>
+    <div class="col-md-6 d-flex">
+      <app-ots-verify class="d-block w-100"></app-ots-verify>
+    </div>
+  </div>
 
   <app-ots-pending-queue></app-ots-pending-queue>
 
-  <h2 class="mt-4">Calendars</h2>
+  <h2 id="calendars" class="mt-4">Calendars</h2>
   <p class="text-muted">
     Public calendar servers that Ordpool watches. Each row is one operator
     we've seen publishing OTS batch commitments to Bitcoin, with a live

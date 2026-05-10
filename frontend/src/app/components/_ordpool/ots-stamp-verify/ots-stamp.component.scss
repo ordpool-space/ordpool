@@ -2,7 +2,7 @@
   display: block;
 }
 
-.ots-stamp-verify {
+.ots-stamp {
   background-color: #181b2d;
   border: 1px solid #2d3250;
 
@@ -26,23 +26,12 @@
       background-color: #1a1d36;
     }
 
-    .dropzone-input {
-      display: none;
-    }
+    .dropzone-input { display: none; }
 
     .dropzone-text {
       color: #9aa0c0;
       line-height: 1.7;
-
-      strong {
-        color: #fff;
-      }
-    }
-  }
-
-  .verify-result {
-    code {
-      word-break: break-all;
+      strong { color: #fff; }
     }
   }
 }
