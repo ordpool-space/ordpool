@@ -11,8 +11,7 @@
     align-items: center;
     justify-content: center;
     min-height: 140px;
-    border: 2px dashed #4a5085;
-    border-radius: 8px;
+    border: 2px dashed #2d3250;
     cursor: pointer;
     background-color: #11132a;
     transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -22,7 +21,7 @@
 
     &:hover,
     &.dragging {
-      border-color: var(--bs-primary, #f7931a);
+      border-color: var(--primary);
       background-color: #1a1d36;
     }
 
@@ -43,8 +42,7 @@
       align-items: center;
       justify-content: center;
       min-height: 80px;
-      border: 1.5px dashed #4a5085;
-      border-radius: 6px;
+      border: 1.5px dashed #2d3250;
       cursor: pointer;
       background-color: #11132a;
       padding: 12px;
@@ -53,7 +51,7 @@
       color: #9aa0c0;
       transition: border-color 0.15s ease, background-color 0.15s ease;
 
-      &:hover { border-color: var(--bs-primary, #f7931a); background-color: #1a1d36; }
+      &:hover { border-color: var(--primary); background-color: #1a1d36; }
       .dropzone-input { display: none; }
       strong { color: #fff; }
     }

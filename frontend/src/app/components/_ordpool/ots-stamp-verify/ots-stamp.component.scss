@@ -11,8 +11,7 @@
     align-items: center;
     justify-content: center;
     min-height: 140px;
-    border: 2px dashed #4a5085;
-    border-radius: 8px;
+    border: 2px dashed #2d3250;
     cursor: pointer;
     background-color: #11132a;
     transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -22,7 +21,7 @@
 
     &:hover,
     &.dragging {
-      border-color: var(--bs-primary, #f7931a);
+      border-color: var(--primary);
       background-color: #1a1d36;
     }
 
