@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { catchError, of, Subject, takeUntil } from 'rxjs';
 
 import {
@@ -6,6 +6,7 @@ import {
   OrdpoolOtsCalendarStats,
   OrdpoolOtsRow,
 } from '../../../services/ordinals/ordpool-api.service';
+import { SeoService } from '../../../services/seo.service';
 
 /*
 Test cases:
@@ -29,10 +30,11 @@ Test cases:
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class OtsCalendarsComponent implements OnDestroy {
+export class OtsCalendarsComponent implements OnInit, OnDestroy {
 
   private api = inject(OrdpoolApiService);
   private cdr = inject(ChangeDetectorRef);
+  private seo = inject(SeoService);
   private destroy$ = new Subject<void>();
 
   calendars: OrdpoolOtsCalendarStats[] = [];
@@ -58,8 +60,18 @@ export class OtsCalendarsComponent implements OnDestroy {
       });
   }
 
+  ngOnInit(): void {
+    this.seo.setTitle('OpenTimestamps');
+    this.seo.setDescription(
+      'Anchor any file to Bitcoin and verify .ots receipts entirely in your browser. ' +
+      'Multi-calendar fan-out, auto-upgrade, no third party in the loop. Free.',
+    );
+  }
+
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.seo.resetTitle();
+    this.seo.resetDescription();
   }
 }
