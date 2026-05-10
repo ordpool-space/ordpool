@@ -49,6 +49,34 @@
   &.ots-diagram-you      { border-color: #4a5085; }
   &.ots-diagram-calendar { border-color: #d6a85a; }
   &.ots-diagram-bitcoin  { border-color: #f7931a; }
+
+  // Calendar liveness override: the health colour wins over the default
+  // calendar tint. Reflects the freshest calendar's last on-chain publish.
+  &.ots-diagram-calendar.health-fresh { border-color: #5cb874; }
+  &.ots-diagram-calendar.health-aging { border-color: #d6a85a; }   // same as default; "slow but not broken"
+  &.ots-diagram-calendar.health-stale { border-color: #d77a7a; }
+}
+
+.ots-diagram-health {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #9aa0c0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  .ots-health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #9aa0c0;
+    display: inline-block;
+  }
+
+  .ots-diagram-calendar.health-fresh & .ots-health-dot { background-color: #5cb874; }
+  .ots-diagram-calendar.health-aging & .ots-health-dot { background-color: #d6a85a; }
+  .ots-diagram-calendar.health-stale & .ots-health-dot { background-color: #d77a7a; }
 }
 
 .ots-diagram-arrow {

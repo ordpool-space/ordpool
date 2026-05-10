@@ -20,6 +20,7 @@
       </span>
     </label>
 
+    <div role="status" aria-live="polite" aria-atomic="true">
     @switch (status.kind) {
       @case ('busy') {
         <div class="alert alert-info mt-3 mb-0">
@@ -152,5 +153,6 @@
         </div>
       }
     }
+    </div>
   </div>
 </div>
