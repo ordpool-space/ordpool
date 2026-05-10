@@ -1,11 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
-import {
-  collectBitcoinAttestations,
-  OtsAttestation,
-  OtsNode,
-  parseOtsFile,
-} from 'ordpool-parser';
-import { environment } from '@environments/environment';
+import { OtsNode, parseOtsFile } from 'ordpool-parser';
 
 import {
   OtsLocalCalendar,
@@ -18,11 +12,10 @@ import { OtsCalendarPickerService } from './ots-calendar-picker.service';
 
 /*
 Test cases:
-- Drop a small text file: parallel POST to all 3 calendars, then a new row
-  appears in the pending-queue below; drop-zone resets to idle.
-- Drop a real .ots: parses, fetches each Bitcoin attestation's block,
-  shows valid/mismatch verdict.
-- Drop a corrupt or empty file: shows a clear error.
+- Drop a small text file: parallel POST to all configured calendars; a new
+  row appears in the pending-queue below; drop-zone resets to idle.
+- Drop a corrupt or empty file: shows a clear error message.
+- Drop a .ots: rejected with "looks like a receipt, drop it in Verify."
 */
 
 const HEADER_MAGIC = new Uint8Array([
@@ -30,43 +23,25 @@ const HEADER_MAGIC = new Uint8Array([
   0x00, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x00, 0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94,
 ]);
 
-interface BitcoinAttestationView {
-  blockheight: number;
-  expectedMerkleRoot: string;
-  blockHash: string | null;
-  actualMerkleRoot: string | null;
-  blockTime: number | null;
-  match: boolean | null;
-}
-
-interface VerifyResult {
-  fileHashAlgo: string;
-  fileHashHex: string;
-  bitcoinAttestations: BitcoinAttestationView[];
-  pendingCalendars: string[];
-  unknownAttestations: number;
-}
-
 type Status =
   | { kind: 'idle' }
   | { kind: 'busy'; message: string }
   | { kind: 'queued'; filename: string; calendars: string[] }
-  | { kind: 'verified'; result: VerifyResult }
+  | { kind: 'wrong-zone' }
   | { kind: 'error'; message: string };
 
 @Component({
-  selector: 'app-ots-stamp-verify',
-  templateUrl: './ots-stamp-verify.component.html',
-  styleUrls: ['./ots-stamp-verify.component.scss'],
+  selector: 'app-ots-stamp',
+  templateUrl: './ots-stamp.component.html',
+  styleUrls: ['./ots-stamp.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class OtsStampVerifyComponent {
+export class OtsStampComponent {
 
   private cdr = inject(ChangeDetectorRef);
   private store = inject(OtsStoreService);
   private picker = inject(OtsCalendarPickerService);
-  private apiBase = environment.apiBaseUrl || '';
 
   status: Status = { kind: 'idle' };
   isDragging = false;
@@ -104,16 +79,6 @@ export class OtsStampVerifyComponent {
     this.cdr.markForCheck();
   }
 
-  pendingCalendarsLabel(uris: string[]): string {
-    return uris.map(u => this.knownNicknameByUri.get(u.replace(/\/+$/, ''))
-      ?? (() => { try { return new URL(u).hostname.split('.')[0]; } catch { return u; } })()
-    ).join(', ');
-  }
-
-  /** Populated lazily on first stamp/verify so the verify panel can
-   *  display nicknames for known calendars instead of hostnames. */
-  private knownNicknameByUri = new Map<string, string>();
-
   private async handleFile(file: File): Promise<void> {
     if (file.size > 100 * 1024 * 1024) {
       this.status = { kind: 'error', message: 'File too large (max 100 MB).' };
@@ -123,10 +88,13 @@ export class OtsStampVerifyComponent {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (this.looksLikeOts(bytes)) {
-        await this.verifyOts(bytes);
-      } else {
-        await this.stampFile(bytes, file.name);
+        // Defensive routing -- a .ots dropped here is almost always a
+        // user mistake (they meant Verify). Refuse and route them.
+        this.status = { kind: 'wrong-zone' };
+        this.cdr.markForCheck();
+        return;
       }
+      await this.stampFile(bytes, file.name);
     } catch (e) {
       this.status = { kind: 'error', message: this.errString(e) };
       this.cdr.markForCheck();
@@ -148,24 +116,15 @@ export class OtsStampVerifyComponent {
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource));
     const fileHashHex = hexEncode(digest);
 
-    this.status = { kind: 'busy', message: 'Submitting to 3 calendars…' };
+    const known = await this.picker.pick();
+    this.status = { kind: 'busy', message: `Submitting to ${known.length} calendars…` };
     this.cdr.markForCheck();
 
     const now = Date.now();
-
-    // Parallel POST to every configured calendar (live list from
-    // /api/v1/ordpool/ots/stamp-calendars; falls back to hardcoded if the
-    // endpoint is unreachable). We tolerate per-calendar failures: if one
-    // is down but the others accept, we still queue a usable stamp.
-    const known = await this.picker.pick();
     const replies = await Promise.allSettled(
       known.map(c => this.postDigestToCalendar(c.url, digest)),
     );
 
-    // For each calendar's reply, parse a single-branch .ots and find the
-    // PendingAttestation node's msg -- that's the commitment used as the
-    // /timestamp/<...> lookup key. Without this, polling 404s forever
-    // because calendars don't index by file hash.
     const calendars: OtsLocalCalendar[] = await Promise.all(
       known.map(async (cal, i) => {
         const r = replies[i];
@@ -202,8 +161,6 @@ export class OtsStampVerifyComponent {
       })
     );
 
-    // If every calendar failed, surface that. Otherwise queue with the
-    // surviving calendars; the rest stays in 'error' state in the row.
     if (calendars.every(c => !c.pendingBase64)) {
       throw new Error('All calendars rejected the submission. Check your network and try again.');
     }
@@ -221,9 +178,6 @@ export class OtsStampVerifyComponent {
       downloadCount: 0,
     });
 
-    // Ask for desktop-notification permission once; we'll fire a single
-    // Notification per stamp when it flips to 'ready'. Skips silently if
-    // the API isn't available or already decided.
     this.maybeRequestNotificationPermission();
 
     this.status = {
@@ -233,7 +187,6 @@ export class OtsStampVerifyComponent {
     };
     this.cdr.markForCheck();
 
-    // Auto-reset after a short pause so the dropzone is ready for the next file.
     setTimeout(() => {
       if (this.status.kind === 'queued' && this.status.filename === filename) {
         this.reset();
@@ -244,9 +197,6 @@ export class OtsStampVerifyComponent {
   private async postDigestToCalendar(uri: string, digest: Uint8Array): Promise<Uint8Array> {
     // text/plain is a CORS-safelisted content type, so no preflight is sent.
     // The OTS calendars don't validate Content-Type, they only read the body.
-    // If we send 'application/vnd.opentimestamps.v1' (the protocol-canonical
-    // value) the browser preflights with OPTIONS, the calendars 404 the
-    // OPTIONS, and the POST never happens. Verified live against alice.
     const resp = await fetch(uri + '/digest', {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -256,99 +206,6 @@ export class OtsStampVerifyComponent {
     return new Uint8Array(await resp.arrayBuffer());
   }
 
-  private async verifyOts(bytes: Uint8Array): Promise<void> {
-    this.status = { kind: 'busy', message: 'Parsing the .ots receipt…' };
-    this.cdr.markForCheck();
-
-    // Pre-warm the nickname map so PendingAttestation URIs in the verify
-    // panel can show 'alice' instead of 'alice.btc.calendar.opentimestamps.org'.
-    if (this.knownNicknameByUri.size === 0) {
-      try {
-        for (const c of await this.picker.pick()) this.knownNicknameByUri.set(c.url, c.nickname);
-      } catch { /* picker has its own fallback; map stays empty */ }
-    }
-
-    const parsed = await parseOtsFile(bytes);
-    const bitcoinAtts = collectBitcoinAttestations(parsed);
-
-    const pendingCalendars: string[] = [];
-    let unknown = 0;
-    const visit = (node: { attestations: OtsAttestation[]; children: any[] }) => {
-      for (const a of node.attestations) {
-        if (a.kind === 'pending') pendingCalendars.push(a.uri);
-        else if (a.kind === 'unknown') unknown++;
-      }
-      for (const c of node.children) visit(c.node);
-    };
-    visit(parsed.root);
-
-    const view: BitcoinAttestationView[] = [];
-    for (const a of bitcoinAtts) {
-      this.status = {
-        kind: 'busy',
-        message: `Looking up Bitcoin block ${a.blockheight.toLocaleString()}…`,
-      };
-      this.cdr.markForCheck();
-      view.push(await this.checkAttestation(a.blockheight, a.expectedMerkleRoot));
-    }
-
-    this.status = {
-      kind: 'verified',
-      result: {
-        fileHashAlgo: parsed.fileHashAlgo,
-        fileHashHex: hexEncode(parsed.fileHash),
-        bitcoinAttestations: view,
-        pendingCalendars,
-        unknownAttestations: unknown,
-      },
-    };
-    this.cdr.markForCheck();
-  }
-
-  private async checkAttestation(
-    blockheight: number,
-    expectedRootInternal: Uint8Array,
-  ): Promise<BitcoinAttestationView> {
-    const expectedDisplayHex = hexEncode(this.reverseBytes(expectedRootInternal));
-    try {
-      const hashResp = await fetch(this.apiBase + '/api/block-height/' + blockheight);
-      if (!hashResp.ok) throw new Error('block-height ' + hashResp.status);
-      const blockHash = (await hashResp.text()).trim();
-
-      const blockResp = await fetch(this.apiBase + '/api/block/' + blockHash);
-      if (!blockResp.ok) throw new Error('block ' + blockResp.status);
-      const block = await blockResp.json() as { merkle_root?: string; timestamp?: number };
-
-      const actual = (block.merkle_root || '').toLowerCase();
-      return {
-        blockheight,
-        expectedMerkleRoot: expectedDisplayHex,
-        blockHash,
-        actualMerkleRoot: actual,
-        blockTime: block.timestamp ?? null,
-        match: !!actual && actual === expectedDisplayHex,
-      };
-    } catch {
-      return {
-        blockheight,
-        expectedMerkleRoot: expectedDisplayHex,
-        blockHash: null,
-        actualMerkleRoot: null,
-        blockTime: null,
-        match: null,
-      };
-    }
-  }
-
-  private reverseBytes(b: Uint8Array): Uint8Array {
-    const out = new Uint8Array(b.length);
-    for (let i = 0; i < b.length; i++) out[i] = b[b.length - 1 - i];
-    return out;
-  }
-
-  /** Walks the parsed tree, returns the hex of the leaf msg whose attestation
-   *  is `PendingAttestation(uri)` for the given calendar. Empty string if not
-   *  found (shouldn't happen with a well-formed calendar reply). */
   private findPendingCommitmentHex(root: OtsNode, calendarUri: string): string {
     const visit = (node: OtsNode): string => {
       for (const a of node.attestations) {

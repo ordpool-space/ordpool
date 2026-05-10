@@ -1,0 +1,52 @@
+<div class="card ots-stamp h-100">
+  <div class="card-body">
+    <h2 class="card-title mb-2">Stamp a file</h2>
+    <p class="text-muted mb-3">
+      Drop a file to anchor it to Bitcoin via the configured public OTS
+      calendars. The file stays in your browser; only its 32-byte SHA-256
+      hash is sent.
+    </p>
+
+    <label class="dropzone"
+           [class.dragging]="isDragging"
+           (dragover)="onDragOver($event)"
+           (dragleave)="onDragLeave($event)"
+           (drop)="onDrop($event)">
+      <input type="file" class="dropzone-input" (change)="onPick($event)">
+      <span class="dropzone-text">
+        <strong>Drop a file</strong><br>
+        or click to pick
+      </span>
+    </label>
+
+    @switch (status.kind) {
+      @case ('busy') {
+        <div class="alert alert-info mt-3 mb-0">
+          <span class="spinner-border spinner-border-sm me-2"></span>
+          {{ status.message }}
+        </div>
+      }
+      @case ('error') {
+        <div class="alert alert-danger mt-3 mb-0">
+          <strong>Could not stamp file:</strong> {{ status.message }}
+          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">Try again</button>
+        </div>
+      }
+      @case ('wrong-zone') {
+        <div class="alert alert-warning mt-3 mb-0">
+          That looks like a <code>.ots</code> receipt, not a file to stamp. Drop
+          it in the <strong>Verify a receipt</strong> zone instead.
+          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">OK</button>
+        </div>
+      }
+      @case ('queued') {
+        <div class="alert alert-success mt-3 mb-0">
+          <strong>Submitted!</strong> <code>{{ status.filename }}</code> went out to
+          {{ status.calendars.length }} calendar{{ status.calendars.length === 1 ? '' : 's' }}
+          (<strong>{{ status.calendars.join(', ') }}</strong>) and is now in the queue
+          below. You can drop another file in the meantime.
+        </div>
+      }
+    }
+  </div>
+</div>

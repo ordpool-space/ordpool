@@ -1,0 +1,156 @@
+<div class="card ots-verify h-100">
+  <div class="card-body">
+    <h2 class="card-title mb-2">Verify a receipt</h2>
+    <p class="text-muted mb-3">
+      Drop a <code>.ots</code> receipt to inspect it. Drop the original file
+      alongside (or after) to confirm it matches the receipt. Both files stay
+      in your browser; only the receipt's claimed Merkle roots are checked
+      against Bitcoin's block headers.
+    </p>
+
+    <label class="dropzone"
+           [class.dragging]="isDragging"
+           (dragover)="onDragOver($event)"
+           (dragleave)="onDragLeave($event)"
+           (drop)="onDrop($event)">
+      <input type="file" class="dropzone-input" multiple (change)="onPick($event)">
+      <span class="dropzone-text">
+        <strong>Drop a <code>.ots</code> receipt</strong><br>
+        (and optionally the original file)
+      </span>
+    </label>
+
+    @switch (status.kind) {
+      @case ('busy') {
+        <div class="alert alert-info mt-3 mb-0">
+          <span class="spinner-border spinner-border-sm me-2"></span>
+          {{ status.message }}
+        </div>
+      }
+      @case ('error') {
+        <div class="alert alert-danger mt-3 mb-0">
+          <strong>Could not process file:</strong> {{ status.message }}
+          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">Try again</button>
+        </div>
+      }
+      @case ('file-only') {
+        <div class="alert alert-warning mt-3 mb-0">
+          That looks like a regular file, not a <code>.ots</code> receipt. To verify a
+          timestamp, drop the matching <code>.ots</code> file too.
+          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">OK</button>
+        </div>
+      }
+      @case ('verified') {
+        <div class="verify-result mt-3">
+
+          @if (status.fileMatch) {
+            @if (status.fileMatch.matchesReceipt && status.receipt.bitcoinAttestations.length > 0) {
+              @for (att of status.receipt.bitcoinAttestations; track att.blockheight; let i = $index) {
+                @if (att.match === true && i === 0) {
+                  <div class="alert alert-success mb-3">
+                    <h3 class="h5 mb-1">✓ <code>{{ status.fileMatch.filename }}</code> existed by Bitcoin block {{ att.blockheight | number }}</h3>
+                    <p class="mb-0 smaller-text">
+                      File hash matches the receipt; receipt's Merkle root matches the block.
+                      @if (att.blockTime) {
+                        Mined {{ att.blockTime * 1000 | date:'medium' }}.
+                      }
+                    </p>
+                  </div>
+                }
+              }
+            } @else if (!status.fileMatch.matchesReceipt) {
+              <div class="alert alert-danger mb-3">
+                <h3 class="h5 mb-1">✗ Receipt is for a different file</h3>
+                <p class="mb-1 smaller-text">
+                  The receipt is internally valid, but its recorded file hash doesn't match
+                  <code>{{ status.fileMatch.filename }}</code>.
+                </p>
+                <p class="smaller-text mb-0 text-muted">
+                  Receipt: <code>{{ status.receipt.fileHashHex }}</code><br>
+                  Your file: <code>{{ status.fileMatch.yourFileHashHex }}</code>
+                </p>
+              </div>
+            }
+          }
+
+          <h3 class="h5 mb-2">Receipt details</h3>
+          <p class="mb-2 smaller-text">
+            File hash ({{ status.receipt.fileHashAlgo }}):
+            <code class="smaller-text">{{ status.receipt.fileHashHex }}</code>
+          </p>
+
+          @if (status.receipt.bitcoinAttestations.length === 0) {
+            <div class="alert alert-warning mb-2">
+              <strong>Not yet on-chain.</strong>
+              @if (status.receipt.pendingCalendars.length > 0) {
+                The receipt only contains pending calendar attestations:
+                <strong>{{ pendingCalendarsLabel(status.receipt.pendingCalendars) }}</strong>.
+                Once any calendar publishes (~10 min to a few hours after stamping),
+                the receipt can be upgraded.
+              } @else {
+                No Bitcoin attestation found and no pending calendars listed.
+              }
+            </div>
+          } @else {
+            @for (att of status.receipt.bitcoinAttestations; track att.blockheight) {
+              <div class="alert mb-2"
+                   [class.alert-success]="att.match === true"
+                   [class.alert-warning]="att.match === null"
+                   [class.alert-danger]="att.match === false">
+                @if (att.match === true) {
+                  <p class="mb-1">
+                    <strong>Valid attestation.</strong>
+                    Receipt anchored to Bitcoin block
+                    <a [routerLink]="['/block/' | relativeUrl, att.blockheight]" class="alert-link">{{ att.blockheight | number }}</a>.
+                    Merkle root matches.
+                  </p>
+                } @else if (att.match === false) {
+                  <p class="mb-1">
+                    <strong>Mismatch.</strong> The receipt claims block
+                    {{ att.blockheight | number }}, but the Merkle root in the
+                    receipt does not match the actual block's Merkle root.
+                  </p>
+                  <p class="smaller-text mb-0 text-muted">
+                    Receipt says <code>{{ att.expectedMerkleRoot }}</code><br>
+                    On-chain says <code>{{ att.actualMerkleRoot }}</code>
+                  </p>
+                } @else {
+                  <p class="mb-0">
+                    Could not look up Bitcoin block {{ att.blockheight | number }}.
+                    Receipt's Merkle root: <code>{{ att.expectedMerkleRoot }}</code>.
+                  </p>
+                }
+              </div>
+            }
+          }
+
+          @if (status.receipt.pendingCalendars.length > 0 && status.receipt.bitcoinAttestations.length > 0) {
+            <p class="smaller-text text-muted mb-2">
+              The receipt also has {{ status.receipt.pendingCalendars.length }} pending
+              calendar attestation{{ status.receipt.pendingCalendars.length === 1 ? '' : 's' }}
+              ({{ pendingCalendarsLabel(status.receipt.pendingCalendars) }}); the Bitcoin
+              attestation above is already proof on its own.
+            </p>
+          }
+
+          @if (!status.fileMatch) {
+            <div class="match-zone mt-3">
+              <label class="match-dropzone"
+                     (dragover)="$event.preventDefault()"
+                     (drop)="onMatchDrop($event)">
+                <input type="file" class="dropzone-input" (change)="onMatchPick($event)">
+                <span>
+                  <strong>Drop the original file here</strong> to confirm it matches this receipt
+                </span>
+              </label>
+            </div>
+          }
+
+          <div class="mt-3">
+            <button type="button" class="btn btn-outline-light btn-sm" (click)="reset()">Verify another</button>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>
