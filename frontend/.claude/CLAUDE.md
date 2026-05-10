@@ -85,9 +85,12 @@ mempool.space styling.
 
 2. **No rounded corners.** Upstream mempool uses `border-radius` on
    cards, buttons, dropzones, badges. Ordpool deliberately ships
-   square. Avoid `border-radius: <Npx>` in custom SCSS for ordpool
-   components. (`border-radius: 50%` for circular avatars / dots is
-   fine.) If a Bootstrap class adds rounding, override it.
+   square. We kill it globally by overriding the Bootstrap CSS vars
+   (`--bs-border-radius` family) to `0` in
+   `frontend/src/styles-ordpool-overrides2.scss`, so every
+   Bootstrap component renders flat without per-component overrides.
+   Avoid hardcoding `border-radius: <Npx>` in new ordpool SCSS.
+   `border-radius: 50%` for circular avatars / dots is fine.
 
 3. **Card / panel backgrounds**: `#181b2d` for the card itself,
    `#11132a` for sunken/dropzone insets, `#1d1f31` for the page

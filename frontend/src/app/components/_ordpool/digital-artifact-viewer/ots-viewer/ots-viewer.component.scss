@@ -5,16 +5,15 @@
     margin-left: 0.5rem;
     font-size: 0.75rem;
     padding: 0.15rem 0.45rem;
-    border-radius: 0.25rem;
 
     &.confirmed {
-      background: #1e7e34;
-      color: white;
+      background: var(--success);
+      color: #fff;
     }
 
     &.pending {
-      background: #b8860b;
-      color: white;
+      background: var(--warning);
+      color: #000;
     }
   }
 
