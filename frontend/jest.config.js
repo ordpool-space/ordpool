@@ -12,4 +12,13 @@ module.exports = {
     '^@environments/(.*)$': '<rootDir>/src/environments/$1',
     '^@interfaces/(.*)$': '<rootDir>/src/app/interfaces/$1',
   },
+  // @noble/secp256k1 ships as pure ESM ("type":"module"). Jest skips
+  // transforming node_modules by default, so its import lands at runtime
+  // as raw ESM and Node throws SyntaxError on the export statement. The
+  // pattern below extends jest-preset-angular's default (which keeps
+  // *.mjs and @angular/common/locales transforming) with an exception
+  // for @noble packages so their .js files get transformed too.
+  transformIgnorePatterns: [
+    'node_modules/(?!(.*\\.mjs$|@angular/common/locales/.*\\.js$|@noble/.*))',
+  ],
 };
