@@ -111,14 +111,18 @@ Key imports: `DigitalArtifactAnalyserService`, `InscriptionParserService`, `Insc
 
 ### HARD RULE: Ordpool Flags Must Be Applied Everywhere
 
-Ordpool transaction flags (`ordpool_inscription`, `ordpool_rune`, `ordpool_cat21`, `ordpool_atomical`, `ordpool_src20`, `ordpool_labitbu`, plus the type flags `ordpool_counterparty`, `ordpool_stamp`, `ordpool_src721`, `ordpool_src101`, plus the sub-op flags) MUST be applied to every transaction, everywhere -- mempool, confirmed blocks, individual lookups, WebSocket, frontend. They must be computed together with the upstream flags in `getTransactionFlags`, not as a post-processing step.
+Ordpool transaction flags (`ordpool_inscription`, `ordpool_rune`, `ordpool_cat21`, `ordpool_atomical`, `ordpool_src20`, `ordpool_labitbu`, plus the type flags `ordpool_counterparty`, `ordpool_stamp`, `ordpool_src721`, `ordpool_src101`, `ordpool_ots`, plus the sub-op flags) MUST be applied to every transaction, everywhere -- mempool, confirmed blocks, individual lookups, WebSocket, frontend. They must be computed together with the upstream flags in `getTransactionFlags`, not as a post-processing step.
 
-**To avoid cascading async changes to upstream code**, the parser sets `tx._ordpoolFlags` (Number) as a side effect from `analyseTransaction()` (async, per-tx) or `analyseTransactions()` (async, per-block, also computes `ordpoolStats`). Upstream's `Common.getTransactionFlags()` stays sync and reads `tx._ordpoolFlags` via a 3-line HACK in `src/api/common.ts`. This keeps all upstream function signatures untouched (no async/await changes in `Common.getTransactionFlags`, `classifyTransaction`, `classifyTransactions`, `summarizeBlockTransactions`, `processBlockTemplates`, `dataToMempoolBlocks`, etc.).
+**The pattern: functional return value, not side-channel mutation.** `Common.getTransactionFlags()` (`src/api/common.ts`) is `async` and at the very end of upstream flag computation calls `flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags)` -- the parser takes the upstream-flag bigint in, ORs in the ordpool artifact bits, and returns the merged bigint. The frontend's `getTransactionFlags` (`src/app/shared/transaction.utils.ts`) follows the same shape: also async, also ends with the same call, also returns the merged bigint. **No `_ordpoolFlags` side-channel reads in either place.**
 
 The flow:
-1. Mempool tx arrival → `await DigitalArtifactAnalyserService.analyseTransaction(tx, 0n)` in `mempool.ts` sets `tx._ordpoolFlags`.
-2. Block extension → `await DigitalArtifactAnalyserService.analyseTransactions(txs)` in `$getBlockExtended` sets `tx._ordpoolFlags` on every tx AND returns `ordpoolStats` for the block.
-3. Sync classification anywhere → `Common.getTransactionFlags(tx)` reads `tx._ordpoolFlags` and ORs it into the returned Number.
+1. Mempool tx arrival → `await Common.getTransactionFlags(tx)` (now async) computes upstream + ordpool flags in one call and returns the merged number.
+2. Block extension → `await DigitalArtifactAnalyserService.analyseTransactions(txs)` computes the per-block `ordpoolStats` AND, for backend-only consumers like the OTS pre-enrichment helper, sets `tx._ordpoolFlags` as a side effect on each tx. Subsequent `Common.getTransactionFlags(tx)` calls do NOT depend on this side-effect -- they re-derive the ordpool bits from the witness themselves and OR them into the upstream flags.
+3. Frontend mirror → `await getTransactionFlags(tx)` in `transaction.utils.ts` does the same: upstream static-flag computation + `await DigitalArtifactAnalyserService.analyseTransaction(tx, flags)` at the end.
+
+The `tx._ordpoolFlags` field still exists. Its only remaining role is the **OTS pre-enrichment side-channel** (`src/api/ordpool-ots-flag.ts`): the indexer-derived `ordpool_ots` bit is not parser-derived (the parser cannot tell from a witness whether a hash matches a published OTS calendar commit), so it's injected via mutation just before `Common.getTransactionFlags` reads it at the end of `common.ts`. This is the ONE legitimate use of the side-channel; do not add new readers or writers.
+
+A regression spec lives at `frontend/src/app/shared/transaction.utils.spec.ts` -- it asserts that a real Counterparty mpma tx (txid `4a412b0a...4788e`) gets `ordpool_counterparty` (bit 55) OR'd into the returned flags, including explicit verification that the side-channel is NOT being read. Keep the test green.
 
 ### Code Marking Convention (for merge-friendly changes)
 

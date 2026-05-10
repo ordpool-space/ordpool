@@ -1007,13 +1007,13 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     this.isAccelerated$.next(this.isAcceleration);
   }
 
-  setFeatures(): void {
+  async setFeatures(): Promise<void> {
     if (this.tx) {
       this.segwitEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'segwit');
       this.taprootEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'taproot');
       this.rbfEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'rbf');
       const txHeight = this.tx.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-      this.tx.flags = getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
+      this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
       // HACK: always show all flags, because why not?
       // this.filters = this.tx.flags ? toFilters(this.tx.flags).filter(f => f.txPage) : [];
       this.filters = this.tx.flags ? toFilters(this.tx.flags) : [];
