@@ -172,6 +172,11 @@ import { Cat21CollabComponent } from '@components/_ordpool/cat21-collab/cat21-co
 import { Cat21WhitelistCheckerComponent } from '@components/_ordpool/cat21-whitelist-checker/cat21-whitelist-checker.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
 import { AtomicalViewerComponent } from '@components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
+import { CounterpartyViewerComponent } from '@components/_ordpool/digital-artifact-viewer/counterparty-viewer/counterparty-viewer.component';
+import { StampViewerComponent } from '@components/_ordpool/digital-artifact-viewer/stamp-viewer/stamp-viewer.component';
+import { Src721ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/src721-viewer/src721-viewer.component';
+import { Src101ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/src101-viewer/src101-viewer.component';
+import { LabitbuViewerComponent } from '@components/_ordpool/digital-artifact-viewer/labitbu-viewer/labitbu-viewer.component';
 import { MiniInscriptionViewerComponent } from '@components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
 import { FeesBoxClickableComponent } from '@components/fees-box-clickable/fees-box-clickable.component';
 import { HighlightModule } from 'ngx-highlightjs';
@@ -329,6 +334,11 @@ import { HighlightModule } from 'ngx-highlightjs';
     CountdownTimerComponent,
     Cat21CollabComponent,
     Cat21WhitelistCheckerComponent,
+    CounterpartyViewerComponent,
+    StampViewerComponent,
+    Src721ViewerComponent,
+    Src101ViewerComponent,
+    LabitbuViewerComponent,
   ],
   imports: [
     CommonModule,

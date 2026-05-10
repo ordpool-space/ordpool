@@ -1,0 +1,33 @@
+@if (_parsed) {
+  <strong>◉ Counterparty:</strong>
+  <span title="Counterparty message type">{{ _parsed.messageType }}</span>
+  <span class="smaller-text text-muted">(id&nbsp;{{ _parsed.messageTypeId }})</span>
+  <br>
+  <span class="smaller-text">{{ description }}</span>
+
+  @if (showDetails) {
+    <table class="mt-2 table table-borderless table-striped w-50">
+      <tbody>
+        <tr>
+          <td>Message type</td>
+          <td><code>{{ _parsed.messageType }}</code> ({{ _parsed.messageTypeId }})</td>
+        </tr>
+        <tr>
+          <td>Encoding</td>
+          <td><code>{{ _parsed.encoding }}</code></td>
+        </tr>
+        <tr>
+          <td>Decoded message size</td>
+          <td>{{ messageLength | number }} bytes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    @if (messageHex) {
+      <div class="mt-2">
+        <div class="smaller-text mb-1">Decrypted message data (hex):</div>
+        <code class="counterparty-hex">{{ messageHex }}</code>
+      </div>
+    }
+  }
+}
