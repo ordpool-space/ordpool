@@ -59,7 +59,16 @@
                   </div>
                 }
               }
-            } @else if (!status.fileMatch.matchesReceipt) {
+            } @else if (status.fileMatch.matchesReceipt) {
+              <!-- File matches but receipt has no Bitcoin attestation yet (pending-only). -->
+              <div class="alert alert-info mb-3">
+                <h3 class="h5 mb-1">✓ <code>{{ status.fileMatch.filename }}</code> matches this receipt</h3>
+                <p class="mb-0 smaller-text">
+                  Hash match confirmed. The receipt isn't on Bitcoin yet@if (status.receipt.pendingCalendars.length > 0) {
+                    (waiting on {{ pendingCalendarsLabel(status.receipt.pendingCalendars) }})}; once any calendar publishes, the upgraded receipt will anchor this file to a specific Bitcoin block.
+                </p>
+              </div>
+            } @else {
               <div class="alert alert-danger mb-3">
                 <h3 class="h5 mb-1">✗ Receipt is for a different file</h3>
                 <p class="mb-1 smaller-text">
