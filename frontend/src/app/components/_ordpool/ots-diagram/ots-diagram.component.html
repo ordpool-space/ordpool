@@ -3,7 +3,7 @@
 
     <div class="ots-diagram-box ots-diagram-you"
          title="Your file never leaves this browser. We compute its 32-byte SHA-256 fingerprint locally.">
-      <div class="ots-diagram-emoji" aria-hidden="true">📄</div>
+      <fa-icon class="ots-diagram-icon" [icon]="['fas', 'file-alt']" [fixedWidth]="true"></fa-icon>
       <div class="ots-diagram-label">Your file</div>
       <div class="ots-diagram-sublabel">stays in your browser</div>
     </div>
@@ -14,8 +14,8 @@
     </div>
 
     <div class="ots-diagram-box ots-diagram-calendar"
-         title="Public calendar servers (alice / bob / finney) accept your hash and batch it with thousands of other people's hashes into a Merkle tree.">
-      <div class="ots-diagram-emoji" aria-hidden="true">📦</div>
+         title="Public calendar servers (alice / bob / finney / catallaxy) accept your hash and batch it with thousands of others into a Merkle tree.">
+      <fa-icon class="ots-diagram-icon" [icon]="['fas', 'calendar-check']" [fixedWidth]="true"></fa-icon>
       <div class="ots-diagram-label">Calendar</div>
       <div class="ots-diagram-sublabel">batches your hash<br>with thousands of others</div>
     </div>
@@ -27,9 +27,9 @@
 
     <div class="ots-diagram-box ots-diagram-bitcoin"
          title="The calendar publishes the Merkle root in a single Bitcoin OP_RETURN. Once mined, your timestamp is anchored on-chain forever.">
-      <div class="ots-diagram-emoji" aria-hidden="true">⛓️</div>
+      <fa-icon class="ots-diagram-icon" [icon]="['fas', 'cubes']" [fixedWidth]="true"></fa-icon>
       <div class="ots-diagram-label">Bitcoin</div>
-      <div class="ots-diagram-sublabel">on-chain forever</div>
+      <div class="ots-diagram-sublabel">anchored by proof of work</div>
     </div>
 
   </div>
