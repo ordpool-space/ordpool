@@ -1,26 +1,25 @@
 <div class="container-xl ots-calendars">
-  <h1>OpenTimestamps Calendars</h1>
+  <h1>OpenTimestamps: Anchor any file to Bitcoin</h1>
 
-  <p class="lead smaller-text">
-    Bitcoin doesn't just store money. It stores time.
+  <p>
+    Anyone can claim they wrote a paper, took a photo, signed a contract, or held
+    a leaked document on a given day. Proving it is harder.
     <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
-    lets you prove a file existed at a specific block by hashing it, batching that
-    hash with thousands of others into a Merkle tree, and committing the root in a
-    single OP_RETURN. That root is now part of Bitcoin's permanent ledger. Anyone
-    with the file, the <code>.ots</code> proof, and Bitcoin's block headers can
-    verify <em>"this existed by block N"</em>, forever, with no third party in the
-    loop. Photos, contracts, source code, leaked documents&hellip; anything with a
-    hash gets a permanent, math-backed receipt. Ordpool tags every OTS transaction
-    wherever it appears in the explorer, so you can see Bitcoin's notary at work
-    in real time, and you can verify your own <code>.ots</code> receipt right here,
-    against our independent open-source implementation.
+    lets you prove a file existed at a specific Bitcoin block by hashing it,
+    batching that hash with thousands of others into a Merkle tree, and committing
+    the root in a single OP_RETURN. That root is now part of Bitcoin's permanent
+    ledger. Anyone with the file, the <code>.ots</code> proof, and Bitcoin's block
+    headers can verify <em>"this existed by block N"</em>, forever, with no third
+    party in the loop. Ordpool tags every OTS transaction wherever it appears in
+    the explorer, so you can see Bitcoin's notary at work in real time, and you
+    can verify your own <code>.ots</code> receipt right here, against our
+    independent open-source implementation.
   </p>
 
-  <p class="smaller-text text-muted ots-sidenote">
+  <p class="text-muted ots-sidenote">
     <em>
       Of course, the gold standard is to put the file itself on-chain as an
-      inscription. We're 100% committed to inscriptions, that's what ordpool
-      is for. But sometimes revealing the file isn't what you need: OTS
+      inscription. But sometimes revealing the file isn't what you need: OTS
       commits only the hash, so the contents stay private and only you can
       ever prove what was timestamped. For everything you don't want to
       inscribe, OpenTimestamps is the next best thing: a tiny, permanent
@@ -35,13 +34,10 @@
   <app-ots-pending-queue></app-ots-pending-queue>
 
   <h2 class="mt-4">Calendars</h2>
-  <p class="smaller-text text-muted">
-    Know an active OpenTimestamps calendar that's missing here? OTS has no
-    on-chain registry, so we can only stamp through calendars we've heard of.
-    <a href="https://github.com/ordpool-space/ordpool/edit/main/backend/src/api/explorer/_ordpool/ots-calendars.json"
-       target="_blank" rel="noopener">
-      Open a one-line PR
-    </a> and we'll add it.
+  <p class="text-muted">
+    Public calendar servers that Ordpool watches. Each row is one operator
+    we've seen publishing OTS batch commitments to Bitcoin, with a live
+    count of how many we've indexed and how recently they last published.
   </p>
   @if (!calendarsLoaded) {
     <div class="skeleton-loader"></div>
@@ -74,9 +70,22 @@
         }
       </tbody>
     </table>
+    <p class="text-muted mt-2">
+      Know an active OpenTimestamps calendar that's missing here?
+      <a href="https://github.com/ordpool-space/ordpool/edit/main/backend/src/api/explorer/_ordpool/ots-calendars.json"
+         target="_blank" rel="noopener">
+        Open a one-line PR
+      </a> and we'll watch it, too.
+    </p>
   }
 
   <h2 class="mt-4">Recent commits</h2>
+  <p class="text-muted">
+    The most recent OTS batch commits we've seen on Bitcoin. Each row is one
+    calendar transaction whose OP_RETURN carries a Merkle root covering
+    thousands of user-submitted hashes. Click the block to inspect it, or
+    the txid to see the commitment in context.
+  </p>
   @if (!recentLoaded) {
     <div class="skeleton-loader"></div>
   } @else if (recent.length === 0) {
