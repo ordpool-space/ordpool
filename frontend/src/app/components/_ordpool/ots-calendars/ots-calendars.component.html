@@ -6,7 +6,7 @@
     a leaked document on a given day. Proving it is harder.
     <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
     lets you prove a file existed at a specific Bitcoin block by hashing it,
-    batching that hash with thousands of others into a Merkle tree, and committing
+    batching that hash with everyone else's into a Merkle tree, and committing
     the root in a single OP_RETURN. That root is now part of Bitcoin's permanent
     ledger. Anyone with the file, the <code>.ots</code> proof, and Bitcoin's block
     headers can verify <em>"this existed by block N"</em>, forever, with no third
@@ -16,16 +16,17 @@
   <p>
     Ordpool tags every OTS transaction wherever it appears in the explorer, so
     you can see Bitcoin's notary at work in real time
-    (<a href="#recent-commits">examples below</a>), and you can verify your own
+    (<a [routerLink]="[]" fragment="recent-commits">examples below</a>), and you can verify your own
     <code>.ots</code> receipt right here, against our independent open-source
     implementation.
   </p>
 
   <p>
     The whole process is <strong>free</strong>. Calendar operators sponsor the
-    Bitcoin transaction fees and Merkle-batch thousands of submissions per
-    anchor. Huge thanks to the operators (see the <a href="#calendars">list
-    below</a>) who keep this open public good alive.
+    Bitcoin transaction fees and Merkle-batch every submission they receive
+    into a single anchor. Huge thanks to the operators (see the
+    <a [routerLink]="[]" fragment="calendars">list below</a>) who keep this
+    open public good alive.
   </p>
 
   <p class="text-muted ots-sidenote">
@@ -85,9 +86,9 @@
       <thead>
         <tr>
           <th>Calendar</th>
-          <th class="text-right">Total commits indexed</th>
-          <th class="text-right">Last block</th>
-          <th class="text-right" title="Calendar batch transactions waiting in mempool. Each batch carries thousands of user submissions; this is the count of unconfirmed batch txs, not user submissions.">
+          <th class="text-end">Total commits indexed</th>
+          <th class="text-end">Last block</th>
+          <th class="text-end" title="Calendar batch transactions waiting in mempool. Each batch carries however many user submissions arrived since the calendar's last anchor; this column counts unconfirmed batch txs, not the user submissions inside them.">
             Pending batches
           </th>
         </tr>
@@ -96,15 +97,15 @@
         @for (cal of calendars; track cal.calendar) {
           <tr>
             <td><strong>{{ cal.calendar }}</strong></td>
-            <td class="text-right">{{ cal.totalCommits | number }}</td>
-            <td class="text-right">
+            <td class="text-end">{{ cal.totalCommits | number }}</td>
+            <td class="text-end">
               @if (cal.lastBlockheight) {
                 <a [routerLink]="['/block/' | relativeUrl, cal.lastBlockheight]">{{ cal.lastBlockheight | number }}</a>
               } @else {
                 -
               }
             </td>
-            <td class="text-right">{{ cal.pendingCount | number }}</td>
+            <td class="text-end">{{ cal.pendingCount | number }}</td>
           </tr>
         }
       </tbody>
@@ -122,7 +123,7 @@
   <p class="text-muted">
     The most recent OTS batch commits we've seen on Bitcoin. Each row is one
     calendar transaction whose OP_RETURN carries a Merkle root covering
-    thousands of user-submitted hashes. Click the block to inspect it, or
+    every user-submitted hash the calendar collected for that anchor. Click the block to inspect it, or
     the txid to see the commitment in context.
   </p>
   @if (!recentLoaded) {

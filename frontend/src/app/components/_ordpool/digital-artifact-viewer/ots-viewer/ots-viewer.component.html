@@ -32,8 +32,9 @@
           <td>What this is</td>
           <td class="smaller-text">
             A Merkle root committed to Bitcoin by the
-            <strong>{{ row.calendar }}</strong> calendar, batching ~thousands of
-            user file hashes into one OP_RETURN. Anyone holding a
+            <strong>{{ row.calendar }}</strong> calendar, batching every user
+            submission it received since its last anchor into one OP_RETURN.
+            Anyone holding a
             <a href="https://opentimestamps.org" target="_blank" rel="noopener">.ots receipt</a>
             for one of those hashes can prove their file existed at or before
             block {{ row.blockheight ?? 'this block' }} -- with no calendar required.

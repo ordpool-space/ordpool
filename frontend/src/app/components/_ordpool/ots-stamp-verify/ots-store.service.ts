@@ -1,5 +1,16 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import {
+  OTS_HEADER_MAGIC,
+  assembleOtsFile,
+  looksLikeOts,
+  sliceOpsBeforeAttestation,
+} from 'ordpool-parser';
+
+// Re-export so existing OTS components can keep importing from this module.
+// The helpers themselves live in ordpool-parser (MIT); this file is the
+// frontend's facade.
+export { OTS_HEADER_MAGIC, assembleOtsFile, looksLikeOts, sliceOpsBeforeAttestation };
 
 /*
 Test cases:
@@ -171,6 +182,12 @@ export class OtsStoreService {
   }
 }
 
+/** Best-effort error-message extraction for unknown thrown values. */
+export function errString(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  try { return String(e); } catch { return 'unknown error'; }
+}
+
 // ---- byte/base64 helpers (used by anything that reads/writes calendar bodies) ----
 
 export function bytesToBase64(b: Uint8Array): string {
@@ -197,53 +214,12 @@ export function hexEncode(b: Uint8Array): string {
 
 // ---- .ots file assembly ----
 
-const HEADER_MAGIC = new Uint8Array([
-  0x00, 0x4f, 0x70, 0x65, 0x6e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x73, 0x00,
-  0x00, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x00, 0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94,
-]);
-const VERSION_BYTE = 0x01;
-const SHA256_FILE_HASH_TAG = 0x08;
-
-/**
- * Assemble a complete v1 .ots file from a sha256 file digest and N calendar
- * subtrees. Each subtree is a calendar's reply body (raw bytes from /digest
- * or /timestamp/<hash>). Multiple subtrees become siblings under the root,
- * separated by 0xff continuation bytes (last subtree has no leading 0xff).
- *
- * Why we do this every download instead of pre-storing the assembled file:
- * subtrees may upgrade from pending to bitcoin-anchored independently, and
- * we want every download to include the freshest data.
- */
-export function assembleOtsFile(fileHash: Uint8Array, subtrees: Uint8Array[]): Uint8Array {
-  if (subtrees.length === 0) throw new Error('assembleOtsFile: at least one subtree required');
-  let total = HEADER_MAGIC.length + 1 + 1 + fileHash.length;
-  for (let i = 0; i < subtrees.length; i++) {
-    total += subtrees[i].length + (i < subtrees.length - 1 ? 1 : 0);
-  }
-  const out = new Uint8Array(total);
-  let p = 0;
-  out.set(HEADER_MAGIC, p); p += HEADER_MAGIC.length;
-  out[p++] = VERSION_BYTE;
-  out[p++] = SHA256_FILE_HASH_TAG;
-  out.set(fileHash, p); p += fileHash.length;
-  for (let i = 0; i < subtrees.length; i++) {
-    if (i < subtrees.length - 1) out[p++] = 0xff;
-    out.set(subtrees[i], p); p += subtrees[i].length;
-  }
-  return out;
-}
-
 /** Get the freshest bytes for a calendar's branch.
  *
  * If the calendar has been upgraded: returns [ops_to_commitment] + [upgrade_response].
  * The PendingAttestation is dropped (it's redundant once the BitcoinAttestation is in).
  *
  * If still pending: returns the original /digest body unchanged.
- *
- * The op-walker below has to know enough OTS binary format to find where
- * the PendingAttestation starts; it's a tight reimplementation of just
- * the bits we need (no varint complexity, no children — calendar replies
- * are always single chains).
  */
 export function bestCalendarBytes(c: OtsLocalCalendar): Uint8Array {
   const pending = base64ToBytes(c.pendingBase64);
@@ -254,34 +230,4 @@ export function bestCalendarBytes(c: OtsLocalCalendar): Uint8Array {
   out.set(opsOnly, 0);
   out.set(upgrade, opsOnly.length);
   return out;
-}
-
-/**
- * Walk a single-chain calendar body forward, op by op, and return the
- * prefix that contains every op up to (but not including) the first
- * attestation marker (0x00). Throws if the body has continuations or
- * doesn't terminate in an attestation.
- */
-function sliceOpsBeforeAttestation(body: Uint8Array): Uint8Array {
-  let p = 0;
-  while (p < body.length) {
-    const tag = body[p];
-    if (tag === 0x00) return body.slice(0, p);
-    if (tag === 0xff) throw new Error('OTS body has unexpected continuation');
-    p++;
-    // append (0xf0) and prepend (0xf1) carry varuint-prefixed bytes;
-    // every other op tag has zero-byte payload.
-    if (tag === 0xf0 || tag === 0xf1) {
-      let len = 0, shift = 0;
-      while (true) {
-        const b = body[p++];
-        len |= (b & 0x7f) << shift;
-        if ((b & 0x80) === 0) break;
-        shift += 7;
-        if (shift > 35) throw new Error('OTS varuint overflow');
-      }
-      p += len;
-    }
-  }
-  throw new Error('OTS body has no attestation marker');
 }

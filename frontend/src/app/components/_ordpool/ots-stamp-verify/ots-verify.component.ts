@@ -7,7 +7,7 @@ import {
 import { environment } from '@environments/environment';
 
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
-import { hexEncode } from './ots-store.service';
+import { errString, hexEncode, looksLikeOts } from './ots-store.service';
 
 /*
 Test cases:
@@ -22,10 +22,6 @@ Test cases:
 - Drop a corrupt or empty file: shows a clear error.
 */
 
-const HEADER_MAGIC = new Uint8Array([
-  0x00, 0x4f, 0x70, 0x65, 0x6e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x73, 0x00,
-  0x00, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x00, 0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94,
-]);
 
 interface BitcoinAttestationView {
   blockheight: number;
@@ -141,7 +137,7 @@ export class OtsVerifyComponent {
           return;
         }
         const bytes = new Uint8Array(await f.arrayBuffer());
-        if (this.looksLikeOts(bytes)) cat.ots.push({ name: f.name, bytes });
+        if (looksLikeOts(bytes)) cat.ots.push({ name: f.name, bytes });
         else cat.data.push({ name: f.name, bytes });
       }
 
@@ -159,7 +155,7 @@ export class OtsVerifyComponent {
         try {
           await this.verifyOts(cat.ots[0].bytes);
         } catch (e) {
-          const msg = this.errString(e);
+          const msg = errString(e);
           // Specific mismatch: the receipt uses an op we don't implement
           // (typically KECCAK256, which is Ethereum-side only). Educate the
           // user instead of dumping the raw error.
@@ -182,7 +178,7 @@ export class OtsVerifyComponent {
       this.status = { kind: 'error', message: 'Drop a .ots receipt to verify.' };
       this.cdr.markForCheck();
     } catch (e) {
-      this.status = { kind: 'error', message: this.errString(e) };
+      this.status = { kind: 'error', message: errString(e) };
       this.cdr.markForCheck();
     }
   }
@@ -199,24 +195,16 @@ export class OtsVerifyComponent {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // Defensively reject if the user accidentally drops a .ots here.
-      if (this.looksLikeOts(bytes)) {
+      if (looksLikeOts(bytes)) {
         this.status = { kind: 'error', message: 'This sub-zone wants the ORIGINAL FILE, not another .ots.' };
         this.cdr.markForCheck();
         return;
       }
       await this.runFileMatch(file.name, bytes);
     } catch (e) {
-      this.status = { kind: 'error', message: this.errString(e) };
+      this.status = { kind: 'error', message: errString(e) };
       this.cdr.markForCheck();
     }
-  }
-
-  private looksLikeOts(bytes: Uint8Array): boolean {
-    if (bytes.length < HEADER_MAGIC.length) return false;
-    for (let i = 0; i < HEADER_MAGIC.length; i++) {
-      if (bytes[i] !== HEADER_MAGIC[i]) return false;
-    }
-    return true;
   }
 
   private async verifyOts(bytes: Uint8Array): Promise<void> {
@@ -343,8 +331,4 @@ export class OtsVerifyComponent {
     return out;
   }
 
-  private errString(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    try { return String(e); } catch { return 'unknown error'; }
-  }
 }

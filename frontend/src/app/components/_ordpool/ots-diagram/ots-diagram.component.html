@@ -17,10 +17,10 @@
          [class.health-fresh]="health === 'fresh'"
          [class.health-aging]="health === 'aging'"
          [class.health-stale]="health === 'stale'"
-         [title]="'Public calendar servers accept your hash and batch it with thousands of others into a Merkle tree. ' + healthLabel()">
+         [title]="'Public calendar servers accept your hash and batch it with everyone else\\'s into a Merkle tree. ' + healthLabel()">
       <fa-icon class="ots-diagram-icon" [icon]="['fas', 'calendar-check']" [fixedWidth]="true"></fa-icon>
       <div class="ots-diagram-label">Calendar</div>
-      <div class="ots-diagram-sublabel">batches your hash<br>with thousands of others</div>
+      <div class="ots-diagram-sublabel">batches your hash<br>with everyone else's</div>
       @if (health !== 'unknown') {
         <div class="ots-diagram-health" [attr.aria-label]="healthLabel()">
           <span class="ots-health-dot"></span>

@@ -6,7 +6,9 @@ import {
   OtsStoreService,
   assembleOtsFile,
   bytesToBase64,
+  errString,
   hexEncode,
+  looksLikeOts,
 } from './ots-store.service';
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
 
@@ -17,11 +19,6 @@ Test cases:
 - Drop a corrupt or empty file: shows a clear error message.
 - Drop a .ots: rejected with "looks like a receipt, drop it in Verify."
 */
-
-const HEADER_MAGIC = new Uint8Array([
-  0x00, 0x4f, 0x70, 0x65, 0x6e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x73, 0x00,
-  0x00, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x00, 0xbf, 0x89, 0xe2, 0xe8, 0x84, 0xe8, 0x92, 0x94,
-]);
 
 type Status =
   | { kind: 'idle' }
@@ -88,7 +85,7 @@ export class OtsStampComponent {
     }
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      if (this.looksLikeOts(bytes)) {
+      if (looksLikeOts(bytes)) {
         // Defensive routing -- a .ots dropped here is almost always a
         // user mistake (they meant Verify). Refuse and route them.
         this.status = { kind: 'wrong-zone' };
@@ -97,17 +94,9 @@ export class OtsStampComponent {
       }
       await this.stampFile(bytes, file.name);
     } catch (e) {
-      this.status = { kind: 'error', message: this.errString(e) };
+      this.status = { kind: 'error', message: errString(e) };
       this.cdr.markForCheck();
     }
-  }
-
-  private looksLikeOts(bytes: Uint8Array): boolean {
-    if (bytes.length < HEADER_MAGIC.length) return false;
-    for (let i = 0; i < HEADER_MAGIC.length; i++) {
-      if (bytes[i] !== HEADER_MAGIC[i]) return false;
-    }
-    return true;
   }
 
   private async stampFile(bytes: Uint8Array, filename: string): Promise<void> {
@@ -234,8 +223,4 @@ export class OtsStampComponent {
     return 'ots-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 
-  private errString(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    try { return String(e); } catch { return 'unknown error'; }
-  }
 }
