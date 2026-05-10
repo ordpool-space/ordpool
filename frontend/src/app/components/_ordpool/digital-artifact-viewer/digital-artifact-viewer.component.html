@@ -28,6 +28,36 @@
   [parsedCat21]="asCat21"
 />
 
+<app-counterparty-viewer
+  *ngIf="whatToShow === 'counterparty'"
+  [showDetails]="showDetails"
+  [parsedCounterparty]="asCounterparty"
+/>
+
+<app-stamp-viewer
+  *ngIf="whatToShow === 'stamp'"
+  [showDetails]="showDetails"
+  [parsedStamp]="asStamp"
+/>
+
+<app-src721-viewer
+  *ngIf="whatToShow === 'src721'"
+  [showDetails]="showDetails"
+  [parsedSrc721]="asSrc721"
+/>
+
+<app-src101-viewer
+  *ngIf="whatToShow === 'src101'"
+  [showDetails]="showDetails"
+  [parsedSrc101]="asSrc101"
+/>
+
+<app-labitbu-viewer
+  *ngIf="whatToShow === 'labitbu'"
+  [showDetails]="showDetails"
+  [parsedLabitbu]="asLabitbu"
+/>
+
 
 <div *ngIf="whatToShow === 'nothing'">
   Unknown digital artifact.<br>

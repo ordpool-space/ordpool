@@ -1,0 +1,28 @@
+@if (_parsed) {
+  <strong>◉ Stamp:</strong>
+  <span title="Content type">{{ _parsed.contentType }}</span>
+  <br>
+
+  @if (isImage && dataUri) {
+    <img [src]="dataUri" alt="Stamp image" class="stamp-preview mt-2">
+  } @else if (isText && text) {
+    <pre class="stamp-text mt-2"><code>{{ text }}</code></pre>
+  } @else if (dataUri) {
+    <span class="smaller-text text-muted">Binary stamp data (no inline preview).</span>
+  }
+
+  @if (showDetails) {
+    <table class="mt-2 table table-borderless table-striped w-50">
+      <tbody>
+        <tr>
+          <td>Content type</td>
+          <td>{{ _parsed.contentType }}</td>
+        </tr>
+        <tr>
+          <td>File size</td>
+          <td>{{ fileSize | number }} bytes</td>
+        </tr>
+      </tbody>
+    </table>
+  }
+}

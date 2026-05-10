@@ -1,0 +1,21 @@
+@if (_parsed && dataUri) {
+  <strong>◉ Labitbu:</strong>
+  <span class="smaller-text">image/webp</span>
+  <br>
+  <img [src]="dataUri" alt="Labitbu image" class="labitbu-preview mt-2">
+
+  @if (showDetails) {
+    <table class="mt-2 table table-borderless table-striped w-50">
+      <tbody>
+        <tr>
+          <td>Content type</td>
+          <td>image/webp</td>
+        </tr>
+        <tr>
+          <td>File size</td>
+          <td>{{ fileSize | number }} bytes</td>
+        </tr>
+      </tbody>
+    </table>
+  }
+}
