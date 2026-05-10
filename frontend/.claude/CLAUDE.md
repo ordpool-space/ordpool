@@ -69,6 +69,35 @@ npm run lint:fix        # ESLint with auto-fix
 npm run prettier        # Prettier formatting
 ```
 
+### Pre-push check: AOT-compile Angular templates
+
+Jest tests run in **JIT** mode and accept template binding expressions
+that the **AOT** production build rejects. The most common gotcha:
+backslash-escaped apostrophes inside binding strings.
+
+```html
+<!-- ✗ AOT rejects this with NG5002 "Unterminated quote" -->
+<span [title]="'It\'s broken' + suffix"></span>
+
+<!-- ✓ Either avoid the apostrophe... -->
+<span [title]="'It is fine ' + suffix"></span>
+
+<!-- ✓ ...or build the string in TypeScript and bind a property -->
+<span [title]="hoverText"></span>
+```
+
+Before pushing changes that touch Angular template expressions
+(`[attr]="..."`, `{{ }}` interpolations, structural directives),
+run a full production AOT build:
+
+```bash
+cd frontend
+node ./node_modules/.bin/ng build --configuration production --no-progress
+```
+
+Warnings are fine; **errors fail CI**. Jest passing isn't enough —
+template expressions are only fully validated at AOT.
+
 ### Visual Identity (the differentiators from upstream)
 
 Ordpool's design has a few rules that look like style choices but are
