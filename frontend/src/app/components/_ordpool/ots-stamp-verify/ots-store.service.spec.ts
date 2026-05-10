@@ -1,10 +1,10 @@
 import { TestBed } from '@angular/core/testing';
+import { assembleOtsFile } from 'ordpool-parser';
 
 import {
   OtsStoreService,
   OtsLocalCalendar,
   OtsLocalStamp,
-  assembleOtsFile,
   bestCalendarBytes,
   bytesToBase64,
   base64ToBytes,

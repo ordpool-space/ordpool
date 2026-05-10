@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@
 import {
   collectBitcoinAttestations,
   OtsAttestation,
+  errString,
+  looksLikeOts,
   parseOtsFile,
 } from 'ordpool-parser';
 import { environment } from '@environments/environment';
 
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
-import { errString, hexEncode, looksLikeOts } from './ots-store.service';
+import { hexEncode } from './ots-store.service';
 
 /*
 Test cases:

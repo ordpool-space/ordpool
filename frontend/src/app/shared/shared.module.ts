@@ -149,7 +149,7 @@ import { Src20ViewerComponent } from '@components/_ordpool/digital-artifact-view
 import { Cat21ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/cat21-viewer/cat21-viewer.component';
 import { OtsViewerComponent } from '@components/_ordpool/digital-artifact-viewer/ots-viewer/ots-viewer.component';
 import { BlockOtsSummaryComponent } from '@components/_ordpool/block-ots-summary/block-ots-summary.component';
-import { OtsCalendarsComponent } from '@components/_ordpool/ots-calendars/ots-calendars.component';
+import { OpenTimestampsComponent } from '@components/_ordpool/open-timestamps/open-timestamps.component';
 import { OtsStampComponent } from '@components/_ordpool/ots-stamp-verify/ots-stamp.component';
 import { OtsVerifyComponent } from '@components/_ordpool/ots-stamp-verify/ots-verify.component';
 import { OtsDiagramComponent } from '@components/_ordpool/ots-diagram/ots-diagram.component';
@@ -309,7 +309,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     Cat21ViewerComponent,
     OtsViewerComponent,
     BlockOtsSummaryComponent,
-    OtsCalendarsComponent,
+    OpenTimestampsComponent,
     OtsStampComponent,
     OtsVerifyComponent,
     OtsDiagramComponent,
@@ -498,7 +498,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     Cat21ViewerComponent,
     OtsViewerComponent,
     BlockOtsSummaryComponent,
-    OtsCalendarsComponent,
+    OpenTimestampsComponent,
     OtsStampComponent,
     OtsVerifyComponent,
     OtsDiagramComponent,

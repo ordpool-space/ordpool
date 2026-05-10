@@ -11,27 +11,27 @@ import { OtsStoreService } from '../ots-stamp-verify/ots-store.service';
 
 /*
 Test cases:
-- Live dashboard: https://ordpool.space/ots/calendars
+- Live dashboard: https://ordpool.space/open-timestamps
 */
 
 /**
- * Per-calendar liveness + recent-commits dashboard at /ots/calendars.
+ * Per-calendar liveness + recent-commits dashboard at /open-timestamps.
  *
  * Backend feeds:
- *   GET /api/v1/ordpool/ots/calendars  -> per-calendar summary
+ *   GET /api/v1/ordpool/open-timestamps  -> per-calendar summary
  *   GET /api/v1/ordpool/ots/recent     -> last N confirmed commits
  *
  * Renders even when one of the two endpoints fails (graceful degradation
  * via catchError → empty observable).
  */
 @Component({
-  selector: 'app-ots-calendars',
-  templateUrl: './ots-calendars.component.html',
-  styleUrls: ['./ots-calendars.component.scss'],
+  selector: 'app-open-timestamps',
+  templateUrl: './open-timestamps.component.html',
+  styleUrls: ['./open-timestamps.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class OtsCalendarsComponent implements OnInit, OnDestroy {
+export class OpenTimestampsComponent implements OnInit, OnDestroy {
 
   private api = inject(OrdpoolApiService);
   private cdr = inject(ChangeDetectorRef);

@@ -6,11 +6,11 @@ import {
   OrdpoolOtsCalendarStats,
   OrdpoolOtsRow,
 } from '../../../services/ordinals/ordpool-api.service';
-import { OtsCalendarsComponent } from './ots-calendars.component';
+import { OpenTimestampsComponent } from './open-timestamps.component';
 import { SeoService } from '../../../services/seo.service';
 import { OtsStoreService } from '../ots-stamp-verify/ots-store.service';
 
-describe('OtsCalendarsComponent', () => {
+describe('OpenTimestampsComponent', () => {
   let api: jest.Mocked<OrdpoolApiService>;
 
   function makeStats(over: Partial<OrdpoolOtsCalendarStats> = {}): OrdpoolOtsCalendarStats {
@@ -43,13 +43,13 @@ describe('OtsCalendarsComponent', () => {
     };
     const storeStub = { localStorageAvailable: true };
     TestBed.configureTestingModule({
-      declarations: [OtsCalendarsComponent],
+      declarations: [OpenTimestampsComponent],
       providers: [
         { provide: OrdpoolApiService, useValue: api },
         { provide: SeoService, useValue: seoStub },
         { provide: OtsStoreService, useValue: storeStub },
       ],
-    }).overrideComponent(OtsCalendarsComponent, { set: { template: '' } });
+    }).overrideComponent(OpenTimestampsComponent, { set: { template: '' } });
   }
 
   it('happy path: both feeds populate component state', () => {
@@ -59,7 +59,7 @@ describe('OtsCalendarsComponent', () => {
     } as any;
     setup();
 
-    const fixture = TestBed.createComponent(OtsCalendarsComponent);
+    const fixture = TestBed.createComponent(OpenTimestampsComponent);
     expect(api.getOtsCalendars$).toHaveBeenCalled();
     expect(api.getOtsRecent$).toHaveBeenCalledWith(50);
     expect(fixture.componentInstance.calendars.length).toBe(2);
@@ -75,7 +75,7 @@ describe('OtsCalendarsComponent', () => {
     } as any;
     setup();
 
-    const fixture = TestBed.createComponent(OtsCalendarsComponent);
+    const fixture = TestBed.createComponent(OpenTimestampsComponent);
     expect(fixture.componentInstance.calendars).toEqual([]);
     expect(fixture.componentInstance.calendarsLoaded).toBe(true);
     expect(fixture.componentInstance.recent.length).toBe(1);
@@ -88,7 +88,7 @@ describe('OtsCalendarsComponent', () => {
     } as any;
     setup();
 
-    const fixture = TestBed.createComponent(OtsCalendarsComponent);
+    const fixture = TestBed.createComponent(OpenTimestampsComponent);
     expect(fixture.componentInstance.calendars.length).toBe(1);
     expect(fixture.componentInstance.recent).toEqual([]);
     expect(fixture.componentInstance.recentLoaded).toBe(true);

@@ -1,16 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import {
-  OTS_HEADER_MAGIC,
-  assembleOtsFile,
-  looksLikeOts,
-  sliceOpsBeforeAttestation,
-} from 'ordpool-parser';
-
-// Re-export so existing OTS components can keep importing from this module.
-// The helpers themselves live in ordpool-parser (MIT); this file is the
-// frontend's facade.
-export { OTS_HEADER_MAGIC, assembleOtsFile, looksLikeOts, sliceOpsBeforeAttestation };
+import { sliceOpsBeforeAttestation } from 'ordpool-parser';
 
 /*
 Test cases:
@@ -180,12 +170,6 @@ export class OtsStoreService {
       return [];
     }
   }
-}
-
-/** Best-effort error-message extraction for unknown thrown values. */
-export function errString(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  try { return String(e); } catch { return 'unknown error'; }
 }
 
 // ---- byte/base64 helpers (used by anything that reads/writes calendar bodies) ----
