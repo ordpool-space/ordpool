@@ -416,6 +416,20 @@ function sendInscription(res: Response, inscription: ParsedInscription): void {
 
   res.setHeader('Content-Length', inscription.contentSize);
 
+  // HACK -- Ordpool: cache-control for inscription content
+  // Inscriptions are content-addressed by inscription id, so the bytes never
+  // change once committed. `immutable` lets the browser skip revalidation
+  // entirely; `public, max-age` lets Cloudflare cache at the edge.
+  // `no-transform` is the load-bearing bit for decompression-bomb safety:
+  // without it, Cloudflare's edge auto-decompresses brotli/gzip-encoded
+  // bodies when a downstream client sends Accept-Encoding: identity, which
+  // means a 790-byte bomb inscription expands to ~794 MB at the edge on
+  // every uncached hit (cf-cache-status: DYNAMIC). With no-transform,
+  // Cloudflare passes through whatever Content-Encoding we set and the
+  // client decompresses if it can -- which we never do server-side, see
+  // `inscription.getDataRaw()` below.
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
+
   // Send the raw data
   res.status(200).send(Buffer.from(inscription.getDataRaw()));
 }
@@ -424,6 +438,12 @@ function sendPreview(res: Response, previewInstructions: PreviewInstructions): v
 
   res.setHeader('Content-Type', 'text/html;charset=utf-8');
   res.setHeader('Content-Length', previewInstructions.previewContent.length);
+
+  // HACK -- Ordpool: cache the preview HTML at the edge too. Preview content
+  // is also content-addressed (we deterministically wrap inscription bytes
+  // in a fixed HTML template), so it's safe to mark immutable. no-transform
+  // is still useful here so Cloudflare doesn't HTML-minify our preview.
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
 
   // Send the preview HTML
   res.status(200).send(previewInstructions.previewContent);
