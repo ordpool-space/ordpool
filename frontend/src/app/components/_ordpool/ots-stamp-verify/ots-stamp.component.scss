@@ -25,6 +25,12 @@
       background-color: #1a1d36;
     }
 
+    &.disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      &:hover { border-color: #2d3250; background-color: #11132a; }
+    }
+
     .dropzone-input { display: none; }
 
     .dropzone-text {

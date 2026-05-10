@@ -10,10 +10,15 @@
     the root in a single OP_RETURN. That root is now part of Bitcoin's permanent
     ledger. Anyone with the file, the <code>.ots</code> proof, and Bitcoin's block
     headers can verify <em>"this existed by block N"</em>, forever, with no third
-    party in the loop. Ordpool tags every OTS transaction wherever it appears in
-    the explorer, so you can see Bitcoin's notary at work in real time, and you
-    can verify your own <code>.ots</code> receipt right here, against our
-    independent open-source implementation.
+    party in the loop.
+  </p>
+
+  <p>
+    Ordpool tags every OTS transaction wherever it appears in the explorer, so
+    you can see Bitcoin's notary at work in real time
+    (<a href="#recent-commits">examples below</a>), and you can verify your own
+    <code>.ots</code> receipt right here, against our independent open-source
+    implementation.
   </p>
 
   <p>
@@ -33,6 +38,24 @@
       timestamp anchored in Bitcoin.
     </em>
   </p>
+
+  @if (!localStorageAvailable) {
+    <div class="alert alert-warning mt-4 mb-0">
+      <strong>Stamping needs localStorage, and your browser has it disabled.</strong>
+      Stamping is a multi-step flow: we need to remember your pending stamp across
+      tab reloads, the calendar's response, and the final upgraded receipt. Without
+      localStorage we'd lose your stamp the moment you switch tabs.
+      <ul class="mb-0 mt-2">
+        <li><strong>Safari private browsing</strong>: localStorage is blocked. Open the page in a regular Safari window.</li>
+        <li><strong>Privacy extension or strict cookie blocker</strong>: allow site data for <code>ordpool.space</code>.</li>
+        <li><strong>Storage quota exceeded</strong>: clear some browser data and reload.</li>
+      </ul>
+      <p class="mb-0 mt-2 smaller-text">
+        Verifying a <code>.ots</code> still works without localStorage; it's a
+        one-shot operation that doesn't need persistent state.
+      </p>
+    </div>
+  }
 
   <app-ots-diagram class="d-block mt-4"></app-ots-diagram>
 
@@ -64,7 +87,9 @@
           <th>Calendar</th>
           <th class="text-right">Total commits indexed</th>
           <th class="text-right">Last block</th>
-          <th class="text-right">Pending</th>
+          <th class="text-right" title="Calendar batch transactions waiting in mempool. Each batch carries thousands of user submissions; this is the count of unconfirmed batch txs, not user submissions.">
+            Pending batches
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -93,7 +118,7 @@
     </p>
   }
 
-  <h2 class="mt-4">Recent commits</h2>
+  <h2 id="recent-commits" class="mt-4">Recent commits</h2>
   <p class="text-muted">
     The most recent OTS batch commits we've seen on Bitcoin. Each row is one
     calendar transaction whose OP_RETURN carries a Merkle root covering

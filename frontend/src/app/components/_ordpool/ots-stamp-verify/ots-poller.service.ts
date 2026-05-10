@@ -117,12 +117,17 @@ export class OtsPollerService implements OnDestroy {
     let errorMessage: string | null = null;
     try {
       const resp = await fetch(url, { method: 'GET' });
-      if (resp.status === 200) {
+      // Backend proxy always returns 200; we distinguish by Content-Type so
+      // Chrome's devtools doesn't log "Failed to load resource: 404" every
+      // minute while a stamp is still pending. JSON body = pending, binary
+      // = upgraded.
+      const ct = resp.headers.get('content-type') || '';
+      if (resp.status === 200 && ct.includes('json')) {
+        result = 'pending';
+      } else if (resp.status === 200) {
         const buf = new Uint8Array(await resp.arrayBuffer());
         bodyB64 = bytesToBase64(buf);
         result = 'published';
-      } else if (resp.status === 404) {
-        result = 'pending';
       } else {
         errorMessage = 'HTTP ' + resp.status;
       }

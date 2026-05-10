@@ -31,7 +31,7 @@
       @case ('error') {
         <div class="alert alert-danger mt-3 mb-0">
           <strong>Could not process file:</strong> {{ status.message }}
-          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">Try again</button>
+          <button type="button" class="btn btn-sm btn-outline-dark ms-2" (click)="reset()">Try again</button>
         </div>
       }
       @case ('file-only') {
@@ -90,17 +90,38 @@
           </p>
 
           @if (status.receipt.bitcoinAttestations.length === 0) {
-            <div class="alert alert-warning mb-2">
-              <strong>Not yet on-chain.</strong>
-              @if (status.receipt.pendingCalendars.length > 0) {
-                The receipt only contains pending calendar attestations:
-                <strong>{{ pendingCalendarsLabel(status.receipt.pendingCalendars) }}</strong>.
-                Once any calendar publishes (~10 min to a few hours after stamping),
-                the receipt can be upgraded.
-              } @else {
-                No Bitcoin attestation found and no pending calendars listed.
-              }
-            </div>
+            @if (status.receipt.litecoinHeights.length > 0 || status.receipt.ethereumHeights.length > 0) {
+              <div class="alert alert-warning mb-2">
+                <strong>This receipt is not anchored to Bitcoin.</strong>
+                It contains
+                @if (status.receipt.litecoinHeights.length > 0) {
+                  <strong>{{ status.receipt.litecoinHeights.length }} Litecoin attestation{{ status.receipt.litecoinHeights.length === 1 ? '' : 's' }}</strong>
+                  (block{{ status.receipt.litecoinHeights.length === 1 ? '' : 's' }}
+                  {{ status.receipt.litecoinHeights.join(', ') }})
+                }
+                @if (status.receipt.litecoinHeights.length > 0 && status.receipt.ethereumHeights.length > 0) { and }
+                @if (status.receipt.ethereumHeights.length > 0) {
+                  <strong>{{ status.receipt.ethereumHeights.length }} Ethereum attestation{{ status.receipt.ethereumHeights.length === 1 ? '' : 's' }}</strong>
+                  (block{{ status.receipt.ethereumHeights.length === 1 ? '' : 's' }}
+                  {{ status.receipt.ethereumHeights.join(', ') }})
+                }.
+                <strong>Ordpool only verifies Bitcoin attestations.</strong> The receipt
+                may still be valid on those chains; you'd need a Litecoin / Ethereum-aware
+                verifier to check.
+              </div>
+            } @else {
+              <div class="alert alert-warning mb-2">
+                <strong>Not yet on-chain.</strong>
+                @if (status.receipt.pendingCalendars.length > 0) {
+                  The receipt only contains pending calendar attestations:
+                  <strong>{{ pendingCalendarsLabel(status.receipt.pendingCalendars) }}</strong>.
+                  Once any calendar publishes (~10 min to a few hours after stamping),
+                  the receipt can be upgraded.
+                } @else {
+                  No Bitcoin attestation found and no pending calendars listed.
+                }
+              </div>
+            }
           } @else {
             @for (att of status.receipt.bitcoinAttestations; track att.blockheight) {
               <div class="alert mb-2"
@@ -140,6 +161,21 @@
               calendar attestation{{ status.receipt.pendingCalendars.length === 1 ? '' : 's' }}
               ({{ pendingCalendarsLabel(status.receipt.pendingCalendars) }}); the Bitcoin
               attestation above is already proof on its own.
+            </p>
+          }
+
+          @if (status.receipt.bitcoinAttestations.length > 0
+               && (status.receipt.litecoinHeights.length > 0 || status.receipt.ethereumHeights.length > 0)) {
+            <p class="smaller-text text-muted mb-2">
+              The receipt also has
+              @if (status.receipt.litecoinHeights.length > 0) {
+                {{ status.receipt.litecoinHeights.length }} Litecoin
+              }
+              @if (status.receipt.litecoinHeights.length > 0 && status.receipt.ethereumHeights.length > 0) { and }
+              @if (status.receipt.ethereumHeights.length > 0) {
+                {{ status.receipt.ethereumHeights.length }} Ethereum
+              }
+              attestation(s) which ordpool doesn't verify; we only check Bitcoin.
             </p>
           }
 

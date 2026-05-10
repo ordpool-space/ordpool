@@ -102,17 +102,30 @@ class GeneralOrdpoolRoutes {
         `https://${calendar}/timestamp/${hash}`,
         { responseType: 'arraybuffer', timeout: 10000, validateStatus: () => true },
       );
-      // Default max-age for the pending (404) case mirrors the calendar's
-      // own cache; for the 200 case the response is immutable so we can
-      // cache aggressively. Either way, the frontend's poller treats this
-      // as best-effort -- worst case it just polls again next minute.
+      // We always return HTTP 200 from this proxy and distinguish via
+      // Content-Type:
+      //   200 + application/vnd.opentimestamps.v1 + binary body  -> upgraded
+      //   200 + application/json + {"status":"pending"}          -> calendar
+      //                                                              hasn't
+      //                                                              published
+      //                                                              this hash
+      //                                                              yet
+      // This avoids Chrome's auto-logging "Failed to load resource: 404"
+      // every minute for every still-pending stamp -- the response IS
+      // expected and successful from our perspective.
+      // Upstream 5xx maps to our 502 so genuine errors are visible.
       if (upstream.status === 200) {
         res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
         res.setHeader('Content-Type', 'application/vnd.opentimestamps.v1');
-      } else {
+        res.status(200).end(Buffer.from(upstream.data));
+      } else if (upstream.status === 404) {
         res.setHeader('Cache-Control', 'public, max-age=60');
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).end('{"status":"pending"}');
+      } else {
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(502).send(`upstream returned ${upstream.status}`);
       }
-      res.status(upstream.status).end(Buffer.from(upstream.data));
     } catch {
       res.status(502).send('upstream error');
     }
