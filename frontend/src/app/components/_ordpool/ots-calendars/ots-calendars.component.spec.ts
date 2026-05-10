@@ -7,6 +7,8 @@ import {
   OrdpoolOtsRow,
 } from '../../../services/ordinals/ordpool-api.service';
 import { OtsCalendarsComponent } from './ots-calendars.component';
+import { SeoService } from '../../../services/seo.service';
+import { OtsStoreService } from '../ots-stamp-verify/ots-store.service';
 
 describe('OtsCalendarsComponent', () => {
   let api: jest.Mocked<OrdpoolApiService>;
@@ -35,9 +37,18 @@ describe('OtsCalendarsComponent', () => {
   }
 
   function setup(): void {
+    const seoStub = {
+      setTitle: jest.fn(), resetTitle: jest.fn(),
+      setDescription: jest.fn(), resetDescription: jest.fn(),
+    };
+    const storeStub = { localStorageAvailable: true };
     TestBed.configureTestingModule({
       declarations: [OtsCalendarsComponent],
-      providers: [{ provide: OrdpoolApiService, useValue: api }],
+      providers: [
+        { provide: OrdpoolApiService, useValue: api },
+        { provide: SeoService, useValue: seoStub },
+        { provide: OtsStoreService, useValue: storeStub },
+      ],
     }).overrideComponent(OtsCalendarsComponent, { set: { template: '' } });
   }
 

@@ -51,7 +51,7 @@
           </div>
           <div class="ots-stamp-actions">
             <button type="button" class="btn btn-sm btn-outline-light me-2" (click)="checkNow(s)">Check now</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel(s)">Cancel &amp; forget</button>
+            <button type="button" class="btn btn-sm btn-outline-light" (click)="cancel(s)">Cancel &amp; forget</button>
           </div>
           <details class="ots-power-user smaller-text mt-2">
             <summary>Power user: export raw pending receipt</summary>
@@ -62,7 +62,7 @@
               if you'd rather upgrade outside the browser. Most users don't
               need this.
             </p>
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadPendingRaw(s)">Download .pending.ots</button>
+            <button type="button" class="btn btn-sm btn-outline-light" (click)="downloadPendingRaw(s)">Download .pending.ots</button>
           </details>
         }
 
@@ -96,7 +96,7 @@
               {{ s.downloadCount === 0 ? 'DOWNLOAD ME!' : 'Download again' }}
             </button>
             @if (canClear(s)) {
-              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clear(s)">Clear this entry</button>
+              <button type="button" class="btn btn-sm btn-outline-light" (click)="clear(s)">Clear this entry</button>
             }
           </div>
         }
@@ -108,7 +108,7 @@
             usually fixes it.
           </div>
           <div class="ots-stamp-actions">
-            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cancel(s)">Cancel &amp; forget</button>
+            <button type="button" class="btn btn-sm btn-outline-light" (click)="cancel(s)">Cancel &amp; forget</button>
           </div>
         }
       </div>

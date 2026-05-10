@@ -9,13 +9,19 @@
 
     <label class="dropzone"
            [class.dragging]="isDragging"
-           (dragover)="onDragOver($event)"
-           (dragleave)="onDragLeave($event)"
-           (drop)="onDrop($event)">
-      <input type="file" class="dropzone-input" (change)="onPick($event)">
+           [class.disabled]="!localStorageAvailable"
+           (dragover)="localStorageAvailable && onDragOver($event)"
+           (dragleave)="localStorageAvailable && onDragLeave($event)"
+           (drop)="localStorageAvailable && onDrop($event)">
+      <input type="file" class="dropzone-input" (change)="onPick($event)" [disabled]="!localStorageAvailable">
       <span class="dropzone-text">
-        <strong>Drop a file</strong><br>
-        or click to pick
+        @if (localStorageAvailable) {
+          <strong>Drop a file</strong><br>
+          or click to pick
+        } @else {
+          <strong>Stamping disabled</strong><br>
+          (localStorage is blocked &mdash; see banner above)
+        }
       </span>
     </label>
 
@@ -30,7 +36,7 @@
         @case ('error') {
           <div class="alert alert-danger mt-3 mb-0">
             <strong>Could not stamp file:</strong> {{ status.message }}
-            <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">Try again</button>
+            <button type="button" class="btn btn-sm btn-outline-dark ms-2" (click)="reset()">Try again</button>
           </div>
         }
         @case ('wrong-zone') {

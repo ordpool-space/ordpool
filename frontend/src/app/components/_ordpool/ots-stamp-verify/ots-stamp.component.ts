@@ -45,6 +45,7 @@ export class OtsStampComponent {
 
   status: Status = { kind: 'idle' };
   isDragging = false;
+  localStorageAvailable = this.store.localStorageAvailable;
 
   onDragOver(ev: DragEvent): void {
     ev.preventDefault();

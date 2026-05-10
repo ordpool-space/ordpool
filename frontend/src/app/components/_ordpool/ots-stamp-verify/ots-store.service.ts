@@ -79,6 +79,29 @@ interface OtsLocalStore {
 @Injectable({ providedIn: 'root' })
 export class OtsStoreService {
 
+  /**
+   * True when localStorage is writable. False in Safari private mode, when
+   * a privacy extension blocks DOM Storage, or when running outside a
+   * browser. Stamping requires this -- without it, pending stamps can't
+   * survive a tab reload, the queue is empty on mount, and the user has
+   * no way to come back to a job in progress.
+   *
+   * Verify works fine without localStorage (it's a one-shot operation).
+   */
+  readonly localStorageAvailable: boolean = OtsStoreService.detectLocalStorage();
+
+  private static detectLocalStorage(): boolean {
+    try {
+      const probe = '__ordpool_ots_probe__';
+      localStorage.setItem(probe, '1');
+      const ok = localStorage.getItem(probe) === '1';
+      localStorage.removeItem(probe);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
   private state$ = new BehaviorSubject<OtsLocalStamp[]>(this.load());
 
   /** Subscribers re-render whenever the queue mutates. */

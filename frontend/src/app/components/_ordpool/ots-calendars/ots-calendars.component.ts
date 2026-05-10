@@ -7,6 +7,7 @@ import {
   OrdpoolOtsRow,
 } from '../../../services/ordinals/ordpool-api.service';
 import { SeoService } from '../../../services/seo.service';
+import { OtsStoreService } from '../ots-stamp-verify/ots-store.service';
 
 /*
 Test cases:
@@ -35,7 +36,10 @@ export class OtsCalendarsComponent implements OnInit, OnDestroy {
   private api = inject(OrdpoolApiService);
   private cdr = inject(ChangeDetectorRef);
   private seo = inject(SeoService);
+  private store = inject(OtsStoreService);
   private destroy$ = new Subject<void>();
+
+  localStorageAvailable = this.store.localStorageAvailable;
 
   calendars: OrdpoolOtsCalendarStats[] = [];
   recent: OrdpoolOtsRow[] = [];

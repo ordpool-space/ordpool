@@ -41,6 +41,8 @@ interface ReceiptView {
   fileHashHex: string;
   bitcoinAttestations: BitcoinAttestationView[];
   pendingCalendars: string[];
+  litecoinHeights: number[];
+  ethereumHeights: number[];
   unknownAttestations: number;
 }
 
@@ -154,7 +156,23 @@ export class OtsVerifyComponent {
         return;
       }
       if (cat.ots.length === 1) {
-        await this.verifyOts(cat.ots[0].bytes);
+        try {
+          await this.verifyOts(cat.ots[0].bytes);
+        } catch (e) {
+          const msg = this.errString(e);
+          // Specific mismatch: the receipt uses an op we don't implement
+          // (typically KECCAK256, which is Ethereum-side only). Educate the
+          // user instead of dumping the raw error.
+          if (/not yet implemented|KECCAK256|RIPEMD160/i.test(msg)) {
+            this.status = {
+              kind: 'error',
+              message: 'This receipt uses cryptographic ops only valid for non-Bitcoin chains (Ethereum / Litecoin) which ordpool does not verify. Bitcoin-only receipts work fine; for multi-chain receipts use the official `ots` CLI.',
+            };
+            this.cdr.markForCheck();
+            return;
+          }
+          throw e;
+        }
         // If a data file was dropped alongside, run the match step too.
         if (cat.data.length === 1 && this.status.kind === 'verified') {
           await this.runFileMatch(cat.data[0].name, cat.data[0].bytes);
@@ -215,11 +233,15 @@ export class OtsVerifyComponent {
     const bitcoinAtts = collectBitcoinAttestations(parsed);
 
     const pendingCalendars: string[] = [];
+    const litecoinHeights: number[] = [];
+    const ethereumHeights: number[] = [];
     let unknown = 0;
     const visit = (node: { attestations: OtsAttestation[]; children: any[] }) => {
       for (const a of node.attestations) {
-        if (a.kind === 'pending') pendingCalendars.push(a.uri);
-        else if (a.kind === 'unknown') unknown++;
+        if (a.kind === 'pending')         pendingCalendars.push(a.uri);
+        else if (a.kind === 'litecoin')   litecoinHeights.push(a.height);
+        else if (a.kind === 'ethereum')   ethereumHeights.push(a.height);
+        else if (a.kind === 'unknown')    unknown++;
       }
       for (const c of node.children) visit(c.node);
     };
@@ -244,6 +266,8 @@ export class OtsVerifyComponent {
         fileHashHex: recordedFileHashHex,
         bitcoinAttestations: view,
         pendingCalendars,
+        litecoinHeights,
+        ethereumHeights,
         unknownAttestations: unknown,
       },
       fileMatch: null,
