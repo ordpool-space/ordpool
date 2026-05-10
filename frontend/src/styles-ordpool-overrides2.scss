@@ -4,6 +4,19 @@
   --search-button-border: #d5a90a;
   --search-button-focus: #eba814;
   --search-button-shadow: #eba814;
+
+  // Square corners across the board -- ordpool's brand differentiator from
+  // upstream mempool. Killing the Bootstrap CSS vars handles every Bootstrap
+  // component (.alert, .btn, .badge, .card, .modal, .form-control, ...)
+  // without us having to sprinkle per-component overrides. Hardcoded
+  // border-radius: <Npx> values elsewhere in the codebase are unaffected
+  // (those tend to be intentional shapes like avatars).
+  --bs-border-radius: 0;
+  --bs-border-radius-sm: 0;
+  --bs-border-radius-lg: 0;
+  --bs-border-radius-xl: 0;
+  --bs-border-radius-2xl: 0;
+  --bs-border-radius-pill: 0;
 }
 
 
