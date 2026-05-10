@@ -2,7 +2,7 @@ import { Cat21CollabComponent } from './components/_ordpool/cat21-collab/cat21-c
 import { Cat21MintComponent } from './components/_ordpool/cat21-mint/cat21-mint.component';
 import { Cat21WhitelistCheckerComponent } from './components/_ordpool/cat21-whitelist-checker/cat21-whitelist-checker.component';
 import { OrdpoolStatsComponent } from './components/_ordpool/ordpool-stats/ordpool-stats.component';
-import { OtsCalendarsComponent } from './components/_ordpool/ots-calendars/ots-calendars.component';
+import { OpenTimestampsComponent } from './components/_ordpool/open-timestamps/open-timestamps.component';
 
 
 export const extraOrdpoolRoutes = [
@@ -23,7 +23,7 @@ export const extraOrdpoolRoutes = [
     component: OrdpoolStatsComponent
   },
   {
-    path: 'ots/calendars',
-    component: OtsCalendarsComponent,
+    path: 'open-timestamps',
+    component: OpenTimestampsComponent,
   },
 ];

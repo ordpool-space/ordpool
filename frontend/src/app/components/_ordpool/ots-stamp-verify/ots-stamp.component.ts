@@ -1,14 +1,17 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
-import { OtsNode, parseOtsFile } from 'ordpool-parser';
+import {
+  OtsNode,
+  assembleOtsFile,
+  errString,
+  looksLikeOts,
+  parseOtsFile,
+} from 'ordpool-parser';
 
 import {
   OtsLocalCalendar,
   OtsStoreService,
-  assembleOtsFile,
   bytesToBase64,
-  errString,
   hexEncode,
-  looksLikeOts,
 } from './ots-store.service';
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
 

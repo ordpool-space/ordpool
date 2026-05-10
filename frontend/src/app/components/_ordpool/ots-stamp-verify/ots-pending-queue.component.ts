@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { Subject, takeUntil } from 'rxjs';
 
+import { assembleOtsFile } from 'ordpool-parser';
+
 import {
   OtsLocalStamp,
   OtsStoreService,
-  assembleOtsFile,
   base64ToBytes,
   bestCalendarBytes,
 } from './ots-store.service';

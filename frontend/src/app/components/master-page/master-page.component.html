@@ -127,8 +127,8 @@
       </li>
 
       <!-- HACK: OpenTimestamps calendars dashboard (icon-only) -->
-      <li class="nav-item" id="btn-ots-calendars" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(ots/calendars).*' }">
-        <a class="nav-link" [routerLink]="['/ots/calendars' | relativeUrl]" (click)="collapse()">
+      <li class="nav-item" id="btn-open-timestamps" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(open-timestamps).*' }">
+        <a class="nav-link" [routerLink]="['/open-timestamps' | relativeUrl]" (click)="collapse()">
           <fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" title="OpenTimestamps calendars"></fa-icon>
         </a>
       </li>
