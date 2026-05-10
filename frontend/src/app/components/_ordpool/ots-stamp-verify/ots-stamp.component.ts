@@ -5,6 +5,7 @@ import {
   errString,
   looksLikeOts,
   parseOtsFile,
+  sha256Stream,
 } from 'ordpool-parser';
 
 import {
@@ -81,32 +82,33 @@ export class OtsStampComponent {
   }
 
   private async handleFile(file: File): Promise<void> {
-    if (file.size > 100 * 1024 * 1024) {
-      this.status = { kind: 'error', message: 'File too large (max 100 MB).' };
-      this.cdr.markForCheck();
-      return;
-    }
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      if (looksLikeOts(bytes)) {
+      // Peek the first 32 bytes to sniff the OTS magic header without
+      // pulling the entire file into memory -- big-file streaming starts here.
+      const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+      if (looksLikeOts(head)) {
         // Defensive routing -- a .ots dropped here is almost always a
         // user mistake (they meant Verify). Refuse and route them.
         this.status = { kind: 'wrong-zone' };
         this.cdr.markForCheck();
         return;
       }
-      await this.stampFile(bytes, file.name);
+      await this.stampFile(file);
     } catch (e) {
       this.status = { kind: 'error', message: errString(e) };
       this.cdr.markForCheck();
     }
   }
 
-  private async stampFile(bytes: Uint8Array, filename: string): Promise<void> {
+  private async stampFile(file: File): Promise<void> {
     this.status = { kind: 'busy', message: 'Hashing your file (stays in your browser)…' };
     this.cdr.markForCheck();
 
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource));
+    // Streaming SHA-256 -- never holds more than one Blob chunk in memory,
+    // so files of arbitrary size hash without spiking heap or blocking the
+    // UI thread. Cross-validated against crypto.subtle.digest in the
+    // ordpool-parser test suite.
+    const digest = await sha256Stream(file);
     const fileHashHex = hexEncode(digest);
 
     const known = await this.picker.pick();
@@ -160,7 +162,7 @@ export class OtsStampComponent {
 
     this.store.add({
       id: this.uuid(),
-      filename,
+      filename: file.name,
       fileHashAlgo: 'sha256',
       fileHashHex,
       submittedAt: now,
@@ -175,13 +177,13 @@ export class OtsStampComponent {
 
     this.status = {
       kind: 'queued',
-      filename,
+      filename: file.name,
       calendars: calendars.filter(c => !!c.pendingBase64).map(c => c.nickname),
     };
     this.cdr.markForCheck();
 
     setTimeout(() => {
-      if (this.status.kind === 'queued' && this.status.filename === filename) {
+      if (this.status.kind === 'queued' && this.status.filename === file.name) {
         this.reset();
       }
     }, 6000);
