@@ -69,6 +69,42 @@ npm run lint:fix        # ESLint with auto-fix
 npm run prettier        # Prettier formatting
 ```
 
+### Visual Identity (the differentiators from upstream)
+
+Ordpool's design has a few rules that look like style choices but are
+**brand differentiators**. Don't accidentally drift toward upstream
+mempool.space styling.
+
+1. **Bitcoin orange (`$bitcoin: #FF9900`) is the only accent colour.**
+   Aliased as `--primary`, `--info`, `--orange`, `--tertiary` in the
+   theme. Use `var(--primary)` for any accent. Don't invent decorative
+   tints (purple, teal, yellow, etc.) — if you need to differentiate UI
+   states, reach for the theme's semantic vars: `var(--success)` (green),
+   `var(--warning)` (yellow), `var(--danger)` (red). They're already in
+   the colour vocabulary the user knows.
+
+2. **No rounded corners.** Upstream mempool uses `border-radius` on
+   cards, buttons, dropzones, badges. Ordpool deliberately ships
+   square. Avoid `border-radius: <Npx>` in custom SCSS for ordpool
+   components. (`border-radius: 50%` for circular avatars / dots is
+   fine.) If a Bootstrap class adds rounding, override it.
+
+3. **Card / panel backgrounds**: `#181b2d` for the card itself,
+   `#11132a` for sunken/dropzone insets, `#1d1f31` for the page
+   background (`var(--bg)`). Borders default to `#2d3250`.
+
+4. **Typography**: default `<p>` body size matches `cat21-mint`. Avoid
+   the Bootstrap `.lead` class for OTS-style explanatory text — it
+   reads too large in our layout. Use `.smaller-text` (14px) only for
+   genuine asides / metadata, not body copy.
+
+5. **Icons**: FontAwesome solid (`['fas', '<name>']`), single colour
+   (white over the dark theme). Don't mix in emoji icons.
+
+When you're unsure, check `cat21-mint`'s component for the canonical
+ordpool look — it's the reference page for typography + spacing +
+colour usage.
+
 ### Code Marking Convention (for merge-friendly changes)
 
 This is a fork of mempool.space. To keep changes isolated and merges manageable, ordpool-specific code follows a three-tier marking system:
