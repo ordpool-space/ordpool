@@ -1,7 +1,58 @@
-  <strong>⚛ Atomical</strong><br>
-  @if (showDetails) { <br> }
+@if (_atomical) {
+  <strong>Atomical:</strong>
+  <span title="Operation code from the witness envelope">{{ operationLabel }}</span>
+  @if (operationLabel !== operation) {
+    <span class="smaller-text text-muted">(opcode <code>{{ operation }}</code>)</span>
+  }
+  <br>
 
-  This transaction reveals an Atomical!<br> 
-  Unfortunately, we do not yet have a parser for Atomicals.<br> 
-  If you can contribute, please send a <a href="https://github.com/ordpool-space/ordpool-parser" target="_blank">🧡 pull request (Github) to our repository</a>.
-  
+  @for (preview of filePreviews; track preview.file.name) {
+    @if (preview.isImage && preview.dataUri) {
+      <img [src]="preview.dataUri" [alt]="preview.file.name" class="atomical-preview mt-2">
+    }
+  }
+
+  @if (showDetails) {
+    @if (argEntries.length) {
+      <div class="mt-3">
+        <strong>Args</strong>
+        <table class="table table-borderless table-striped mt-2">
+          <tbody>
+            @for (entry of argEntries; track entry.key) {
+              <tr>
+                <td><code>{{ entry.key }}</code></td>
+                <td class="atomical-arg-value">{{ entry.value }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (files.length) {
+      <div class="mt-3">
+        <strong>Files</strong>
+        <table class="table table-borderless table-striped mt-2">
+          <tbody>
+            @for (file of files; track file.name) {
+              <tr>
+                <td><code>{{ file.name }}</code></td>
+                <td>{{ file.contentType }}</td>
+                <td class="text-end">{{ file.data.length | number }} bytes</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <table class="mt-3 table table-borderless table-striped w-50">
+      <tbody>
+        <tr>
+          <td>CBOR payload size</td>
+          <td>{{ payloadSize | number }} bytes</td>
+        </tr>
+      </tbody>
+    </table>
+  }
+}

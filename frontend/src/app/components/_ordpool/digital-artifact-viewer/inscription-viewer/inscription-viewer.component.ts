@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
-import { DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, ParsedInscription } from 'ordpool-parser';
+import { DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, InscriptionProperties, ParsedInscription } from 'ordpool-parser';
 import { map, Observable } from 'rxjs';
 
 import { ElectrsApiService } from '../../../../services/electrs-api.service';
@@ -44,6 +44,23 @@ export class InscriptionViewerComponent {
     reason?: DecodeFailureReason,
   }> | undefined;
 
+  // Tag 15 (note): chisel.xyz-style inscriber-tool watermark string. ord stores
+  // but doesn't display it; we surface it so explorers can flag inscriber
+  // attribution.
+  note: string | undefined;
+
+  // Tag 13 (rune commitment): little-endian bytes of a rune's u128 value.
+  // Displayed as hex; explained in a tooltip rather than turned into the
+  // human-readable rune name, because mapping bytes -> name requires the
+  // etching tx (which our parser can't cheaply find from the inscription
+  // side alone). Hex is the honest minimum.
+  runeCommitmentHex: string | undefined;
+
+  // Tag 17 (properties): galleries + inscription-level title + traits.
+  // Resolved async; properties may be compressed (tag 19) so the parser's
+  // getProperties is also async.
+  properties$: Promise<InscriptionProperties | undefined> | undefined;
+
   @Input() showDetails = false;
 
   @Input()
@@ -58,8 +75,18 @@ export class InscriptionViewerComponent {
 
     if (!inscription) {
       this.contentTypeInstructions$ = undefined;
+      this.note = undefined;
+      this.runeCommitmentHex = undefined;
+      this.properties$ = undefined;
       return;
     }
+
+    this.note = inscription.getNote();
+
+    const rune = inscription.getRune();
+    this.runeCommitmentHex = rune ? bytesToHex(rune) : undefined;
+
+    this.properties$ = inscription.getProperties();
 
     this.delegates = inscription.getDelegates();
     if (this.delegates.length) {
@@ -80,4 +107,12 @@ export class InscriptionViewerComponent {
 
     this.contentTypeInstructions$ = InscriptionPreviewService.getContentTypeInstructions(inscription);
   }
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    out += bytes[i].toString(16).padStart(2, '0');
+  }
+  return out;
 }

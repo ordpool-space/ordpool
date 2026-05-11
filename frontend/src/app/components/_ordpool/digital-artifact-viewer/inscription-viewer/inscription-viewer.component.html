@@ -99,6 +99,55 @@
       Content Encoding: {{ contentEncoding }}
     </div>
 
+    <div class="mt-2" *ngIf="showDetails && note">
+      Note (tag 15):
+      <code class="smaller-text">{{ note }}</code>
+      <fa-icon class="ml-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+        ngbTooltip="Tag::Note in ord (PR #3256). Stored but not displayed by the reference indexer. chisel.xyz uses it for an inscriber-tool watermark URL."
+      ></fa-icon>
+    </div>
+
+    <div class="mt-2" *ngIf="showDetails && runeCommitmentHex">
+      Rune commitment (tag 13):
+      <code class="smaller-text">{{ runeCommitmentHex }}</code>
+      <fa-icon class="ml-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+        ngbTooltip="Little-endian bytes of the rune's u128 value with trailing zeros stripped. Used by the rune protocol to commit to an etching from inside an inscription; the etching tx must spend this inscription's UTXO."
+      ></fa-icon>
+    </div>
+
+    <ng-container *ngIf="showDetails && properties$ && (properties$ | async) as properties">
+      <div class="mt-3" *ngIf="properties.title || properties.traits">
+        <strong>Properties (tag 17)</strong>
+        <table class="mt-2 table table-borderless table-striped">
+          <tbody>
+            <tr *ngIf="properties.title">
+              <td>Title</td>
+              <td>{{ properties.title }}</td>
+            </tr>
+            <tr *ngFor="let trait of properties.traits | keyvalue">
+              <td><code>{{ trait.key }}</code></td>
+              <td>{{ trait.value }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-3" *ngIf="properties.gallery && properties.gallery.length">
+        <strong>Gallery ({{ properties.gallery.length }})</strong>
+        <fa-icon class="ml-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+          ngbTooltip="A curated list of inscription IDs referenced from this inscription's tag 17. Galleries are permissionless -- inclusion does NOT imply provenance."
+        ></fa-icon>
+        <ol class="smaller-text mt-2">
+          <li *ngFor="let item of properties.gallery" class="mb-1">
+            <a class="address" [routerLink]="['/tx/' | relativeUrl, item.inscriptionId.split('i')[0]]" title="{{ item.inscriptionId }}">
+              <app-truncate [text]="item.inscriptionId" [lastChars]="10"></app-truncate>
+            </a>
+            <span *ngIf="item.title" class="ml-2">{{ item.title }}</span>
+          </li>
+        </ol>
+      </div>
+    </ng-container>
+
     <table class="mt-2 table table-borderless table-striped w-50" *ngIf="showDetails">
       <tbody>
         <tr>

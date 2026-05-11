@@ -1,0 +1,12 @@
+.atomical-preview {
+  max-width: 320px;
+  max-height: 320px;
+  image-rendering: pixelated;
+  background: #11132a;
+}
+
+.atomical-arg-value {
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
