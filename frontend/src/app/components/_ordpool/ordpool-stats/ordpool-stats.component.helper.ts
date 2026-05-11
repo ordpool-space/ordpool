@@ -17,6 +17,7 @@ import {
   MintStatistic,
   NewTokenStatistic,
   OrdpoolStatisticResponse,
+  OtsStatistic,
   ProtocolStatistic,
   RuneActivityStatistic,
 } from '../../../../../../backend/src/api/explorer/_ordpool/ordpool-statistics-interface';
@@ -48,6 +49,7 @@ type ExtractStatistic<T extends ChartType> =
   T extends 'rune-activity' ? RuneActivityStatistic :
   T extends 'atomical-ops' ? AtomicalOpsStatistic :
   T extends 'counterparty-messages' ? CounterpartyMessagesStatistic :
+  T extends 'ots' ? OtsStatistic :
   never;
 
 /**
@@ -181,6 +183,9 @@ export function getSeriesData<T extends ChartType>(
     'counterparty-messages': (stats: CounterpartyMessagesStatistic[]) => [
       { name: 'Counterparty messages', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
     ],
+    'ots': (stats: OtsStatistic[]) => [
+      { name: 'OpenTimestamps batch commits', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },
+    ],
   })(statistics);
 }
 
@@ -304,6 +309,10 @@ export function getTooltipContent(
       const s = stat as CounterpartyMessagesStatistic;
       return baseContent + `${s.messageType ?? 'unknown'}: ${s.count ?? 0}`;
     }
+    case 'ots': {
+      const s = stat as OtsStatistic;
+      return baseContent + `OTS batch commits: ${s.count ?? 0}`;
+    }
     default:
       throw new Error(`Unsupported chart type: ${type}`);
   }
@@ -343,6 +352,7 @@ export function formatChartHeading(chartType: ChartType): string {
     'rune-activity': 'Rune Activity',
     'atomical-ops': 'Atomical Operations',
     'counterparty-messages': 'Counterparty Messages',
+    'ots': 'OpenTimestamps',
   };
 
   return chartTypeHeadings[chartType];
@@ -370,6 +380,7 @@ export function formatChartDescription(chartType: ChartType, interval: Interval,
     'rune-activity': 'Rune mint activity: distinct runes seeing mints + the top single-rune mint count. Each metric is shown twice — overall and excluding UNCOMMON•GOODS (rune 1:0, which dominates every rune mint stat).',
     'atomical-ops': 'Atomical operations breakdown by op type (nft / ft / dft / dmt / dat / mod / evt / sl / splat / split / custom-color).',
     'counterparty-messages': 'Counterparty message activity per period — sends, dispensers, fairmints, bets, sweeps, and the rest of the 22+ message types.',
+    'ots': 'OpenTimestamps batch-commit transactions per period. Each row is one calendar publishing a Merkle root anchoring however many user submissions arrived since its last anchor — count goes up when calendars publish more often or more calendars are tracked.',
   };
 
   const intervalDescriptions: Record<Interval, string> = {

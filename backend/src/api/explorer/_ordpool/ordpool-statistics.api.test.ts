@@ -80,6 +80,21 @@ describe('OrdpoolStatisticsApi', () => {
       expect(result).toEqual([{ inscriptionImages: 100, inscriptionTexts: 200, inscriptionJsons: 300 }]);
     });
 
+    it('should call the satellite-total query for ots (single COUNT(*) per period)', async () => {
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ minHeight: 800000, maxHeight: 800100, minTime: 1, maxTime: 2, count: 42 }]]);
+
+      const result = await OrdpoolStatisticsApi.getOrdpoolStatistics('ots', '1w', 'day');
+
+      // ordpool_stats_ots is the satellite, joined on sat.blockhash = b.hash
+      // so pending rows (NULL blockhash) get filtered automatically.
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('JOIN ordpool_stats_ots sat ON sat.blockhash = b.hash'));
+      // No discriminator -- single COUNT(*) per period, not per-calendar
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('COUNT(*) AS count'));
+      // The same interval filter applies as on the main path
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL 1 WEEK)'));
+      expect(result).toEqual([{ minHeight: 800000, maxHeight: 800100, minTime: 1, maxTime: 2, count: 42 }]);
+    });
+
     it('should apply interval filtering', async () => {
       (DB.query as jest.Mock).mockResolvedValueOnce([[{ cat21Mints: 5, inscriptionMints: 10 }]]);
 
