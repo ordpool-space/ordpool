@@ -2,9 +2,10 @@ import { Component, EventEmitter, Output, HostListener, Input, ChangeDetectorRef
 import { ActiveFilter, FilterGroups, FilterMode, GradientMode, TransactionFilters } from '@app/shared/filters.utils';
 import { StateService } from '@app/services/state.service';
 import { Subscription } from 'rxjs';
-// HACK -- Ordpool: shared labitbu-window check; hides the labitbu chip on
-// blocks outside the mint window.
-import { isLabitbuRange } from 'ordpool-parser';
+// HACK -- Ordpool: labitbu mint-window constants; the chip is hidden on
+// blocks outside this height range. The 10,000 labitbus were minted
+// across blocks 908,072-908,196, so showing the chip elsewhere is noise.
+import { LABITBU_FIRST_HEIGHT, LABITBU_LAST_HEIGHT } from 'ordpool-parser';
 
 
 @Component({
@@ -68,7 +69,7 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
       // Show on mempool / cluster views (blockHeight = null) and on blocks
       // inside the window. Hide everywhere else: the labitbu experiment is
       // done and the chip is meaningless on every other block.
-      if (this.blockHeight != null && !isLabitbuRange(this.blockHeight)) {
+      if (this.blockHeight != null && (this.blockHeight < LABITBU_FIRST_HEIGHT || this.blockHeight > LABITBU_LAST_HEIGHT)) {
         this.disabledFilters['ordpool_labitbu'] = true;
       }
     }
