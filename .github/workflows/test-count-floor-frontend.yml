@@ -1,0 +1,95 @@
+# Fails the build LOUDLY when the count of passing frontend tests drops
+# below the committed baseline. Only an ordpool core maintainer is allowed
+# to lower the baseline (by editing frontend/.test-count-baseline.json
+# and committing the edit explicitly). Every other change that reduces
+# test count is treated as an accident and rejected.
+#
+# Companion to the parser-side workflow in ordpool-parser. Same safety
+# net, different jest target. See workspace CLAUDE.md HARD RULE
+# 'Never delete a passing test without explicit permission' for context.
+
+name: Test Count Floor (frontend)
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/test-count-floor-frontend.yml'
+  push:
+    branches: [main, stage_prod, stage_test]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/test-count-floor-frontend.yml'
+
+jobs:
+
+  test-count-floor-frontend:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run jest and capture output
+        working-directory: frontend
+        run: NODE_OPTIONS='--no-deprecation' ./node_modules/.bin/jest --config jest.config.js 2>&1 | tee jest-output.log
+
+      - name: Enforce test-count floor
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+
+          # Frontend runs a single jest config (jsdom), so there's just one
+          # 'Tests:' summary line. Parse the 'N passed' field out of it.
+          #   Tests:       1 skipped, 173 passed, 174 total
+          CURRENT=$(grep -E '^Tests:' jest-output.log \
+            | sed -E 's/.*[, ]([0-9]+) passed.*/\1/' \
+            | awk '{ s += $1 } END { print s }')
+
+          if [ -z "$CURRENT" ] || [ "$CURRENT" = "0" ]; then
+            echo "::error::Could not extract a passing-tests count from jest output."
+            echo "First 50 lines of captured log:"
+            head -50 jest-output.log
+            exit 1
+          fi
+
+          BASELINE=$(jq -r '.passing' .test-count-baseline.json)
+          if [ -z "$BASELINE" ] || [ "$BASELINE" = "null" ]; then
+            echo "::error::frontend/.test-count-baseline.json is missing 'passing' field."
+            exit 1
+          fi
+
+          echo "Current passing tests: $CURRENT"
+          echo "Committed baseline:    $BASELINE"
+
+          if [ "$CURRENT" -lt "$BASELINE" ]; then
+            echo "::error::FRONTEND TEST COVERAGE DROPPED. Current passing tests ($CURRENT) is below the committed floor ($BASELINE)."
+            echo ""
+            echo "Only an ordpool core maintainer is authorised to lower the test"
+            echo "floor. Reducing the baseline requires editing"
+            echo "frontend/.test-count-baseline.json and committing that edit as"
+            echo "an explicit, reviewed decision."
+            echo ""
+            echo "If you got here by accident (deleted a test, broke a fixture,"
+            echo "merged a stale branch) -- restore the missing tests instead."
+            echo ""
+            echo "Detected diff: $((BASELINE - CURRENT)) tests missing."
+            exit 1
+          fi
+
+          if [ "$CURRENT" -gt "$BASELINE" ]; then
+            echo "::notice::Frontend test count grew (+$((CURRENT - BASELINE)) since baseline)."
+            echo "Consider bumping frontend/.test-count-baseline.json to lock in the gain."
+          else
+            echo "Frontend test count matches baseline exactly. All good."
+          fi
