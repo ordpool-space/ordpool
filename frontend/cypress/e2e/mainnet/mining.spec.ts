@@ -101,7 +101,8 @@ describe('Mainnet - Mining Features', () => {
       });
     });
 
-    describe.only('mining graphs', () => {
+    // HACK -- Ordpool: `.only` removed; it was silencing every other describe in this file.
+    describe('mining graphs', () => {
       describe('pools ranking', () => {
         it('loads the graph', () => {
           cy.visit('/graphs/mining/pools');

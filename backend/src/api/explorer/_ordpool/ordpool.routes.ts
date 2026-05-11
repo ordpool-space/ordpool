@@ -1,5 +1,4 @@
 import { Application, Request, Response } from 'express';
-import axios from 'axios';
 import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
@@ -97,11 +96,12 @@ class GeneralOrdpoolRoutes {
       res.status(400).send('invalid hash');
       return;
     }
+    // 10-second timeout via AbortController -- fetch has no built-in
+    // timeout option (the original axios call used `timeout: 10000`).
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 10_000);
     try {
-      const upstream = await axios.get(
-        `https://${calendar}/timestamp/${hash}`,
-        { responseType: 'arraybuffer', timeout: 10000, validateStatus: () => true },
-      );
+      const upstream = await fetch(`https://${calendar}/timestamp/${hash}`, { signal: abort.signal });
       // We always return HTTP 200 from this proxy and distinguish via
       // Content-Type:
       //   200 + application/vnd.opentimestamps.v1 + binary body  -> upgraded
@@ -115,9 +115,10 @@ class GeneralOrdpoolRoutes {
       // expected and successful from our perspective.
       // Upstream 5xx maps to our 502 so genuine errors are visible.
       if (upstream.status === 200) {
+        const body = Buffer.from(await upstream.arrayBuffer());
         res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
         res.setHeader('Content-Type', 'application/vnd.opentimestamps.v1');
-        res.status(200).end(Buffer.from(upstream.data));
+        res.status(200).end(body);
       } else if (upstream.status === 404) {
         res.setHeader('Cache-Control', 'public, max-age=60');
         res.setHeader('Content-Type', 'application/json');
@@ -128,6 +129,8 @@ class GeneralOrdpoolRoutes {
       }
     } catch {
       res.status(502).send('upstream error');
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

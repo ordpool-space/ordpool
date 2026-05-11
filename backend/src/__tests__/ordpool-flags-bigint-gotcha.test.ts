@@ -1,4 +1,6 @@
 import { OrdpoolTransactionFlags } from 'ordpool-parser';
+import { Common } from '../api/common';
+import { TransactionExtended } from '../mempool.interfaces';
 
 /**
  * Permanent regression test for the JS-bitwise-on-high-bits gotcha.
@@ -65,18 +67,55 @@ describe('ordpool flags: BigInt arithmetic is required for bits >= 32', () => {
     expect((combined & OrdpoolTransactionFlags.ordpool_ots)).toBe(OrdpoolTransactionFlags.ordpool_ots);
   });
 
-  it('audit: every existing READ path uses BigInt arithmetic', () => {
-    // This is a meta-test pointing at the audit results documented in
-    // PLAN-opentimestamps.md and the addOtsFlag.test.ts combined-bits test.
+  it('Common.getTransactionFlags early-return preserves every ordpool bit', async () => {
+    // Real regression against the actual production read path. The early-
+    // return branch in getTransactionFlags (line 631-633 of common.ts) fires
+    // whenever tx.flags is truthy -- i.e. on every re-classification of an
+    // already-flagged tx (mempool refresh, block extension). Its job is to
+    // round-trip tx.flags through BigInt (for the CPFP/RBF mutations) and
+    // back to Number without dropping any ordpool bits along the way.
     //
-    //   backend/src/api/common.ts:           BigInt(tx._ordpoolFlags) | ...   ✓
-    //   frontend/.../transaction.utils.ts:   BigInt(tx._ordpoolFlags) | ...   ✓
-    //   ordpool-parser isFlagSetOnTransaction: BigInt(tx.flags) & flag        ✓
-    //
-    // No naive Number-bitwise on ordpool flags exists in production. If a
-    // future commit adds one, the new combined-bits assertion in
-    // addOtsFlag.test.ts (and this test) catches it -- the truncation
-    // produces a 0 that the test detects.
-    expect(true).toBe(true);
+    // We seed tx.flags with every top-level ordpool bit set and verify they
+    // ALL survive the round-trip. A naive `flags | Number(ordpool_X)`
+    // anywhere in the function would zero them.
+    const allOrdpoolBits =
+      OrdpoolTransactionFlags.ordpool_atomical |
+      OrdpoolTransactionFlags.ordpool_inscription |
+      OrdpoolTransactionFlags.ordpool_inscription_image |
+      OrdpoolTransactionFlags.ordpool_inscription_mint |
+      OrdpoolTransactionFlags.ordpool_rune |
+      OrdpoolTransactionFlags.ordpool_brc20 |
+      OrdpoolTransactionFlags.ordpool_src20 |
+      OrdpoolTransactionFlags.ordpool_cat21 |
+      OrdpoolTransactionFlags.ordpool_ots;
+
+    const tx = {
+      txid: 'aabbccdd',
+      flags: Number(allOrdpoolBits),
+      vin: [],
+      ancestors: undefined,
+      descendants: undefined,
+      replacement: undefined,
+    } as unknown as TransactionExtended;
+
+    const returned = await Common.getTransactionFlags(tx);
+
+    // BigInt-decode the returned Number and verify every ordpool bit is
+    // still set. AND check the inverse -- no spurious bits below 32 leaked
+    // in, which would be the signature of an int32 truncation regression.
+    const returnedBig = BigInt(returned);
+    for (const bit of [
+      OrdpoolTransactionFlags.ordpool_atomical,
+      OrdpoolTransactionFlags.ordpool_inscription,
+      OrdpoolTransactionFlags.ordpool_inscription_image,
+      OrdpoolTransactionFlags.ordpool_inscription_mint,
+      OrdpoolTransactionFlags.ordpool_rune,
+      OrdpoolTransactionFlags.ordpool_brc20,
+      OrdpoolTransactionFlags.ordpool_src20,
+      OrdpoolTransactionFlags.ordpool_cat21,
+      OrdpoolTransactionFlags.ordpool_ots,
+    ]) {
+      expect((returnedBig & bit) === bit).toBe(true);
+    }
   });
 });
