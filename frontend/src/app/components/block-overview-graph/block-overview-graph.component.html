@@ -1,5 +1,10 @@
 
 <div class="graph-alignment" [class.grid-align]="!autofit" [style.gridTemplateColumns]="'repeat(auto-fit, ' + resolution + 'px)'">
+  <!-- HACK -- Ordpool: app-block-filters lifted out of .block-overview-graph
+       so the chip rows can grow without overlapping the WebGL canvas. The
+       upstream layout used a fixed-height + negative-margin overlay trick
+       that broke once we added more flag chips. -->
+  <app-block-filters *ngIf="webGlEnabled && showFilters && filtersAvailable" [excludeFilters]="excludeFilters" [blockHeight]="blockHeight" [cssWidth]="cssWidth" (onFilterChanged)="setFilterFlags($event)"></app-block-filters>
   <div class="block-overview-graph">
     <canvas *browserOnly class="block-overview-canvas" [class.clickable]="!!hoverTx" #blockCanvas></canvas>
     @if (!disableSpinner) {
@@ -18,7 +23,6 @@
       [filterMode]="filterMode"
       [relativeTime]="relativeTime"
     ></app-block-overview-tooltip>
-    <app-block-filters *ngIf="webGlEnabled && showFilters && filtersAvailable" [excludeFilters]="excludeFilters" [cssWidth]="cssWidth" (onFilterChanged)="setFilterFlags($event)"></app-block-filters>
     <div *ngIf="!webGlEnabled" class="placeholder">
       <span i18n="webgl-disabled">Your browser does not support this feature.</span>
     </div>

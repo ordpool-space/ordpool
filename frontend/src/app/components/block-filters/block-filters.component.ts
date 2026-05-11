@@ -2,6 +2,9 @@ import { Component, EventEmitter, Output, HostListener, Input, ChangeDetectorRef
 import { ActiveFilter, FilterGroups, FilterMode, GradientMode, TransactionFilters } from '@app/shared/filters.utils';
 import { StateService } from '@app/services/state.service';
 import { Subscription } from 'rxjs';
+// HACK -- Ordpool: shared labitbu-window check; hides the labitbu chip on
+// blocks outside the mint window.
+import { isLabitbuRange } from 'ordpool-parser';
 
 
 @Component({
@@ -13,6 +16,10 @@ import { Subscription } from 'rxjs';
 export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
   @Input() cssWidth: number = 800;
   @Input() excludeFilters: string[] = [];
+  // HACK -- Ordpool: block height of the block being viewed (null for the
+  // mempool / cluster views). Used to hide the labitbu filter chip outside
+  // the labitbu mint window.
+  @Input() blockHeight: number | null = null;
   @Output() onFilterChanged: EventEmitter<ActiveFilter | null> = new EventEmitter();
 
   filterSubscription: Subscription;
@@ -52,11 +59,18 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
     if (changes.cssWidth) {
       this.cd.markForCheck();
     }
-    if (changes.excludeFilters) {
+    if (changes.excludeFilters || changes.blockHeight) {
       this.disabledFilters = {};
       this.excludeFilters.forEach(filter => {
         this.disabledFilters[filter] = true;
       });
+      // HACK -- Ordpool: gate labitbu chip on the labitbu mint window.
+      // Show on mempool / cluster views (blockHeight = null) and on blocks
+      // inside the window. Hide everywhere else: the labitbu experiment is
+      // done and the chip is meaningless on every other block.
+      if (this.blockHeight != null && !isLabitbuRange(this.blockHeight)) {
+        this.disabledFilters['ordpool_labitbu'] = true;
+      }
     }
   }
 

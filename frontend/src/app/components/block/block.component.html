@@ -137,6 +137,7 @@
             [blockConversion]="blockConversion"
             [showFilters]="true"
             [excludeFilters]="['replacement']"
+            [blockHeight]="block?.height ?? null"
             [relativeTime]="block?.timestamp"
             (txClickEvent)="onTxClick($event)"
           ></app-block-overview-graph>
@@ -279,7 +280,7 @@
           <app-block-overview-graph #blockGraphProjected [isLoading]="!stateService.isBrowser || isLoadingOverview" [resolution]="86"
             [blockLimit]="stateService.blockVSize" [orientation]="'top'" [flip]="false" [mirrorTxid]="hoverTx" [auditHighlighting]="showComparison"
             (txClickEvent)="onTxClick($event)" (txHoverEvent)="onTxHover($event)" [unavailable]="!isMobile && !showAudit && !block?.stale"
-            [showFilters]="true" [excludeFilters]="['replacement']" [relativeTime]="block?.timestamp"></app-block-overview-graph>
+            [showFilters]="true" [excludeFilters]="['replacement']" [blockHeight]="block?.height ?? null" [relativeTime]="block?.timestamp"></app-block-overview-graph>
             @if (isMobile && mode === 'actual' || block?.stale) {
               <ng-container *ngTemplateOutlet="emptyBlockInfo; context: { $implicit: (isMobile && mode === 'actual' && block?.stale) ? canonicalBlock : block }"></ng-container>
             }
@@ -314,7 +315,7 @@
           <app-block-overview-graph #blockGraphActual [isLoading]="!stateService.isBrowser || isLoadingOverview" [resolution]="86"
             [blockLimit]="stateService.blockVSize" [orientation]="'top'" [flip]="false" [mirrorTxid]="hoverTx" mode="mined"  [auditHighlighting]="showComparison"
             (txClickEvent)="onTxClick($event)" (txHoverEvent)="onTxHover($event)" [unavailable]="isMobile && !showAudit && !block?.stale"
-            [showFilters]="true" [excludeFilters]="['replacement']" [relativeTime]="block?.timestamp"></app-block-overview-graph>
+            [showFilters]="true" [excludeFilters]="['replacement']" [blockHeight]="block?.height ?? null" [relativeTime]="block?.timestamp"></app-block-overview-graph>
             <ng-container *ngTemplateOutlet="emptyBlockInfo; context: { $implicit: block?.stale ? canonicalBlock : block }"></ng-container>
         </div>
         <ng-container *ngIf="network !== 'liquid'">

@@ -56,6 +56,9 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
   @Input() auditHighlighting: boolean = false;
   @Input() showFilters: boolean = false;
   @Input() excludeFilters: string[] = [];
+  // HACK -- Ordpool: forwarded to <app-block-filters> so it can hide the
+  // labitbu chip outside the labitbu mint window. null on mempool views.
+  @Input() blockHeight: number | null = null;
   @Input() filterFlags: bigint | null = null;
   @Input() filterMode: FilterMode = 'and';
   @Input() gradientMode: 'fee' | 'age' = 'fee';
