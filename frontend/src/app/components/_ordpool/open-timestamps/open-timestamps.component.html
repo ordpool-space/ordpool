@@ -82,6 +82,7 @@
   } @else if (calendars.length === 0) {
     <p class="text-muted">No calendar data yet -- the OTS poller is still warming up.</p>
   } @else {
+    <div class="table-responsive">
     <table class="table table-borderless table-striped table-dark">
       <thead>
         <tr>
@@ -110,6 +111,7 @@
         }
       </tbody>
     </table>
+    </div>
     <p class="text-muted mt-2">
       Know an active OpenTimestamps calendar that's missing here?
       <a href="https://github.com/ordpool-space/ordpool/edit/main/backend/src/api/explorer/_ordpool/ots-calendars.json"
@@ -131,6 +133,7 @@
   } @else if (recent.length === 0) {
     <p class="text-muted">No commits indexed yet.</p>
   } @else {
+    <div class="table-responsive">
     <table class="table table-borderless table-striped table-dark">
       <thead>
         <tr>
@@ -165,5 +168,6 @@
         }
       </tbody>
     </table>
+    </div>
   }
 </div>
