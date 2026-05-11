@@ -112,25 +112,18 @@ app-atomical-viewer {
   white-space: normal !important;
 }
 
-// moves app-block-filters out of the block overview (no "gray" blocking).
-// Must fit "Ordpool Flags" h5 + 2 wrapped rows of badges (11 flags total).
-$block-filters-height: 110px;
-
-.block-overview-graph {
-  margin-top: $block-filters-height;
-}
-
+// HACK -- Ordpool: <app-block-filters> renders as a sibling above
+// <div class="block-overview-graph"> (lifted in the template), so the chip
+// rows take their natural height and the canvas just sits below them in
+// normal flow. No fixed pixel height and no overlay trick, so the layout
+// stays correct as we add more flag chips.
 .block-filters {
-  height: $block-filters-height !important;
+  margin-bottom: 8px;
 
   h5 {
     margin-top: 0 !important;
     margin-bottom: 4px !important;
   }
-}
-
-app-block-filters > div {
-  margin-top: -$block-filters-height;
 }
 
 // completely hide accelerated status (this is still shown for some txns)
