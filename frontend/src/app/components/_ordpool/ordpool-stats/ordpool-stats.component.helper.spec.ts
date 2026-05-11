@@ -121,6 +121,20 @@ describe('getSeriesData', () => {
     ]);
   });
 
+  it('should generate a single OTS series', () => {
+    const stats = [
+      { minHeight: 800000, maxHeight: 800100, minTime: 1734994800000, maxTime: 1734994800000, count: 7 },
+      { minHeight: 800101, maxHeight: 800200, minTime: 1734998400000, maxTime: 1734998400000, count: 12 },
+    ];
+    const result = getSeriesData('ots', stats);
+    expect(result).toEqual([
+      { name: 'OpenTimestamps batch commits', type: 'line', data: [
+        [1734994800000, 7],
+        [1734998400000, 12],
+      ] },
+    ]);
+  });
+
   it('should throw an error for unsupported chart type', () => {
     expect(() => {
       getSeriesData('unsupported-type' as any, []);
@@ -247,6 +261,13 @@ describe('getTooltipContent', () => {
     expect(result).toContain('Images: 100');
     expect(result).toContain('Text: 200');
     expect(result).toContain('JSON: 300');
+  });
+
+  it('should generate correct tooltip content for ots', () => {
+    const stat = { minHeight: 800000, maxHeight: 800001, minTime: 1, maxTime: 2, count: 9 };
+    const result = getTooltipContent('ots', stat);
+    expect(result).toContain('Block Range: 800000 – 800001');
+    expect(result).toContain('OTS batch commits: 9');
   });
 
   it('should throw an error for unsupported chart type', () => {

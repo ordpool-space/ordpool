@@ -28,6 +28,14 @@ class OrdpoolStatisticsApi {
       return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
         'ordpool_stats_counterparty', 'sat.message_type', 'messageType');
     }
+    if (type === 'ots') {
+      // ordpool_stats_ots only carries confirmed-by-block rows once the
+      // poller's confirm step fills in blockhash/blockheight. Pending rows
+      // (NULL blockhash) deliberately skip aggregation -- they're not on
+      // chain yet.
+      return this.getSatelliteTotal(firstInscriptionHeight, sqlInterval, aggregation,
+        'ordpool_stats_ots');
+    }
 
     const selectClause = this.getSelectClause(type);
     const groupByClause = this.getGroupByClause(aggregation);
@@ -57,6 +65,41 @@ class OrdpoolStatisticsApi {
    *  discriminator value. Examples:
    *    atomical-ops          → discriminator = sat.operation
    *    counterparty-messages → discriminator = sat.message_type   */
+  /** Single-series total per period from a satellite table (no discriminator
+   *  column). Used by the `ots` chart -- one COUNT(*) per period. The
+   *  satellite is joined on `sat.blockhash = b.hash`; rows whose blockhash
+   *  is NULL (i.e. still pending, not yet confirmed) are filtered by the
+   *  INNER JOIN. */
+  private async getSatelliteTotal(
+    firstInscriptionHeight: number,
+    sqlInterval: string,
+    aggregation: Aggregation,
+    satelliteTable: string,
+  ): Promise<OrdpoolStatisticResponse[]> {
+    const groupByTime = this.getGroupByClause(aggregation).replace(/^GROUP BY/, '');
+    const query = `
+      SELECT
+        MIN(b.height) AS minHeight,
+        MAX(b.height) AS maxHeight,
+        MIN(UNIX_TIMESTAMP(b.blockTimestamp)) AS minTime,
+        MAX(UNIX_TIMESTAMP(b.blockTimestamp)) AS maxTime,
+        COUNT(*) AS count
+      FROM blocks b
+      JOIN ${satelliteTable} sat ON sat.blockhash = b.hash
+      WHERE b.height >= ${firstInscriptionHeight}
+        AND b.blockTimestamp >= DATE_SUB(NOW(), INTERVAL ${sqlInterval})
+      GROUP BY ${groupByTime}
+      ORDER BY b.blockTimestamp DESC
+    `;
+    try {
+      const [rows]: any[] = await DB.query(query);
+      return rows;
+    } catch (error) {
+      logger.err(`Error executing ${satelliteTable} total query: ${error}`, 'Ordpool');
+      throw error;
+    }
+  }
+
   private async getSatelliteBreakdown(
     firstInscriptionHeight: number,
     sqlInterval: string,

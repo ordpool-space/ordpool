@@ -19,7 +19,8 @@ export type ChartType =
   | 'cat21-stats'            // CAT-21 block aggregates: genesis count, fee-rate spread
   | 'rune-activity'          // unique runes minted + top mint count, in pairs
   | 'atomical-ops'           // per-operation counts from satellite (dft/nft/mod/...)
-  | 'counterparty-messages'; // per-message-type counts from satellite
+  | 'counterparty-messages'  // per-message-type counts from satellite
+  | 'ots';                   // OpenTimestamps batch-commits per period
 
 export interface BaseStatistic {
   minHeight: number;
@@ -139,6 +140,14 @@ export interface CounterpartyMessagesStatistic extends BaseStatistic {
   count?: number;
 }
 
+// OpenTimestamps batch-commit counts per period. One row per period; the
+// `count` is the number of confirmed OTS calendar batch transactions whose
+// blockheight falls inside the period. Comes from the ordpool_stats_ots
+// satellite (the same table OtsTxidSet hydrates from on backend boot).
+export interface OtsStatistic extends BaseStatistic {
+  count?: number;
+}
+
 export type OrdpoolStatisticResponse =
   MintStatistic |
   NewTokenStatistic |
@@ -152,7 +161,8 @@ export type OrdpoolStatisticResponse =
   Cat21StatStatistic |
   RuneActivityStatistic |
   AtomicalOpsStatistic |
-  CounterpartyMessagesStatistic;
+  CounterpartyMessagesStatistic |
+  OtsStatistic;
 
 export function isMintStatistic(stat: OrdpoolStatisticResponse): stat is MintStatistic {
   return 'cat21Mints' in stat;
