@@ -627,6 +627,27 @@ export class Common {
       flags |= TransactionFlags.replacement;
     }
 
+    // HACK -- Ordpool OTS: indexer-derived flag, applied UNCONDITIONALLY
+    // before the early-return below. Every other ordpool flag is parser-
+    // derived (static once witness is known), so it's safe to compute once
+    // and trust the cached tx.flags forever -- which is what the early-
+    // return optimisation assumes. ordpool_ots is the exception: the OTS
+    // poller hydrates ordpoolOtsTxidSet asynchronously, so the answer to
+    // "is this tx an OTS commit?" is eventually consistent. A tx ingested
+    // before the poller observed its calendar batch must still pick up
+    // the bit on later re-classifications, or the bit is silently dropped
+    // for the rest of the tx's lifetime -- including into the block-
+    // summary it eventually confirms in, the WebSocket pushes, etc.
+    //
+    // The Set.has() lookup is O(1) and runs in every config; the cost of
+    // moving it here is negligible. See ordpool-flags-ots-retroactive.test.ts
+    // for the regression spec.
+    addOtsFlag(tx as { txid: string; _ordpoolFlags?: number });
+    const otsFlags = (tx as { _ordpoolFlags?: number })._ordpoolFlags;
+    if (otsFlags) {
+      flags |= BigInt(otsFlags);
+    }
+
     // Already processed static flags, no need to do it again
     if (tx.flags) {
       return Number(flags);
@@ -768,23 +789,17 @@ export class Common {
       flags |= TransactionFlags.nonstandard;
     }
 
-    // HACK -- Ordpool: parser ORs in artifact flags and returns the combined bigint.
-    // Placed at the very end so the early-return path above (when tx.flags was already
-    // computed) skips this call — matches upstream's first-call-only pattern.
+    // HACK -- Ordpool: parser ORs in artifact (parser-derived) flags and
+    // returns the combined bigint. Placed at the very end so the early-
+    // return path above (when tx.flags was already computed) skips this
+    // call -- the parser-derived bits are static once the witness is known.
+    // The OTS bit is handled separately above the early-return because it's
+    // dynamic (eventual consistency from the poller); see the addOtsFlag
+    // block earlier in this function.
     try {
       flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
     } catch (e) {
       logger.warn('ordpool-parser analyseTransaction failed: ' + (e instanceof Error ? e.message : e));
-    }
-
-    // HACK -- Ordpool OTS: indexer-derived flag, injected here so every
-    // tx-classification path (mempool ingest, block extension, websocket
-    // push) picks it up without needing to call addOtsFlag explicitly.
-    // Cheap O(1) Set lookup -- see api/ordpool-ots-flag.ts.
-    addOtsFlag(tx as { txid: string; _ordpoolFlags?: number });
-    const otsFlags = (tx as { _ordpoolFlags?: number })._ordpoolFlags;
-    if (otsFlags) {
-      flags |= BigInt(otsFlags);
     }
 
     return Number(flags);
