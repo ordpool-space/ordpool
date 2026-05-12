@@ -778,17 +778,31 @@ STAYS").
 
 ## 7. Outstanding work
 
-1. **Regression test for §6.1**: assert that
+1. **WS push when the OTS bit flips false → true.** A client
+   subscribed via `track-tx` or `track-txs` today gets `isOtsCommit`
+   snapshotted at subscribe time. If the poller later learns about the
+   calendar batch, the open WS session never receives an update — the
+   badge only appears on a re-fetch or navigation. Wiring required:
+   `OrdpoolOtsTxidSet` exposes a `subscribe(cb)` mechanism, the
+   websocket-handler subscribes, and on flip iterates connected clients
+   with the matching txid in their track list and emits a new
+   `otsCommitFlipped` message. Frontend listens, updates
+   `OtsKnowledgeService` cache, and triggers a re-render via
+   `StateService`. The eventual-consistency story is already
+   end-to-end correct without this — re-rendering just becomes
+   automatic.
+
+2. **Regression test for §6.1**: assert that
    `ordpoolOtsTxidSet.bootstrap()` happens before the first
    `$setMempool` call, by hooking the boot sequence.
 
-2. **Frontend integration test**: load `/tx/<known-OTS-commit-txid>`
+3. **Frontend integration test**: load `/tx/<known-OTS-commit-txid>`
    cold, assert the OpenTimestamps badge renders. Requires a
    deterministic OTS-commit fixture — a real OTS calendar tx; the
    cat21-mint inscriptions in `ordpool-parser/testdata/` are the
    wrong shape.
 
-3. **Cypress E2E**: deep-link to a block-detail page → confirm OTS
+4. **Cypress E2E**: deep-link to a block-detail page → confirm OTS
    marker on a known tx. Currently untested.
 
 ---
