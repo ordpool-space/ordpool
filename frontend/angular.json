@@ -173,7 +173,6 @@
               "src/customize.js",
               "src/config.template.js",
               "src/_redirects",
-              "src/_headers",
               {
                 "glob": "*.css",
                 "input": ".theme-build",
@@ -199,8 +198,7 @@
               "assets": [
                 "src/favicon.ico",
                 "src/robots.txt",
-                "src/_redirects",
-                "src/_headers"
+                "src/_redirects"
               ],
               "fileReplacements": [
                 {
