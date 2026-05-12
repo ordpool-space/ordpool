@@ -61,6 +61,13 @@ export class InscriptionViewerComponent {
   // getProperties is also async.
   properties$: Promise<InscriptionProperties | undefined> | undefined;
 
+  // Gallery pager. Galleries are unbounded in the protocol -- the wild has
+  // 10k-item PFP collections in a single gallery. Rendering all <li> rows
+  // at once stalls the tx page. Same ngb-pagination pattern as the multi-
+  // artifact pager on transaction.component.html.
+  galleryPage = 1;
+  readonly GALLERY_PAGE_SIZE = 20;
+
   @Input() showDetails = false;
 
   @Input()
@@ -87,6 +94,7 @@ export class InscriptionViewerComponent {
     this.runeCommitmentHex = rune ? bytesToHex(rune) : undefined;
 
     this.properties$ = inscription.getProperties();
+    this.galleryPage = 1;
 
     this.delegates = inscription.getDelegates();
     if (this.delegates.length) {
