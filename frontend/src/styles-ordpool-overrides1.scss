@@ -116,8 +116,22 @@ app-atomical-viewer {
 // <div class="block-overview-graph"> (lifted in the template), so the chip
 // rows take their natural height and the canvas just sits below them in
 // normal flow. No fixed pixel height and no overlay trick, so the layout
-// stays correct as we add more flag chips.
+// stays correct as we add more flag chips. `grid-column: 1 / -1` matches
+// what `.block-overview-graph` already does — when the parent
+// `.graph-alignment` is in grid mode (`.grid-align`, the default for
+// multi-block views like Next Block / eight-blocks), the filters span the
+// full row instead of getting squeezed into a 75px column.
+app-block-filters {
+  display: block;
+  grid-column: 1 / -1;
+}
+
 .block-filters {
+  // Upstream mempool styles this as `position: absolute; height: 100%`
+  // because in their design the filters overlay the chart. Ordpool puts
+  // them ABOVE the chart instead, so they need to live in normal flow.
+  position: static !important;
+  height: auto !important;
   margin-bottom: 8px;
 
   h5 {
