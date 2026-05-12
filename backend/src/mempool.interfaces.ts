@@ -139,6 +139,17 @@ export interface TransactionExtended extends IEsploraApi.Transaction {
   replacement?: boolean;
   uid?: number;
   flags?: number;
+  // HACK -- Ordpool: tristate OTS-commit knowledge for strip-wire surfaces
+  // (REST /api/v1/tx/:txId and the WS track-tx push). The frontend cannot
+  // recompute ordpool_ots locally -- it's the only indexer-derived flag --
+  // so on the strip path we attach the answer here:
+  //   true  -- ordpoolOtsTxidSet.has(txid) was true at serialization time
+  //   false -- ordpoolOtsTxidSet.has(txid) was false at serialization time
+  //   null  -- we didn't compute it (most call sites; the bulk wire shapes
+  //            already carry the OTS bit in tx.flags so they leave this
+  //            field absent and the frontend uses tx.flags directly)
+  // See ORDPOOL-FLAGS-ARCHITECTURE.md §4 for the full design.
+  isOtsCommit?: boolean | null;
   clusterId?: number;
   chunkIndex?: number;
 }

@@ -2,6 +2,9 @@ import { Application, Request, Response } from 'express';
 import axios from 'axios';
 import * as bitcoinjs from 'bitcoinjs-lib';
 import config from '../../config';
+// HACK -- Ordpool: tristate OTS-commit knowledge on strip wire surfaces;
+// see ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+import ordpoolOtsTxidSet from '../ordpool-ots-txid-set';
 import websocketHandler from '../websocket-handler';
 import mempool from '../mempool';
 import feeApi from '../fee-api';
@@ -251,6 +254,11 @@ class BitcoinRoutes {
     }
     try {
       const transaction = await transactionUtils.$getTransactionExtended(req.params.txId, true, false, false, true);
+      // HACK -- Ordpool: strip-path wire surface -- tx.flags is absent
+      // here (upstream's strip-and-recompute pattern). Attach the tristate
+      // OTS-commit answer so the frontend can apply the ordpool_ots bit
+      // without recomputation. O(1) Set.has() lookup.
+      transaction.isOtsCommit = ordpoolOtsTxidSet.has(req.params.txId);
       res.json(transaction);
     } catch (e) {
       let statusCode = 500;

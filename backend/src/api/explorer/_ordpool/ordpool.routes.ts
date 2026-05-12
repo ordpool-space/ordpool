@@ -6,6 +6,7 @@ import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolOtsRepository from '../../../repositories/OrdpoolOtsRepository';
+import ordpoolOtsTxidSet from '../../ordpool-ots-txid-set';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
 import ordpoolAtomicalsApi from './ordpool-atomicals.api';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
@@ -32,6 +33,7 @@ class GeneralOrdpoolRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/block/:height', this.$getOtsBlock)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/upgrade/:calendar/:hash', this.$proxyOtsUpgrade)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/stamp-calendars', this.$getOtsStampCalendars)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/is-commit/:txid', this.$isOtsCommit)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -145,6 +147,30 @@ class GeneralOrdpoolRoutes {
   private async $getOtsStampCalendars(req: Request, res: Response): Promise<void> {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.json({ calendars: getOtsCalendars() });
+  }
+
+  /**
+   * Lazy point lookup against the in-memory ordpoolOtsTxidSet: "is this
+   * tx a known OTS calendar batch commit?" Used by the frontend only
+   * when the strip-wire surfaces (REST /tx/:txid, WS track-tx) didn't
+   * already attach the answer as `tx.isOtsCommit`, and when the client-
+   * side OP_RETURN fast-path can't decide. See ORDPOOL-FLAGS-ARCHITECTURE.md
+   * §4 for the full design.
+   *
+   * Cache-Control max-age=60 matches the OTS poller's cycle: a `false`
+   * answer can flip to `true` once the poller learns about a new
+   * calendar batch, but never within a 60-second window (the answer is
+   * monotonic in the `false -> true` direction only).
+   */
+  // https://ordpool.space/api/v1/ordpool/ots/is-commit/abcd...1234
+  private async $isOtsCommit(req: Request, res: Response): Promise<void> {
+    const txid = req.params.txid;
+    if (!isValidTxid(txid)) {
+      res.status(400).send('invalid txid');
+      return;
+    }
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json({ result: ordpoolOtsTxidSet.has(txid) });
   }
 
   /** All OTS commits at a given block height. Empty array if none. */

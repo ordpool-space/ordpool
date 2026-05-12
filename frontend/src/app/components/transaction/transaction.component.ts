@@ -1,5 +1,6 @@
 import { Component, OnInit, AfterViewInit, OnDestroy, HostListener, ViewChild, ElementRef, Inject, ChangeDetectorRef } from '@angular/core';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { OtsKnowledgeService } from '@app/services/ordinals/ots-knowledge.service';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { TransactionsListComponent } from '@components/transactions-list/transactions-list.component';
 import {
@@ -217,6 +218,9 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     private etaService: EtaService,
     private cd: ChangeDetectorRef,
     @Inject(ZONE_SERVICE) private zoneService: any,
+    // HACK -- Ordpool: resolves the indexer-derived ordpool_ots bit; see
+    // ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+    private otsKnowledge: OtsKnowledgeService,
   ) {
 
     // HACK, redirect to the correct URL if someone accidently insert a inscription ID
@@ -1013,7 +1017,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
       this.taprootEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'taproot');
       this.rbfEnabled = !this.tx.status.confirmed || isFeatureActive(this.stateService.network, this.tx.status.block_height, 'rbf');
       const txHeight = this.tx.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-      this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
+      this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network, this.otsKnowledge);
       // HACK: always show all flags, because why not?
       // this.filters = this.tx.flags ? toFilters(this.tx.flags).filter(f => f.txPage) : [];
       this.filters = this.tx.flags ? toFilters(this.tx.flags) : [];

@@ -4,6 +4,7 @@ import { VbytesPipe } from '@app/shared/pipes/bytes-pipe/vbytes.pipe';
 import { WuBytesPipe } from '@app/shared/pipes/bytes-pipe/wubytes.pipe';
 import { Transaction, Vout } from '@interfaces/electrs.interface';
 import { StateService } from '@app/services/state.service';
+import { OtsKnowledgeService } from '@app/services/ordinals/ots-knowledge.service';
 import { Filter, toFilters } from '@app/shared/filters.utils';
 import { decodeRawTransaction, getTransactionFlags, addInnerScriptsToVin, countSigops, fillUnsignedInput } from '@app/shared/transaction.utils';
 import { catchError, firstValueFrom, Subscription, switchMap, tap, throwError, timer } from 'rxjs';
@@ -84,6 +85,8 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     public bytesPipe: BytesPipe,
     public vbytesPipe: VbytesPipe,
     public wuBytesPipe: WuBytesPipe,
+    // HACK -- Ordpool: resolves the indexer-derived ordpool_ots bit.
+    private otsKnowledge: OtsKnowledgeService,
   ) {}
 
   ngOnInit(): void {
@@ -276,7 +279,7 @@ export class TransactionRawComponent implements OnInit, OnDestroy {
     });
 
     const txHeight = this.transaction.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-    this.transaction.flags = await getTransactionFlags(this.transaction, this.cpfpInfo, null, txHeight, this.stateService.network);
+    this.transaction.flags = await getTransactionFlags(this.transaction, this.cpfpInfo, null, txHeight, this.stateService.network, this.otsKnowledge);
     this.filters = this.transaction.flags ? toFilters(this.transaction.flags).filter(f => f.txPage) : [];
 
     this.setupGraph();

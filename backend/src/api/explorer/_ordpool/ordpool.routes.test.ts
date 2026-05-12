@@ -36,6 +36,12 @@ jest.mock('../../../repositories/OrdpoolOtsRepository', () => ({
     getByBlockheight: jest.fn(),
   },
 }));
+jest.mock('../../ordpool-ots-txid-set', () => ({
+  __esModule: true,
+  default: {
+    has: jest.fn(),
+  },
+}));
 jest.mock('./ordpool-inscriptions.api', () => ({ __esModule: true, default: {} }));
 jest.mock('./ordpool-stamps.api', () => ({ __esModule: true, default: {} }));
 jest.mock('./ordpool-atomicals.api', () => ({ __esModule: true, default: {} }));
@@ -203,5 +209,69 @@ describe('$getIndexerProgress route handler', () => {
       const res = await call$getIndexerProgress();
       expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
     });
+  });
+});
+
+describe('$isOtsCommit route handler', () => {
+
+  // The handler is the lazy lookup the frontend uses when neither the
+  // strip-wire `tx.isOtsCommit` attachment nor the client-side OP_RETURN
+  // fast-path could decide. Tiny surface: validate txid, look up the
+  // set, set Cache-Control, return { result: boolean }.
+  // See ORDPOOL-FLAGS-ARCHITECTURE.md §4 for the full design.
+
+  // tslint:disable-next-line:no-var-requires
+  const ordpoolOtsTxidSet = require('../../ordpool-ots-txid-set').default;
+
+  async function call$isOtsCommit(txid: string) {
+    const res = makeRes();
+    await (generalOrdpoolRoutes as any).$isOtsCommit({ params: { txid } } as unknown as Request, res);
+    return res as Response & { status: jest.Mock; json: jest.Mock; send: jest.Mock; setHeader: jest.Mock };
+  }
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('returns { result: true } when the txid is in the set', async () => {
+    (ordpoolOtsTxidSet.has as jest.Mock).mockReturnValue(true);
+
+    const txid = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const res = await call$isOtsCommit(txid);
+
+    expect(ordpoolOtsTxidSet.has).toHaveBeenCalledWith(txid);
+    expect(res.json).toHaveBeenCalledWith({ result: true });
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('returns { result: false } when the txid is not in the set', async () => {
+    (ordpoolOtsTxidSet.has as jest.Mock).mockReturnValue(false);
+
+    const res = await call$isOtsCommit('a'.repeat(64));
+
+    expect(res.json).toHaveBeenCalledWith({ result: false });
+  });
+
+  it('sets Cache-Control: public, max-age=60 to match the OTS poller cycle', async () => {
+    (ordpoolOtsTxidSet.has as jest.Mock).mockReturnValue(false);
+
+    const res = await call$isOtsCommit('b'.repeat(64));
+
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=60');
+  });
+
+  it('rejects malformed txids (not 64 hex chars)', async () => {
+    const res = await call$isOtsCommit('not-a-txid');
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('invalid txid');
+    expect(ordpoolOtsTxidSet.has).not.toHaveBeenCalled();
+  });
+
+  it('rejects txids with the wrong length', async () => {
+    const res = await call$isOtsCommit('abc');
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ordpoolOtsTxidSet.has).not.toHaveBeenCalled();
   });
 });
