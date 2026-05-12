@@ -371,6 +371,11 @@ class Server {
       });
     }
     websocketHandler.setupConnectionHandling();
+    // HACK -- Ordpool: register the WS broadcaster that pushes
+    // `otsCommitFlipped` to clients tracking a txid the moment the OTS
+    // poller learns about its calendar batch. See
+    // ORDPOOL-FLAGS-ARCHITECTURE.md §4 and §7 item 1.
+    websocketHandler.setupOtsCommitFlipBroadcasts();
     if (config.MEMPOOL.ENABLED) {
       statistics.setNewStatisticsEntryCallback(websocketHandler.handleNewStatistic.bind(websocketHandler));
       memPool.setAsyncMempoolChangedCallback(websocketHandler.$handleMempoolChange.bind(websocketHandler));
@@ -392,7 +397,14 @@ class Server {
       bitcoinCoreRoutes.initRoutes(this.app);
     }
     pricesRoutes.initRoutes(this.app);
-    if (config.STATISTICS.ENABLED && config.DATABASE.ENABLED && config.MEMPOOL.ENABLED) {
+    // HACK -- Ordpool: register statistics read-routes even when the sampler
+    // is off (STATISTICS.ENABLED=false). Upstream's dashboard polls
+    // /api/v1/statistics/2h unconditionally; without these routes, every
+    // page load on prod emits a 404 to the browser console. The handler
+    // just SELECTs from an empty `statistics` table and returns []. We
+    // still gate on DATABASE.ENABLED + MEMPOOL.ENABLED so the routes only
+    // come up when their backing storage exists.
+    if (config.DATABASE.ENABLED && config.MEMPOOL.ENABLED) {
       statisticsRoutes.initRoutes(this.app);
     }
     if (Common.indexingEnabled() && config.MEMPOOL.ENABLED) {

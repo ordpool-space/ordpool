@@ -81,6 +81,7 @@ export class TrackerComponent implements OnInit, OnDestroy {
   fetchAccelerationSubscription: Subscription;
   txReplacedSubscription: Subscription;
   mempoolPositionSubscription: Subscription;
+  otsFlippedSubscription: Subscription;
   mempoolBlocksSubscription: Subscription;
   blocksSubscription: Subscription;
   miningSubscription: Subscription;
@@ -157,6 +158,15 @@ export class TrackerComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.onResize();
+
+    // HACK -- Ordpool: re-run flag derivation when the OTS poller learns
+    // this tx is a calendar commit while we're already subscribed.
+    this.otsFlippedSubscription = this.otsKnowledge.flipped$.subscribe((txid) => {
+      if (this.tx && this.tx.txid === txid) {
+        this.tx.isOtsCommit = true;
+        this.checkAccelerationEligibility();
+      }
+    });
 
     // Accelerator partner code in fragment
     const fragmentsParams = new URLSearchParams(window.location.hash.slice(1));
@@ -860,6 +870,7 @@ export class TrackerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscription.unsubscribe();
+    this.otsFlippedSubscription?.unsubscribe();
     this.fetchCpfpSubscription.unsubscribe();
     this.fetchRbfSubscription.unsubscribe();
     this.fetchCachedTxSubscription.unsubscribe();

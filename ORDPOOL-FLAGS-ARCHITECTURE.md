@@ -778,32 +778,26 @@ STAYS").
 
 ## 7. Outstanding work
 
-1. **WS push when the OTS bit flips false → true.** A client
-   subscribed via `track-tx` or `track-txs` today gets `isOtsCommit`
-   snapshotted at subscribe time. If the poller later learns about the
-   calendar batch, the open WS session never receives an update — the
-   badge only appears on a re-fetch or navigation. Wiring required:
-   `OrdpoolOtsTxidSet` exposes a `subscribe(cb)` mechanism, the
-   websocket-handler subscribes, and on flip iterates connected clients
-   with the matching txid in their track list and emits a new
-   `otsCommitFlipped` message. Frontend listens, updates
-   `OtsKnowledgeService` cache, and triggers a re-render via
-   `StateService`. The eventual-consistency story is already
-   end-to-end correct without this — re-rendering just becomes
-   automatic.
+Nothing on the immediate roadmap. The four items previously listed
+here are all done and pinned by tests:
 
-2. **Regression test for §6.1**: assert that
-   `ordpoolOtsTxidSet.bootstrap()` happens before the first
-   `$setMempool` call, by hooking the boot sequence.
+- WS push when the OTS bit flips false → true (server pub-sub +
+  `otsCommitFlipped` message + frontend handler + component re-render).
+  Backend: `OrdpoolOtsTxidSet.subscribe(cb)`, `WebsocketHandler.setupOtsCommitFlipBroadcasts()`,
+  `broadcastOtsCommitFlippedToClients(...)`. Frontend: `StateService.otsCommitFlipped$`,
+  `OtsKnowledgeService.recordFlip(txid)` + `flipped$` Observable, and
+  per-component subscription in `transaction.component` /
+  `tracker.component`.
+- Boot-order regression test (`backend/src/api/ordpool-ots-bootstrap-order.test.ts`)
+  pins `bootstrap()` before `diskCache.$loadMempoolCache()` and
+  `redisCache.$loadCache()` via static analysis of `index.ts`.
+- Cold-load contract tests (`frontend/src/app/shared/transaction.utils.spec.ts`,
+  5 new tests covering all four tristate paths).
+- Cypress E2E (`frontend/cypress/e2e/mainnet/tx-detail-ots-badge.spec.ts`)
+  asserts the "OpenTimestamps" badge renders for an `isOtsCommit=true`
+  intercept and is absent for `isOtsCommit=false`.
 
-3. **Frontend integration test**: load `/tx/<known-OTS-commit-txid>`
-   cold, assert the OpenTimestamps badge renders. Requires a
-   deterministic OTS-commit fixture — a real OTS calendar tx; the
-   cat21-mint inscriptions in `ordpool-parser/testdata/` are the
-   wrong shape.
-
-4. **Cypress E2E**: deep-link to a block-detail page → confirm OTS
-   marker on a known tx. Currently untested.
+Anything net-new lands here.
 
 ---
 

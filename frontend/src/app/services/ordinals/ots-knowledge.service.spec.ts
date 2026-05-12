@@ -40,6 +40,7 @@ describe('OtsKnowledgeService', () => {
   let service: OtsKnowledgeService;
   let api: jest.Mocked<OrdpoolApiService>;
   let networkChanged$: ReplaySubject<string>;
+  let otsCommitFlipped$: Subject<string>;
 
   beforeEach(() => {
     api = {
@@ -47,7 +48,8 @@ describe('OtsKnowledgeService', () => {
     } as unknown as jest.Mocked<OrdpoolApiService>;
 
     networkChanged$ = new ReplaySubject<string>(1);
-    const stateStub = { networkChanged$ } as unknown as StateService;
+    otsCommitFlipped$ = new Subject<string>();
+    const stateStub = { networkChanged$, otsCommitFlipped$ } as unknown as StateService;
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -251,7 +253,60 @@ describe('OtsKnowledgeService', () => {
     expect(api.isOtsCommit$).toHaveBeenCalledTimes(1);
   });
 
-  // ---- (8) network-scoped cache ----
+  // ---- (8) WS-driven flip: recordFlip + flipped$ ----
+
+  it('recordFlip(txid) caches true forever and emits on flipped$', async () => {
+    const observed: string[] = [];
+    service.flipped$.subscribe(t => observed.push(t));
+    service.recordFlip('a'.repeat(64));
+    expect(observed).toEqual(['a'.repeat(64)]);
+
+    // Cached as true with no expiry: a subsequent isOtsCommitByTxid
+    // hits the cache, no backend call.
+    api.isOtsCommit$.mockReturnValue(of({ result: false }));
+    const result = await service.isOtsCommitByTxid('a'.repeat(64));
+    expect(result).toBe(true);
+    expect(api.isOtsCommit$).not.toHaveBeenCalled();
+  });
+
+  it('a WS push via stateService.otsCommitFlipped$ records the flip and fans out', async () => {
+    const observed: string[] = [];
+    service.flipped$.subscribe(t => observed.push(t));
+
+    // Simulate the backend's WS message arriving via WebsocketService.
+    otsCommitFlipped$.next('b'.repeat(64));
+
+    expect(observed).toEqual(['b'.repeat(64)]);
+    // And the cache is hot now.
+    api.isOtsCommit$.mockReturnValue(of({ result: false }));
+    expect(await service.isOtsCommitByTxid('b'.repeat(64))).toBe(true);
+    expect(api.isOtsCommit$).not.toHaveBeenCalled();
+  });
+
+  it('recordFlip clears any in-flight probe for the same txid', async () => {
+    // Kick off a probe that hasn't resolved yet.
+    const pending = new Subject<{ result: boolean }>();
+    api.isOtsCommit$.mockReturnValue(pending as unknown as Observable<{ result: boolean }>);
+    const txid = 'c'.repeat(64);
+    const probePromise = service.isOtsCommitByTxid(txid);
+
+    // WS push arrives mid-probe with the authoritative answer.
+    service.recordFlip(txid);
+
+    // The probe is still in flight (we never completed `pending`). A
+    // brand-new lookup must NOT join that probe -- it should hit the
+    // cache directly.
+    api.isOtsCommit$.mockReturnValue(of({ result: false }));
+    const fresh = await service.isOtsCommitByTxid(txid);
+    expect(fresh).toBe(true);
+
+    // Let the dangling probe complete so jest doesn't whine about it.
+    pending.next({ result: false });
+    pending.complete();
+    await probePromise.catch(() => {});
+  });
+
+  // ---- (9) network-scoped cache ----
 
   it('clears the cache when networkChanged$ emits', async () => {
     // Cache an answer for the current network.

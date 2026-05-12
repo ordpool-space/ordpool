@@ -1,4 +1,4 @@
 {
-  "passing": 317,
+  "passing": 337,
   "note": "Floor for .github/workflows/test-count-floor-backend.yml. Count of passing tests from the single jest config (node). Only an ordpool core maintainer is authorised to lower this number; every other change that reduces test count is treated as an accident and rejected. To raise the floor after legitimately adding tests, bump this value and commit. See also workspace CLAUDE.md, HARD RULE 'Never delete a passing test without explicit permission'."
 }

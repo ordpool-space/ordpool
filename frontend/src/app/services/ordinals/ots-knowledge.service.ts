@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable, Subject } from 'rxjs';
 
 import { Transaction } from '../../interfaces/electrs.interface';
 import { StateService } from '../state.service';
@@ -69,12 +69,35 @@ export class OtsKnowledgeService {
    *  the is-commit endpoint and the OTS poller's nominal cycle. */
   private static readonly FALSE_TTL_MS = 60_000;
 
+  /** Fan-out for the backend's `otsCommitFlipped` WS push. Components
+   *  rendering transaction flags (transaction.component, tracker.component,
+   *  transaction-raw.component) subscribe to this and recompute when
+   *  the emitted txid matches the one they're rendering. */
+  private flippedSubject$ = new Subject<string>();
+  readonly flipped$: Observable<string> = this.flippedSubject$.asObservable();
+
   constructor() {
     // Drop the cache when the network changes (mainnet <-> signet/testnet).
     // The OTS poller is per-network on the backend; cached answers from one
     // network are meaningless on another, and a txid collision (rare but
     // possible) would otherwise return a stale answer.
     this.stateService.networkChanged$.subscribe(() => this.clearCache());
+
+    // The WS push from the backend (`{otsCommitFlipped: <txid>}`) lands
+    // here via StateService. Update cache to a permanent `true` and
+    // fan out to components.
+    this.stateService.otsCommitFlipped$.subscribe((txid) => this.recordFlip(txid));
+  }
+
+  /** Mark a txid as a known OTS commit and notify any subscribers. The
+   *  backend's WS broadcaster fires this whenever the OTS poller adds a
+   *  new txid to its in-memory set. `true` is monotonic, so we cache
+   *  permanently (`expiry: null`). Direct callers (tests, dev tooling)
+   *  can also use this to seed the cache without an HTTP round-trip. */
+  recordFlip(txid: string): void {
+    this.cache.set(txid, { value: true, expiry: null });
+    this.inFlight.delete(txid);
+    this.flippedSubject$.next(txid);
   }
 
   /**
