@@ -100,6 +100,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
   mempoolPositionSubscription: Subscription;
   queryParamsSubscription: Subscription;
   urlFragmentSubscription: Subscription;
+  otsFlippedSubscription: Subscription;
   mempoolBlocksSubscription: Subscription;
   blocksSubscription: Subscription;
   miningSubscription: Subscription;
@@ -289,6 +290,17 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.urlFragmentSubscription = this.route.fragment.subscribe((fragment) => {
       this.updateFragmentParams(fragment);
+    });
+
+    // HACK -- Ordpool: when the backend's OTS poller learns this tx is
+    // a calendar commit AFTER we've rendered, re-run setFeatures() so
+    // the badge appears without a page reload. The first flip is the
+    // only one that matters -- ordpool_ots is monotonic.
+    this.otsFlippedSubscription = this.otsKnowledge.flipped$.subscribe((txid) => {
+      if (this.tx && this.tx.txid === txid) {
+        this.tx.isOtsCommit = true;
+        this.setFeatures();
+      }
     });
 
     this.blocksSubscription = this.stateService.blocks$.subscribe((blocks) => {
@@ -1278,6 +1290,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     this.queryParamsSubscription.unsubscribe();
     this.flowPrefSubscription.unsubscribe();
     this.urlFragmentSubscription.unsubscribe();
+    this.otsFlippedSubscription?.unsubscribe();
     this.mempoolBlocksSubscription.unsubscribe();
     this.mempoolPositionSubscription.unsubscribe();
     this.blocksSubscription.unsubscribe();

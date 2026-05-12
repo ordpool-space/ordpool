@@ -372,6 +372,14 @@ export class WebsocketService {
       this.stateService.mempoolTransactions$.next(response.tx);
     }
 
+    // HACK -- Ordpool: backend pushes {otsCommitFlipped: <txid>} when the
+    // OTS poller learns a new calendar batch commit. Forward to
+    // StateService; OtsKnowledgeService picks it up and updates its
+    // cache + fans out to subscribing components.
+    if (response['otsCommitFlipped']) {
+      this.stateService.otsCommitFlipped$.next(response['otsCommitFlipped']);
+    }
+
     if (response['txPosition']) {
       this.stateService.mempoolTxPosition$.next(response['txPosition']);
     }

@@ -9,6 +9,10 @@ export interface WebsocketResponse {
   blocks?: BlockExtended[];
   conversions?: Record<string, number>;
   txConfirmed?: string;
+  // HACK -- Ordpool: backend pushes this when the OTS poller learns a
+  // new calendar batch commit. Frontend WebsocketService forwards to
+  // stateService.otsCommitFlipped$. See ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+  otsCommitFlipped?: string;
   historicalDate?: string;
   mempoolInfo?: MempoolInfo;
   vBytesPerSecond?: number;

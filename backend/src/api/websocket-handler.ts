@@ -12,7 +12,8 @@ import mempoolBlocks from './mempool-blocks';
 import { Common } from './common';
 // HACK -- Ordpool: tristate OTS-commit knowledge for the WS track-tx
 // strip-path; see ORDPOOL-FLAGS-ARCHITECTURE.md §4.
-import { attachIsOtsCommit, setIsOtsCommitByTxid } from './ordpool-ots-flag';
+import { attachIsOtsCommit, broadcastOtsCommitFlippedToClients, setIsOtsCommitByTxid } from './ordpool-ots-flag';
+import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
 import loadingIndicators from './loading-indicators';
 import config from '../config';
 import transactionUtils from './transaction-utils';
@@ -112,6 +113,29 @@ class WebsocketHandler {
 
   public getSerializedInitData(): string {
     return this.serializedInitData;
+  }
+
+  /**
+   * HACK -- Ordpool: register a listener on `ordpoolOtsTxidSet` so that
+   * when the OTS poller observes a new calendar batch commit, every WS
+   * client currently tracking that txid (via `track-tx` or `track-txs`)
+   * receives an `otsCommitFlipped` message. Closes the
+   * eventual-consistency gap on long-lived subscriptions: the badge
+   * appears the moment the backend learns, without the user refreshing.
+   *
+   * Idempotent: safe to call once at boot. The returned `unsubscribe`
+   * is intentionally discarded -- the listener lives for the process
+   * lifetime.
+   */
+  setupOtsCommitFlipBroadcasts(): void {
+    ordpoolOtsTxidSet.subscribe((txid) => {
+      this.broadcastOtsCommitFlipped(txid);
+    });
+  }
+
+  private broadcastOtsCommitFlipped(txid: string): void {
+    if (!this.webSocketServers.length) return;
+    broadcastOtsCommitFlippedToClients(this.webSocketServers as any, txid);
   }
 
   setupConnectionHandling() {

@@ -83,3 +83,89 @@ describe('getTransactionFlags (ordpool integration)', () => {
     expect(flags & OrdpoolTransactionFlags.ordpool_counterparty).toBe(OrdpoolTransactionFlags.ordpool_counterparty);
   });
 });
+
+// Minimal stub mimicking the OtsKnowledgeService surface that
+// transaction.utils.ts calls. Lets us drive the four tristate paths
+// (server attached true, server attached false, server attached null,
+// no server signal) without instantiating Angular DI.
+function makeOtsStub(answers: { [txid: string]: boolean | null } = {}) {
+  return {
+    isOtsCommit: jest.fn(async (tx: any) => {
+      if (tx.isOtsCommit === true) return true;
+      if (tx.isOtsCommit === false) return false;
+      const opReturn = (tx.vout ?? []).some((v: any) => v.scriptpubkey_type === 'op_return');
+      if (!opReturn) return false;
+      if (tx.txid in answers) return answers[tx.txid];
+      return null;
+    }),
+  };
+}
+
+describe('getTransactionFlags + OtsKnowledgeService — cold load /tx/<ots-commit>', () => {
+
+  it('strip-fill: server attaches isOtsCommit=true → flags carry ordpool_ots', async () => {
+    // Mirrors the live REST surface: backend's bitcoin.routes.getTransaction
+    // calls attachIsOtsCommit() before res.json(transaction). Frontend
+    // receives tx with isOtsCommit=true, flags=undefined; getTransactionFlags
+    // must light up the OTS bit.
+    const tx: any = deepClone(PLAIN_P2PKH_TX);
+    tx.isOtsCommit = true;
+
+    const flags = await getTransactionFlags(tx, null, null, tx.status.block_height, 'mainnet', makeOtsStub() as any);
+
+    expect(flags & OrdpoolTransactionFlags.ordpool_ots).toBe(OrdpoolTransactionFlags.ordpool_ots);
+  });
+
+  it('strip-fill: server attaches isOtsCommit=false → ordpool_ots stays off', async () => {
+    const tx: any = deepClone(PLAIN_P2PKH_TX);
+    tx.isOtsCommit = false;
+
+    const flags = await getTransactionFlags(tx, null, null, tx.status.block_height, 'mainnet', makeOtsStub() as any);
+
+    expect(flags & OrdpoolTransactionFlags.ordpool_ots).toBe(0n);
+  });
+
+  it('no server signal, no OP_RETURN → ordpool_ots stays off, no lazy probe called', async () => {
+    const tx: any = deepClone(PLAIN_P2PKH_TX);   // PLAIN_P2PKH has no OP_RETURN
+    // server didn't attach the field (undefined). isOtsCommit stub should
+    // return false synchronously via OP_RETURN fast path; no answers map
+    // consulted.
+    const stub = makeOtsStub({ /* deliberately empty -- must not be hit */ });
+
+    const flags = await getTransactionFlags(tx, null, null, tx.status.block_height, 'mainnet', stub as any);
+
+    expect(flags & OrdpoolTransactionFlags.ordpool_ots).toBe(0n);
+  });
+
+  it('no server signal, lazy probe says null → ordpool_ots stays off (NOT confused with false)', async () => {
+    // Tristate honesty check: a null answer from the probe means
+    // "unknown", and the consumer must NOT apply the bit (consistent
+    // with the strict `=== true` check inside getTransactionFlags).
+    const tx: any = {
+      ...deepClone(PLAIN_P2PKH_TX),
+      // Synthetic OP_RETURN output that's well-formed enough to satisfy
+      // the upstream static-flag walker (it reads scriptpubkey.length).
+      vout: [{ scriptpubkey_type: 'op_return', scriptpubkey: '6a0102' } as any],
+    };
+    const stub = { isOtsCommit: jest.fn(async () => null) };
+
+    const flags = await getTransactionFlags(tx, null, null, tx.status.block_height, 'mainnet', stub as any);
+
+    expect(stub.isOtsCommit).toHaveBeenCalled();
+    expect(flags & OrdpoolTransactionFlags.ordpool_ots).toBe(0n);
+  });
+
+  it('server-attached overrides client recomputation: isOtsCommit=true is trusted even for txs without OP_RETURN', async () => {
+    // If the server told us this tx is an OTS commit, we trust it. The
+    // client's "no OP_RETURN means definitely false" fast-path is a
+    // fallback when the server didn't speak; it must NOT override an
+    // authoritative server tristate.
+    const tx: any = deepClone(PLAIN_P2PKH_TX);
+    tx.isOtsCommit = true;
+    // (the fixture has no OP_RETURN output)
+
+    const flags = await getTransactionFlags(tx, null, null, tx.status.block_height, 'mainnet', makeOtsStub() as any);
+
+    expect(flags & OrdpoolTransactionFlags.ordpool_ots).toBe(OrdpoolTransactionFlags.ordpool_ots);
+  });
+});

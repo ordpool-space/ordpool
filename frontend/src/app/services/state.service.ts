@@ -223,6 +223,13 @@ export class StateService {
   searchFocus$: Subject<boolean> = new Subject<boolean>();
   menuOpen$: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
+  // HACK -- Ordpool: emitted (with the txid) when the backend's WS
+  // `{otsCommitFlipped: txid}` message arrives. OtsKnowledgeService
+  // subscribes; on emit it updates its cache to `true` and fans the
+  // event out on its own `flipped$` Subject so transaction components
+  // can recompute flags. See ORDPOOL-FLAGS-ARCHITECTURE.md §4 / §7.
+  otsCommitFlipped$: Subject<string> = new Subject<string>();
+
   // HACK -- Ordpool: every parent ordpool flag on by default (the user
   // wants to see what's happening on L1 across all protocols out of the
   // box; sub-op flags stay off so the chip set isn't overwhelming).
