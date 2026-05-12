@@ -1,7 +1,7 @@
 import * as bitcoinjs from 'bitcoinjs-lib';
 import { Request } from 'express';
 import { DigitalArtifactAnalyserService } from 'ordpool-parser';
-import { addOtsFlag } from './ordpool-ots-flag';
+import { getOtsFlag } from './ordpool-ots-flag';
 import { EffectiveFeeStats, MempoolBlockWithTransactions, TransactionExtended, MempoolTransactionExtended, TransactionStripped, WorkingEffectiveFeeStats, TransactionClassified, TransactionFlags } from '../mempool.interfaces';
 import config from '../config';
 import { NodeSocket } from '../repositories/NodesSocketsRepository';
@@ -642,11 +642,7 @@ export class Common {
     // The Set.has() lookup is O(1) and runs in every config; the cost of
     // moving it here is negligible. See ordpool-flags-ots-retroactive.test.ts
     // for the regression spec.
-    addOtsFlag(tx as { txid: string; _ordpoolFlags?: number });
-    const otsFlags = (tx as { _ordpoolFlags?: number })._ordpoolFlags;
-    if (otsFlags) {
-      flags |= BigInt(otsFlags);
-    }
+    flags |= getOtsFlag(tx.txid);
 
     // Already processed static flags, no need to do it again
     if (tx.flags) {

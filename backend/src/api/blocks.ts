@@ -18,7 +18,6 @@ import HashratesRepository from '../repositories/HashratesRepository';
 import indexer from '../indexer';
 import poolsParser from './pools-parser';
 import { DigitalArtifactAnalyserService, getFirstInscriptionHeight } from 'ordpool-parser';
-import { addOtsFlagBatch } from './ordpool-ots-flag';
 
 // HACK: force a given block for debugging reasons
 // const debugBlock = 839999;
@@ -410,10 +409,9 @@ class Blocks {
         }
 
         extras.ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
-        // HACK -- Ordpool OTS: indexer-derived flag. analyseTransactions has
-        // already populated tx._ordpoolFlags with witness-derived bits; this
-        // pass ORs in ordpool_ots for any txid in the OTS set.
-        addOtsFlagBatch(transactions);
+        // HACK -- Ordpool: the OTS bit lands on `tx.flags` downstream via
+        // `Common.getTransactionFlags`'s `flags |= getOtsFlag(tx.txid)`.
+        // No per-tx pre-enrichment pass needed here.
       }
     }
 

@@ -161,6 +161,12 @@ class GeneralOrdpoolRoutes {
    * answer can flip to `true` once the poller learns about a new
    * calendar batch, but never within a 60-second window (the answer is
    * monotonic in the `false -> true` direction only).
+   *
+   * `stale-while-revalidate=60` lets Cloudflare keep serving the cached
+   * answer for an extra 60 s while it refetches in the background. If
+   * the poller stalls (network blip, calendar 5xx), users see the
+   * previous answer instead of a thundering-herd of probes against the
+   * backend.
    */
   // https://ordpool.space/api/v1/ordpool/ots/is-commit/abcd...1234
   private async $isOtsCommit(req: Request, res: Response): Promise<void> {
@@ -169,7 +175,7 @@ class GeneralOrdpoolRoutes {
       res.status(400).send('invalid txid');
       return;
     }
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=60');
     res.json({ result: ordpoolOtsTxidSet.has(txid) });
   }
 

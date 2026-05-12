@@ -146,8 +146,20 @@ class Server {
         // HACK -- Ordpool: bootstrap the in-memory OTS txid set from the
         // ordpool_stats_ots satellite table, then start the poller so new
         // calendar commits land continuously. Per-tx OTS labelling
-        // (addOtsFlag in mempool.ts and $getBlockExtended) reads this set.
-        await ordpoolOtsTxidSet.bootstrap();
+        // (`getOtsFlag` in `Common.getTransactionFlags`) reads this set.
+        //
+        // Bootstrap is fail-soft: a satellite-table outage at boot must
+        // NOT abort backend startup. Worst case the set stays empty,
+        // `getOtsFlag` returns 0n for every tx, no OTS badges appear --
+        // and the poller's regular cycle (or a manual `bootstrap()`
+        // retry from elsewhere) catches up once the DB is healthy. The
+        // alternative -- coupling a non-critical feature to backend
+        // liveness -- would be worse.
+        try {
+          await ordpoolOtsTxidSet.bootstrap();
+        } catch (e) {
+          logger.warn('OTS txid-set bootstrap failed; continuing with empty set. Reason: ' + (e instanceof Error ? e.message : e), 'Ordpool');
+        }
         ordpoolOtsPoller.start();
       } catch (e) {
         throw new Error(e instanceof Error ? e.message : 'Error');

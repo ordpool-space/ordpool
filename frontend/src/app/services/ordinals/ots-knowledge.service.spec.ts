@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Observable, of, ReplaySubject, Subject, throwError } from 'rxjs';
 
 import { OrdpoolApiService } from './ordpool-api.service';
 import { OtsKnowledgeService } from './ots-knowledge.service';
+import { StateService } from '../state.service';
 import { Transaction } from '../../interfaces/electrs.interface';
 
 /*
@@ -38,17 +39,22 @@ describe('OtsKnowledgeService', () => {
 
   let service: OtsKnowledgeService;
   let api: jest.Mocked<OrdpoolApiService>;
+  let networkChanged$: ReplaySubject<string>;
 
   beforeEach(() => {
     api = {
       isOtsCommit$: jest.fn(),
     } as unknown as jest.Mocked<OrdpoolApiService>;
 
+    networkChanged$ = new ReplaySubject<string>(1);
+    const stateStub = { networkChanged$ } as unknown as StateService;
+
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         OtsKnowledgeService,
         { provide: OrdpoolApiService, useValue: api },
+        { provide: StateService, useValue: stateStub },
       ],
     });
     service = TestBed.inject(OtsKnowledgeService);
@@ -68,6 +74,33 @@ describe('OtsKnowledgeService', () => {
     const result = await service.isOtsCommit(tx);
     expect(result).toBe(false);
     expect(api.isOtsCommit$).not.toHaveBeenCalled();
+  });
+
+  it('tx.isOtsCommit === null falls through to the OP_RETURN fast path (not trusted as false)', async () => {
+    // The tristate spec: `null` means "server didn't compute it",
+    // distinct from `false` ("server checked, not a commit"). Must
+    // fall through to the next decision source, not be trusted.
+    // With no OP_RETURN, fast path -> false without a backend call.
+    const tx = makeTx({
+      isOtsCommit: null,
+      vout: [{ scriptpubkey_type: 'v0_p2wpkh' }] as any,
+    });
+    const result = await service.isOtsCommit(tx);
+    expect(result).toBe(false);
+    expect(api.isOtsCommit$).not.toHaveBeenCalled();
+  });
+
+  it('tx.isOtsCommit === null + OP_RETURN -> falls through to the lazy backend probe', async () => {
+    // Tristate `null` + OP_RETURN means: server didn't compute,
+    // client cannot conclude from witness, must ask backend.
+    api.isOtsCommit$.mockReturnValue(of({ result: true }));
+    const tx = makeTx({
+      isOtsCommit: null,
+      vout: [{ scriptpubkey_type: 'op_return' }] as any,
+    });
+    const result = await service.isOtsCommit(tx);
+    expect(result).toBe(true);
+    expect(api.isOtsCommit$).toHaveBeenCalledWith(tx.txid);
   });
 
   // ---- (2) OP_RETURN fast path ----
@@ -154,14 +187,18 @@ describe('OtsKnowledgeService', () => {
 
   // ---- (5) graceful degradation on probe failure ----
 
-  it('returns false (without caching) when the backend probe errors', async () => {
+  it('returns null (NOT false, NOT cached) when the backend probe errors', async () => {
+    // Probe failure is genuinely "we don't know" -- distinct from a
+    // confirmed `false` answer. Returning `false` here would be a
+    // category error: it would assert "definitely not an OTS commit"
+    // when we have no evidence either way.
     api.isOtsCommit$.mockReturnValue(throwError(() => new Error('network down')));
     const tx = makeTx({
       isOtsCommit: undefined,
       vout: [{ scriptpubkey_type: 'op_return' }] as any,
     });
     const first = await service.isOtsCommit(tx);
-    expect(first).toBe(false);
+    expect(first).toBe(null);
 
     // The failure was NOT cached, so a second call retries.
     api.isOtsCommit$.mockReturnValue(of({ result: true }));
@@ -186,6 +223,53 @@ describe('OtsKnowledgeService', () => {
 
     service.clearCache();
     await service.isOtsCommitByTxid('d'.repeat(64));
+    expect(api.isOtsCommit$).toHaveBeenCalledTimes(2);
+  });
+
+  // ---- (7) concurrent-probe coalescing ----
+
+  it('coalesces two concurrent in-flight probes onto a single HTTP request', async () => {
+    // The backend emits its response asynchronously. We use a Subject
+    // we hold open across the two calls, then complete it, ensuring
+    // both await the SAME in-flight Promise.
+    const response$ = new Subject<{ result: boolean }>();
+    api.isOtsCommit$.mockReturnValue(response$ as unknown as Observable<{ result: boolean }>);
+
+    const txid = 'f'.repeat(64);
+    const first = service.isOtsCommitByTxid(txid);
+    const second = service.isOtsCommitByTxid(txid);
+
+    // Both calls fired before any HTTP response -- the implementation
+    // must have deduplicated the request so the API is consulted once.
+    expect(api.isOtsCommit$).toHaveBeenCalledTimes(1);
+
+    response$.next({ result: true });
+    response$.complete();
+
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
+    expect(api.isOtsCommit$).toHaveBeenCalledTimes(1);
+  });
+
+  // ---- (8) network-scoped cache ----
+
+  it('clears the cache when networkChanged$ emits', async () => {
+    // Cache an answer for the current network.
+    api.isOtsCommit$.mockReturnValue(of({ result: true }));
+    await service.isOtsCommitByTxid('e'.repeat(64));
+    expect(api.isOtsCommit$).toHaveBeenCalledTimes(1);
+
+    // Cache hit on the second call -- still 1 HTTP request.
+    await service.isOtsCommitByTxid('e'.repeat(64));
+    expect(api.isOtsCommit$).toHaveBeenCalledTimes(1);
+
+    // Switch network. The OTS poller runs against a single network on
+    // the backend, so cached answers from the previous network are
+    // meaningless and must be discarded.
+    networkChanged$.next('signet');
+
+    // Subsequent lookup must re-fetch.
+    await service.isOtsCommitByTxid('e'.repeat(64));
     expect(api.isOtsCommit$).toHaveBeenCalledTimes(2);
   });
 });
