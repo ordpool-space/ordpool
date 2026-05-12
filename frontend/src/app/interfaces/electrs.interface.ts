@@ -33,6 +33,16 @@ export interface Transaction {
   price?: Price;
   sigops?: number;
   flags?: bigint;
+  // HACK -- Ordpool: tristate OTS-commit knowledge attached by the backend
+  // on strip-wire surfaces (REST /api/v1/tx/:txId, WS track-tx). The
+  // frontend cannot recompute the ordpool_ots bit locally -- it's the only
+  // indexer-derived flag. Possible values:
+  //   true  -- server confirms this tx is in ordpoolOtsTxidSet
+  //   false -- server confirms this tx is NOT in ordpoolOtsTxidSet
+  //   null / undefined -- not computed (bulk surfaces leave it absent; the
+  //                       OTS bit is in tx.flags directly there).
+  // See ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+  isOtsCommit?: boolean | null;
   largeInput?: boolean;
   largeOutput?: boolean;
 }

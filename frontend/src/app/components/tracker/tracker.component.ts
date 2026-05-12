@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, HostListener, Inject, ChangeDetectorRef, ChangeDetectionStrategy, NgZone } from '@angular/core';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
+import { OtsKnowledgeService } from '@app/services/ordinals/ots-knowledge.service';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import {
   switchMap,
@@ -150,6 +151,8 @@ export class TrackerComponent implements OnInit, OnDestroy {
     private zone: NgZone,
     private storageService: StorageService,
     @Inject(ZONE_SERVICE) private zoneService: any,
+    // HACK -- Ordpool: resolves the indexer-derived ordpool_ots bit.
+    private otsKnowledge: OtsKnowledgeService,
   ) {}
 
   ngOnInit() {
@@ -788,7 +791,7 @@ export class TrackerComponent implements OnInit, OnDestroy {
   async checkAccelerationEligibility(): Promise<void> {
     if (this.tx) {
       const txHeight = this.tx.status?.block_height || (this.stateService.latestBlockHeight >= 0 ? this.stateService.latestBlockHeight + 1 : null);
-      this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network);
+      this.tx.flags = await getTransactionFlags(this.tx, null, null, txHeight, this.stateService.network, this.otsKnowledge);
       const replaceableInputs = (this.tx.flags & (TransactionFlags.sighash_none | TransactionFlags.sighash_acp)) > 0n;
       const highSigop = (this.tx.sigops * 20) > this.tx.weight;
       this.eligibleForAcceleration = !replaceableInputs && !highSigop;

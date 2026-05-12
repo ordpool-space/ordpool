@@ -10,6 +10,9 @@ import memPool from './mempool';
 import backendInfo from './backend-info';
 import mempoolBlocks from './mempool-blocks';
 import { Common } from './common';
+// HACK -- Ordpool: tristate OTS-commit knowledge for the WS track-tx
+// strip-path; see ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
 import loadingIndicators from './loading-indicators';
 import config from '../config';
 import transactionUtils from './transaction-utils';
@@ -210,6 +213,8 @@ class WebsocketHandler {
                       // tx.prevout is missing from transactions when in bitcoind mode
                       try {
                         const fullTx = await transactionUtils.$getMempoolTransactionExtended(tx.txid, true);
+                        // HACK -- Ordpool: strip-path -- attach OTS-commit tristate.
+                        fullTx.isOtsCommit = ordpoolOtsTxidSet.has(tx.txid);
                         response['tx'] = JSON.stringify(fullTx);
                       } catch (e) {
                         logger.debug('Error finding transaction: ' + (e instanceof Error ? e.message : e));
@@ -218,6 +223,8 @@ class WebsocketHandler {
                   } else {
                     try {
                       const fullTx = await transactionUtils.$getMempoolTransactionExtended(client['track-tx'], true);
+                      // HACK -- Ordpool: strip-path -- attach OTS-commit tristate.
+                      fullTx.isOtsCommit = ordpoolOtsTxidSet.has(client['track-tx']);
                       response['tx'] = JSON.stringify(fullTx);
                     } catch (e) {
                       logger.debug('Error finding transaction. ' + (e instanceof Error ? e.message : e));

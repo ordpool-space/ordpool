@@ -6,7 +6,10 @@ import { StateService } from '@app/services/state.service';
 import { hash, Hash } from '@app/shared/sha256';
 import { AddressType, AddressTypeInfo, detectAddressType } from '@app/shared/address-utils';
 import * as secp256k1 from '@noble/secp256k1';
-import { DigitalArtifactAnalyserService } from 'ordpool-parser';
+import { DigitalArtifactAnalyserService, OrdpoolTransactionFlags } from 'ordpool-parser';
+// HACK -- Ordpool: client-side resolver for the indexer-derived ordpool_ots
+// bit; see ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+import type { OtsKnowledgeService } from '@app/services/ordinals/ots-knowledge.service';
 
 // Bitcoin Core default policy settings
 const MAX_STANDARD_TX_WEIGHT = 400_000;
@@ -797,7 +800,21 @@ export function isBurnKey(pubkey: string): boolean {
   ].includes(pubkey);
 }
 
-export async function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, replacement?: boolean, height?: number, network?: string): Promise<bigint> {
+export async function getTransactionFlags(
+  tx: Transaction,
+  cpfpInfo?: CpfpInfo,
+  replacement?: boolean,
+  height?: number,
+  network?: string,
+  // HACK -- Ordpool: optional resolver for the ordpool_ots bit. When the
+  // strip wire surfaces (REST /api/v1/tx/:txId, WS track-tx) didn't attach
+  // `tx.isOtsCommit` and the OP_RETURN fast path can't decide, the resolver
+  // calls the backend's lazy is-commit endpoint. Optional so utility
+  // callers without DI access still get correct parser-derived bits
+  // (they'll just be missing the OTS bit in that one rare edge case --
+  // the bulk wire paths still carry it in tx.flags).
+  otsKnowledge?: OtsKnowledgeService,
+): Promise<bigint> {
   let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
   // Variable client-side flags (CPFP / RBF replacement). Apply regardless of
@@ -964,6 +981,29 @@ export async function getTransactionFlags(tx: Transaction, cpfpInfo?: CpfpInfo, 
     flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags);
   } catch {
     /* swallow -- parser may set _ordpoolFlags side-effect even on partial failure */
+  }
+
+  // HACK -- Ordpool OTS: indexer-derived flag, not recomputable client-side
+  // from witness bytes alone. Three-source decision -- see
+  // ORDPOOL-FLAGS-ARCHITECTURE.md §4 and OtsKnowledgeService:
+  //   1. tx.isOtsCommit === true|false  -> server attached the answer
+  //   2. no OP_RETURN output            -> impossible by construction
+  //   3. otsKnowledge.isOtsCommit(tx)   -> lazy backend probe
+  // Step 3 is skipped if `otsKnowledge` is undefined (utility-only call
+  // sites without DI access). The cost in that edge case is just the
+  // OTS badge being absent on the tx detail page until the page is
+  // re-rendered with the service available; bulk wire paths still
+  // carry the bit in tx.flags so most surfaces are unaffected.
+  if (otsKnowledge) {
+    try {
+      const isOts = await otsKnowledge.isOtsCommit(tx);
+      if (isOts) flags |= OrdpoolTransactionFlags.ordpool_ots;
+    } catch {
+      /* swallow -- conservative default: no OTS badge if we can't prove it */
+    }
+  } else {
+    // No service -- still respect the server-attached tristate.
+    if (tx.isOtsCommit === true) flags |= OrdpoolTransactionFlags.ordpool_ots;
   }
 
   return flags;
