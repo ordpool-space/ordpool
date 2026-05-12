@@ -8,6 +8,23 @@ jest.mock('../logger', () => ({
   default: { warn: jest.fn(), info: jest.fn(), err: jest.fn(), debug: jest.fn() },
 }));
 
+// Mock the ordpool OTS flag module so we don't drag in the database / poller
+// chain. The mock keeps a controllable set of "known OTS txids" that tests
+// can mutate via `__setOtsTxids`. `attachIsOtsCommit` mirrors the real
+// behaviour: writes `isOtsCommit = set.has(tx.txid)` and returns the tx.
+const otsTxids = new Set<string>();
+jest.mock('../api/ordpool-ots-flag', () => ({
+  __esModule: true,
+  attachIsOtsCommit: jest.fn(<T extends { txid: string; isOtsCommit?: boolean | null }>(tx: T): T => {
+    tx.isOtsCommit = otsTxids.has(tx.txid);
+    return tx;
+  }),
+}));
+
+beforeEach(() => {
+  otsTxids.clear();
+});
+
 type FakeHandler = (req: http.IncomingMessage, res: http.ServerResponse) => void;
 
 function startServer(app: Express): Promise<{ server: http.Server, url: string }> {
@@ -84,6 +101,150 @@ describe('electrs-proxy-middleware', () => {
       expect(r.headers['x-electrs-marker']).toBe('fake');
       // electrs sees the path WITHOUT the leading /api (Express strips the mount path).
       expect(receivedPath).toBe('/address/bc1q?since=12345');
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('injects isOtsCommit=true on GET /tx/<txid> when the txid is in the OTS set', async () => {
+    const TXID = 'a'.repeat(64);
+    otsTxids.add(TXID);
+
+    const electrs = await startFakeElectrs((req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ txid: TXID, fee: 76, status: { confirmed: true } }));
+    });
+
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx/${TXID}`);
+      expect(r.status).toBe(200);
+      const body = JSON.parse(r.body);
+      expect(body.isOtsCommit).toBe(true);
+      expect(body.txid).toBe(TXID);
+      expect(body.fee).toBe(76); // existing fields preserved
+      // content-length must reflect the re-serialized body, not the original.
+      expect(Number(r.headers['content-length'])).toBe(Buffer.byteLength(r.body));
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('injects isOtsCommit=false on GET /tx/<txid> when the txid is NOT in the OTS set', async () => {
+    const TXID = 'b'.repeat(64);
+
+    const electrs = await startFakeElectrs((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ txid: TXID }));
+    });
+
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx/${TXID}`);
+      expect(r.status).toBe(200);
+      expect(JSON.parse(r.body)).toEqual({ txid: TXID, isOtsCommit: false });
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('does NOT touch GET /tx/<txid>/hex (different path, plain text body)', async () => {
+    const TXID = 'c'.repeat(64);
+    otsTxids.add(TXID);
+
+    const electrs = await startFakeElectrs((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end('0200000001abcdef'); // raw hex blob, not JSON
+    });
+
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx/${TXID}/hex`);
+      expect(r.status).toBe(200);
+      expect(r.body).toBe('0200000001abcdef');
+      expect(r.body).not.toContain('isOtsCommit');
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('passes through non-200 GET /tx/<txid> unchanged (no JSON parse attempt)', async () => {
+    const TXID = 'd'.repeat(64);
+    otsTxids.add(TXID);
+
+    const electrs = await startFakeElectrs((_req, res) => {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('Transaction not found.');
+    });
+
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx/${TXID}`);
+      expect(r.status).toBe(404);
+      expect(r.body).toBe('Transaction not found.');
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('falls back to passthrough when electrs body is not parseable JSON', async () => {
+    const TXID = 'e'.repeat(64);
+    otsTxids.add(TXID);
+
+    const electrs = await startFakeElectrs((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{not json'); // malformed
+    });
+
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx/${TXID}`);
+      expect(r.status).toBe(200);
+      expect(r.body).toBe('{not json');
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('does NOT touch POST /tx (only GET tx-detail is intercepted)', async () => {
+    let receivedMethod: string | undefined;
+    const electrs = await startFakeElectrs((req, res) => {
+      receivedMethod = req.method;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ txid: 'broadcast-result-txid' }));
+    });
+
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx`, { method: 'POST' });
+      expect(r.status).toBe(200);
+      expect(receivedMethod).toBe('POST');
+      // POSTed broadcasts come back without `isOtsCommit` injection.
+      expect(JSON.parse(r.body)).toEqual({ txid: 'broadcast-result-txid' });
     } finally {
       await close(server);
       await close(electrs.server);

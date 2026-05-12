@@ -456,13 +456,31 @@ Tristate semantics:
 
 Where the field is populated on the wire:
 
-- **REST `GET /api/v1/tx/:txId`** — `bitcoin.routes.ts:getTransaction`
-  calls `ordpoolOtsTxidSet.has(req.params.txId)` after
-  `$getTransactionExtended` and writes the result to `transaction.isOtsCommit`.
-  O(1) Set.has() lookup, no DB round-trip.
-- **WebSocket track-tx** — `websocket-handler.ts:217` and `:227`
-  (both bitcoind and esplora backends) write `fullTx.isOtsCommit =
-  ordpoolOtsTxidSet.has(...)` before `JSON.stringify`.
+- **REST `GET /api/tx/:txId` (esplora-mode prod, the live shape)** —
+  `electrs-proxy-middleware.ts` matches `GET /tx/<64-hex>`, buffers the
+  electrs JSON response, calls `attachIsOtsCommit(tx)`, and re-emits with
+  a corrected `content-length`. Other paths (`/tx/:txid/hex`,
+  `/tx/:txid/status`, non-200s, non-JSON bodies, POST, `/api/v1/*`) stream
+  through untouched. Pinned by `__tests__/electrs-proxy-middleware.test.ts`.
+- **REST `GET /api/v1/tx/:txId` (bitcoind-mode dev only)** —
+  `bitcoin.routes.ts:getTransaction` calls `attachIsOtsCommit(transaction)`
+  inside the `if (config.MEMPOOL.BACKEND !== 'esplora')` block. Inactive
+  on prod, where the route itself is unregistered and the electrs proxy
+  serves the response instead.
+- **WebSocket track-tx** — `websocket-handler.ts:234-253` writes
+  `attachIsOtsCommit(tx)` in all three branches (mempool-pool hit on
+  esplora, full-tx fetch on bitcoind, full-tx fetch on miss). Not gated
+  against esplora — runs on prod.
+- **WebSocket track-txs (plural initial-subscribe)** —
+  `websocket-handler.ts:310` calls `setIsOtsCommitByTxid(txid, txInfo)`
+  per requested txid (the `TxTrackingInfo` shape has no `txid` field, so
+  we attach by argument). Also unguarded by backend mode.
+- **WebSocket `otsCommitFlipped` re-push** — when the OTS poller adds a
+  new txid to `ordpoolOtsTxidSet`, the subscribed broadcaster
+  (`broadcastOtsCommitFlippedToClients`) pushes `{otsCommitFlipped:
+  <txid>}` to every client tracking it. Frontend reacts in
+  `transaction.component.ts` / `tracker.component.ts` by re-running
+  `setFeatures()` / `checkAccelerationEligibility()`.
 
 Where it does **not** appear (still by design):
 
@@ -515,9 +533,12 @@ GET /api/v1/ordpool/ots/is-commit/<64-hex-txid>  ->  { result: boolean }
 
 - **Implementation**: validates txid with `isValidTxid()` (from
   ordpool-parser), then one `ordpoolOtsTxidSet.has(txid)` call.
-- **Cache header**: `Cache-Control: public, max-age=60` (the answer can
-  flip `false` → `true` as the poller catches up; never the reverse).
-  60 s matches the poller's cycle.
+- **Cache header**: `Cache-Control: public, max-age=60, stale-while-revalidate=60`.
+  The answer can flip `false` → `true` as the poller catches up (never
+  the reverse), so a 60 s fresh window matches the poller's cycle, and
+  SWR lets the edge serve the stale value while a fresh one is fetched
+  in the background. Live WS `otsCommitFlipped` re-push closes any
+  remaining lag for already-subscribed clients.
 - **Malformed txid**: HTTP 400 with body `invalid txid`. Pinned by the
   `$isOtsCommit route handler` describe block in
   `ordpool.routes.test.ts` (5 tests).
