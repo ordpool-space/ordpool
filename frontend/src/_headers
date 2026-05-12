@@ -1,0 +1,13 @@
+# Cloudflare Pages _headers — Cache-Control overrides for files that
+# change on every deploy but aren't fingerprinted in the URL. Wired into
+# the build via angular.json (assets) and shipped in dist/.
+#
+# Without this, Pages defaults to a multi-hour TTL on .js files, so
+# already-open tabs keep reading the previous build's window.__env
+# (GIT_COMMIT_HASH, BASE_MODULE, etc.) until their cache expires. ETag
+# revalidation closes the gap to one 304 round-trip per page load.
+/resources/config.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/resources/customize.js
+  Cache-Control: public, max-age=0, must-revalidate
