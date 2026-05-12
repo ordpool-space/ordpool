@@ -96,27 +96,6 @@ if (process.env.DOCKER_COMMIT_HASH) {
   }
 }
 
-// HACK -- Ordpool: cache-bust config.js / customize.js by appending
-// `?v=<gitCommitHash>` to their <script src> in index.html. These files
-// aren't fingerprinted (Angular only hashes its own bundles), so without
-// the query suffix the browser keeps reading the previous build's
-// window.__env until /resources/config.js's max-age expires. Same trick
-// Angular uses for its bundle filenames -- different URL per deploy
-// forces a fresh fetch; matching ETag still 304's when content is
-// unchanged.
-try {
-  const stamp = gitCommitHash || Date.now().toString(36);
-  let indexHtml = fs.readFileSync('src/index.html', 'utf-8');
-  indexHtml = indexHtml.replace(
-    /<script\s+src="\/resources\/(config|customize)\.js(?:\?[^"]*)?"><\/script>/g,
-    `<script src="/resources/$1.js?v=${stamp}"></script>`,
-  );
-  fs.writeFileSync('src/index.html', indexHtml);
-  console.log(`Cache-busted /resources/{config,customize}.js in src/index.html with v=${stamp}`);
-} catch (e) {
-  console.log('Warning: could not cache-bust resources/config.js in index.html:', e.message);
-}
-
 const newConfig = `(function (window) {
   window.__env = window.__env || {};${settings.reduce((str, obj) => `${str}
     window.__env.${obj.key} = ${typeof obj.value === 'string' ? `'${obj.value}'` : obj.value};`, '')}
