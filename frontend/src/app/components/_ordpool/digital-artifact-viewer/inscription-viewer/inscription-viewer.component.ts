@@ -44,9 +44,9 @@ export class InscriptionViewerComponent {
     reason?: DecodeFailureReason,
   }> | undefined;
 
-  // Tag 15 (note): chisel.xyz-style inscriber-tool watermark string. ord stores
-  // but doesn't display it; we surface it so explorers can flag inscriber
-  // attribution.
+  // Tag 15 (note): free-form string attached to the inscription. The
+  // reference indexer stores it but doesn't display it; we surface it on
+  // the detail page.
   note: string | undefined;
 
   // Tag 13 (rune commitment): little-endian bytes of a rune's u128 value.
