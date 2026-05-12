@@ -1,4 +1,4 @@
-okokl# Ordpool transaction flags — architecture reference
+# Ordpool transaction flags — architecture reference
 
 This document is the canonical reference for **how `tx.flags` is computed,
 persisted, transmitted, and consumed** across the ordpool backend, the
@@ -23,7 +23,7 @@ There are **three independent things** that all use the word "flags":
    touch them. Bit positions defined in `mempool.interfaces.ts`'s
    `TransactionFlags` const.
 
-2. **Ordpool flags** — 31 additional bits packed into bits **48–81** of
+2. **Ordpool flags** — 34 additional bits packed into bits **48–81** of
    the same field. Defined in
    `ordpool-parser/src/types/ordpool-transaction-flags.ts`, exported as
    `OrdpoolTransactionFlags`. Bits 45–47 are a deliberate safety margin
@@ -117,7 +117,7 @@ Upstream defines four wire shapes; only two carry flags.
 |---|---|---|---|
 | `TransactionStripped` | `{txid, fee, vsize, value, acc?, rate?, time?}` | **No, by design** | `latestTransactions` cache, `/mempool/recent` |
 | `TransactionClassified` | `TransactionStripped` + `{flags: number}` | **Yes** | block summaries, classified-tx lists |
-| `TransactionCompressed` | tuple `[txid, fee, vsize, value, rate, flags, acceleration?]` | **Yes** (slot 5) | WebSocket mempool delta |
+| `TransactionCompressed` | tuple `[txid, fee, vsize, value, rate, flags, time, acceleration?]` | **Yes** (slot 5) | WebSocket mempool delta |
 | `MempoolDeltaChange` | tuple `[txid, rate, flags, acceleration?]` | **Yes** (slot 2) | WebSocket per-tx update |
 | Full `Transaction` / `MempoolTransactionExtended` | every field, including `flags?: number` | **Optional** — server may set it before shipping, or may not | REST tx detail, WebSocket track-tx, internal data flow |
 
@@ -162,7 +162,7 @@ all 32 bits from the bytes.
 
 ## 2. Ordpool's hacks on top of the mempool pipeline
 
-### 2.1 The 31 ordpool flags (bits 48–81)
+### 2.1 The 34 ordpool flags (bits 48–81)
 
 Source of truth: `ordpool-parser/src/types/ordpool-transaction-flags.ts`.
 Upstream owns bits 0–44. Bits 45–47 are a deliberate safety margin in
@@ -217,29 +217,21 @@ case upstream claims more bits in a future merge.
 |---|---|---|---|
 | **`ordpool_ots`** | **81** | **`ordpoolOtsTxidSet.has(txid)`** in the backend (set by the OTS poller from `ordpool_stats_ots` MariaDB satellite) | ❌ **no — backend-only state** |
 
-Thirty of thirty-one ordpool flags follow the upstream design contract:
-parser-derivable, client-recomputable. They piggyback on the
+Thirty-three of thirty-four ordpool flags follow the upstream design
+contract: parser-derivable, client-recomputable. They piggyback on the
 strip-and-recompute pattern.
 
 **`ordpool_ots` is the lone exception.** OTS calendar commits look
 like `OP_RETURN OP_PUSHBYTES_32 <32 bytes>` with no magic prefix —
 indistinguishable from any other 32-byte OP_RETURN by witness inspection
-alone. Identification requires knowing the txid-set of published
-calendar commits, which lives only on the backend
-(`ordpool_stats_ots` satellite table + the live
+alone. The bit answers "did some OTS calendar publish a Merkle root in
+this tx's `OP_RETURN` output where the root commits to user-submitted
+hashes?" The witness alone does not tell you which Merkle roots
+correspond to which calendars, nor whether the calendar has actually
+published that root. The only way to know is to maintain a hot set of
+"txids known to be OTS commits" — which is what the OTS poller does on
+the backend (`ordpool_stats_ots` satellite table + the live
 `ordpoolOtsTxidSet`).
-
-Twelve of thirteen ordpool flags follow the upstream design contract:
-parser-derivable, client-recomputable. They go through the same
-strip-and-recompute pattern as upstream's own flags.
-
-**`ordpool_ots` is the lone exception.** The bit answers "did some OTS
-calendar publish a Merkle root in this tx's `OP_RETURN` output where the
-root commits to user-submitted hashes?" The witness alone does not tell
-you which Merkle roots correspond to which calendars, nor whether the
-calendar has actually published that root. The only way to know is to
-maintain a hot set of "txids known to be OTS commits" — which is what
-the `ordpool-ots-poller` does on the backend.
 
 ### 2.2 Backend hooks: where ordpool bits get OR'd in
 
@@ -265,9 +257,7 @@ static async getTransactionFlags(tx: TransactionExtended, height?: number): Prom
   // OTS is dynamic (the poller hydrates ordpoolOtsTxidSet asynchronously).
   // A tx classified before the poller observed its calendar batch must
   // pick up the bit on later re-classifications.
-  addOtsFlag(tx as { txid: string; _ordpoolFlags?: number });
-  const otsFlags = (tx as { _ordpoolFlags?: number })._ordpoolFlags;
-  if (otsFlags) flags |= BigInt(otsFlags);
+  flags |= getOtsFlag(tx.txid);
 
   if (tx.flags) {
     return Number(flags);          // upstream's early-return, preserved
@@ -290,9 +280,10 @@ static async getTransactionFlags(tx: TransactionExtended, height?: number): Prom
 
 Two surgical insertions:
 
-- **OTS pre-enrichment** above the early-return. O(1) `Set.has()` so
-  cheap to do on every call. Reads/writes `tx._ordpoolFlags` as a
-  side-channel (the OTS poller writes this field, we read it).
+- **OTS pre-enrichment** above the early-return. `getOtsFlag(txid)`
+  returns the `ordpool_ots` bit as a bigint (or `0n`) from a single
+  O(1) `Set.has()` against the in-memory `ordpoolOtsTxidSet`. Pure
+  function — no mutation, no `_ordpoolFlags` side-channel involvement.
 - **`analyseTransaction` call** at the end of the slow path. Async
   because the parser does brotli/gzip decompression (which uses
   `DecompressionStream`, an async API in jsdom). This is the source of
@@ -317,7 +308,7 @@ Why this matters for upstream merges: every PR upstream merges that
 adds a new call to `Common.getTransactionFlags` will be sync. Our fork
 needs to make it `await`. The HACK markers in `common.ts` document this.
 
-### 2.4 The OTS poller
+### 2.4 The OTS poller and the helpers
 
 `OrdpoolOtsTxidSet` (`backend/src/api/ordpool-ots-txid-set.ts`) is a
 process-singleton `Set<string>` of every txid known to be an OTS
@@ -326,12 +317,35 @@ calendar commit. Hydrated at boot from the `ordpool_stats_ots` table
 `ordpool-ots-poller.ts` (which polls each configured calendar's recent
 batches, parses out the txids, calls `set.add(txid)`).
 
+The poller adds **both** confirmed-block txids AND mempool/pending
+txids to the set — the calendar publishes its `most_recent_tx`
+unconfirmed alongside its already-anchored history. A tx can therefore
+pick up the OTS bit while still in mempool, before its calendar batch
+commit confirms.
+
 The poller runs every 60 s by default. New txs may sit in mempool for
 some time before the poller learns about them — this is the
 eventual-consistency window that drives the entire OTS-flag design.
 
-`addOtsFlag(tx)` is the helper that reads from `ordpoolOtsTxidSet` and
-writes `tx._ordpoolFlags |= ordpool_ots` if the txid matches. O(1).
+The calendar list itself is hot-swappable: `ordpool-ots-poller.ts`
+exports `KNOWN_CALENDARS` as a JS `Proxy` that re-reads
+`ots-calendars.json` on every property access, so operators can add/
+remove calendars without restarting the backend.
+
+Three small helpers live in `ordpool-ots-flag.ts`:
+
+- `getOtsFlag(txid: string): bigint` — returns `ordpool_ots` (or `0n`)
+  as a bigint. Used by `Common.getTransactionFlags`: `flags |= getOtsFlag(tx.txid)`.
+- `attachIsOtsCommit(tx)` — writes the tristate to `tx.isOtsCommit`
+  on a `TransactionExtended`-shaped object before the strip surfaces
+  ship it.
+- `setIsOtsCommitByTxid(txid, info)` — same shape for the
+  `TxTrackingInfo` wire shape used by the WS `track-txs` (plural)
+  initial-subscribe payload, where the txid is the outer-map key
+  rather than a field on the value.
+
+All three are O(1) single `Set.has()` lookups against
+`ordpoolOtsTxidSet`. None mutates the singleton set.
 
 ### 2.5 Frontend hooks: where ordpool bits get OR'd in (almost)
 
@@ -446,7 +460,7 @@ Where the field is populated on the wire:
   calls `ordpoolOtsTxidSet.has(req.params.txId)` after
   `$getTransactionExtended` and writes the result to `transaction.isOtsCommit`.
   O(1) Set.has() lookup, no DB round-trip.
-- **WebSocket track-tx** — `websocket-handler.ts:212` and `:220`
+- **WebSocket track-tx** — `websocket-handler.ts:217` and `:227`
   (both bitcoind and esplora backends) write `fullTx.isOtsCommit =
   ordpoolOtsTxidSet.has(...)` before `JSON.stringify`.
 
@@ -637,15 +651,25 @@ callers:
 - `mempool-blocks.ts:685` — building projected mempool blocks. Txs come
   from `mempoolCache`, so `tx.flags` is already set.
 - `blocks.ts:243` (`summarizeBlockTransactions`) — same shape.
-- `block-processor.ts:68` — new-block confirmation processing. Txs
-  inherit from CPFP summary (mempool-classified).
 
-All three: early-return fires, OTS pre-enrichment runs above it, the
-OTS bit is carried through correctly.
+Both: early-return fires, OTS pre-enrichment runs above it, the OTS
+bit is carried through correctly.
 
-### 5.7 Strip paths — no classification
+### 5.7 `blocks.ts:412` — block extension (`$getBlockExtended`)
 
-`$getTransactionExtended` (called from `bitcoin.routes.ts:247` and
+```ts
+extras.ordpoolStats = await DigitalArtifactAnalyserService.analyseTransactions(transactions);
+```
+
+- **Context**: building the block-extension payload for a confirmed
+  block. The parser populates `extras.ordpoolStats` per the block.
+- **OTS bit**: lands on `tx.flags` downstream when the same txs flow
+  through `Common.getTransactionFlags` in `summarizeBlockTransactions`
+  (§5.6). No per-tx pre-enrichment step needed here.
+
+### 5.8 Strip paths — no classification
+
+`$getTransactionExtended` (called from `bitcoin.routes.ts:250` and
 elsewhere) does **not** call `getTransactionFlags`. The returned tx
 ships with `tx.flags = undefined` over the wire. Client recomputes
 parser-derived bits locally.
@@ -773,24 +797,28 @@ STAYS").
 
 | Concern | File:line | Notes |
 |---|---|---|
-| Flag constants (source of truth) | `ordpool-parser/src/types/ordpool-transaction-flags.ts` | `OrdpoolTransactionFlags` — 31 flags at bits 48–81 |
+| Flag constants (source of truth) | `ordpool-parser/src/types/ordpool-transaction-flags.ts` | `OrdpoolTransactionFlags` — 34 flags at bits 48–81 |
 | Backend flag producer | `backend/src/api/common.ts:613` | `Common.getTransactionFlags` (async, ordpool fork) |
-| Backend OTS pre-enrichment | `backend/src/api/common.ts:645` | above the early-return (`return Number(flags)` at `:653`) |
+| Backend OTS pre-enrichment | `backend/src/api/common.ts:645` | `flags \|= getOtsFlag(tx.txid)`, above the early-return |
 | Backend OTS-set singleton | `backend/src/api/ordpool-ots-txid-set.ts` | in-memory `Set<string>` |
 | Backend OTS poller | `backend/src/api/ordpool-ots-poller.ts` | 60s-cycle calendar scraper |
-| Backend OTS pre-enrichment helper | `backend/src/api/ordpool-ots-flag.ts` | `addOtsFlag`, `addOtsFlagBatch` |
-| Backend `isOtsCommit` field | `backend/src/mempool.interfaces.ts:142` | `TransactionExtended.isOtsCommit?: boolean \| null` |
-| Backend strip-fill (REST tx detail) | `backend/src/api/bitcoin/bitcoin.routes.ts:247` | `getTransaction` route handler |
-| Backend strip-fill (WS track-tx) | `backend/src/api/websocket-handler.ts:212, 220` | both bitcoind + esplora paths |
+| Backend OTS helpers | `backend/src/api/ordpool-ots-flag.ts` | `getOtsFlag`, `attachIsOtsCommit`, `setIsOtsCommitByTxid` |
+| Backend `isOtsCommit` field | `backend/src/mempool.interfaces.ts:152` | `TransactionExtended.isOtsCommit?: boolean \| null` |
+| Backend `isOtsCommit` field on tracking info | `backend/src/mempool.interfaces.ts` | `TxTrackingInfo.isOtsCommit?: boolean \| null` |
+| Backend strip-fill (REST tx detail) | `backend/src/api/bitcoin/bitcoin.routes.ts:250` | `getTransaction` route handler |
+| Backend strip-fill (WS track-tx) | `backend/src/api/websocket-handler.ts:213, 220, 229` | esplora + bitcoind branches + cache-miss branch |
+| Backend strip-fill (WS track-txs plural) | `backend/src/api/websocket-handler.ts` | initial-subscribe loop |
 | Backend lazy is-commit endpoint | `backend/src/api/explorer/_ordpool/ordpool.routes.ts:$isOtsCommit` | `GET /api/v1/ordpool/ots/is-commit/:txid` |
-| Frontend flag producer | `frontend/src/app/shared/transaction.utils.ts:800` | `getTransactionFlags` (async, ordpool fork) |
-| Frontend `isOtsCommit` field | `frontend/src/app/interfaces/electrs.interface.ts:35` | `Transaction.isOtsCommit?: boolean \| null` |
-| Frontend OTS knowledge service | `frontend/src/app/services/ordinals/ots-knowledge.service.ts` | three-source decision + cache |
+| Frontend flag producer | `frontend/src/app/shared/transaction.utils.ts:803` | `getTransactionFlags` (async, ordpool fork) |
+| Frontend `isOtsCommit` field | `frontend/src/app/interfaces/electrs.interface.ts:45` | `Transaction.isOtsCommit?: boolean \| null` |
+| Frontend OTS knowledge service | `frontend/src/app/services/ordinals/ots-knowledge.service.ts` | three-source decision + cache + concurrent-probe coalescing |
 | Upstream baseline (reference clone) | `/tmp/mempool-fresh/backend/src/api/common.ts:610` | upstream `getTransactionFlags` (sync) |
 | OTS retroactive-application test | `backend/src/api/ordpool-flags-ots-retroactive.test.ts` | pins eventual-consistency invariant |
 | BigInt-gotcha test | `backend/src/__tests__/ordpool-flags-bigint-gotcha.test.ts` | pins arithmetic invariant |
+| OTS flag helpers test | `backend/src/api/ordpool-ots-flag.test.ts` | `getOtsFlag` + `attachIsOtsCommit` + `setIsOtsCommitByTxid` |
+| Bootstrap fail-soft test | `backend/src/api/ordpool-ots-txid-set.bootstrap-fail-soft.test.ts` | pins degraded-mode boot |
 | Lazy is-commit handler test | `backend/src/api/explorer/_ordpool/ordpool.routes.test.ts` | `$isOtsCommit route handler` describe block |
-| OTS knowledge service test | `frontend/src/app/services/ordinals/ots-knowledge.service.spec.ts` | three-source + cache + degradation |
+| OTS knowledge service test | `frontend/src/app/services/ordinals/ots-knowledge.service.spec.ts` | three-source + cache + degradation + network scoping |
 
 ## Appendix B — Glossary
 

@@ -521,7 +521,11 @@ export interface TxTrackingInfo {
   acceleratedBy?: number[],
   acceleratedAt?: number,
   feeDelta?: number,
-  confirmed?: boolean
+  confirmed?: boolean,
+  // HACK -- Ordpool: tristate OTS-commit knowledge for the WS track-txs
+  // bulk subscribe path. Same semantics as TransactionExtended.isOtsCommit
+  // (true / false / null). See ORDPOOL-FLAGS-ARCHITECTURE.md §4.
+  isOtsCommit?: boolean | null,
 }
 
 export interface WebsocketResponse {

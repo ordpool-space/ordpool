@@ -252,12 +252,18 @@ describe('$isOtsCommit route handler', () => {
     expect(res.json).toHaveBeenCalledWith({ result: false });
   });
 
-  it('sets Cache-Control: public, max-age=60 to match the OTS poller cycle', async () => {
+  it('sets Cache-Control with max-age=60 + stale-while-revalidate=60', async () => {
     (ordpoolOtsTxidSet.has as jest.Mock).mockReturnValue(false);
 
     const res = await call$isOtsCommit('b'.repeat(64));
 
-    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=60');
+    // max-age=60 matches the poller cycle so a true answer flips quickly;
+    // stale-while-revalidate=60 keeps Cloudflare serving the previous
+    // answer during poller stalls (calendar 5xx, network blip).
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'public, max-age=60, stale-while-revalidate=60',
+    );
   });
 
   it('rejects malformed txids (not 64 hex chars)', async () => {

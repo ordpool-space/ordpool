@@ -12,7 +12,7 @@ import mempoolBlocks from './mempool-blocks';
 import { Common } from './common';
 // HACK -- Ordpool: tristate OTS-commit knowledge for the WS track-tx
 // strip-path; see ORDPOOL-FLAGS-ARCHITECTURE.md §4.
-import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
+import { attachIsOtsCommit, setIsOtsCommitByTxid } from './ordpool-ots-flag';
 import loadingIndicators from './loading-indicators';
 import config from '../config';
 import transactionUtils from './transaction-utils';
@@ -208,13 +208,15 @@ class WebsocketHandler {
                   const tx = memPool.getMempool()[trackTxid];
                   if (tx) {
                     if (config.MEMPOOL.BACKEND === 'esplora') {
+                      // HACK -- Ordpool: strip-path -- attach OTS-commit tristate.
+                      attachIsOtsCommit(tx);
                       response['tx'] = JSON.stringify(tx);
                     } else {
                       // tx.prevout is missing from transactions when in bitcoind mode
                       try {
                         const fullTx = await transactionUtils.$getMempoolTransactionExtended(tx.txid, true);
                         // HACK -- Ordpool: strip-path -- attach OTS-commit tristate.
-                        fullTx.isOtsCommit = ordpoolOtsTxidSet.has(tx.txid);
+                        attachIsOtsCommit(fullTx);
                         response['tx'] = JSON.stringify(fullTx);
                       } catch (e) {
                         logger.debug('Error finding transaction: ' + (e instanceof Error ? e.message : e));
@@ -224,7 +226,7 @@ class WebsocketHandler {
                     try {
                       const fullTx = await transactionUtils.$getMempoolTransactionExtended(client['track-tx'], true);
                       // HACK -- Ordpool: strip-path -- attach OTS-commit tristate.
-                      fullTx.isOtsCommit = ordpoolOtsTxidSet.has(client['track-tx']);
+                      attachIsOtsCommit(fullTx);
                       response['tx'] = JSON.stringify(fullTx);
                     } catch (e) {
                       logger.debug('Error finding transaction. ' + (e instanceof Error ? e.message : e));
@@ -278,6 +280,10 @@ class WebsocketHandler {
             const txs: { [txid: string]: TxTrackingInfo } = {};
             for (const txid of txids) {
               const txInfo: TxTrackingInfo = {};
+              // HACK -- Ordpool: strip-path -- attach OTS-commit tristate
+              // for every requested txid so the frontend's
+              // OtsKnowledgeService can apply the bit without a lazy probe.
+              setIsOtsCommitByTxid(txid, txInfo);
               const rbfCacheTxid = rbfCache.getReplacedBy(txid);
               if (rbfCacheTxid) {
                 txInfo.replacedBy = rbfCacheTxid;

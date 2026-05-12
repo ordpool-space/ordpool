@@ -997,7 +997,12 @@ export async function getTransactionFlags(
   if (otsKnowledge) {
     try {
       const isOts = await otsKnowledge.isOtsCommit(tx);
-      if (isOts) flags |= OrdpoolTransactionFlags.ordpool_ots;
+      // Strict check against the tristate: only `true` sets the bit.
+      // `false` is a confirmed negative; `null` is "unknown" (probe
+      // failed). Both currently produce the same UX (no badge), but the
+      // distinction matters for any future caller that wants to render
+      // a "?" state for unknown.
+      if (isOts === true) flags |= OrdpoolTransactionFlags.ordpool_ots;
     } catch {
       /* swallow -- conservative default: no OTS badge if we can't prove it */
     }
