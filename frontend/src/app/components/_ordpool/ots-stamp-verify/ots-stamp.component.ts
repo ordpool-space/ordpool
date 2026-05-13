@@ -15,6 +15,7 @@ import {
   hexEncode,
 } from './ots-store.service';
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
+import { environment } from 'src/environments/environment';
 
 /*
 Test cases:
@@ -190,11 +191,19 @@ export class OtsStampComponent {
   }
 
   private async postDigestToCalendar(uri: string, digest: Uint8Array): Promise<Uint8Array> {
-    // text/plain is a CORS-safelisted content type, so no preflight is sent.
-    // The OTS calendars don't validate Content-Type, they only read the body.
-    const resp = await fetch(uri + '/digest', {
+    // Privacy: we route /digest through the ordpool backend instead of
+    // hitting the calendar directly, so the calendar operator sees our
+    // backend's IP rather than the user's. The /upgrade poll is already
+    // proxied (CORS reason), and verify is fully local; this closes the
+    // last hop where the user's IP could leak.
+    const apiBase = environment.apiBaseUrl || '';
+    const calendarHost = (() => {
+      try { return new URL(uri).hostname; } catch { return ''; }
+    })();
+    const proxyUrl = `${apiBase}/api/v1/ordpool/ots/digest/${calendarHost}`;
+    const resp = await fetch(proxyUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'application/octet-stream' },
       body: digest as BufferSource,
     });
     if (!resp.ok) throw new Error(uri + ' replied ' + resp.status);

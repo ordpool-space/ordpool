@@ -281,3 +281,116 @@ describe('$isOtsCommit route handler', () => {
     expect(ordpoolOtsTxidSet.has).not.toHaveBeenCalled();
   });
 });
+
+// Mock the calendars config so we know exactly which hostnames are
+// whitelisted. The real config reads a JSON file; for tests we just
+// declare two hosts and assert that anything else 400s.
+jest.mock('./ots-calendars-config', () => ({
+  __esModule: true,
+  getOtsCalendars: jest.fn(),
+  getOtsCalendarHosts: jest.fn(() => new Set([
+    'alice.btc.calendar.opentimestamps.org',
+    'bob.btc.calendar.opentimestamps.org',
+  ])),
+}));
+
+describe('$proxyOtsDigest route handler (privacy shield for stamp submissions)', () => {
+
+  let fetchSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    // Re-arm the calendar-host whitelist because resetAllMocks clears it.
+    const cfg = require('./ots-calendars-config');
+    (cfg.getOtsCalendarHosts as jest.Mock).mockReturnValue(new Set([
+      'alice.btc.calendar.opentimestamps.org',
+      'bob.btc.calendar.opentimestamps.org',
+    ]));
+    fetchSpy = jest.spyOn(globalThis, 'fetch' as any);
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  async function call$proxyOtsDigest(calendar: string, body: any) {
+    const res = makeRes();
+    await (generalOrdpoolRoutes as any).$proxyOtsDigest(
+      { params: { calendar }, body } as unknown as Request,
+      res,
+    );
+    return res as Response & { status: jest.Mock; setHeader: jest.Mock; send: jest.Mock; end: jest.Mock };
+  }
+
+  it('forwards a 32-byte SHA-256 digest to the whitelisted calendar and returns the upstream bytes', async () => {
+    const digest = Buffer.alloc(32, 0x42);
+    const upstreamBody = Buffer.from([0xf0, 0x10, 0x42, 0x00, 0xff]);
+    fetchSpy.mockResolvedValueOnce({
+      status: 200,
+      arrayBuffer: async () => upstreamBody.buffer.slice(upstreamBody.byteOffset, upstreamBody.byteOffset + upstreamBody.byteLength),
+    } as any);
+
+    const res = await call$proxyOtsDigest('alice.btc.calendar.opentimestamps.org', digest);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://alice.btc.calendar.opentimestamps.org/digest',
+      expect.objectContaining({ method: 'POST', body: digest }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.opentimestamps.v1');
+  });
+
+  it('rejects an unknown calendar host with 400 (so this cannot be used as an open POST relay)', async () => {
+    const res = await call$proxyOtsDigest('evil.example.org', Buffer.alloc(32, 0));
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('unknown calendar');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty body', async () => {
+    const res = await call$proxyOtsDigest('alice.btc.calendar.opentimestamps.org', Buffer.alloc(0));
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('invalid digest body');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversize bodies (cap 256 bytes, real OTS digests are 32)', async () => {
+    const res = await call$proxyOtsDigest('alice.btc.calendar.opentimestamps.org', Buffer.alloc(1024, 0));
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('invalid digest body');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-Buffer bodies (middleware bypass guard)', async () => {
+    // If express.raw didn't run (or was bypassed), req.body might be the
+    // body-parser default of {} or undefined. The handler must refuse to
+    // forward in that case rather than POSTing nonsense to the calendar.
+    const res = await call$proxyOtsDigest('alice.btc.calendar.opentimestamps.org', { not: 'a buffer' });
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('invalid digest body');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('maps a non-200 upstream response to 502', async () => {
+    fetchSpy.mockResolvedValueOnce({ status: 503, arrayBuffer: async () => new ArrayBuffer(0) } as any);
+
+    const res = await call$proxyOtsDigest('bob.btc.calendar.opentimestamps.org', Buffer.alloc(32, 0));
+
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(res.send).toHaveBeenCalledWith('upstream returned 503');
+  });
+
+  it('maps a thrown fetch (network failure / abort) to 502', async () => {
+    fetchSpy.mockRejectedValueOnce(new Error('network down'));
+
+    const res = await call$proxyOtsDigest('alice.btc.calendar.opentimestamps.org', Buffer.alloc(32, 0));
+
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(res.send).toHaveBeenCalledWith('upstream error');
+  });
+});
