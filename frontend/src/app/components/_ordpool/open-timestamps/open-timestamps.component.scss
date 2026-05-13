@@ -1,5 +1,10 @@
 .ots-calendars {
-  padding: 1rem 0;
+  // Vertical breathing room only -- leave Bootstrap's responsive
+  // horizontal padding (--bs-gutter-x on .container-xl) intact.
+  // Setting `padding: 1rem 0` here zeroes the horizontal padding and
+  // the page content slams against the viewport edge on mobile.
+  padding-top: 1rem;
+  padding-bottom: 1rem;
 
   .text-right {
     text-align: right;
