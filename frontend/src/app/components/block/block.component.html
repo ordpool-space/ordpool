@@ -45,6 +45,17 @@
         <!-- <table class="table table-borderless table-striped"> -->
         <table class="table table-borderless table-striped table-dark">
           
+          <!-- HACK: START Ordpool OTS block-summary -- own <thead>/<tbody>
+               section so it reads as a standalone protocol block, just
+               like the upstream stats sections. Placed BEFORE
+               app-block-ordpool-stats because that component renders the
+               "General Block Data" <thead> as its last section and the
+               <tbody> for it is owned by THIS template -- inserting OTS
+               between them visually wedges it into General Block Data.
+               Self-hides on zero commits. -->
+          <app-block-ots-summary [blockHeight]="block?.height" />
+          <!-- HACK: END Ordpool OTS block-summary -->
+
           <!-- HACK: START Ordpool Stats -->
           <app-block-ordpool-stats
             [ordpoolStats]="block?.extras?.ordpoolStats"
@@ -53,10 +64,6 @@
             [showSkeleton]="block && !isLoadingBlock"
             [blockConversion]="blockConversion" />
           <!-- HACK: END Ordpool Stats -->
-
-          <!-- HACK: START Ordpool OTS block-summary (self-hides on zero commits) -->
-          <app-block-ots-summary [blockHeight]="block?.height" />
-          <!-- HACK: END Ordpool OTS block-summary -->
 
           <tbody>
             <ng-container *ngIf="block && !isLoadingBlock; else skeletonRows">
