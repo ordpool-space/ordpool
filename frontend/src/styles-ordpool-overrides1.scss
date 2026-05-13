@@ -150,6 +150,16 @@ app-block-filters {
   display: none !important;
 }
 
+// HACK -- Ordpool: hide the mining-pool name + icon under each block in
+// the recent-blocks bar (the dashboard / block-detail header strip). The
+// blockchain-blocks template renders the pool inside <div class="animated">
+// with an <app-mining-pool> badge; we render plenty of other per-block
+// signal already and the pool isn't part of ordpool's narrative. Drop the
+// whole wrapper so the block tile reclaims the vertical space.
+app-blockchain-blocks .animated:has(app-mining-pool) {
+  display: none !important;
+}
+
 // hide the toggle that changes the time direction
 .time-toggle {
   visibility: hidden !important;
