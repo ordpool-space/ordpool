@@ -121,9 +121,21 @@
             Please try again!
           </ng-container>
 
-          <ng-container *ngIf="i.digitalArtifacts && !i.digitalArtifacts.length">
+          <!-- HACK -- Ordpool: hide "None" when the tx is a known OTS
+               commit -- the OTS panel below already says what's in it. -->
+          <ng-container *ngIf="i.digitalArtifacts && !i.digitalArtifacts.length && !isOtsCommit">
             None
           </ng-container>
+
+          <!-- HACK -- Ordpool: OTS commits aren't parser-derivable, so they
+               don't appear in `i.digitalArtifacts`. Render a small inline
+               summary directly from the tx.flags bit instead. -->
+          <div *ngIf="isOtsCommit" class="text-left" style="width: 300px;">
+            <strong>OpenTimestamps</strong>
+            <div class="smaller-text" style="opacity: 0.7;">
+              Calendar batch commit anchoring a Merkle root in OP_RETURN
+            </div>
+          </div>
 
           <div class="text-left" style="width: 300px;" *ngIf="i.digitalArtifacts && i.digitalArtifacts.length">
             <app-digital-artifact-viewer
