@@ -18,5 +18,5 @@
  * traffic, not three.
  */
 export const OTS_OUTBOUND_USER_AGENT =
-  'Ordpool proxy. See https://ordpool.space/open-timestamps. ' +
+  'ordpool.space proxy. See https://ordpool.space/open-timestamps. ' +
   'If you don\'t like what we do, contact us first.';

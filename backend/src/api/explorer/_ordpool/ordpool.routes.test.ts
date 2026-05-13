@@ -351,8 +351,9 @@ describe('$proxyOtsDigest route handler (privacy shield for stamp submissions)',
 
     const [, init] = fetchSpy.mock.calls[0];
     const ua = (init?.headers as Record<string, string>)?.['User-Agent'];
-    // Brand (capital O), URL (lower-case domain), contact invitation.
-    expect(ua).toMatch(/\bOrdpool\b/);
+    // Domain identifier (lower-case ordpool.space), URL to the page that
+    // explains what we do, and a contact invitation.
+    expect(ua).toMatch(/\bordpool\.space proxy\b/);
     expect(ua).toMatch(/https:\/\/ordpool\.space\/open-timestamps/);
     expect(ua).toMatch(/contact us/i);
   });
