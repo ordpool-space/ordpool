@@ -177,15 +177,15 @@
       no third party sees who's stamping or verifying what.
     </p>
 
-    <div class="row mt-4 text-start">
-      <div class="col-md-6 col-lg-3 mb-3">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-5 mt-4 text-start">
+      <div class="col mb-3">
         <h5>Your file never leaves your browser</h5>
         <p class="text-muted">
           We compute the 32-byte SHA-256 fingerprint locally. Only the hash
           is ever transmitted. Never the contents, never the filename.
         </p>
       </div>
-      <div class="col-md-6 col-lg-3 mb-3">
+      <div class="col mb-3">
         <h5>Your Bitcoin addresses stay private</h5>
         <p class="text-muted">
           You don't sign or broadcast a transaction. Calendar operators
@@ -193,7 +193,7 @@
           so no UTXO or address ever links back to your stamp.
         </p>
       </div>
-      <div class="col-md-6 col-lg-3 mb-3">
+      <div class="col mb-3">
         <h5>Calendars only see us</h5>
         <p class="text-muted">
           Stamp submissions and confirmation polls both route through our
@@ -201,11 +201,21 @@
           not yours, on every request.
         </p>
       </div>
-      <div class="col-md-6 col-lg-3 mb-3">
+      <div class="col mb-3">
         <h5>We don't log who you are</h5>
         <p class="text-muted">
           Our backend keeps no per-request user data: no IPs, no hashes,
           no timestamps in any logfile we control.
+        </p>
+      </div>
+      <div class="col mb-3">
+        <h5>Don't trust, verify</h5>
+        <p class="text-muted">
+          Every line is open source. Code lives in the
+          <a href="https://github.com/ordpool-space" target="_blank" rel="noopener">ordpool-space</a>
+          org on GitHub, builds run in GitHub Actions, and the compiled
+          artifacts are published to public repos. Audit the stack yourself;
+          you don't have to take our word for any of this.
         </p>
       </div>
     </div>
