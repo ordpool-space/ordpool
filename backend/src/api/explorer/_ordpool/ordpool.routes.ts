@@ -1,4 +1,4 @@
-import { Application, Request, Response } from 'express';
+import express, { Application, Request, Response } from 'express';
 import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
@@ -32,6 +32,13 @@ class GeneralOrdpoolRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/tx/:txid', this.$getOtsTx)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/block/:height', this.$getOtsBlock)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/upgrade/:calendar/:hash', this.$proxyOtsUpgrade)
+      // Route-local express.raw so we receive the digest as a Buffer (not
+      // body-parser-mangled text). 256-byte cap; real OTS digests are 32 bytes.
+      .post(
+        config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/digest/:calendar',
+        express.raw({ type: '*/*', limit: 256 }),
+        this.$proxyOtsDigest,
+      )
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/stamp-calendars', this.$getOtsStampCalendars)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/is-commit/:txid', this.$isOtsCommit)
       .get('/content/:inscriptionId', this.getInscriptionContent)
@@ -125,6 +132,67 @@ class GeneralOrdpoolRoutes {
         res.setHeader('Cache-Control', 'public, max-age=60');
         res.setHeader('Content-Type', 'application/json');
         res.status(200).end('{"status":"pending"}');
+      } else {
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(502).send(`upstream returned ${upstream.status}`);
+      }
+    } catch {
+      res.status(502).send('upstream error');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  /**
+   * Proxy POST /digest on a public OTS calendar.
+   *
+   * Why we proxy: privacy. Without this, the browser submits the user's
+   * file hash directly to alice/bob/finney/catallaxy and each calendar
+   * operator learns the user's IP at submission time. Routing through
+   * ordpool makes the calendar see our backend's IP instead -- combined
+   * with the existing /upgrade proxy and the all-local verify flow,
+   * calendar operators never observe the user at all.
+   *
+   * The proxied body is the raw 32-byte SHA-256 digest. We enforce
+   * a tight 256-byte cap (route-local `express.raw` limit + a recheck
+   * here in case the middleware was bypassed) so this can't become a
+   * generic POST relay. Hostname is whitelisted, same as /upgrade.
+   *
+   * Calendar /digest responses are binary (the OpenTimestamps
+   * commitment subtree); we forward bytes verbatim.
+   */
+  // POST https://ordpool.space/api/v1/ordpool/ots/digest/alice.btc.calendar.opentimestamps.org
+  private async $proxyOtsDigest(req: Request, res: Response): Promise<void> {
+    const allowed = getOtsCalendarHosts();
+    const calendar = String(req.params.calendar || '').toLowerCase();
+    if (!allowed.has(calendar)) {
+      res.status(400).send('unknown calendar');
+      return;
+    }
+    const body = req.body;
+    if (!Buffer.isBuffer(body) || body.length === 0 || body.length > 256) {
+      res.status(400).send('invalid digest body');
+      return;
+    }
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 10_000);
+    try {
+      const upstream = await fetch(`https://${calendar}/digest`, {
+        method: 'POST',
+        // text/plain matches what the original direct-from-browser request
+        // used and keeps the upstream's "simple request" code path; no
+        // calendar validates Content-Type, they read the body verbatim.
+        headers: { 'Content-Type': 'text/plain' },
+        body,
+        signal: abort.signal,
+      });
+      if (upstream.status === 200) {
+        const out = Buffer.from(await upstream.arrayBuffer());
+        // The response is a pending OTS commitment subtree -- different
+        // every call, never cacheable.
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Content-Type', 'application/vnd.opentimestamps.v1');
+        res.status(200).end(out);
       } else {
         res.setHeader('Cache-Control', 'no-store');
         res.status(502).send(`upstream returned ${upstream.status}`);
