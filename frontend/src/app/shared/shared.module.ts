@@ -16,6 +16,8 @@ import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, fa
   // "Could not find icon with iconName=<x> and prefix=fas" the moment the master-page
   // template tries to render the nav.
   faCubes, faBook, faChartArea, faFaucetDrip, faHammer, faCheckCircle, faTimesCircle,
+  // HACK -- Ordpool: shield icon used by the privacy section on the OTS page.
+  faShieldHalved,
 } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollModule } from 'ngx-infinite-scroll';
 import { MenuComponent } from '@components/menu/menu.component';
@@ -599,6 +601,7 @@ export class SharedModule {
     library.addIcons(faCode);
     library.addIcons(faPause);
     library.addIcons(faPlay);
+    library.addIcons(faShieldHalved);
     // HACK -- Ordpool: post-upstream-merge missing registrations. See import comment.
     library.addIcons(faCubes);
     library.addIcons(faBook);

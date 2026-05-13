@@ -166,4 +166,49 @@
     </table>
     </div>
   }
+
+  <hr class="my-5">
+
+  <section class="ots-privacy text-center">
+    <fa-icon class="ots-privacy-icon" [icon]="['fas', 'shield-halved']"></fa-icon>
+    <h2 class="mt-3">Your privacy is the point</h2>
+    <p class="lead">
+      Ordpool is the shield. We carry every external request for you so
+      no third party sees who's stamping or verifying what.
+    </p>
+
+    <div class="row mt-4 text-start">
+      <div class="col-md-4 mb-3">
+        <h5>Your file never leaves your browser</h5>
+        <p class="text-muted">
+          We compute the 32-byte SHA-256 fingerprint locally. Only the hash
+          is ever transmitted &mdash; never the contents, never the filename.
+        </p>
+      </div>
+      <div class="col-md-4 mb-3">
+        <h5>Calendars only see us</h5>
+        <p class="text-muted">
+          Stamp submissions and confirmation polls both route through our
+          backend. The four public calendar operators receive ordpool's IP,
+          not yours, on every request.
+        </p>
+      </div>
+      <div class="col-md-4 mb-3">
+        <h5>We don't log who you are</h5>
+        <p class="text-muted">
+          Our backend keeps no per-request user data &mdash; no IPs, no
+          hashes, no timestamps in any logfile we control.
+        </p>
+      </div>
+    </div>
+
+    <p class="text-muted mt-3">
+      <small>
+        One honest caveat: Cloudflare sits in front of ordpool.space for
+        DDoS protection and records standard CDN metadata (your IP, your
+        country, the request path). If you don't trust them either, run a
+        VPN on top &mdash; then there's no path back to you.
+      </small>
+    </p>
+  </section>
 </div>
