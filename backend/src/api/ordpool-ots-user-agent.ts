@@ -19,4 +19,4 @@
  */
 export const OTS_OUTBOUND_USER_AGENT =
   'ordpool.space proxy. See https://ordpool.space/open-timestamps. ' +
-  'If you don\'t like what we do, contact us first.';
+  'If you don\'t like what we do, please contact us first.';
