@@ -247,6 +247,7 @@ export class StateService {
       'ordpool_stamp',
       'ordpool_src721',
       'ordpool_src101',
+      'ordpool_ots',
     ],
     gradient: 'fee'
   });
