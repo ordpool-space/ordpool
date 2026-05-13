@@ -16,3 +16,28 @@
     font-size: 0.75rem;
   }
 }
+
+.ots-privacy {
+  padding: 2rem 0 3rem;
+
+  .ots-privacy-icon {
+    font-size: 3rem;
+    color: var(--primary);
+    display: inline-block;
+    line-height: 1;
+  }
+
+  h2 {
+    font-weight: 600;
+  }
+
+  .lead {
+    max-width: 640px;
+    margin: 0.5rem auto 0;
+  }
+
+  h5 {
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+  }
+}
