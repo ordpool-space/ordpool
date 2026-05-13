@@ -1,6 +1,7 @@
 import logger from '../logger';
 import ordpoolOtsRepository from '../repositories/OrdpoolOtsRepository';
 import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
+import { OTS_OUTBOUND_USER_AGENT } from './ordpool-ots-user-agent';
 import { getOtsCalendars, OtsCalendar as ConfiguredCalendar } from './explorer/_ordpool/ots-calendars-config';
 
 /**
@@ -212,7 +213,13 @@ class OrdpoolOtsPoller {
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
     try {
       const res = await this.fetchImpl(url, {
-        headers: { Accept: 'application/json' },
+        headers: {
+          'Accept': 'application/json',
+          // Identify ourselves on every 60-second indexer poll so calendar
+          // operators recognise the traffic and have a path to contact us
+          // instead of rate-limiting an anonymous Node fetch UA.
+          'User-Agent': OTS_OUTBOUND_USER_AGENT,
+        },
         signal: ctrl.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -3,6 +3,7 @@ import config from '../config';
 import ordpoolOtsRepository from '../repositories/OrdpoolOtsRepository';
 import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
 import { KNOWN_CALENDARS } from './ordpool-ots-poller';
+import { OTS_OUTBOUND_USER_AGENT } from './ordpool-ots-user-agent';
 
 /**
  * One-shot wallet-graph walker. Backfills historical OTS calendar commits
@@ -91,7 +92,12 @@ export class OrdpoolOtsBackfill {
 
   /** Fetch the most-recent confirmed calendar tx from the calendar's own JSON. */
   async getSeedTxid(calendarUrl: string): Promise<string | null> {
-    const res = await this.fetchImpl(calendarUrl, { headers: { Accept: 'application/json' } });
+    const res = await this.fetchImpl(calendarUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': OTS_OUTBOUND_USER_AGENT,
+      },
+    });
     if (!res.ok) return null;
     const body: any = await res.json();
     const txs: Array<{ txid?: string; confirmations?: number }> = Array.isArray(body.transactions) ? body.transactions : [];
