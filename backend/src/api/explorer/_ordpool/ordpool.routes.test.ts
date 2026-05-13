@@ -341,6 +341,21 @@ describe('$proxyOtsDigest route handler (privacy shield for stamp submissions)',
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.opentimestamps.v1');
   });
 
+  it('identifies itself to the calendar with a friendly User-Agent (URL + contact invitation)', async () => {
+    // The default Node fetch User-Agent reads as anonymous bot traffic;
+    // an identifying UA gives calendar operators a path to reach us
+    // before they reach for the block button.
+    fetchSpy.mockResolvedValueOnce({ status: 200, arrayBuffer: async () => new ArrayBuffer(0) } as any);
+
+    await call$proxyOtsDigest('alice.btc.calendar.opentimestamps.org', Buffer.alloc(32, 0));
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const ua = (init?.headers as Record<string, string>)?.['User-Agent'];
+    expect(ua).toMatch(/Ordpool\.space/);
+    expect(ua).toMatch(/https:\/\/ordpool\.space\/open-timestamps/);
+    expect(ua).toMatch(/contact us/i);
+  });
+
   it('rejects an unknown calendar host with 400 (so this cannot be used as an open POST relay)', async () => {
     const res = await call$proxyOtsDigest('evil.example.org', Buffer.alloc(32, 0));
 
