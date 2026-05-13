@@ -61,14 +61,14 @@ class MiningRoutes {
     ;
   }
 
-  // HACK -- Ordpool: 410 stub for the disabled pool detail endpoints. See
-  // initRoutes for the rationale. Cache for a day so misbehaving clients
-  // don't hammer the route.
+  // HACK -- Ordpool: empty-200 stub for the disabled pool detail
+  // endpoints. See initRoutes for the rationale. We avoid 4xx so this
+  // doesn't show up as a red row in any browser DevTools / console for
+  // direct callers; Cache-Control: 1d still encourages well-behaved
+  // clients to back off.
   private $poolDetailDisabled(req: Request, res: Response): void {
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.status(410).json({
-      error: 'Per-pool detail endpoints are disabled on ordpool.',
-    });
+    res.status(200).json([]);
   }
 
   private async $getHistoricalPrice(req: Request, res: Response): Promise<void> {
