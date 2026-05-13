@@ -4,7 +4,7 @@ import { Price } from '@app/services/price.service';
 import { TransactionStripped } from '@interfaces/node-api.interface.js';
 import { Filter, FilterMode, TransactionFlags, toFilters } from '@app/shared/filters.utils';
 import { Block } from '@interfaces/electrs.interface.js';
-import { DigitalArtifact, DigitalArtifactAnalyserService } from 'ordpool-parser';
+import { DigitalArtifact, DigitalArtifactAnalyserService, OrdpoolTransactionFlags } from 'ordpool-parser';
 import { Observable, catchError, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
 
@@ -39,6 +39,10 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   timeMode: 'mempool' | 'mined' | 'missed' | 'after' = 'mempool';
   filters: Filter[] = [];
   activeFilters: { [key: string]: boolean } = {};
+  // HACK -- Ordpool: surfaced separately so the Digital Artifacts cell
+  // can render an OTS line and suppress the misleading "None" message
+  // (OTS isn't parser-derivable; the parser-based fetcher returns []).
+  isOtsCommit: boolean = false;
 
   tooltipPosition: Position = { x: 0, y: 0 };
 
@@ -74,6 +78,9 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       this.feeRate = this.fee / this.vsize;
       this.effectiveRate = this.tx.rate;
       const txFlags = BigInt(this.tx.flags) || 0n;
+      // HACK -- Ordpool: bit 81 is preserved across the JSON Number
+      // round-trip even though the lower bits get quantized to ~2^29.
+      this.isOtsCommit = (txFlags & OrdpoolTransactionFlags.ordpool_ots) !== 0n;
       this.acceleration = this.tx.acc || (txFlags & TransactionFlags.acceleration);
       this.hasEffectiveRate = this.tx.acc || !(Math.abs((this.fee / this.vsize) - this.effectiveRate) <= 0.1 && Math.abs((this.fee / Math.ceil(this.vsize)) - this.effectiveRate) <= 0.1)
         || (txFlags && (txFlags & (TransactionFlags.cpfp_child | TransactionFlags.cpfp_parent)) > 0n);

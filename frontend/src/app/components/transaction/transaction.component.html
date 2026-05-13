@@ -149,7 +149,10 @@
 
       <div class="box">
 
-        <ng-container *ngIf="!digitalArtifacts.length">
+        <!-- HACK -- Ordpool: don't show "None" when the tx is a known
+             OpenTimestamps commit -- <app-ots-viewer> below renders its
+             own panel for those, so "None" would directly contradict it. -->
+        <ng-container *ngIf="!digitalArtifacts.length && tx.isOtsCommit !== true">
           None
         </ng-container>
 
