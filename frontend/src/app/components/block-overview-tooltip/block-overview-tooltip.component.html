@@ -104,51 +104,46 @@
         </td>
       </tr>
 
-      <!-- HACK -->
-      <tr >
-        <td class="td-width" colspan="2">Digital Artifacts</td>
-      </tr>
-      <tr>
+      <!-- HACK -- Ordpool: suppress the entire Digital Artifacts row for
+           OTS-commit txs. The orange "OpenTimestamps" chip in the filter
+           row above already says it -- adding a 220 px content cell here
+           overflows the tooltip layout and reads as duplicate info.
+           Combined OTS + parser-derived artifact is rare; for those txs
+           the chip row carries every signal and the tx-detail page has
+           the full viewers. -->
+      <ng-container *ngIf="!isOtsCommit">
+        <tr>
+          <td class="td-width" colspan="2">Digital Artifacts</td>
+        </tr>
+        <tr>
+          <td class="text-center normal-white-space" *ngIf="{ digitalArtifacts: digitalArtifacts$ | async } as i"  colspan="2" style="height: 220px;">
 
-        <td class="text-center normal-white-space" *ngIf="{ digitalArtifacts: digitalArtifacts$ | async } as i"  colspan="2" style="height: 220px;">
+            <ng-container *ngIf="i.digitalArtifacts === undefined">
+              Loading...
+            </ng-container>
 
-          <ng-container *ngIf="i.digitalArtifacts === undefined">
-            Loading...
-          </ng-container>
+            <ng-container *ngIf="i.digitalArtifacts === null">
+              Error while loading. 😕<br>
+              Please try again!
+            </ng-container>
 
-          <ng-container *ngIf="i.digitalArtifacts === null">
-            Error while loading. 😕<br>
-            Please try again!
-          </ng-container>
+            <ng-container *ngIf="i.digitalArtifacts && !i.digitalArtifacts.length">
+              None
+            </ng-container>
 
-          <!-- HACK -- Ordpool: hide "None" when the tx is a known OTS
-               commit -- the OTS panel below already says what's in it. -->
-          <ng-container *ngIf="i.digitalArtifacts && !i.digitalArtifacts.length && !isOtsCommit">
-            None
-          </ng-container>
-
-          <!-- HACK -- Ordpool: OTS commits aren't parser-derivable, so they
-               don't appear in `i.digitalArtifacts`. Render a small inline
-               summary directly from the tx.flags bit instead. -->
-          <div *ngIf="isOtsCommit" class="text-left" style="width: 300px;">
-            <strong>OpenTimestamps</strong>
-            <div class="smaller-text" style="opacity: 0.7;">
-              Calendar batch commit anchoring a Merkle root in OP_RETURN
+            <div class="text-left" style="width: 300px;" *ngIf="i.digitalArtifacts && i.digitalArtifacts.length">
+              <app-digital-artifact-viewer
+                [showDetails]="false"
+                [digitalArtifact]="i.digitalArtifacts[0]"
+              />
+              <div *ngIf="i.digitalArtifacts.length > 1">
+                + {{ i.digitalArtifacts.length - 1 }} more digital artifacts
+              </div>
             </div>
-          </div>
 
-          <div class="text-left" style="width: 300px;" *ngIf="i.digitalArtifacts && i.digitalArtifacts.length">
-            <app-digital-artifact-viewer
-              [showDetails]="false"
-              [digitalArtifact]="i.digitalArtifacts[0]"
-            />
-            <div *ngIf="i.digitalArtifacts.length > 1">
-              + {{ i.digitalArtifacts.length - 1 }} more digital artifacts
-            </div>
-          </div>
-
-        </td>
-      </tr>
+          </td>
+        </tr>
+      </ng-container>
 
     </tbody>
   </table>
