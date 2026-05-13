@@ -43,16 +43,7 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnInit(): void {
     this.filterSubscription = this.stateService.activeGoggles$.subscribe((active: ActiveFilter) => {
-      this.filterMode = active.mode;
-      this.gradientMode = active.gradient;
-      for (const key of Object.keys(this.filterFlags)) {
-        this.filterFlags[key] = false;
-      }
-      for (const key of active.filters) {
-        this.filterFlags[key] = !this.disabledFilters[key];
-      }
-      this.activeFilters = [...active.filters.filter(key => !this.disabledFilters[key])];
-      this.onFilterChanged.emit({ mode: active.mode, filters: this.activeFilters, gradient: this.gradientMode });
+      this.applyActiveGoggles(active);
     });
   }
 
@@ -66,13 +57,35 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
         this.disabledFilters[filter] = true;
       });
       // HACK -- Ordpool: gate labitbu chip on the labitbu mint window.
-      // Show on mempool / cluster views (blockHeight = null) and on blocks
-      // inside the window. Hide everywhere else: the labitbu experiment is
-      // done and the chip is meaningless on every other block.
-      if (this.blockHeight != null && (this.blockHeight < LABITBU_FIRST_HEIGHT || this.blockHeight > LABITBU_LAST_HEIGHT)) {
+      // The labitbu experiment is done; minting is complete. Show the chip
+      // ONLY on blocks inside the historical mint window. Hide everywhere
+      // else, including mempool / cluster / Next Block views (blockHeight
+      // null) — no new labitbu tx will ever land in the mempool, so the
+      // chip is pure noise there.
+      if (this.blockHeight == null || this.blockHeight < LABITBU_FIRST_HEIGHT || this.blockHeight > LABITBU_LAST_HEIGHT) {
         this.disabledFilters['ordpool_labitbu'] = true;
       }
+      // HACK -- Ordpool: re-sync active filters whenever `disabledFilters`
+      // changes. Without this, a filter that started disabled (e.g. labitbu
+      // when the component mounted before `blockHeight` flowed in) stays
+      // pruned from `activeFilters` even after the gate later opens.
+      if (this.filterSubscription) {
+        this.applyActiveGoggles(this.stateService.activeGoggles$.value);
+      }
     }
+  }
+
+  private applyActiveGoggles(active: ActiveFilter): void {
+    this.filterMode = active.mode;
+    this.gradientMode = active.gradient;
+    for (const key of Object.keys(this.filterFlags)) {
+      this.filterFlags[key] = false;
+    }
+    for (const key of active.filters) {
+      this.filterFlags[key] = !this.disabledFilters[key];
+    }
+    this.activeFilters = [...active.filters.filter(key => !this.disabledFilters[key])];
+    this.onFilterChanged.emit({ mode: active.mode, filters: this.activeFilters, gradient: this.gradientMode });
   }
 
   setFilterMode(mode): void {
