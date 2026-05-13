@@ -39,11 +39,23 @@ const routes: Routes = [
         path: 'tools/calculator',
         component: CalculatorComponent
       },
+      // HACK -- Ordpool: pool detail page disabled. It fires a heavy
+      // mining query against the backend (`/api/v1/mining/pool/<slug>/blocks`
+      // and friends) that routinely times out on api.ordpool.space, and the
+      // page isn't part of ordpool's narrative. Redirect to the blocks list
+      // instead of activating PoolComponent. The component stays compiled
+      // (still imported below) so re-enabling is a one-line revert.
+      {
+        path: 'mining/pool/:slug',
+        redirectTo: '/blocks',
+      },
+      /* HACK -- Ordpool: original mempool route, preserved for merge clarity.
       {
         path: 'mining/pool/:slug',
         data: { networks: ['bitcoin'] },
         component: PoolComponent,
       },
+      */
       {
         path: 'mining',
         data: { networks: ['bitcoin'] },

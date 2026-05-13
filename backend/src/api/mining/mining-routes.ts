@@ -17,10 +17,23 @@ class MiningRoutes {
     app
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pools', this.$listPools)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pools/:interval', this.$getPools)
+      // HACK -- Ordpool: pool detail endpoints disabled. The underlying
+      // queries (per-pool block list + historical hashrate) are heavy and
+      // routinely time out on api.ordpool.space, while the frontend pool
+      // detail page itself is now a redirect (see graphs.routing.module).
+      // Return 410 Gone with a 1-day cache so clients back off. The
+      // pools-LIST routes (`mining/pools`, `mining/pools/:interval`) stay
+      // alive — they're cheap and still feed the mining dashboard.
+      .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/hashrate', this.$poolDetailDisabled)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/blocks', this.$poolDetailDisabled)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/blocks/:height', this.$poolDetailDisabled)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug', this.$poolDetailDisabled)
+      /* HACK -- Ordpool: original mempool registrations, preserved for merge clarity.
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/hashrate', this.$getPoolHistoricalHashrate)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/blocks', this.$getPoolBlocks)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/blocks/:height', this.$getPoolBlocks)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug', this.$getPool)
+      */
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/hashrate/pools/:interval', this.$getPoolsHistoricalHashrate)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/hashrate/:interval', this.$getHistoricalHashrate)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/difficulty-adjustments', this.$getDifficultyAdjustments)
@@ -46,6 +59,16 @@ class MiningRoutes {
       .get(config.MEMPOOL.API_URL_PREFIX + 'accelerations', this.$getActiveAccelerations)
       .post(config.MEMPOOL.API_URL_PREFIX + 'acceleration/request/:txid', this.$requestAcceleration)
     ;
+  }
+
+  // HACK -- Ordpool: 410 stub for the disabled pool detail endpoints. See
+  // initRoutes for the rationale. Cache for a day so misbehaving clients
+  // don't hammer the route.
+  private $poolDetailDisabled(req: Request, res: Response): void {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.status(410).json({
+      error: 'Per-pool detail endpoints are disabled on ordpool.',
+    });
   }
 
   private async $getHistoricalPrice(req: Request, res: Response): Promise<void> {

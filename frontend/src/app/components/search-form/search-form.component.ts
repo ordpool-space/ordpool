@@ -332,6 +332,13 @@ export class SearchFormComponent implements OnInit {
   }
 
   getMiningPools(): Observable<any> {
+    // HACK -- Ordpool: pool autocomplete in the search bar is disabled.
+    // The pool detail page is now a redirect (graphs.routing.module) and
+    // the backend pool detail endpoints return 410, so a "Mining Pools"
+    // section in the search dropdown is dead UI. Skipping the two
+    // `mining/pools` API calls keeps the search bar cheap.
+    return of([]);
+    /* HACK -- Ordpool: original mempool implementation, preserved for merge clarity.
     return this.pools.length ? of(this.pools) : combineLatest([
       this.apiService.listPools$(undefined),
       this.apiService.listPools$('1y')
@@ -354,5 +361,6 @@ export class SearchFormComponent implements OnInit {
       }),
       catchError(() => of([]))
     );
+    */
   }
 }
