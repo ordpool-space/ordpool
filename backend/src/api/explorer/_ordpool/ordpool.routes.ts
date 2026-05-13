@@ -149,22 +149,9 @@ class GeneralOrdpoolRoutes {
   }
 
   /**
-   * Proxy POST /digest on a public OTS calendar.
-   *
-   * Why we proxy: privacy. Without this, the browser submits the user's
-   * file hash directly to alice/bob/finney/catallaxy and each calendar
-   * operator learns the user's IP at submission time. Routing through
-   * ordpool makes the calendar see our backend's IP instead -- combined
-   * with the existing /upgrade proxy and the all-local verify flow,
-   * calendar operators never observe the user at all.
-   *
-   * The proxied body is the raw 32-byte SHA-256 digest. We enforce
-   * a tight 256-byte cap (route-local `express.raw` limit + a recheck
-   * here in case the middleware was bypassed) so this can't become a
-   * generic POST relay. Hostname is whitelisted, same as /upgrade.
-   *
-   * Calendar /digest responses are binary (the OpenTimestamps
-   * commitment subtree); we forward bytes verbatim.
+   * Proxy POST /digest on a public OTS calendar so the calendar sees
+   * our backend IP, not the user's. Whitelist hostname, cap body at
+   * 256 bytes (real digests are 32), forward bytes verbatim.
    */
   // POST https://ordpool.space/api/v1/ordpool/ots/digest/alice.btc.calendar.opentimestamps.org
   private async $proxyOtsDigest(req: Request, res: Response): Promise<void> {

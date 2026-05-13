@@ -45,14 +45,9 @@
         <!-- <table class="table table-borderless table-striped"> -->
         <table class="table table-borderless table-striped table-dark">
           
-          <!-- HACK: START Ordpool OTS block-summary -- own <thead>/<tbody>
-               section so it reads as a standalone protocol block, just
-               like the upstream stats sections. Placed BEFORE
-               app-block-ordpool-stats because that component renders the
-               "General Block Data" <thead> as its last section and the
-               <tbody> for it is owned by THIS template -- inserting OTS
-               between them visually wedges it into General Block Data.
-               Self-hides on zero commits. -->
+          <!-- HACK: START Ordpool OTS block-summary. Must precede
+               app-block-ordpool-stats: that component's last <thead> is
+               "General Block Data" and its <tbody> lives in this file. -->
           <app-block-ots-summary [blockHeight]="block?.height" />
           <!-- HACK: END Ordpool OTS block-summary -->
 
