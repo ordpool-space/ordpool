@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 6;
+  private static currentVersion = 7;
 
   private queryTimeout = 3600_000;
 
@@ -623,6 +623,27 @@ class OrdpoolDatabaseMigration {
           INDEX idx_first_seen (first_seen_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=ascii COLLATE=ascii_bin;
       `);
+    }
+
+    // Re-index blocks affected by two parser fixes shipped in
+    // ordpool-parser v2.4.4 + v2.4.5 (commit 599f414):
+    //
+    //  1. SRC-20 numeric-amt validator. getSrc20Flaws used to require
+    //     typeof amt === 'string', silently dropping every SRC-20
+    //     deploy/mint/transfer that wrote `"amt":100` instead of
+    //     `"amt":"100"` (same for `max`/`lim`/`dec` on deploys). The
+    //     canonical spec accepts both forms. Affects amounts_src20_*
+    //     and the ordpool_stats_src20_mint / _deploy satellites.
+    //
+    //  2. Rune turbo decode (inherited from upstream
+    //     magicoss/runestone-lib runestone.ts:123, `etchingResult.set`
+    //     where it should be `turboResult.set`). Corrupts the turbo
+    //     column in ordpool_stats_rune_etch.
+    //
+    // Satellite tables get rewritten via ON DUPLICATE KEY UPDATE on the
+    // next index pass (same approach as v5).
+    if (version <= 7) {
+      queries.push(`DELETE FROM ordpool_stats WHERE amounts_src20 > 0 OR amounts_rune_etch > 0;`);
     }
 
     return queries;
