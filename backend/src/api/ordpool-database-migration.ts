@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 7;
+  private static currentVersion = 8;
 
   private queryTimeout = 3600_000;
 
@@ -644,6 +644,14 @@ class OrdpoolDatabaseMigration {
     // next index pass (same approach as v5).
     if (version <= 7) {
       queries.push(`DELETE FROM ordpool_stats WHERE amounts_src20 > 0 OR amounts_rune_etch > 0;`);
+    }
+
+    // Re-index blocks where the Stamps-family parent flag state may flip
+    // under the v2.4.6 validator gates: ordpool_src20 / _src721 / _src101
+    // now only fire when the canonical validator passes. Satellites rewrite
+    // via ON DUPLICATE KEY UPDATE on the next index pass.
+    if (version <= 8) {
+      queries.push(`DELETE FROM ordpool_stats WHERE amounts_src20 > 0 OR amounts_src721 > 0 OR amounts_src101 > 0;`);
     }
 
     return queries;
