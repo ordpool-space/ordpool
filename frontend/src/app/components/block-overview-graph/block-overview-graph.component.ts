@@ -618,19 +618,22 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     const y = cssY * window.devicePixelRatio;
     if (this.scene && (!this.selectedTx || clicked)) {
       const selected = this.scene.getTxAt({ x, y });
-      // HACK -- Ordpool: on tap (touch devices, no mouse cursor), anchor
-      // the tooltip to the tx square's bottom-right corner so it lands
-      // adjacent to the square instead of at the finger's exact contact
-      // point (which can be anywhere inside the square). Hover keeps
-      // following the cursor exactly.
+      // HACK -- Ordpool: emit tooltipPosition in VIEWPORT coords (the
+      // tooltip uses position: fixed). Convert canvas-local cssX/cssY
+      // via the canvas's bounding rect. On tap (touch devices, no mouse
+      // cursor), anchor to the tx square's bottom-right corner instead
+      // of the tap point so the tooltip lands adjacent to the square.
+      const canvasRect = this.canvas?.nativeElement?.getBoundingClientRect();
+      const offsetLeft = canvasRect?.left ?? 0;
+      const offsetTop = canvasRect?.top ?? 0;
       if (clicked && selected) {
         const ratio = window.devicePixelRatio;
         this.tooltipPosition = {
-          x: (selected.screenPosition.x + selected.screenPosition.s) / ratio,
-          y: (selected.screenPosition.y + selected.screenPosition.s) / ratio,
+          x: offsetLeft + (selected.screenPosition.x + selected.screenPosition.s) / ratio,
+          y: offsetTop + (selected.screenPosition.y + selected.screenPosition.s) / ratio,
         };
       } else {
-        this.tooltipPosition = { x: cssX, y: cssY };
+        this.tooltipPosition = { x: offsetLeft + cssX, y: offsetTop + cssY };
       }
       const currentPreview = this.selectedTx || this.hoverTx;
 
