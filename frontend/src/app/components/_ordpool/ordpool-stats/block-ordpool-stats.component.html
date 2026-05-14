@@ -326,6 +326,12 @@
   </tbody>
 
 
+  <!-- HACK -- Ordpool: OpenTimestamps is the last "digital artifact"
+       section, placed here so it sits between the parser-derived
+       protocol sections (CAT-21 ... SRC-20) and the General Block Data
+       chrome below. Self-hides on zero commits. -->
+  <app-block-ots-summary [blockHeight]="height()" />
+
   <thead class="text-primary">
     <tr><th colspan="2">General Block Data</th></tr>
   </thead>

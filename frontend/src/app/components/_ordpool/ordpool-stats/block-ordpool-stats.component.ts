@@ -41,7 +41,7 @@ export class BlockOrdpoolStatsComponent {
   @Input() blockConversion: Price;
 
   private indexerProgress = inject(IndexerProgressService);
-  private height = signal<number | undefined>(undefined);
+  readonly height = signal<number | undefined>(undefined);
   private progress = toSignal(this.indexerProgress.progress$, { initialValue: null });
 
   /** Per-block indexing status; only meaningful when `ordpoolStats` is absent
