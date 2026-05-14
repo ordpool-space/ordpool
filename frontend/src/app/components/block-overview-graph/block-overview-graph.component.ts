@@ -617,11 +617,21 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
     const x = cssX * window.devicePixelRatio;
     const y = cssY * window.devicePixelRatio;
     if (this.scene && (!this.selectedTx || clicked)) {
-      this.tooltipPosition = {
-        x: cssX,
-        y: cssY
-      };
       const selected = this.scene.getTxAt({ x, y });
+      // HACK -- Ordpool: on tap (touch devices, no mouse cursor), anchor
+      // the tooltip to the tx square's bottom-right corner so it lands
+      // adjacent to the square instead of at the finger's exact contact
+      // point (which can be anywhere inside the square). Hover keeps
+      // following the cursor exactly.
+      if (clicked && selected) {
+        const ratio = window.devicePixelRatio;
+        this.tooltipPosition = {
+          x: (selected.screenPosition.x + selected.screenPosition.s) / ratio,
+          y: (selected.screenPosition.y + selected.screenPosition.s) / ratio,
+        };
+      } else {
+        this.tooltipPosition = { x: cssX, y: cssY };
+      }
       const currentPreview = this.selectedTx || this.hoverTx;
 
       if (selected !== currentPreview) {
