@@ -45,13 +45,11 @@
         <!-- <table class="table table-borderless table-striped"> -->
         <table class="table table-borderless table-striped table-dark">
           
-          <!-- HACK: START Ordpool OTS block-summary. Must precede
-               app-block-ordpool-stats: that component's last <thead> is
-               "General Block Data" and its <tbody> lives in this file. -->
-          <app-block-ots-summary [blockHeight]="block?.height" />
-          <!-- HACK: END Ordpool OTS block-summary -->
+          <!-- HACK: START Ordpool Stats. OTS block-summary lives inside
+               this component now (rendered between the SRC-20 protocol
+               section and the General Block Data thead) so it lands as
+               the last "digital artifact" section. -->
 
-          <!-- HACK: START Ordpool Stats -->
           <app-block-ordpool-stats
             [ordpoolStats]="block?.extras?.ordpoolStats"
             [blockId]="block?.id"
