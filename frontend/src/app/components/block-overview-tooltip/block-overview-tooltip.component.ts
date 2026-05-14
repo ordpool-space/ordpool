@@ -66,18 +66,14 @@ export class BlockOverviewTooltipComponent implements OnChanges {
       let y = cursorY + 10;
       if (this.tooltipElement) {
         const elementBounds = this.tooltipElement.nativeElement.getBoundingClientRect();
-        const parentBounds = this.tooltipElement.nativeElement.offsetParent.getBoundingClientRect();
-        // HACK -- Ordpool: delegate the placement math to a pure helper
-        // so it stays unit-testable; see block-overview-tooltip.position.ts.
+        // HACK -- Ordpool: cursor x/y are viewport-relative (set by the
+        // canvas parent via canvas.getBoundingClientRect()), the tooltip
+        // is `position: fixed`, so the algorithm operates purely in
+        // viewport space. No offsetParent reads (which return null for
+        // fixed-positioned elements).
         const placed = computeTooltipPosition({
           cursor: { x: cursorX, y: cursorY },
           tooltip: { width: elementBounds.width, height: elementBounds.height },
-          parent: {
-            left: parentBounds.left,
-            top: parentBounds.top,
-            right: parentBounds.right,
-            width: parentBounds.width,
-          },
           viewport: { width: window.innerWidth, height: window.innerHeight },
         });
         x = placed.x;
