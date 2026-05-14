@@ -44,7 +44,7 @@
 
 <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
-  <button *ngIf="!x.connectedWallet" class="ms-4 btn btn-purple" (click)="open()" title="Connect your Wallet"
+  <button *ngIf="!x.connectedWallet" class="btn btn-purple" (click)="open()" title="Connect your Wallet"
     [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }">Connect</button>
 
   <ng-container *ngIf="x.connectedWallet">
@@ -55,7 +55,7 @@
       [ngbPopover]="popContent"
       [autoClose]="'outside'"
       popoverClass="walletConnectPopover" 
-      class="ms-4 btn btn-secondary"
+      class="btn btn-secondary"
       title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
     </button>
