@@ -75,14 +75,9 @@
                       <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
                         <div class="input-group input-group-lg mt-3">
-                          <div class="input-group-prepend">
-                            <span class="input-group-text">Target fee rate
-                            </span>
-                          </div>
+                          <span class="input-group-text">Target fee rate</span>
                           <input type="number" class="form-control" [formControl]="cfeeRate">
-                          <div class="input-group-append">
-                            <span class="input-group-text">sat/vB</span>
-                          </div>
+                          <span class="input-group-text">sat/vB</span>
                         </div>
 
                         <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
