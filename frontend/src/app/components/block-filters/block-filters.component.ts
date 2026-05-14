@@ -2,10 +2,9 @@ import { Component, EventEmitter, Output, HostListener, Input, ChangeDetectorRef
 import { ActiveFilter, FilterGroups, FilterMode, GradientMode, TransactionFilters } from '@app/shared/filters.utils';
 import { StateService } from '@app/services/state.service';
 import { Subscription } from 'rxjs';
-// HACK -- Ordpool: labitbu mint-window constants; the chip is hidden on
-// blocks outside this height range. The 10,000 labitbus were minted
-// across blocks 908,072-908,196, so showing the chip elsewhere is noise.
-import { LABITBU_FIRST_HEIGHT, LABITBU_LAST_HEIGHT } from 'ordpool-parser';
+// HACK -- Ordpool: labitbu chip is hidden on blocks outside the minting
+// window. Shared range predicate, also used inside LabitbuParserService.
+import { isLabitbuRange } from 'ordpool-parser';
 
 
 @Component({
@@ -56,13 +55,10 @@ export class BlockFiltersComponent implements OnInit, OnChanges, OnDestroy {
       this.excludeFilters.forEach(filter => {
         this.disabledFilters[filter] = true;
       });
-      // HACK -- Ordpool: gate labitbu chip on the labitbu mint window.
-      // The labitbu experiment is done; minting is complete. Show the chip
-      // ONLY on blocks inside the historical mint window. Hide everywhere
-      // else, including mempool / cluster / Next Block views (blockHeight
-      // null) — no new labitbu tx will ever land in the mempool, so the
-      // chip is pure noise there.
-      if (this.blockHeight == null || this.blockHeight < LABITBU_FIRST_HEIGHT || this.blockHeight > LABITBU_LAST_HEIGHT) {
+      // HACK -- Ordpool: hide labitbu chip outside the mint window.
+      // Mempool / cluster / Next Block views have blockHeight null,
+      // which isLabitbuRange treats as outside.
+      if (!isLabitbuRange(this.blockHeight)) {
         this.disabledFilters['ordpool_labitbu'] = true;
       }
       // HACK -- Ordpool: re-sync active filters whenever `disabledFilters`
