@@ -7,6 +7,7 @@ import { Block } from '@interfaces/electrs.interface.js';
 import { DigitalArtifact, DigitalArtifactAnalyserService, OrdpoolTransactionFlags } from 'ordpool-parser';
 import { Observable, catchError, of, startWith } from 'rxjs';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
+import { computeTooltipPosition } from './block-overview-tooltip.position';
 
 @Component({
   selector: 'app-block-overview-tooltip',
@@ -45,6 +46,11 @@ export class BlockOverviewTooltipComponent implements OnChanges {
   isOtsCommit: boolean = false;
 
   tooltipPosition: Position = { x: 0, y: 0 };
+  /** Output of `computeTooltipPosition`'s size middleware: the viewport
+   *  room available on the chosen side, so the tooltip can shrink in
+   *  cramped layouts instead of flipping far from the cursor. */
+  tooltipMaxWidth: number | null = null;
+  tooltipMaxHeight: number | null = null;
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
 
@@ -54,17 +60,30 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
   ngOnChanges(changes): void {
     if (changes.cursorPosition && changes.cursorPosition.currentValue) {
-      let x = changes.cursorPosition.currentValue.x + 10;
-      let y = changes.cursorPosition.currentValue.y + 10;
+      const cursorX = changes.cursorPosition.currentValue.x;
+      const cursorY = changes.cursorPosition.currentValue.y;
+      let x = cursorX + 10;
+      let y = cursorY + 10;
       if (this.tooltipElement) {
         const elementBounds = this.tooltipElement.nativeElement.getBoundingClientRect();
         const parentBounds = this.tooltipElement.nativeElement.offsetParent.getBoundingClientRect();
-        if ((parentBounds.left + x + elementBounds.width) > parentBounds.right) {
-          x = Math.max(0, parentBounds.width - elementBounds.width - 10);
-        }
-        if (y + elementBounds.height > parentBounds.height) {
-          y = y - elementBounds.height - 20;
-        }
+        // HACK -- Ordpool: delegate the placement math to a pure helper
+        // so it stays unit-testable; see block-overview-tooltip.position.ts.
+        const placed = computeTooltipPosition({
+          cursor: { x: cursorX, y: cursorY },
+          tooltip: { width: elementBounds.width, height: elementBounds.height },
+          parent: {
+            left: parentBounds.left,
+            top: parentBounds.top,
+            right: parentBounds.right,
+            width: parentBounds.width,
+          },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+        });
+        x = placed.x;
+        y = placed.y;
+        this.tooltipMaxWidth = placed.maxWidth;
+        this.tooltipMaxHeight = placed.maxHeight;
       }
       this.tooltipPosition = { x, y };
     }

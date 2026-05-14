@@ -1,5 +1,9 @@
 .block-overview-tooltip {
-  position: absolute;
+  // HACK -- Ordpool: `fixed` (not `absolute`) so the tooltip escapes the
+  // canvas's stacking context and renders above the master-page header
+  // (z-index 100). Coordinates from `computeTooltipPosition` are
+  // viewport-relative when consumed this way.
+  position: fixed;
 	background: color-mix(in srgb, #11131f 95%, transparent);
   border-radius: 4px;
   box-shadow: 1px 1px 10px rgba(0,0,0,0.5);
@@ -12,7 +16,10 @@
   min-width: 340px;
   max-width: 400px;
   pointer-events: none;
-  z-index: 11;
+  // HACK -- Ordpool: stack above master-page header (z-index: 100) and
+  // anything else on the page. Floating tooltips on a hover are
+  // ephemeral, so the highest visible layer is the right home for them.
+  z-index: 9999;
   --link-color: #1bd8f4;
   --link-hover-color: #09a3ba;
 
