@@ -1,4 +1,9 @@
 .formatedText {
   max-height: 600px;
   overflow: scroll;
+  // HACK -- Ordpool: pre + code inherit text-align from ancestors. In the
+  // block-overview tooltip the cell has text-align: center, which would
+  // center every JSON line. Pin left-align here so the viewer reads the
+  // same way regardless of where it's rendered.
+  text-align: left;
 }
