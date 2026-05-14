@@ -7,9 +7,9 @@
 
     <ul class="list-unstyled" *ngIf="wallets.installedWallets.length">
       <li *ngFor="let w of wallets.installedWallets">
-        <button class="btn btn-purple mt-3 w-100 text-left" [disabled]="connectButtonDisabled"
+        <button class="btn btn-purple mt-3 w-100 text-start" [disabled]="connectButtonDisabled"
           (click)="connectWallet(w.type)">
-          <img [src]="w.logo" width="25" height="25" class="mr-2">
+          <img [src]="w.logo" width="25" height="25" class="me-2">
           {{ w.label }}<small style="font-size: 0.7em" *ngIf="w.subLabel">&nbsp; {{ w.subLabel }}</small>
         </button>
       </li>
@@ -20,8 +20,8 @@
 
       <ul class="list-unstyled">
         <li *ngFor="let w of wallets.notInstalledWallets">
-          <a class="btn btn-secondary mt-3 w-100 text-left" [href]="w.downloadLink" target="_blank">
-            <img [src]="w.logo" width="25" height="25" class="mr-2">
+          <a class="btn btn-secondary mt-3 w-100 text-start" [href]="w.downloadLink" target="_blank">
+            <img [src]="w.logo" width="25" height="25" class="me-2">
             {{ w.label }}<small style="font-size: 0.7em" *ngIf="w.subLabel">&nbsp; {{ w.subLabel }}</small>
           </a>
         </li>
@@ -34,7 +34,7 @@
 
       <ul class="list-unstyled">
         <li>
-          <button class="btn btn-purple my-2 w-100 text-left" (click)="connectFakeWallet()">Fake Wallet</button>
+          <button class="btn btn-purple my-2 w-100 text-start" (click)="connectFakeWallet()">Fake Wallet</button>
         </li>
       </ul>
     </ng-container>
@@ -44,7 +44,7 @@
 
 <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
-  <button *ngIf="!x.connectedWallet" class="ml-4 btn btn-purple" (click)="open()" title="Connect your Wallet"
+  <button *ngIf="!x.connectedWallet" class="ms-4 btn btn-purple" (click)="open()" title="Connect your Wallet"
     [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }">Connect</button>
 
   <ng-container *ngIf="x.connectedWallet">
@@ -55,7 +55,7 @@
       [ngbPopover]="popContent"
       [autoClose]="'outside'"
       popoverClass="walletConnectPopover" 
-      class="ml-4 btn btn-secondary"
+      class="ms-4 btn btn-secondary"
       title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
     </button>

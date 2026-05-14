@@ -1,10 +1,10 @@
-<div class="container-xl pl-5 pr-5" *ngIf="enableCat21Mint">
+<div class="container-xl ps-5 pe-5" *ngIf="enableCat21Mint">
   <div class="text-center">
 
     <img src="/resources/cat21-logo.svg" width="300" height="220" style="margin-top: -8px">
     <h2 class="mt-2 mb-4">Mint a CAT-21 Ordinal</h2>
 
-    <div class="text-left">
+    <div class="text-start">
 
       <p class="mx-auto" style="max-width: 800px;">
 
@@ -67,14 +67,9 @@
             <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
 
               <div class="input-group input-group-lg mt-3">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">Fee rate
-                  </span>
-                </div>
+                <span class="input-group-text">Fee rate</span>
                 <input type="number" class="form-control" [formControl]="cfeeRate">
-                <div class="input-group-append">
-                  <span class="input-group-text">sat/vB</span>
-                </div>
+                <span class="input-group-text">sat/vB</span>
               </div>
 
               <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
@@ -124,10 +119,10 @@
               <a *ngIf="minRequiredFee != 0" href="javascript:void(0)" (click)="updateMinRequiredFee(0)">⚠️ Click here to disable the required fee rate check.</a>
               <span *ngIf="minRequiredFee == 0">⚠️ Required fee rate check disabled. You can enter any value!</span>
 
-              <div class="mt-4 pl-2 pr-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
+              <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
                 [ngClass]="{ selected: x === this.selectedPaymentOutput }">
 
-                <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-right text-white mt-2"
+                <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-end text-white mt-2"
                   (click)="selectedPaymentOutput = x" type="button">
                   Use this UTXO
                 </button>
@@ -135,9 +130,9 @@
                 UTXO {{ x.paymentOutput.txid }}:{{ x.paymentOutput.vout }}
 
                 <span *ngIf="x.paymentOutput.status.confirmed" type="button"
-                  class="btn btn-outline-success no-cursor pr-1 pl-1">Confirmed</span>
+                  class="btn btn-outline-success no-cursor pe-1 ps-1">Confirmed</span>
                 <span *ngIf="!x.paymentOutput.status.confirmed" type="button"
-                  class="btn btn-outline-danger no-cursor pr-1 pl-1">Unconfirmed</span>
+                  class="btn btn-outline-danger no-cursor pe-1 ps-1">Unconfirmed</span>
                 <br>
 
                 {{ x.paymentOutput.value | number }}
@@ -230,7 +225,7 @@
             it's safer to recharge your account with additional funds!<br>
             <br>
 
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="mt-n1 mr-1" viewBox="0 0 16 16" role="img" aria-label="Warning:">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="mt-n1 me-1" viewBox="0 0 16 16" role="img" aria-label="Warning:">
               <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
             </svg>
 
@@ -258,11 +253,11 @@
   </p>
 </div>
 
-<div class="container-xl pl-5 pr-5" *ngIf="!enableCat21Mint">
+<div class="container-xl ps-5 pe-5" *ngIf="!enableCat21Mint">
   <div class="text-center">
 
     <img src="/resources/cat21-logo.svg" width="300" height="220" style="margin-top: -8px">
-    <h2 class="mt-2 mb-4 pr-2"> <strong style="color:#FF9900;">CAT-21</strong> – coming soon!</h2>
+    <h2 class="mt-2 mb-4 pe-2"> <strong style="color:#FF9900;">CAT-21</strong> – coming soon!</h2>
 
   </div>
 </div>
