@@ -42,7 +42,12 @@
     <div class="row">
       <div class="col-sm">
 
+        <!-- HACK -- Ordpool: .table-responsive on mobile -- the inscriptions
+             "Largest Envelope" cell renders a wide iframe (~600 px max) that
+             can exceed the .col-sm width; without this wrapper the right
+             side gets clipped by the page's overflow-x: clip flex container. -->
         <!-- <table class="table table-borderless table-striped"> -->
+        <div class="table-responsive">
         <table class="table table-borderless table-striped table-dark">
           
           <!-- HACK: START Ordpool Stats. OTS block-summary lives inside
@@ -119,6 +124,7 @@
             <ng-container *ngIf="isMobile || (webGlEnabled && !showComparison); then restOfTable;"></ng-container>
           </tbody>
         </table>
+        </div>
       </div>
       <div class="col-sm" [class.graph-col]="webGlEnabled && !showComparison">
         <table class="table table-borderless table-striped" *ngIf="!isMobile && !(webGlEnabled && !showComparison)">
