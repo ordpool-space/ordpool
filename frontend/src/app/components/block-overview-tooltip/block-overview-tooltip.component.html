@@ -126,9 +126,15 @@
                appears in i.digitalArtifacts. Render it in the same
                square as any other artifact entry instead of getting a
                special treatment outside the box. -->
-          <ng-container *ngIf="isOtsCommit && i.digitalArtifacts && !i.digitalArtifacts.length">
-            OpenTimestamps
-          </ng-container>
+          <div *ngIf="isOtsCommit && i.digitalArtifacts && !i.digitalArtifacts.length"
+               class="text-start" style="width: 300px;">
+            <strong>◉ OpenTimestamps</strong><br>
+            <span class="smaller-text" style="opacity: 0.75;">
+              Calendar batch commit anchored to Bitcoin via OP_RETURN.
+              A Merkle root proving every user submission the calendar
+              received since its last anchor.
+            </span>
+          </div>
 
           <ng-container *ngIf="!isOtsCommit && i.digitalArtifacts && !i.digitalArtifacts.length">
             None

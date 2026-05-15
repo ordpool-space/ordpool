@@ -160,6 +160,18 @@ app-blockchain-blocks .animated:has(app-mining-pool) {
   display: none !important;
 }
 
+// HACK -- Ordpool: block detail table — uniform breathing room above
+// every protocol-section header. Without this, the gap above
+// "General Block Data" can read tighter than the gap above earlier
+// section headers because the visual rhythm depends on the preceding
+// tbody's last row styling. Forcing explicit top padding on every
+// .text-primary section header makes the breathing room identical
+// regardless of what came before.
+app-block .table-dark thead.text-primary > tr > th {
+  padding-top: 1rem;
+  padding-bottom: 0.5rem;
+}
+
 // hide the toggle that changes the time direction
 .time-toggle {
   visibility: hidden !important;
