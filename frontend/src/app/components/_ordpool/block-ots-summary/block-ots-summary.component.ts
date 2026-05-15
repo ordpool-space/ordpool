@@ -18,6 +18,11 @@ Test cases:
 @Component({
   selector: 'app-block-ots-summary',
   templateUrl: './block-ots-summary.component.html',
+  // HACK -- Ordpool: `display: contents` makes the host element transparent
+  // to the parent's table layout, so the inner <thead>/<tbody> are treated
+  // as direct children of <table>. Without this, the <th colspan="2">
+  // shrinks to its text width instead of spanning the full table.
+  host: { style: 'display: contents' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
