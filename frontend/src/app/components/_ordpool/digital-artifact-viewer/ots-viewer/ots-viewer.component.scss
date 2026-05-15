@@ -1,6 +1,14 @@
 .ots-panel {
   margin-top: 0.5rem;
 
+  // Upstream's global `tr { white-space: nowrap }` (styles.scss:812)
+  // forces every cell to a single line, which makes the long "What this
+  // is" description overflow the viewport. Re-enable wrapping on this
+  // panel's cells specifically.
+  td {
+    white-space: normal;
+  }
+
   .badge {
     margin-left: 0.5rem;
     font-size: 0.75rem;
