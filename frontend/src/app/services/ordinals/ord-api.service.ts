@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, of, shareReplay, tap } from 'rxjs';
+import { catchError, Observable, of, shareReplay, tap, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { WalletService } from './wallet.service';
@@ -57,14 +57,33 @@ export interface CachedOrdApiRune {
 })
 export class OrdApiService {
 
-  private baseUrl: string = environment.ordBaseUrl;
+  private upstreams: readonly string[] = environment.ordBaseUrls;
   private walletService = inject(WalletService);
   private http = inject(HttpClient);
 
   constructor() {
     this.walletService.isMainnet$.subscribe(isMainnet => {
-      this.baseUrl = isMainnet ? environment.ordBaseUrl : environment.ordBaseUrlTestnet;
+      this.upstreams = isMainnet
+        ? environment.ordBaseUrls
+        : environment.ordBaseUrlsTestnet;
     });
+  }
+
+  /**
+   * GET against the configured ord upstreams in order. On any failure
+   * (5xx, network, CORS, etc.) the next upstream is tried. First success
+   * wins. The order is reset on every call, so a transient outage on
+   * upstream[0] doesn't pin every later request to upstream[1]+.
+   */
+  private getOrdJson<T>(path: string): Observable<T> {
+    const headers = new HttpHeaders().set('Accept', 'application/json');
+    if (this.upstreams.length === 0) {
+      return throwError(() => new Error('No ord upstreams configured'));
+    }
+    return this.upstreams.reduce<Observable<T> | null>((acc, base) => {
+      const next$ = this.http.get<T>(`${base}${path}`, { headers });
+      return acc ? acc.pipe(catchError(() => next$)) : next$;
+    }, null)!;
   }
 
   /**
@@ -75,8 +94,7 @@ export class OrdApiService {
    * @returns Observable of BlockData containing the block details.
    */
   getBlockData(blockHeight: number): Observable<BlockData | { inscriptions: string[] }> {
-    const headers = new HttpHeaders().set('Accept', 'application/json');
-    return this.http.get<BlockData>(`${this.baseUrl}/block/${blockHeight}`, { headers });
+    return this.getOrdJson<BlockData>(`/block/${blockHeight}`);
   }
 
 
@@ -109,8 +127,7 @@ export class OrdApiService {
     }
 
     // Fetch data from the API and cache it
-    const headers = new HttpHeaders().set('Accept', 'application/json');
-    return this.http.get<OrdApiRune>(`${this.baseUrl}/rune/${blockHeight}:${transactionNumber}`, { headers }).pipe(
+    return this.getOrdJson<OrdApiRune>(`/rune/${blockHeight}:${transactionNumber}`).pipe(
       tap(rune => {
         this.runeCache.set(cacheKey, { timestamp: now, rune });
       })
