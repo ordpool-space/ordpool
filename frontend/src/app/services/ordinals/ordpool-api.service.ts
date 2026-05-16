@@ -69,10 +69,7 @@ export class OrdpoolApiService {
     return this.httpClient.get<IndexerProgress>(url);
   }
 
-  /** Look up a single tx. The backend always answers 200 — non-OTS txs
-   *  are a legitimate negative result, not an error — so the envelope
-   *  `{ found, row? }` carries the answer instead of relying on HTTP
-   *  status. Returns the bare row (or null) for the caller's convenience. */
+  /** Returns the OTS row, or null when the tx isn't a calendar commit. */
   getOtsTx$(txid: string): Observable<OrdpoolOtsRow | null> {
     const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/tx/${txid}`;
     return this.httpClient
