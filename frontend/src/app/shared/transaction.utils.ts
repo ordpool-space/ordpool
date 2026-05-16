@@ -809,7 +809,7 @@ export async function getTransactionFlags(
   // HACK -- Ordpool: optional resolver for the ordpool_ots bit. When the
   // strip wire surfaces (REST /api/v1/tx/:txId, WS track-tx) didn't attach
   // `tx.isOtsCommit` and the OP_RETURN fast path can't decide, the resolver
-  // calls the backend's lazy is-commit endpoint. Optional so utility
+  // calls the backend's lazy /ots/tx/:txid endpoint. Optional so utility
   // callers without DI access still get correct parser-derived bits
   // (they'll just be missing the OTS bit in that one rare edge case --
   // the bulk wire paths still carry it in tx.flags).

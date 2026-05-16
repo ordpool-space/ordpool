@@ -30,8 +30,9 @@ import { OrdpoolApiService } from './ordpool-api.service';
  *   3. **Lazy backend probe.** For txs WITH OP_RETURN that arrived
  *      without `isOtsCommit` set (third-party API consumers, dev tools,
  *      future wire paths the strip-fill hook hasn't covered), call
- *      `GET /api/v1/ordpool/ots/is-commit/:txid`. Cache the answer.
- *      Probe failure resolves to `null`, not `false`.
+ *      `GET /api/v1/ordpool/ots/tx/:txid` and treat `row !== null` as
+ *      the boolean answer. Cache the answer. Probe failure resolves to
+ *      `null`, not `false`.
  *
  * ### Cache semantics
  *
@@ -66,7 +67,7 @@ export class OtsKnowledgeService {
   private inFlight = new Map<string, Promise<boolean | null>>();
 
   /** TTL for `false` cache entries. Matches the backend's max-age=60 on
-   *  the is-commit endpoint and the OTS poller's nominal cycle. */
+   *  the negative-result branch of /ots/tx and the OTS poller's cycle. */
   private static readonly FALSE_TTL_MS = 60_000;
 
   /** Fan-out for the backend's `otsCommitFlipped` WS push. Components
@@ -143,7 +144,8 @@ export class OtsKnowledgeService {
 
     const probe: Promise<boolean | null> = (async () => {
       try {
-        const { result } = await firstValueFrom(this.api.isOtsCommit$(txid));
+        const row = await firstValueFrom(this.api.getOtsTx$(txid));
+        const result = row !== null;
         this.cache.set(txid, {
           value: result,
           // true is monotonic (forever); false gets a TTL.

@@ -6,7 +6,6 @@ import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolOtsRepository from '../../../repositories/OrdpoolOtsRepository';
-import ordpoolOtsTxidSet from '../../ordpool-ots-txid-set';
 import { OTS_OUTBOUND_USER_AGENT } from '../../ordpool-ots-user-agent';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
 import ordpoolAtomicalsApi from './ordpool-atomicals.api';
@@ -42,7 +41,6 @@ class GeneralOrdpoolRoutes {
         this.$proxyOtsDigest,
       )
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/stamp-calendars', this.$getOtsStampCalendars)
-      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/is-commit/:txid', this.$isOtsCommit)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -212,36 +210,6 @@ class GeneralOrdpoolRoutes {
     res.json({ calendars: getOtsCalendars() });
   }
 
-  /**
-   * Lazy point lookup against the in-memory ordpoolOtsTxidSet: "is this
-   * tx a known OTS calendar batch commit?" Used by the frontend only
-   * when the strip-wire surfaces (REST /tx/:txid, WS track-tx) didn't
-   * already attach the answer as `tx.isOtsCommit`, and when the client-
-   * side OP_RETURN fast-path can't decide. See ORDPOOL-FLAGS-ARCHITECTURE.md
-   * §4 for the full design.
-   *
-   * Cache-Control max-age=60 matches the OTS poller's cycle: a `false`
-   * answer can flip to `true` once the poller learns about a new
-   * calendar batch, but never within a 60-second window (the answer is
-   * monotonic in the `false -> true` direction only).
-   *
-   * `stale-while-revalidate=60` lets Cloudflare keep serving the cached
-   * answer for an extra 60 s while it refetches in the background. If
-   * the poller stalls (network blip, calendar 5xx), users see the
-   * previous answer instead of a thundering-herd of probes against the
-   * backend.
-   */
-  // https://ordpool.space/api/v1/ordpool/ots/is-commit/abcd...1234
-  private async $isOtsCommit(req: Request, res: Response): Promise<void> {
-    const txid = req.params.txid;
-    if (!isValidTxid(txid)) {
-      res.status(400).send('invalid txid');
-      return;
-    }
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=60');
-    res.json({ result: ordpoolOtsTxidSet.has(txid) });
-  }
-
   /** All OTS commits at a given block height. Empty array if none. */
   // https://ordpool.space/api/v1/ordpool/ots/block/948192
   private async $getOtsBlock(req: Request, res: Response): Promise<void> {
@@ -262,7 +230,8 @@ class GeneralOrdpoolRoutes {
   }
 
   /** Single tx lookup. Always 200 with `{ found, row? }` so non-OTS txs
-   *  don't surface as 404s in the browser devtools. */
+   *  don't surface as 404s in the browser devtools. Callers wanting only
+   *  the boolean derive it from `found`. */
   // https://ordpool.space/api/v1/ordpool/ots/tx/8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f
   private async $getOtsTx(req: Request, res: Response): Promise<void> {
     try {
@@ -273,15 +242,27 @@ class GeneralOrdpoolRoutes {
       }
       const row = await ordpoolOtsRepository.getByTxid(txid.toLowerCase());
       if (!row) {
-        res.setHeader('Cache-Control', 'public, max-age=60');
+        // Negative answer can flip to positive once the poller learns
+        // about a new calendar batch (monotonic in the false→true
+        // direction). 60s matches the poller cycle; SWR gives Cloudflare
+        // 5 more minutes to keep serving while it refetches in the
+        // background, absorbing thundering-herd on hot pages.
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
         res.json({ found: false });
         return;
       }
-      // Confirmed rows can cache aggressively (data is immutable once confirmed).
-      // Pending rows must not cache because they're about to flip.
-      res.setHeader('Cache-Control', row.confirmedAt
-        ? 'public, max-age=300'
-        : 'no-store');
+      if (row.confirmedAt) {
+        // Confirmed OTS commit data is effectively stable: merkle root,
+        // calendar, fee, blockhash, blockheight don't change in the
+        // common case. Cache 1h fresh + 24h stale-while-revalidate at
+        // the edge. NOT `immutable` -- a reorg can rewrite blockhash /
+        // blockheight on a recently-confirmed row, and that would
+        // poison `immutable` caches forever.
+        res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+      } else {
+        // Pending rows are about to flip when the tx confirms.
+        res.setHeader('Cache-Control', 'no-store');
+      }
       res.json({ found: true, row });
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : String(e));

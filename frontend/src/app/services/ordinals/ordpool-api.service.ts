@@ -69,22 +69,14 @@ export class OrdpoolApiService {
     return this.httpClient.get<IndexerProgress>(url);
   }
 
-  /** Returns the OTS row, or null when the tx isn't a calendar commit. */
+  /** Returns the OTS row, or null when the tx isn't a calendar commit.
+   *  Single source of truth for "is this an OTS commit?" — derive boolean
+   *  via `row !== null` when only that's needed. */
   getOtsTx$(txid: string): Observable<OrdpoolOtsRow | null> {
     const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/tx/${txid}`;
     return this.httpClient
       .get<{ found: boolean; row?: OrdpoolOtsRow }>(url)
       .pipe(map(resp => resp.found && resp.row ? resp.row : null));
-  }
-
-  /** Lazy point-lookup against the backend's in-memory `ordpoolOtsTxidSet`:
-   *  is the given txid a known OTS calendar batch commit? Used by
-   *  `OtsKnowledgeService` only when the strip-wire surfaces didn't already
-   *  attach the answer as `tx.isOtsCommit` and when the client-side
-   *  OP_RETURN fast-path couldn't decide. See ORDPOOL-FLAGS-ARCHITECTURE.md §4. */
-  isOtsCommit$(txid: string): Observable<{ result: boolean }> {
-    const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/is-commit/${txid}`;
-    return this.httpClient.get<{ result: boolean }>(url);
   }
 
   /** Per-calendar summary for the /ots/calendars dashboard. */
