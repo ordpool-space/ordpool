@@ -52,18 +52,27 @@ describe('OtsViewerComponent', () => {
     expect(fixture.componentInstance.loaded).toBe(true);
   });
 
-  it('silently no-ops on 404 (non-OTS tx) -- row stays null, no error surfaces', () => {
-    api.getOtsTx$.mockReturnValueOnce(throwError(() => ({ status: 404 })));
+  it('silently no-ops when the API returns null (non-OTS tx) -- row stays null', () => {
+    api.getOtsTx$.mockReturnValueOnce(of(null));
     const fixture = TestBed.createComponent(OtsViewerComponent);
     fixture.componentInstance.txid = '2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e';
     expect(fixture.componentInstance.row).toBeNull();
     expect(fixture.componentInstance.loaded).toBe(true);
   });
 
-  it('handles 5xx the same as 404 -- row stays null', () => {
+  it('handles 5xx via catchError -- row stays null', () => {
     api.getOtsTx$.mockReturnValueOnce(throwError(() => ({ status: 503 })));
     const fixture = TestBed.createComponent(OtsViewerComponent);
     fixture.componentInstance.txid = 'some-txid';
+    expect(fixture.componentInstance.row).toBeNull();
+    expect(fixture.componentInstance.loaded).toBe(true);
+  });
+
+  it('skips the API call entirely when isOtsCommit === false', () => {
+    const fixture = TestBed.createComponent(OtsViewerComponent);
+    fixture.componentInstance.isOtsCommit = false;
+    fixture.componentInstance.txid = '2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e';
+    expect(api.getOtsTx$).not.toHaveBeenCalled();
     expect(fixture.componentInstance.row).toBeNull();
     expect(fixture.componentInstance.loaded).toBe(true);
   });

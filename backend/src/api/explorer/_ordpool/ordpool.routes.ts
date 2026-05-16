@@ -261,7 +261,11 @@ class GeneralOrdpoolRoutes {
     }
   }
 
-  /** Single tx lookup. 404 if the txid isn't a known OTS commit. */
+  /** Single tx lookup. Always 200 — a "not an OTS commit" answer is a
+   *  legitimate negative result, not an error. Returning 404 would yell
+   *  in the browser's devtools for every rune / inscription / random
+   *  OP_RETURN tx the user opens, even though nothing is actually wrong.
+   *  Body shape: `{ found: true, row }` or `{ found: false }`. */
   // https://ordpool.space/api/v1/ordpool/ots/tx/8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f
   private async $getOtsTx(req: Request, res: Response): Promise<void> {
     try {
@@ -272,7 +276,9 @@ class GeneralOrdpoolRoutes {
       }
       const row = await ordpoolOtsRepository.getByTxid(txid.toLowerCase());
       if (!row) {
-        res.status(404).send('Not an OpenTimestamps calendar commit (or not yet seen).');
+        // Negative answers are cheap and stable enough to cache briefly.
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        res.json({ found: false });
         return;
       }
       // Confirmed rows can cache aggressively (data is immutable once confirmed).
@@ -280,7 +286,7 @@ class GeneralOrdpoolRoutes {
       res.setHeader('Cache-Control', row.confirmedAt
         ? 'public, max-age=300'
         : 'no-store');
-      res.json(row);
+      res.json({ found: true, row });
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : String(e));
     }
