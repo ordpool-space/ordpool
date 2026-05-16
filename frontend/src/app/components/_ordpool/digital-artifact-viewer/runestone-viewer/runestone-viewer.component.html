@@ -270,20 +270,22 @@
 
   </div>
 
-  <div *ngIf="runestone.pointer as pointer" class="mb-4">
+  @if (runestone.pointer !== undefined) {
+    <div class="mb-4">
 
-    <strong>▣ Rune Pointer
-      <a [routerLink]="['/tx/' | relativeUrl, transactionId]" fragment="flow=&vout={{ pointer }}">
-        to Output {{ pointer }}
-      </a>
-    </strong><br>
-    <br *ngIf="showDetails">
+      <strong>▣ Rune Pointer
+        <a [routerLink]="['/tx/' | relativeUrl, transactionId]" fragment="flow=&vout={{ runestone.pointer }}">
+          to Output {{ runestone.pointer }}
+        </a>
+      </strong><br>
+      <br *ngIf="showDetails">
 
-    <ng-container *ngIf="showDetails">
-      This runestone contains the index of the output to which runes not assigned by edicts are to be transferred.<br>
-    </ng-container>
+      <ng-container *ngIf="showDetails">
+        This runestone contains the index of the output to which runes not assigned by edicts are to be transferred.<br>
+      </ng-container>
 
-  </div>
+    </div>
+  }
 
 </div>
 
