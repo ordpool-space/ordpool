@@ -8,8 +8,19 @@ export const environment = {
   nativeTestAssetId: '144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49',
   enableInscriptionAccelerator: false,
   enableCat21Mint: true,
-  ordBaseUrl: 'https://explorer.ordinalsbot.com',
-  ordBaseUrlTestnet: 'https://testnet-explorer.ordinalsbot.com',
+  // Ord JSON-API upstreams tried in order. On any failure (5xx, network,
+  // CORS, etc.) the client walks down the list and tries the next entry.
+  // First success wins. Add more entries here as we bring more instances
+  // online.
+  ordBaseUrls: [
+    'https://ord.ordpool.space',
+    'https://explorer.ordinalsbot.com',
+  ],
+  // Testnet has its own list. We don't run a testnet ord instance, so
+  // this is single-upstream for now.
+  ordBaseUrlsTestnet: [
+    'https://testnet-explorer.ordinalsbot.com',
+  ],
   cat21BaseUrl: 'http://localhost:3333',
   // HACK -- Ordpool absolute URL: empty in dev so the Angular dev proxy
   // (proxy.conf.local-esplora.js) handles /api/* + /api/v1/ws routing.
