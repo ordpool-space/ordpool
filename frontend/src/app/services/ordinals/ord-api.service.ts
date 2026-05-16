@@ -57,33 +57,30 @@ export interface CachedOrdApiRune {
 })
 export class OrdApiService {
 
-  private upstreams: readonly string[] = environment.ordBaseUrls;
   private walletService = inject(WalletService);
   private http = inject(HttpClient);
 
-  constructor() {
-    this.walletService.isMainnet$.subscribe(isMainnet => {
-      this.upstreams = isMainnet
-        ? environment.ordBaseUrls
-        : environment.ordBaseUrlsTestnet;
-    });
+  private get upstreams(): readonly string[] {
+    return this.walletService.isMainnet
+      ? environment.ordBaseUrls
+      : environment.ordBaseUrlsTestnet;
   }
 
   /**
-   * GET against the configured ord upstreams in order. On any failure
-   * (5xx, network, CORS, etc.) the next upstream is tried. First success
-   * wins. The order is reset on every call, so a transient outage on
-   * upstream[0] doesn't pin every later request to upstream[1]+.
+   * GET against the configured ord upstreams in order. First 2xx wins;
+   * any failure (5xx, network, CORS, etc.) falls through to the next.
    */
   private getOrdJson<T>(path: string): Observable<T> {
     const headers = new HttpHeaders().set('Accept', 'application/json');
-    if (this.upstreams.length === 0) {
+    const [first, ...rest] = this.upstreams;
+    if (!first) {
       return throwError(() => new Error('No ord upstreams configured'));
     }
-    return this.upstreams.reduce<Observable<T> | null>((acc, base) => {
-      const next$ = this.http.get<T>(`${base}${path}`, { headers });
-      return acc ? acc.pipe(catchError(() => next$)) : next$;
-    }, null)!;
+    let chain: Observable<T> = this.http.get<T>(`${first}${path}`, { headers });
+    for (const base of rest) {
+      chain = chain.pipe(catchError(() => this.http.get<T>(`${base}${path}`, { headers })));
+    }
+    return chain;
   }
 
   /**
