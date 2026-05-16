@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnChanges, OnDestroy } from '@angular/core';
 import { catchError, of, Subject, switchMap, takeUntil } from 'rxjs';
 
 import { OrdpoolApiService, OrdpoolOtsRow } from '../../../../services/ordinals/ordpool-api.service';
@@ -31,7 +31,7 @@ const CALENDAR_URL_BY_NICKNAME = new Map<string, string>(
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class OtsViewerComponent implements OnDestroy {
+export class OtsViewerComponent implements OnChanges, OnDestroy {
 
   private api = inject(OrdpoolApiService);
   private cdr = inject(ChangeDetectorRef);
@@ -40,10 +40,39 @@ export class OtsViewerComponent implements OnDestroy {
 
   row: OrdpoolOtsRow | null = null;
   loaded = false;
+  private currentTxid: string | undefined;
+  /** Tristate from `TransactionExtended.isOtsCommit`:
+   *  - `true`  → tx is a known OTS calendar commit; fetch the row.
+   *  - `false` → server confirms tx is NOT OTS; skip the network call
+   *              entirely (avoids logging a 404 to the browser console
+   *              for every rune / inscription / random OP_RETURN tx).
+   *  - `null` / `undefined` → unknown; fall back to fetching and let
+   *              the 404 path silently no-op. */
+  @Input() isOtsCommit: boolean | null | undefined = undefined;
 
   @Input()
   set txid(value: string | undefined) {
+    this.currentTxid = value;
+    this.maybeLookup();
+  }
+
+  ngOnChanges(): void {
+    // isOtsCommit can flip from null → true via WS otsCommitFlipped after
+    // the tx loaded. Re-evaluate when any input changes.
+    this.maybeLookup();
+  }
+
+  private maybeLookup(): void {
+    const value = this.currentTxid;
     if (!value) {
+      this.row = null;
+      this.loaded = true;
+      this.cdr.markForCheck();
+      return;
+    }
+    // Skip the API call when the server has already told us this tx is
+    // NOT an OTS commit. No request, no 404, no devtools noise.
+    if (this.isOtsCommit === false) {
       this.row = null;
       this.loaded = true;
       this.cdr.markForCheck();

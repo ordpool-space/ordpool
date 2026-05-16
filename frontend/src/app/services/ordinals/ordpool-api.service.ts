@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import {
   Aggregation,
@@ -68,10 +69,15 @@ export class OrdpoolApiService {
     return this.httpClient.get<IndexerProgress>(url);
   }
 
-  /** Look up a single tx; returns the OTS row when the tx is a calendar commit. */
-  getOtsTx$(txid: string): Observable<OrdpoolOtsRow> {
+  /** Look up a single tx. The backend always answers 200 — non-OTS txs
+   *  are a legitimate negative result, not an error — so the envelope
+   *  `{ found, row? }` carries the answer instead of relying on HTTP
+   *  status. Returns the bare row (or null) for the caller's convenience. */
+  getOtsTx$(txid: string): Observable<OrdpoolOtsRow | null> {
     const url = `${this.apiBaseUrl}${this.apiBasePath}/api/v1/ordpool/ots/tx/${txid}`;
-    return this.httpClient.get<OrdpoolOtsRow>(url);
+    return this.httpClient
+      .get<{ found: boolean; row?: OrdpoolOtsRow }>(url)
+      .pipe(map(resp => resp.found && resp.row ? resp.row : null));
   }
 
   /** Lazy point-lookup against the backend's in-memory `ordpoolOtsTxidSet`:
