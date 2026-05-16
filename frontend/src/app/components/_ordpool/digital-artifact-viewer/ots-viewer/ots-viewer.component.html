@@ -1,7 +1,14 @@
 @if (loaded && row) {
   <div class="ots-panel">
     <strong>OpenTimestamps:</strong>
-    <span title="Calendar that broadcast this commit">{{ row.calendar }}</span>
+    @if (calendarUrl) {
+      <a [href]="calendarUrl"
+         target="_blank"
+         rel="noopener"
+         title="Open the {{ row.calendar }} calendar homepage">{{ row.calendar }}</a>
+    } @else {
+      <span title="Calendar that broadcast this commit">{{ row.calendar }}</span>
+    }
     @if (row.confirmedAt) {
       <span class="badge confirmed">confirmed</span>
     } @else {
@@ -22,6 +29,23 @@
             </td>
           </tr>
         }
+        @if (row.firstSeenAt) {
+          <tr>
+            <td>Broadcast</td>
+            <td>
+              {{ row.firstSeenAt | date:'yyyy-MM-dd HH:mm:ss' }}
+              <span class="smaller-text" style="opacity: 0.7;">UTC</span>
+            </td>
+          </tr>
+        }
+        @if (confirmationLatency) {
+          <tr>
+            <td>Time to confirm</td>
+            <td title="Elapsed time between mempool entry and block confirmation">
+              {{ confirmationLatency }}
+            </td>
+          </tr>
+        }
         @if (row.fee) {
           <tr>
             <td>Calendar fee</td>
@@ -32,12 +56,16 @@
           <td>What this is</td>
           <td class="smaller-text">
             A Merkle root committed to Bitcoin by the
-            <strong>{{ row.calendar }}</strong> calendar, batching every user
-            submission it received since its last anchor into one OP_RETURN.
-            Anyone holding a
+            @if (calendarUrl) {
+              <a [href]="calendarUrl" target="_blank" rel="noopener"><strong>{{ row.calendar }}</strong></a>
+            } @else {
+              <strong>{{ row.calendar }}</strong>
+            }
+            calendar, batching every user submission it received since its
+            last anchor into one OP_RETURN. Anyone holding a
             <a href="https://opentimestamps.org" target="_blank" rel="noopener">.ots receipt</a>
             for one of those hashes can prove their file existed at or before
-            block {{ row.blockheight ?? 'this block' }} -- with no calendar required.
+            block {{ row.blockheight ?? 'this block' }}.
           </td>
         </tr>
       </tbody>
