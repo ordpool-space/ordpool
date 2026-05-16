@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnChanges, OnDestroy } from '@angular/core';
-import { catchError, of, Subject, switchMap, takeUntil } from 'rxjs';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnDestroy } from '@angular/core';
+import { catchError, distinctUntilChanged, of, Subject, switchMap, takeUntil } from 'rxjs';
 
 import { OrdpoolApiService, OrdpoolOtsRow } from '../../../../services/ordinals/ordpool-api.service';
 import { OTS_FALLBACK_CALENDARS } from '../../ots-stamp-verify/ots-store.service';
@@ -22,7 +22,7 @@ const CALENDAR_URL_BY_NICKNAME = new Map<string, string>(
 /**
  * Tiny tx-page panel that renders ONLY when the tx is a known
  * OpenTimestamps calendar commit. Talks to /api/v1/ordpool/ots/tx/:txid;
- * silent on 404 (tx isn't OTS) so the panel disappears for non-OTS txs.
+ * silent on null answers so the panel disappears for non-OTS txs.
  */
 @Component({
   selector: 'app-ots-viewer',
@@ -31,7 +31,7 @@ const CALENDAR_URL_BY_NICKNAME = new Map<string, string>(
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class OtsViewerComponent implements OnChanges, OnDestroy {
+export class OtsViewerComponent implements OnDestroy {
 
   private api = inject(OrdpoolApiService);
   private cdr = inject(ChangeDetectorRef);
@@ -40,53 +40,38 @@ export class OtsViewerComponent implements OnChanges, OnDestroy {
 
   row: OrdpoolOtsRow | null = null;
   loaded = false;
-  private currentTxid: string | undefined;
-  /** Tristate from `TransactionExtended.isOtsCommit`:
-   *  - `true`  → tx is a known OTS calendar commit; fetch the row.
-   *  - `false` → server confirms tx is NOT OTS; skip the network call
-   *              entirely (avoids logging a 404 to the browser console
-   *              for every rune / inscription / random OP_RETURN tx).
-   *  - `null` / `undefined` → unknown; fall back to fetching and let
-   *              the 404 path silently no-op. */
-  @Input() isOtsCommit: boolean | null | undefined = undefined;
+  private _txid: string | undefined;
+  private _isOtsCommit: boolean | null | undefined = undefined;
 
-  @Input()
-  set txid(value: string | undefined) {
-    this.currentTxid = value;
+  /** When `false`, skip the lookup entirely (strip-fill already
+   *  confirmed the tx is NOT an OTS commit). */
+  @Input() set isOtsCommit(v: boolean | null | undefined) {
+    this._isOtsCommit = v;
     this.maybeLookup();
   }
 
-  ngOnChanges(): void {
-    // isOtsCommit can flip from null → true via WS otsCommitFlipped after
-    // the tx loaded. Re-evaluate when any input changes.
+  @Input() set txid(v: string | undefined) {
+    this._txid = v;
     this.maybeLookup();
   }
 
   private maybeLookup(): void {
-    const value = this.currentTxid;
-    if (!value) {
-      this.row = null;
-      this.loaded = true;
-      this.cdr.markForCheck();
-      return;
-    }
-    // Skip the API call when the server has already told us this tx is
-    // NOT an OTS commit. No request, no 404, no devtools noise.
-    if (this.isOtsCommit === false) {
+    if (!this._txid || this._isOtsCommit === false) {
       this.row = null;
       this.loaded = true;
       this.cdr.markForCheck();
       return;
     }
     this.loaded = false;
-    this.txid$.next(value);
+    this.txid$.next(this._txid);
     this.cdr.markForCheck();
   }
 
   constructor() {
     this.txid$.pipe(
+      distinctUntilChanged(),
       switchMap(txid => this.api.getOtsTx$(txid).pipe(
-        catchError(() => of(null)),  // 404 / 5xx → just don't render the panel
+        catchError(() => of(null)),
       )),
       takeUntil(this.destroy$),
     ).subscribe(row => {
