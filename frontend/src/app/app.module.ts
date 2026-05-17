@@ -71,17 +71,26 @@ const providers = [
   // the frontend's mempool-flavoured StorageService and to the Angular
   // environment. The Cat21Service / WalletService / Cat21ApiService
   // classes themselves live in ordpool-sdk; only the wiring is local.
+  //
+  // Why useFactory and not bare-class shorthand: ordpool-sdk ships
+  // plain-tsc-compiled @Injectable classes (no ng-packagr / Ivy
+  // metadata baked in). Angular's processProvider on a bare-class
+  // provider reads ɵprov, doesn't find it, falls through to the JIT
+  // compiler, which production AOT disables — kills the whole app at
+  // bootstrap. useFactory bypasses the ɵprov lookup entirely; the
+  // factory runs in an injection context, so inject() calls inside
+  // the SDK class constructors resolve normally.
   { provide: STORAGE_LIKE, useExisting: StorageService },
   { provide: CAT21_SDK_CONFIG, useValue: {
     mempoolApiUrl: environment.apiBaseUrl,
     mempoolApiUrlTestnet: 'https://blockstream.info/testnet',
     cat21ApiUrl: environment.cat21BaseUrl,
   } },
-  Cat21ApiService,
+  { provide: WalletService, useFactory: () => new WalletService() },
+  { provide: Cat21ApiService, useFactory: () => new Cat21ApiService() },
+  { provide: Cat21Service, useFactory: () => new Cat21Service() },
   InscriptionAcceleratorApiService,
-  WalletService,
   BlockstreamApiService,
-  Cat21Service,
   // HACK -- HttpRetryInterceptor
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
   { provide: HIGHLIGHT_OPTIONS,
