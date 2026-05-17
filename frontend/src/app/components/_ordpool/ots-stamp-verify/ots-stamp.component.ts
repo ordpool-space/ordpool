@@ -124,27 +124,18 @@ export class OtsStampComponent {
     const calendars: OtsLocalCalendar[] = await Promise.all(
       known.map(async (cal, i) => {
         const r = replies[i];
-        // The pending receipt embeds its OWN upgrade URL. Some calendars
-        // (catallaxy) serve /timestamp/<hex> from a different subdomain
-        // than they accept /digest on, so we use whichever URL the
-        // receipt actually advertises -- and only fall back to the
-        // configured one if the receipt is unparseable.
-        const fallbackUpgradeUrl = cal.upgradeUrl ?? cal.url;
         if (r.status === 'fulfilled') {
           let commitmentHex = '';
-          let embeddedUri = '';
           try {
             const oneCalOts = assembleOtsFile(digest, [r.value]);
             const parsed = await parseOtsFile(oneCalOts);
-            const found = this.findFirstPendingAttestation(parsed.root);
-            commitmentHex = found?.commitmentHex ?? '';
-            embeddedUri = found?.uri ?? '';
+            commitmentHex = this.findPendingCommitmentHex(parsed.root, cal.url);
           } catch {
             commitmentHex = '';
           }
           return {
             nickname: cal.nickname,
-            uri: embeddedUri || fallbackUpgradeUrl,
+            uri: cal.url,
             pendingBase64: bytesToBase64(r.value),
             commitmentHex,
             upgradedBase64: null,
@@ -155,7 +146,7 @@ export class OtsStampComponent {
         }
         return {
           nickname: cal.nickname,
-          uri: fallbackUpgradeUrl,
+          uri: cal.url,
           pendingBase64: '',
           commitmentHex: '',
           upgradedBase64: null,
@@ -219,22 +210,16 @@ export class OtsStampComponent {
     return new Uint8Array(await resp.arrayBuffer());
   }
 
-  /** Walk the parsed OTS tree for the FIRST pending attestation we find.
-   *  When we POST to a single calendar's /digest we get back a receipt
-   *  for that calendar alone, so the first pending attestation IS the
-   *  one we care about. The attestation's `uri` is the canonical
-   *  /timestamp/<hex> endpoint to poll (which can differ from the
-   *  submit URL -- catallaxy does this). */
-  private findFirstPendingAttestation(root: OtsNode): { commitmentHex: string; uri: string } | null {
-    const visit = (node: OtsNode): { commitmentHex: string; uri: string } | null => {
+  private findPendingCommitmentHex(root: OtsNode, calendarUri: string): string {
+    const visit = (node: OtsNode): string => {
       for (const a of node.attestations) {
-        if (a.kind === 'pending') return { commitmentHex: hexEncode(node.msg), uri: a.uri };
+        if (a.kind === 'pending' && a.uri === calendarUri) return hexEncode(node.msg);
       }
       for (const c of node.children) {
         const r = visit(c.node);
         if (r) return r;
       }
-      return null;
+      return '';
     };
     return visit(root);
   }
