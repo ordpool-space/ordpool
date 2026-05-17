@@ -5,6 +5,15 @@
   --search-button-focus: #eba814;
   --search-button-shadow: #eba814;
 
+  // Neutral panel tokens for ordpool components. Replaces the blue-leaning
+  // ad-hoc hexes (#2d3250, #181b2d, #11132a, #1a1d36) that drifted from
+  // mempool's blue palette. These read as gray on the navy page bg, not
+  // blue -- ordpool's accent is bitcoin orange, blue belongs to upstream.
+  --panel-bg:       #1a1a24;  // panel background, slightly darker than $bg
+  --panel-bg-deep:  #131319;  // nested / inset panel (file drop zone, etc)
+  --panel-border:   #2f2f3a;  // panel border, neutral gray
+  --panel-hover:    #22222e;  // hover state on interactive panels
+
   // Square corners across the board -- ordpool's brand differentiator from
   // upstream mempool. Killing the Bootstrap CSS vars handles every Bootstrap
   // component (.alert, .btn, .badge, .card, .modal, .form-control, ...)

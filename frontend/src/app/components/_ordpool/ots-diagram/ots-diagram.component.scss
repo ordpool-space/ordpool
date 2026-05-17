@@ -3,8 +3,8 @@
 }
 
 .ots-diagram {
-  background-color: #11132a;
-  border: 1px solid #2d3250;
+  background-color: var(--panel-bg-deep);
+  border: 1px solid var(--panel-border);
   padding: 24px 16px;
 }
 
@@ -18,8 +18,8 @@
 .ots-diagram-box {
   text-align: center;
   padding: 16px 12px;
-  border: 2px solid #2d3250;
-  background-color: #181b2d;
+  border: 2px solid var(--panel-border);
+  background-color: var(--panel-bg);
   cursor: help;
 
   .ots-diagram-icon {
@@ -94,7 +94,7 @@
   .ots-diagram-arrow-line {
     font-size: 1.4rem;
     line-height: 1;
-    color: #2d3250;
+    color: var(--panel-border);
   }
 }
 
