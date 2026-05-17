@@ -33,11 +33,10 @@ import { DatePipe } from '@angular/common';
 import { HttpRetryInterceptor } from '@app/services/http-retry.interceptor';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from '@app/services/ordinals/blockchain-api.service';
-import { Cat21ApiService } from '@app/services/ordinals/cat21-api.service';
+import { Cat21ApiService, Cat21Service, STORAGE_LIKE, CAT21_SDK_CONFIG, WalletService } from 'ordpool-sdk';
+import { environment } from '@environments/environment';
 import { InscriptionAcceleratorApiService } from '@app/services/ordinals/inscription-accelerator-api.service';
-import { WalletService } from '@app/services/ordinals/wallet.service';
 import { BlockstreamApiService } from '@app/services/ordinals/blockstream-api.service';
-import { Cat21Service } from '@app/services/ordinals/cat21.service';
 import { OrdpoolStatsComponent } from '@components/_ordpool/ordpool-stats/ordpool-stats.component';
 
 import { HIGHLIGHT_OPTIONS } from 'ngx-highlightjs';
@@ -68,6 +67,16 @@ const providers = [
   { provide: ZONE_SERVICE, useClass: ZoneService },
   DigitalArtifactsFetcherService,
   BlockchainApiService,
+  // HACK -- Ordpool: bridge the SDK's framework-agnostic tokens to
+  // the frontend's mempool-flavoured StorageService and to the Angular
+  // environment. The Cat21Service / WalletService / Cat21ApiService
+  // classes themselves live in ordpool-sdk; only the wiring is local.
+  { provide: STORAGE_LIKE, useExisting: StorageService },
+  { provide: CAT21_SDK_CONFIG, useValue: {
+    mempoolApiUrl: environment.apiBaseUrl,
+    mempoolApiUrlTestnet: 'https://blockstream.info/testnet',
+    cat21ApiUrl: environment.cat21BaseUrl,
+  } },
   Cat21ApiService,
   InscriptionAcceleratorApiService,
   WalletService,

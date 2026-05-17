@@ -5,7 +5,7 @@ import { Transaction } from 'src/app/interfaces/electrs.interface';
 
 import { BlockchainApiService } from './blockchain-api.service';
 import { BlockstreamApiService } from './blockstream-api.service';
-import { WalletService } from './wallet.service';
+import { WalletService } from 'ordpool-sdk';
 import { ElectrsApiService } from '../electrs-api.service';
 
 

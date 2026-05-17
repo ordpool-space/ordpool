@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, Observable, of, shareReplay, tap, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { WalletService } from './wallet.service';
+import { WalletService } from 'ordpool-sdk';
 
 export interface BlockData {
   hash: string;

@@ -3,10 +3,10 @@ import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
 import { map } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
-import { Cat21Service } from '../../../services/ordinals/cat21.service';
+import { Cat21Service } from 'ordpool-sdk';
 import { InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
-import { WalletService } from '../../../services/ordinals/wallet.service';
-import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
+import { WalletService } from 'ordpool-sdk';
+import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo } from 'ordpool-sdk';
 import { limitArray } from './limit-array';
 
 
