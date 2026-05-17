@@ -3,17 +3,17 @@
 }
 
 .ots-stamp {
-  background-color: #181b2d;
-  border: 1px solid #2d3250;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
 
   .dropzone {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 140px;
-    border: 2px dashed #2d3250;
+    border: 2px dashed var(--panel-border);
     cursor: pointer;
-    background-color: #11132a;
+    background-color: var(--panel-bg-deep);
     transition: border-color 0.15s ease, background-color 0.15s ease;
     text-align: center;
     padding: 20px;
@@ -22,13 +22,13 @@
     &:hover,
     &.dragging {
       border-color: var(--primary);
-      background-color: #1a1d36;
+      background-color: var(--panel-hover);
     }
 
     &.disabled {
       cursor: not-allowed;
       opacity: 0.55;
-      &:hover { border-color: #2d3250; background-color: #11132a; }
+      &:hover { border-color: var(--panel-border); background-color: var(--panel-bg-deep); }
     }
 
     .dropzone-input { display: none; }

@@ -2,7 +2,7 @@
   max-width: 320px;
   max-height: 320px;
   image-rendering: pixelated;
-  background: #11132a;
+  background: var(--panel-bg-deep);
 }
 
 .atomical-arg-value {

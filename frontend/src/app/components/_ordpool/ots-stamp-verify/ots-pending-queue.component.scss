@@ -4,8 +4,8 @@
 
 .ots-pending-queue {
   .ots-stamp-row {
-    background-color: #181b2d;
-    border: 1px solid #2d3250;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--panel-border);
     padding: 16px 18px;
     margin-bottom: 12px;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -24,7 +24,7 @@
     }
 
     &.is-failed {
-      border-color: #2d3250;
+      border-color: var(--panel-border);
       opacity: 0.85;
     }
   }
@@ -46,8 +46,8 @@
 
   .ots-stamp-calendar {
     color: #9aa0c0;
-    background-color: #11132a;
-    border: 1px solid #2d3250;
+    background-color: var(--panel-bg-deep);
+    border: 1px solid var(--panel-border);
     padding: 4px 10px;
 
     &.is-published {

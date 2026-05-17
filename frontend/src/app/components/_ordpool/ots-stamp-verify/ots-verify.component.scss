@@ -3,17 +3,17 @@
 }
 
 .ots-verify {
-  background-color: #181b2d;
-  border: 1px solid #2d3250;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
 
   .dropzone {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 140px;
-    border: 2px dashed #2d3250;
+    border: 2px dashed var(--panel-border);
     cursor: pointer;
-    background-color: #11132a;
+    background-color: var(--panel-bg-deep);
     transition: border-color 0.15s ease, background-color 0.15s ease;
     text-align: center;
     padding: 20px;
@@ -22,7 +22,7 @@
     &:hover,
     &.dragging {
       border-color: var(--primary);
-      background-color: #1a1d36;
+      background-color: var(--panel-hover);
     }
 
     .dropzone-input { display: none; }
@@ -42,16 +42,16 @@
       align-items: center;
       justify-content: center;
       min-height: 80px;
-      border: 1.5px dashed #2d3250;
+      border: 1.5px dashed var(--panel-border);
       cursor: pointer;
-      background-color: #11132a;
+      background-color: var(--panel-bg-deep);
       padding: 12px;
       margin: 0;
       text-align: center;
       color: #9aa0c0;
       transition: border-color 0.15s ease, background-color 0.15s ease;
 
-      &:hover { border-color: var(--primary); background-color: #1a1d36; }
+      &:hover { border-color: var(--primary); background-color: var(--panel-hover); }
       .dropzone-input { display: none; }
       strong { color: #fff; }
     }
