@@ -32,7 +32,7 @@ export const OTS_FALLBACK_CALENDARS: ReadonlyArray<OtsKnownCalendar> = Object.fr
   Object.freeze({ nickname: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org' }),
   Object.freeze({ nickname: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org' }),
   Object.freeze({ nickname: 'finney',    url: 'https://finney.calendar.eternitywall.com' }),
-  Object.freeze({ nickname: 'catallaxy', url: 'https://ots.btc.catallaxy.com' }),
+  Object.freeze({ nickname: 'catallaxy', url: 'https://btc.calendar.catallaxy.com' }),
 ]);
 
 export type OtsStampStatus = 'queued' | 'ready' | 'failed';

@@ -30,7 +30,7 @@ const FALLBACK_CALENDARS: ReadonlyArray<OtsCalendar> = Object.freeze([
   Object.freeze({ nickname: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org' }),
   Object.freeze({ nickname: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org' }),
   Object.freeze({ nickname: 'finney',    url: 'https://finney.calendar.eternitywall.com' }),
-  Object.freeze({ nickname: 'catallaxy', url: 'https://ots.btc.catallaxy.com' }),
+  Object.freeze({ nickname: 'catallaxy', url: 'https://btc.calendar.catallaxy.com' }),
 ]);
 
 let cached: ReadonlyArray<OtsCalendar> | null = null;
