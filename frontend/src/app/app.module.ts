@@ -33,7 +33,7 @@ import { DatePipe } from '@angular/common';
 import { HttpRetryInterceptor } from '@app/services/http-retry.interceptor';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from '@app/services/ordinals/blockchain-api.service';
-import { Cat21ApiService, Cat21Service, STORAGE_LIKE, CAT21_SDK_CONFIG, WalletService } from 'ordpool-sdk';
+import { Cat21ApiService, Cat21Service, STORAGE_LIKE, CAT21_SDK_CONFIG, WalletService, Network, SDK_NETWORK } from 'ordpool-sdk';
 import { environment } from '@environments/environment';
 import { InscriptionAcceleratorApiService } from '@app/services/ordinals/inscription-accelerator-api.service';
 import { BlockstreamApiService } from '@app/services/ordinals/blockstream-api.service';
@@ -72,9 +72,9 @@ const providers = [
   // environment. The Cat21Service / WalletService / Cat21ApiService
   // classes themselves live in ordpool-sdk; only the bridging is local.
   { provide: STORAGE_LIKE, useExisting: StorageService },
+  { provide: SDK_NETWORK, useValue: Network.Mainnet },
   { provide: CAT21_SDK_CONFIG, useValue: {
     mempoolApiUrl: environment.apiBaseUrl,
-    mempoolApiUrlTestnet: 'https://blockstream.info/testnet',
     cat21ApiUrl: environment.cat21BaseUrl,
   } },
   Cat21ApiService,
