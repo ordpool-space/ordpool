@@ -144,11 +144,30 @@ describe('OtsVerifyComponent — state machine', () => {
     expect(comp.status.kind).toBe('idle');
   });
 
-  it('idle -> file-only: a single plain file with no .ots', async () => {
+  it('idle -> awaiting-receipt: a plain file dropped before any .ots', async () => {
     const { comp } = makeComponent();
     const file = makeFile('hello.txt', new TextEncoder().encode('hello, world'));
     await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([file]);
-    expect(comp.status.kind).toBe('file-only');
+    expect(comp.status.kind).toBe('awaiting-receipt');
+    if (comp.status.kind === 'awaiting-receipt') {
+      expect(comp.status.filename).toBe('hello.txt');
+    }
+  });
+
+  it('file-first then receipt -> verified+fileMatch (true): order does not matter', async () => {
+    const { comp } = makeComponent();
+    const file = makeFile('incomplete.txt', b64ToUint8Array(INCOMPLETE_FILE_B64));
+    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([file]);
+    expect(comp.status.kind).toBe('awaiting-receipt');
+
+    const ots = makeFile('incomplete.txt.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
+    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([ots]);
+    expect(comp.status.kind).toBe('verified');
+    if (comp.status.kind === 'verified') {
+      expect(comp.status.fileMatch).not.toBeNull();
+      expect(comp.status.fileMatch!.matchesReceipt).toBe(true);
+      expect(comp.status.fileMatch!.filename).toBe('incomplete.txt');
+    }
   });
 
   it('idle -> error: dropping more than one .ots at a time', async () => {
@@ -222,31 +241,6 @@ describe('OtsVerifyComponent — state machine', () => {
     await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([ots]);
     expect(comp.status.kind).toBe('verified');
 
-    // Now drop the original file into the match sub-zone.
-    const file = makeFile('incomplete.txt', b64ToUint8Array(INCOMPLETE_FILE_B64));
-    await (comp as unknown as { matchAgainstReceipt(f: File): Promise<void> }).matchAgainstReceipt(file);
-
-    expect(comp.status.kind).toBe('verified');
-    if (comp.status.kind === 'verified') {
-      expect(comp.status.fileMatch).not.toBeNull();
-      expect(comp.status.fileMatch!.matchesReceipt).toBe(true);
-    }
-  });
-
-  it('verified -> verified+fileMatch: dropping the original file into the MAIN zone after verify', async () => {
-    // Real-world UX: after the .ots verifies and shows the verdict, users
-    // tend to drop the original file into the same main dropzone they
-    // used for the receipt -- not the secondary sub-zone. Component must
-    // route through to the match path instead of flashing "looks like a
-    // regular file" (which historically happened before this regression
-    // was caught on prod).
-    const { comp } = makeComponent();
-    const ots = makeFile('incomplete.txt.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
-    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([ots]);
-    expect(comp.status.kind).toBe('verified');
-
-    // Now drop the original file into the MAIN zone (handleFiles), not
-    // the sub-zone (matchAgainstReceipt).
     const file = makeFile('incomplete.txt', b64ToUint8Array(INCOMPLETE_FILE_B64));
     await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([file]);
 
@@ -257,24 +251,7 @@ describe('OtsVerifyComponent — state machine', () => {
     }
   });
 
-  it('verified -> error: dropping a .ots into the file-match sub-zone', async () => {
-    const { comp } = makeComponent();
-    const ots = makeFile('incomplete.txt.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
-    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([ots]);
-    expect(comp.status.kind).toBe('verified');
-
-    // User mistakenly drops another .ots into the sub-zone that expects the
-    // original file. Component must refuse with the educational error.
-    const wrongDrop = makeFile('other.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
-    await (comp as unknown as { matchAgainstReceipt(f: File): Promise<void> }).matchAgainstReceipt(wrongDrop);
-
-    expect(comp.status.kind).toBe('error');
-    if (comp.status.kind === 'error') {
-      expect(comp.status.message).toMatch(/ORIGINAL FILE/i);
-    }
-  });
-
-  it('reset() returns to idle and clears the cached receipt', async () => {
+  it('reset() returns to idle and clears the cached receipt + cached file', async () => {
     const { comp } = makeComponent();
     const ots = makeFile('incomplete.txt.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
     await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([ots]);
@@ -283,10 +260,10 @@ describe('OtsVerifyComponent — state machine', () => {
     comp.reset();
     expect(comp.status.kind).toBe('idle');
 
-    // A subsequent matchAgainstReceipt call is now a no-op (the cached
-    // receipt was cleared). Status must NOT flip back to verified.
+    // After reset, dropping the original file alone should land in
+    // awaiting-receipt (not back into a verified state).
     const file = makeFile('incomplete.txt', b64ToUint8Array(INCOMPLETE_FILE_B64));
-    await (comp as unknown as { matchAgainstReceipt(f: File): Promise<void> }).matchAgainstReceipt(file);
-    expect(comp.status.kind).toBe('idle');
+    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([file]);
+    expect(comp.status.kind).toBe('awaiting-receipt');
   });
 });

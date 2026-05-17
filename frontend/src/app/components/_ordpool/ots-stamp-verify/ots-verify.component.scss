@@ -35,25 +35,4 @@
   }
 
   .verify-result code { word-break: break-all; }
-
-  .match-zone {
-    .match-dropzone {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 80px;
-      border: 1.5px dashed var(--panel-border);
-      cursor: pointer;
-      background-color: var(--panel-bg-deep);
-      padding: 12px;
-      margin: 0;
-      text-align: center;
-      color: #9aa0c0;
-      transition: border-color 0.15s ease, background-color 0.15s ease;
-
-      &:hover { border-color: var(--primary); background-color: var(--panel-hover); }
-      .dropzone-input { display: none; }
-      strong { color: #fff; }
-    }
-  }
 }
