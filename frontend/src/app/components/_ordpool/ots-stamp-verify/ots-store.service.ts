@@ -15,14 +15,10 @@ const SCHEMA_VERSION = 1;
 /** One known OTS calendar -- shape matches the backend's
  *  /api/v1/ordpool/ots/stamp-calendars response (which mirrors
  *  ots-calendars.json on disk). 'nickname' is the display name AND the
- *  stable identifier; 'url' is the base URL we POST /digest against.
- *  Some calendars (catallaxy) serve `/timestamp/<hex>` from a different
- *  subdomain than they accept submissions on -- when that's the case
- *  the pending receipt embeds it and we honor it via `upgradeUrl`. */
+ *  stable identifier; 'url' is the base URL we POST /digest against. */
 export interface OtsKnownCalendar {
   nickname: string;
   url: string;
-  upgradeUrl?: string;
 }
 
 /**
@@ -36,7 +32,7 @@ export const OTS_FALLBACK_CALENDARS: ReadonlyArray<OtsKnownCalendar> = Object.fr
   Object.freeze({ nickname: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org' }),
   Object.freeze({ nickname: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org' }),
   Object.freeze({ nickname: 'finney',    url: 'https://finney.calendar.eternitywall.com' }),
-  Object.freeze({ nickname: 'catallaxy', url: 'https://ots.btc.catallaxy.com', upgradeUrl: 'https://btc.calendar.catallaxy.com' }),
+  Object.freeze({ nickname: 'catallaxy', url: 'https://ots.btc.catallaxy.com' }),
 ]);
 
 export type OtsStampStatus = 'queued' | 'ready' | 'failed';
