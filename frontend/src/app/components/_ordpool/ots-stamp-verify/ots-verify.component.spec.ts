@@ -233,6 +233,30 @@ describe('OtsVerifyComponent — state machine', () => {
     }
   });
 
+  it('verified -> verified+fileMatch: dropping the original file into the MAIN zone after verify', async () => {
+    // Real-world UX: after the .ots verifies and shows the verdict, users
+    // tend to drop the original file into the same main dropzone they
+    // used for the receipt -- not the secondary sub-zone. Component must
+    // route through to the match path instead of flashing "looks like a
+    // regular file" (which historically happened before this regression
+    // was caught on prod).
+    const { comp } = makeComponent();
+    const ots = makeFile('incomplete.txt.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
+    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([ots]);
+    expect(comp.status.kind).toBe('verified');
+
+    // Now drop the original file into the MAIN zone (handleFiles), not
+    // the sub-zone (matchAgainstReceipt).
+    const file = makeFile('incomplete.txt', b64ToUint8Array(INCOMPLETE_FILE_B64));
+    await (comp as unknown as { handleFiles(f: File[]): Promise<void> }).handleFiles([file]);
+
+    expect(comp.status.kind).toBe('verified');
+    if (comp.status.kind === 'verified') {
+      expect(comp.status.fileMatch).not.toBeNull();
+      expect(comp.status.fileMatch!.matchesReceipt).toBe(true);
+    }
+  });
+
   it('verified -> error: dropping a .ots into the file-match sub-zone', async () => {
     const { comp } = makeComponent();
     const ots = makeFile('incomplete.txt.ots', b64ToUint8Array(INCOMPLETE_OTS_B64));
