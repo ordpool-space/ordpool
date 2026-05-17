@@ -4,6 +4,6 @@
     { "nickname": "alice",     "url": "https://alice.btc.calendar.opentimestamps.org" },
     { "nickname": "bob",       "url": "https://bob.btc.calendar.opentimestamps.org" },
     { "nickname": "finney",    "url": "https://finney.calendar.eternitywall.com" },
-    { "nickname": "catallaxy", "url": "https://ots.btc.catallaxy.com" }
+    { "nickname": "catallaxy", "url": "https://ots.btc.catallaxy.com", "upgradeUrl": "https://btc.calendar.catallaxy.com" }
   ]
 }
