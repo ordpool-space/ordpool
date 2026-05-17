@@ -97,7 +97,7 @@
     "sats-connect": "^1.1.2",
     "tslib": "~2.8.0",
     "zone.js": "~0.15.1",
-    "ordpool-sdk": "github:ordpool-space/ordpool-sdk#466b8447b5861c915e9d6a0c293155659eb9ac3e"
+    "ordpool-sdk": "github:ordpool-space/ordpool-sdk#bc67f330b36a9f6f25500c07c63d3595d3f20936"
   },
   "devDependencies": {
     "@angular/compiler-cli": "^20.3.18",
