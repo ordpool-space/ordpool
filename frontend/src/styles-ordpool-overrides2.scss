@@ -9,10 +9,10 @@
   // ad-hoc hexes (#2d3250, #181b2d, #11132a, #1a1d36) that drifted from
   // mempool's blue palette. These read as gray on the navy page bg, not
   // blue -- ordpool's accent is bitcoin orange, blue belongs to upstream.
-  --panel-bg:       #1a1a24;  // panel background, slightly darker than $bg
-  --panel-bg-deep:  #131319;  // nested / inset panel (file drop zone, etc)
-  --panel-border:   #2f2f3a;  // panel border, neutral gray
-  --panel-hover:    #22222e;  // hover state on interactive panels
+  --panel-bg:       #26262f;  // panel background, raised above $bg
+  --panel-bg-deep:  #16161d;  // nested / inset panel (file drop zone, etc)
+  --panel-border:   #45454f;  // panel border, neutral gray (clearly visible)
+  --panel-hover:    #2f2f3a;  // hover state on interactive panels
 
   // Square corners across the board -- ordpool's brand differentiator from
   // upstream mempool. Killing the Bootstrap CSS vars handles every Bootstrap
