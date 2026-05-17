@@ -146,6 +146,14 @@ export class OtsVerifyComponent {
       }
 
       if (cat.ots.length === 0 && cat.data.length === 1) {
+        // When a receipt has already been verified in this session, a
+        // follow-up plain-file drop is unambiguous: the user wants to
+        // match it against the cached receipt. Route through, no need
+        // to make them hunt for the secondary sub-zone.
+        if (this.lastReceipt) {
+          await this.runFileMatch(cat.data[0]);
+          return;
+        }
         this.status = { kind: 'file-only' };
         this.cdr.markForCheck();
         return;
