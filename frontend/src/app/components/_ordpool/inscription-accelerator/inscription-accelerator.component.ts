@@ -9,8 +9,8 @@ import {
   InscriptionAcceleration,
   InscriptionAcceleratorApiService,
 } from '../../../services/ordinals/inscription-accelerator-api.service';
-import { WalletService } from '../../../services/ordinals/wallet.service';
-import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
+import { WalletService } from 'ordpool-sdk';
+import { KnownOrdinalWalletType, WalletInfo } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from './extract-error-message';

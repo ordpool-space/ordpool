@@ -4,11 +4,11 @@ import { hex } from '@scure/base';
 import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, startWith, switchMap, take, tap } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
-import { Cat21ApiService } from '../../../services/ordinals/cat21-api.service';
-import { Cat21Service } from '../../../services/ordinals/cat21.service';
-import { SimulateTransactionResult, TxnOutput } from '../../../services/ordinals/cat21.service.types';
-import { WalletService } from '../../../services/ordinals/wallet.service';
-import { KnownOrdinalWalletType, WalletInfo } from '../../../services/ordinals/wallet.service.types';
+import { Cat21ApiService } from 'ordpool-sdk';
+import { Cat21Service } from 'ordpool-sdk';
+import { SimulateTransactionResult, TxnOutput } from 'ordpool-sdk';
+import { WalletService } from 'ordpool-sdk';
+import { KnownOrdinalWalletType, WalletInfo } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
 import { fullNumberValidator } from '../full-number.validator';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';

@@ -2,10 +2,10 @@ import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { catchError, of, retry, switchMap, tap } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
-import { Cat21ApiService } from '../../../services/ordinals/cat21-api.service';
-import { Cat21Service } from '../../../services/ordinals/cat21.service';
-import { WalletService } from '../../../services/ordinals/wallet.service';
-import { KnownOrdinalWalletType } from '../../../services/ordinals/wallet.service.types';
+import { Cat21ApiService } from 'ordpool-sdk';
+import { Cat21Service } from 'ordpool-sdk';
+import { WalletService } from 'ordpool-sdk';
+import { KnownOrdinalWalletType } from 'ordpool-sdk';
 import { SeoService } from '../../../services/seo.service';
 import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
 

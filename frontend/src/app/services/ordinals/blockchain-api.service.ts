@@ -4,7 +4,7 @@ import { EMPTY, expand, map, Observable, of, tap } from 'rxjs';
 
 import { Transaction } from '../../interfaces/electrs.interface';
 import { DigitalArtifactsFetcherService } from './digital-artifacts-fetcher.service';
-import { WalletService } from './wallet.service';
+import { WalletService } from 'ordpool-sdk';
 
 
 /**
