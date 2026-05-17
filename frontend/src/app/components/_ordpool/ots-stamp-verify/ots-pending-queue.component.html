@@ -50,7 +50,6 @@
             }
           </div>
           <div class="ots-stamp-actions">
-            <button type="button" class="btn btn-sm btn-outline-light me-2" (click)="checkNow(s)">Check now</button>
             <button type="button" class="btn btn-sm btn-outline-light" (click)="cancel(s)">Cancel &amp; forget</button>
           </div>
           <details class="ots-power-user smaller-text mt-2">
@@ -93,7 +92,7 @@
                     [class.btn-outline-light]="s.downloadCount > 0"
                     (click)="download(s)">
               <fa-icon [icon]="['fas', 'download']" class="me-1"></fa-icon>
-              {{ s.downloadCount === 0 ? 'DOWNLOAD ME!' : 'Download again' }}
+              {{ s.downloadCount === 0 ? 'Download .ots file' : 'Download .ots file again' }}
             </button>
             @if (canClear(s)) {
               <button type="button" class="btn btn-sm btn-outline-light" (click)="clear(s)">Clear this entry</button>

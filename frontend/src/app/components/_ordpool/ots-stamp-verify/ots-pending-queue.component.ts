@@ -9,12 +9,11 @@ import {
   base64ToBytes,
   bestCalendarBytes,
 } from './ots-store.service';
-import { OtsPollerService } from './ots-poller.service';
 
 /*
 Test cases:
-- One pending stamp: row with 3 spinners, "Check now"/"Cancel" actions.
-- Stamp flips to 'ready': row turns green, primary "Download me!" button shows.
+- One pending stamp: row with 3 spinners, "Cancel & forget" action.
+- Stamp flips to 'ready': row turns green, primary "Download .ots file" button shows.
 - After download: button calms, "Clear this entry" appears.
 - Two pending stamps: both rows visible, polling advances both.
 - 'failed' stamp (48h): row greyed, "Re-stamp" / "Cancel & forget" actions.
@@ -30,7 +29,6 @@ Test cases:
 export class OtsPendingQueueComponent implements OnInit, OnDestroy {
 
   private store = inject(OtsStoreService);
-  private poller = inject(OtsPollerService);
   private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
 
@@ -84,10 +82,6 @@ export class OtsPendingQueueComponent implements OnInit, OnDestroy {
 
   canClear(s: OtsLocalStamp): boolean {
     return this.store.canClear(s);
-  }
-
-  checkNow(stamp: OtsLocalStamp): void {
-    this.poller.pokeNow(stamp.id);
   }
 
   cancel(stamp: OtsLocalStamp): void {

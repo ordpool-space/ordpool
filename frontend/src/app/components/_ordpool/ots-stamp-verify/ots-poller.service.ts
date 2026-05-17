@@ -50,16 +50,10 @@ export class OtsPollerService implements OnDestroy {
     this.tickSub = timer(0, POLL_INTERVAL_MS).subscribe(() => this.tick());
   }
 
-  /** Force one immediate poll cycle; called by "Check now" buttons. */
-  pokeNow(stampId?: string): void {
-    this.tick(stampId);
-  }
-
-  private tick(only?: string): void {
+  private tick(): void {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const now = Date.now();
     for (const stamp of this.store.snapshot()) {
-      if (only && stamp.id !== only) continue;
       this.advanceStamp(stamp, now);
     }
   }
