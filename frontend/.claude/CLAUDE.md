@@ -121,9 +121,21 @@ mempool.space styling.
    Avoid hardcoding `border-radius: <Npx>` in new ordpool SCSS.
    `border-radius: 50%` for circular avatars / dots is fine.
 
-3. **Card / panel backgrounds**: `#181b2d` for the card itself,
-   `#11132a` for sunken/dropzone insets, `#1d1f31` for the page
-   background (`var(--bg)`). Borders default to `#2d3250`.
+3. **Card / panel backgrounds — use the panel tokens, never raw hexes.**
+   Four CSS custom properties live on `:root` in
+   `frontend/src/styles-ordpool-overrides2.scss`:
+
+   - `var(--panel-bg)` — card / panel background.
+   - `var(--panel-bg-deep)` — sunken / dropzone inset, nested panel.
+   - `var(--panel-border)` — panel border (and decorative arrow lines etc).
+   - `var(--panel-hover)` — hover state on interactive panels.
+
+   The page background stays `#1d1f31` (`$bg`) — that one is theme-level
+   and aliased as `var(--bg)`. **Do not invent new panel hexes.** The
+   tokens are deliberately *neutral gray*, not blue. A blue cast is
+   upstream mempool DNA; ordpool reads gray-on-navy with bitcoin orange
+   accents. If you need a tint we don't have, add a 5th token here
+   rather than scattering a one-off hex in a component SCSS.
 
 4. **Typography**: default `<p>` body size matches `cat21-mint`. Avoid
    the Bootstrap `.lead` class for OTS-style explanatory text — it
