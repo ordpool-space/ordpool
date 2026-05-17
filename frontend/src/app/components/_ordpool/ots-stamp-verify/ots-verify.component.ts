@@ -55,7 +55,7 @@ type Status =
   | { kind: 'idle' }
   | { kind: 'busy'; message: string }
   | { kind: 'verified'; receipt: ReceiptView; fileMatch: FileMatchView | null }
-  | { kind: 'file-only' }                // user dropped a non-.ots without a receipt
+  | { kind: 'awaiting-receipt'; filename: string }   // user dropped the file first
   | { kind: 'error'; message: string };
 
 @Component({
@@ -77,6 +77,10 @@ export class OtsVerifyComponent {
   // Cache the most-recently-verified receipt so a follow-up file drop can
   // compare against it without re-parsing.
   private lastReceipt: { otsBytes: Uint8Array; recordedFileHashHex: string } | null = null;
+  // Cache a file's hash when it's dropped BEFORE a receipt -- the next
+  // .ots drop will then complete the match automatically. Both arrival
+  // orders (file→receipt and receipt→file) end in the same verdict.
+  private cachedFile: { hashHex: string; filename: string } | null = null;
   private knownNicknameByUri = new Map<string, string>();
 
   onDragOver(ev: DragEvent): void {
@@ -107,24 +111,10 @@ export class OtsVerifyComponent {
     input.value = '';
   }
 
-  /** Drop the secondary "match against the original file" zone (only shown
-   *  after a .ots-only verify). */
-  onMatchDrop(ev: DragEvent): void {
-    ev.preventDefault();
-    const file = ev.dataTransfer?.files?.[0];
-    if (file) this.matchAgainstReceipt(file);
-  }
-
-  onMatchPick(ev: Event): void {
-    const input = ev.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) this.matchAgainstReceipt(file);
-    input.value = '';
-  }
-
   reset(): void {
     this.status = { kind: 'idle' };
     this.lastReceipt = null;
+    this.cachedFile = null;
     this.cdr.markForCheck();
   }
 
@@ -146,16 +136,15 @@ export class OtsVerifyComponent {
       }
 
       if (cat.ots.length === 0 && cat.data.length === 1) {
-        // When a receipt has already been verified in this session, a
-        // follow-up plain-file drop is unambiguous: the user wants to
-        // match it against the cached receipt. Route through, no need
-        // to make them hunt for the secondary sub-zone.
         if (this.lastReceipt) {
+          // Receipt already verified — second drop is the match step.
           await this.runFileMatch(cat.data[0]);
           return;
         }
-        this.status = { kind: 'file-only' };
-        this.cdr.markForCheck();
+        // No receipt yet: hash the file and hold it. When the user
+        // drops the .ots next, verifyOts() will pick the cached hash
+        // up and produce a match verdict in one go.
+        await this.hashFileAndWaitForReceipt(cat.data[0]);
         return;
       }
       if (cat.ots.length > 1) {
@@ -195,24 +184,15 @@ export class OtsVerifyComponent {
     }
   }
 
-  /** Used by the secondary "match against original file" sub-zone after a
-   *  .ots-only verify. */
-  private async matchAgainstReceipt(file: File): Promise<void> {
-    if (!this.lastReceipt) return;
-    try {
-      // Peek the first 32 bytes only. Defensively reject if the user
-      // accidentally drops a .ots here.
-      const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
-      if (looksLikeOts(head)) {
-        this.status = { kind: 'error', message: 'This sub-zone wants the ORIGINAL FILE, not another .ots.' };
-        this.cdr.markForCheck();
-        return;
-      }
-      await this.runFileMatch(file);
-    } catch (e) {
-      this.status = { kind: 'error', message: errString(e) };
-      this.cdr.markForCheck();
-    }
+  /** File-before-receipt path: hash the file and wait. The next .ots
+   *  drop will see `cachedFile` and produce the match verdict. */
+  private async hashFileAndWaitForReceipt(file: File): Promise<void> {
+    this.status = { kind: 'busy', message: 'Hashing your file (stays in your browser)…' };
+    this.cdr.markForCheck();
+    const digest = await sha256Stream(file);
+    this.cachedFile = { hashHex: hexEncode(digest), filename: file.name };
+    this.status = { kind: 'awaiting-receipt', filename: file.name };
+    this.cdr.markForCheck();
   }
 
   private async verifyOts(bytes: Uint8Array): Promise<void> {
@@ -255,6 +235,18 @@ export class OtsVerifyComponent {
 
     const recordedFileHashHex = hexEncode(parsed.fileHash);
     this.lastReceipt = { otsBytes: bytes, recordedFileHashHex };
+
+    // If the user dropped the original file BEFORE the receipt, we
+    // already hashed it. Resolve the match in the same status flip
+    // (one verdict screen, no intermediate empty-fileMatch view).
+    const fileMatch: FileMatchView | null = this.cachedFile
+      ? {
+          yourFileHashHex: this.cachedFile.hashHex,
+          matchesReceipt: this.cachedFile.hashHex === recordedFileHashHex,
+          filename: this.cachedFile.filename,
+        }
+      : null;
+
     this.status = {
       kind: 'verified',
       receipt: {
@@ -266,7 +258,7 @@ export class OtsVerifyComponent {
         ethereumHeights,
         unknownAttestations: unknown,
       },
-      fileMatch: null,
+      fileMatch,
     };
     this.cdr.markForCheck();
   }

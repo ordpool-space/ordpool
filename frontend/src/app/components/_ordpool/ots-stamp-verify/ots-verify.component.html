@@ -15,8 +15,8 @@
            (drop)="onDrop($event)">
       <input type="file" class="dropzone-input" multiple (change)="onPick($event)">
       <span class="dropzone-text">
-        <strong>Drop a <code>.ots</code> receipt</strong><br>
-        (and optionally the original file)
+        <strong>Drop a <code>.ots</code> receipt and the original file</strong><br>
+        (in any order, or just the receipt to inspect it)
       </span>
     </label>
 
@@ -34,11 +34,11 @@
           <button type="button" class="btn btn-sm btn-outline-dark ms-2" (click)="reset()">Try again</button>
         </div>
       }
-      @case ('file-only') {
-        <div class="alert alert-warning mt-3 mb-0">
-          That looks like a regular file, not a <code>.ots</code> receipt. To verify a
-          timestamp, drop the matching <code>.ots</code> file too.
-          <button type="button" class="btn btn-sm btn-outline-dark ms-2" (click)="reset()">OK</button>
+      @case ('awaiting-receipt') {
+        <div class="alert alert-info mt-3 mb-0">
+          We hashed <code>{{ status.filename }}</code> locally. Now drop the
+          matching <code>.ots</code> receipt here and we'll confirm the timestamp.
+          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">Cancel</button>
         </div>
       }
       @case ('verified') {
@@ -180,16 +180,9 @@
           }
 
           @if (!status.fileMatch) {
-            <div class="match-zone mt-3">
-              <label class="match-dropzone"
-                     (dragover)="$event.preventDefault()"
-                     (drop)="onMatchDrop($event)">
-                <input type="file" class="dropzone-input" (change)="onMatchPick($event)">
-                <span>
-                  <strong>Drop the original file here</strong> to confirm it matches this receipt
-                </span>
-              </label>
-            </div>
+            <p class="smaller-text text-muted mt-3 mb-0">
+              Want to confirm a file matches this receipt? Drop it in the zone above.
+            </p>
           }
 
           <div class="mt-3">
