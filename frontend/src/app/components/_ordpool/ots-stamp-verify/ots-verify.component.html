@@ -1,3 +1,19 @@
+<ng-template #cancelConfirm let-modal>
+  <div class="modal-header">
+    <h4 class="modal-title">Discard hashed file?</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()">&times;</button>
+  </div>
+  <div class="modal-body">
+    The file's hash never left your browser. You can drop it (or any other
+    file) again later. Keep waiting if you still want to pair it with the
+    matching <code>.ots</code> receipt.
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-light" (click)="modal.dismiss()">Keep waiting</button>
+    <button type="button" class="btn btn-primary" (click)="modal.close('discard')">Discard</button>
+  </div>
+</ng-template>
+
 <div class="card ots-verify h-100">
   <div class="card-body">
     <h2 class="card-title mb-2">Verify a receipt</h2>
@@ -35,11 +51,11 @@
         </div>
       }
       @case ('awaiting-receipt') {
-        <div class="alert alert-info mt-3 mb-0">
+        <div class="alert alert-info mt-3 mb-2">
           We hashed <code>{{ status.filename }}</code> locally. Now drop the
           matching <code>.ots</code> receipt here and we'll confirm the timestamp.
-          <button type="button" class="btn btn-sm btn-outline-light ms-2" (click)="reset()">Cancel</button>
         </div>
+        <button type="button" class="btn btn-sm btn-outline-light" (click)="confirmCancelAwaiting()">Cancel</button>
       }
       @case ('verified') {
         <div class="verify-result mt-3">

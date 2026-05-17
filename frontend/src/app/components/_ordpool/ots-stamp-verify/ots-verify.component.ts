@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, TemplateRef, ViewChild } from '@angular/core';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import {
   collectBitcoinAttestations,
   OtsAttestation,
@@ -69,7 +70,10 @@ export class OtsVerifyComponent {
 
   private cdr = inject(ChangeDetectorRef);
   private picker = inject(OtsCalendarPickerService);
+  private modalService = inject(NgbModal);
   private apiBase = environment.apiBaseUrl || '';
+
+  @ViewChild('cancelConfirm') cancelConfirmTemplate!: TemplateRef<unknown>;
 
   status: Status = { kind: 'idle' };
   isDragging = false;
@@ -116,6 +120,15 @@ export class OtsVerifyComponent {
     this.lastReceipt = null;
     this.cachedFile = null;
     this.cdr.markForCheck();
+  }
+
+  /** Pop a confirmation modal before discarding a hashed-but-unmatched
+   *  file. Reuses the wallet-connect NgbModal pattern. */
+  confirmCancelAwaiting(): void {
+    const ref = this.modalService.open(this.cancelConfirmTemplate, { centered: true });
+    ref.result.then(result => {
+      if (result === 'discard') this.reset();
+    }, () => { /* dismissed -- keep waiting */ });
   }
 
   private async handleFiles(files: File[]): Promise<void> {
