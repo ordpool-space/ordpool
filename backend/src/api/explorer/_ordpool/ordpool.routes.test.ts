@@ -66,7 +66,7 @@ function makeRes() {
 
 async function call$getIndexerProgress() {
   const res = makeRes();
-  await (generalOrdpoolRoutes as any).$getIndexerProgress({} as Request, res);
+  await generalOrdpoolRoutes.$getIndexerProgress({} as Request, res);
   return res as Response & { status: jest.Mock; json: jest.Mock; setHeader: jest.Mock };
 }
 
@@ -245,7 +245,7 @@ describe('$proxyOtsDigest route handler (privacy shield for stamp submissions)',
 
   async function call$proxyOtsDigest(calendar: string, body: any) {
     const res = makeRes();
-    await (generalOrdpoolRoutes as any).$proxyOtsDigest(
+    await generalOrdpoolRoutes.$proxyOtsDigest(
       { params: { calendar }, body } as unknown as Request,
       res,
     );
