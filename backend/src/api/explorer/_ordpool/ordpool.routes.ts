@@ -49,7 +49,7 @@ class GeneralOrdpoolRoutes {
 
   /** Per-calendar summary for the /ots/calendars dashboard. */
   // https://ordpool.space/api/v1/ordpool/ots/calendars
-  private async $getOtsCalendars(req: Request, res: Response): Promise<void> {
+  async $getOtsCalendars(req: Request, res: Response): Promise<void> {
     try {
       const stats = await ordpoolOtsRepository.getCalendarStats();
       res.setHeader('Cache-Control', 'public, max-age=60');
@@ -61,7 +61,7 @@ class GeneralOrdpoolRoutes {
 
   /** Most-recent confirmed OTS commits across every calendar. */
   // https://ordpool.space/api/v1/ordpool/ots/recent?limit=50
-  private async $getOtsRecent(req: Request, res: Response): Promise<void> {
+  async $getOtsRecent(req: Request, res: Response): Promise<void> {
     try {
       const raw = req.query.limit;
       const limit = Math.min(Math.max(parseInt(typeof raw === 'string' ? raw : '50', 10) || 50, 1), 500);
@@ -90,7 +90,7 @@ class GeneralOrdpoolRoutes {
    * 404 path so a tab leaving a long-pending stamp doesn't hammer us.
    */
   // https://ordpool.space/api/v1/ordpool/ots/upgrade/alice.btc.calendar.opentimestamps.org/<hex>
-  private async $proxyOtsUpgrade(req: Request, res: Response): Promise<void> {
+  async $proxyOtsUpgrade(req: Request, res: Response): Promise<void> {
     const allowed = getOtsCalendarHosts();
     const calendar = String(req.params.calendar || '').toLowerCase();
     const hash = String(req.params.hash || '').toLowerCase();
@@ -152,7 +152,7 @@ class GeneralOrdpoolRoutes {
    * 256 bytes (real digests are 32), forward bytes verbatim.
    */
   // POST https://ordpool.space/api/v1/ordpool/ots/digest/alice.btc.calendar.opentimestamps.org
-  private async $proxyOtsDigest(req: Request, res: Response): Promise<void> {
+  async $proxyOtsDigest(req: Request, res: Response): Promise<void> {
     const allowed = getOtsCalendarHosts();
     const calendar = String(req.params.calendar || '').toLowerCase();
     if (!allowed.has(calendar)) {
@@ -205,14 +205,14 @@ class GeneralOrdpoolRoutes {
    * Cached at the edge for an hour.
    */
   // https://ordpool.space/api/v1/ordpool/ots/stamp-calendars
-  private async $getOtsStampCalendars(req: Request, res: Response): Promise<void> {
+  async $getOtsStampCalendars(req: Request, res: Response): Promise<void> {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.json({ calendars: getOtsCalendars() });
   }
 
   /** All OTS commits at a given block height. Empty array if none. */
   // https://ordpool.space/api/v1/ordpool/ots/block/948192
-  private async $getOtsBlock(req: Request, res: Response): Promise<void> {
+  async $getOtsBlock(req: Request, res: Response): Promise<void> {
     try {
       const heightRaw = req.params.height;
       const height = parseInt(heightRaw, 10);
@@ -233,7 +233,7 @@ class GeneralOrdpoolRoutes {
    *  don't surface as 404s in the browser devtools. Callers wanting only
    *  the boolean derive it from `found`. */
   // https://ordpool.space/api/v1/ordpool/ots/tx/8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f
-  private async $getOtsTx(req: Request, res: Response): Promise<void> {
+  async $getOtsTx(req: Request, res: Response): Promise<void> {
     try {
       const txid = req.params.txid;
       if (!txid || !/^[0-9a-f]{64}$/i.test(txid)) {
@@ -281,7 +281,7 @@ class GeneralOrdpoolRoutes {
    *                  skippedCount, skippedHeights, frontierHeight, tipHeight,
    *                  firstStatsHeight, pendingCount, blocksPerMinute }`.
    */
-  private async $getIndexerProgress(req: Request, res: Response): Promise<void> {
+  async $getIndexerProgress(req: Request, res: Response): Promise<void> {
     try {
       const firstStatsHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
 
@@ -339,7 +339,7 @@ class GeneralOrdpoolRoutes {
   // https://ordpool.space/api/v1/ordpool/statistics/mints/24h/day
   // https://ordpool.space/api/v1/ordpool/statistics/mints/3d/day
   // https://ordpool.space/api/v1/ordpool/statistics/mints/1y/day
-  private async $getOrdpoolStatistics(req: Request, res: Response): Promise<void> {
+  async $getOrdpoolStatistics(req: Request, res: Response): Promise<void> {
     try {
 
       const type = req.params.type as ChartType;
