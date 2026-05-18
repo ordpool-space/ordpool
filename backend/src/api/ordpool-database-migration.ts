@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // change this after every update
-  private static currentVersion = 8;
+  private static currentVersion = 9;
 
   private queryTimeout = 3600_000;
 
@@ -652,6 +652,18 @@ class OrdpoolDatabaseMigration {
     // via ON DUPLICATE KEY UPDATE on the next index pass.
     if (version <= 8) {
       queries.push(`DELETE FROM ordpool_stats WHERE amounts_src20 > 0 OR amounts_src721 > 0 OR amounts_src101 > 0;`);
+    }
+
+    // Add amounts_alkanes counter for the new ordpool_alkanes flag introduced
+    // in parser v2.4.8. Alkanes are sub-protocol of Runes (Protostone with
+    // protocol_tag = 1 inside Runestone tag 16383). Wipe stats for every
+    // block where a runestone has been observed -- the analyser pass picks
+    // up the new flag for blocks that actually contain alkanes. Genesis is
+    // block 880,000; older blocks are no-ops on re-index but harmless.
+    if (version <= 9) {
+      queries.push(`ALTER TABLE ordpool_stats
+        ADD COLUMN IF NOT EXISTS amounts_alkanes INT UNSIGNED NOT NULL DEFAULT 0;`);
+      queries.push(`DELETE FROM ordpool_stats WHERE amounts_rune > 0;`);
     }
 
     return queries;
