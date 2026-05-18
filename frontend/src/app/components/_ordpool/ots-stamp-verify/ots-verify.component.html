@@ -168,6 +168,59 @@
                   </p>
                 }
               </div>
+
+              @if (att.math) {
+                <details class="ots-merkle-math smaller-text mb-3">
+                  <summary class="text-muted">Merkle math (proof shape)</summary>
+                  <table class="table table-borderless table-sm smaller-text mb-0 mt-1">
+                    <tbody>
+                      <tr>
+                        <td>Hashing rounds</td>
+                        <td><strong>{{ att.math.hashRoundCount }}</strong> SHA-256 / RIPEMD-160 operations from your file's hash up to the block's Merkle root</td>
+                      </tr>
+                      <tr>
+                        <td>Proof payload</td>
+                        <td><strong>{{ att.math.proofPayloadBytes }}</strong> bytes of sibling hashes + transaction-body wrapping carried alongside your file</td>
+                      </tr>
+                      @if (att.math.calendar; as cal) {
+                        <tr>
+                          <td>Calendar tree depth</td>
+                          <td><strong>{{ cal.depth }}</strong> levels (single-SHA-256 accumulator)</td>
+                        </tr>
+                        <tr>
+                          <td>Position in calendar tree</td>
+                          <td>
+                            leaf <strong>#{{ cal.leafIndex }}</strong>
+                            @if (att.calendarBatchBounds; as b) {
+                              of between {{ b.min }} and {{ b.max }} (≈ 2<sup>{{ cal.depth }}</sup>)
+                            }
+                          </td>
+                        </tr>
+                      }
+                      @if (att.math.bitcoin; as btc) {
+                        <tr>
+                          <td>Bitcoin block-tree depth</td>
+                          <td><strong>{{ btc.depth }}</strong> levels (double-SHA-256, the block-header Merkle tree)</td>
+                        </tr>
+                        <tr>
+                          <td>Anchor tx position in block</td>
+                          <td>
+                            tx <strong>#{{ btc.leafIndex }}</strong>
+                            @if (att.blockTxCountBounds; as b) {
+                              of between {{ b.min }} and {{ b.max }} transactions in block {{ att.blockheight | number }}
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                  <p class="text-muted mt-1 mb-0">
+                    These numbers are derived from the receipt's operation list alone, no extra block lookup required.
+                    The calendar-tree position identifies your file deterministically within the calendar's batch / cross-batch accumulator;
+                    the Bitcoin position identifies the calendar's anchor transaction within the block.
+                  </p>
+                </details>
+              }
             }
           }
 
