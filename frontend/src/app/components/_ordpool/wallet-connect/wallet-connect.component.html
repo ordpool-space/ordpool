@@ -1,7 +1,7 @@
 <ng-template #connect let-modal>
   <div class="modal-header">
     <h4 class="modal-title" id="modal-basic-title">Connect Wallet</h4>
-    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()">&times;</button>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body" *ngIf="installedWallets$ | async as wallets">
 
