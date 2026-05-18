@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Template
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import {
   collectBitcoinAttestations,
+  computeMerkleMath,
+  estimatedBatchSize,
+  MerkleMath,
   OtsAttestation,
   errString,
   looksLikeOts,
@@ -34,6 +37,18 @@ interface BitcoinAttestationView {
   actualMerkleRoot: string | null;
   blockTime: number | null;
   match: boolean | null;
+  /** Structural facts about the OTS proof path (depth, leaf position,
+   *  hashing rounds, proof bytes). Null when the parser couldn't
+   *  associate any path with this attestation -- shouldn't happen for
+   *  any well-formed receipt but we degrade gracefully. */
+  math: MerkleMath | null;
+  /** Bounds on the calendar-tree batch size, derived from
+   *  `math.calendar.depth` via `estimatedBatchSize()`. Null when no
+   *  calendar tree (pre-aggregation receipts). */
+  calendarBatchBounds: { min: bigint; max: bigint } | null;
+  /** Bounds on the Bitcoin block's tx count, derived from
+   *  `math.bitcoin.depth`. Null when no Bitcoin merkle path. */
+  blockTxCountBounds: { min: bigint; max: bigint } | null;
 }
 
 interface ReceiptView {
@@ -220,6 +235,9 @@ export class OtsVerifyComponent {
 
     const parsed = await parseOtsFile(bytes);
     const bitcoinAtts = collectBitcoinAttestations(parsed);
+    // computeMerkleMath walks the same tree in the same order as
+    // collectBitcoinAttestations, so the i-th entry of each lines up.
+    const merkleMathByIndex = computeMerkleMath(parsed);
 
     const pendingCalendars: string[] = [];
     const litecoinHeights: number[] = [];
@@ -237,13 +255,21 @@ export class OtsVerifyComponent {
     visit(parsed.root);
 
     const view: BitcoinAttestationView[] = [];
-    for (const a of bitcoinAtts) {
+    for (let i = 0; i < bitcoinAtts.length; i++) {
+      const a = bitcoinAtts[i];
       this.status = {
         kind: 'busy',
         message: `Looking up Bitcoin block ${a.blockheight.toLocaleString()}…`,
       };
       this.cdr.markForCheck();
-      view.push(await this.checkAttestation(a.blockheight, a.expectedMerkleRoot));
+      const att = await this.checkAttestation(a.blockheight, a.expectedMerkleRoot);
+      const math = merkleMathByIndex[i] ?? null;
+      view.push({
+        ...att,
+        math,
+        calendarBatchBounds: math?.calendar ? estimatedBatchSize(math.calendar.depth) : null,
+        blockTxCountBounds: math?.bitcoin ? estimatedBatchSize(math.bitcoin.depth) : null,
+      });
     }
 
     const recordedFileHashHex = hexEncode(parsed.fileHash);
@@ -302,7 +328,7 @@ export class OtsVerifyComponent {
   private async checkAttestation(
     blockheight: number,
     expectedRootInternal: Uint8Array,
-  ): Promise<BitcoinAttestationView> {
+  ): Promise<Omit<BitcoinAttestationView, 'math' | 'calendarBatchBounds' | 'blockTxCountBounds'>> {
     const expectedDisplayHex = hexEncode(this.reverseBytes(expectedRootInternal));
     try {
       const hashResp = await fetch(this.apiBase + '/api/block-height/' + blockheight);
