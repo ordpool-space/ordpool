@@ -5,6 +5,7 @@ import {
   OtsStoreService,
   OtsLocalCalendar,
   OtsLocalStamp,
+  OTS_FALLBACK_CALENDARS,
   bestCalendarBytes,
   bytesToBase64,
   base64ToBytes,
@@ -94,6 +95,35 @@ describe('OtsStoreService - bytes helpers', () => {
       expect(out[65 + 1 + a.length]).toBe(0xff);
       // tail = c, no trailing 0xff
       expect(out.slice(out.length - c.length)).toEqual(c);
+    });
+  });
+
+  describe('OTS_FALLBACK_CALENDARS (config regression guard)', () => {
+    it('catallaxy is configured at its CANONICAL URL (not the ots.btc alias)', () => {
+      // Pre-2026-05-17 history: catallaxy was configured as
+      // https://ots.btc.catallaxy.com. Both subdomains accept /digest
+      // and return identical receipts -- but the receipt always embeds
+      // the canonical https://btc.calendar.catallaxy.com as its
+      // pending-attestation URI. Our submit code does strict equality
+      // between cal.url and the embedded URI, so the alias config
+      // caused every catallaxy stamp to be marked "error" in the UI
+      // even though the calendar happily accepted it.
+      //
+      // Fixed in commit 115e33a32 by switching the config to the
+      // canonical URL. This assertion pins it.
+      const catallaxy = OTS_FALLBACK_CALENDARS.find(c => c.nickname === 'catallaxy');
+      expect(catallaxy).toBeDefined();
+      expect(catallaxy!.url).toBe('https://btc.calendar.catallaxy.com');
+      // And not the historical alias, just to be explicit:
+      expect(catallaxy!.url).not.toBe('https://ots.btc.catallaxy.com');
+    });
+
+    it('all fallback URLs use https and have no trailing slash', () => {
+      for (const c of OTS_FALLBACK_CALENDARS) {
+        expect(c.url).toMatch(/^https:\/\//);
+        expect(c.url).not.toMatch(/\/$/);
+        expect(c.nickname).toBeTruthy();
+      }
     });
   });
 
