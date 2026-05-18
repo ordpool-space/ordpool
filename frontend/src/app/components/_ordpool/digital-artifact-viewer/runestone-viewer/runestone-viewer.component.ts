@@ -1,15 +1,7 @@
 import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
-import {
-  ALKANES_PROTOCOL_TAG,
-  Cenotaph,
-  ParsedProtostone,
-  ParsedRunestone,
-  RunestoneSpec,
-  decodeProtostones,
-} from 'ordpool-parser';
+import { Cenotaph, ParsedRunestone, RunestoneSpec } from 'ordpool-parser';
 import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api.service';
 import { Observable, shareReplay } from 'rxjs';
-import { KnownAlkane, lookupAlkane } from './known-alkanes';
 
 /**
  * Test cases:
@@ -56,14 +48,6 @@ export class RunestoneViewerComponent {
   cenotaph: Cenotaph | undefined = undefined;
   transactionId: string | undefined = undefined;
 
-  // Protostones decoded from Runestone tag PROTOCOL (16383). Each entry
-  // carries protocol_tag, message (Cellpack with target alkane + inputs),
-  // edicts, and the burn/pointer/refund/from optionals. protocol_tag = 1
-  // is Alkanes; other tag values can appear once other protorunes-based
-  // subprotocols launch.
-  alkaneProtostones: ParsedProtostone[] = [];
-  hasAlkanes = false;
-
   @Input() showDetails = false;
 
   @Input()
@@ -80,26 +64,12 @@ export class RunestoneViewerComponent {
       this.runestone = parsedRunestone.runestone;
       this.cenotaph = parsedRunestone.cenotaph;
       this.transactionId = parsedRunestone.transactionId;
-      const protocol = parsedRunestone.runestone?.protocol ?? [];
-      this.alkaneProtostones = decodeProtostones(protocol)
-        .filter(p => p.protocolTag === ALKANES_PROTOCOL_TAG);
-      this.hasAlkanes = this.alkaneProtostones.length > 0;
       return;
     }
 
     this.runestone = undefined;
     this.cenotaph = undefined;
     this.transactionId = undefined;
-    this.alkaneProtostones = [];
-    this.hasAlkanes = false;
-  }
-
-  lookupAlkane(block: bigint, tx: bigint): KnownAlkane | undefined {
-    return lookupAlkane(block, tx);
-  }
-
-  formatAlkaneId(block: bigint, tx: bigint): string {
-    return `${block}:${tx}`;
   }
 
   get isUncommonGoods() {
