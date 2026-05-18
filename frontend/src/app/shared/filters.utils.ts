@@ -159,7 +159,10 @@ export const TransactionFilters: { [key: string]: Filter } = {
 
     ordpool_src20_deploy:         { key: 'ordpool_src20_deploy',          label: 'SRC-20 Deploy',         flag: OrdpoolTransactionFlags.ordpool_src20_deploy, important: true, tooltip: true, txPage: true, },
     ordpool_src20_mint:           { key: 'ordpool_src20_mint',            label: 'SRC-20 Mint',           flag: OrdpoolTransactionFlags.ordpool_src20_mint, important: true, tooltip: true, txPage: true, },
-    ordpool_src20_transfer:       { key: 'ordpool_src20_transfer',        label: 'SRC-20 Transfer',       flag: OrdpoolTransactionFlags.ordpool_src20_transfer, important: true, tooltip: true, txPage: true, }
+    ordpool_src20_transfer:       { key: 'ordpool_src20_transfer',        label: 'SRC-20 Transfer',       flag: OrdpoolTransactionFlags.ordpool_src20_transfer, important: true, tooltip: true, txPage: true, },
+
+    /* alkanes: sub-protocol of Runes, carried in Runestone tag 16383 */
+    ordpool_alkanes:              { key: 'ordpool_alkanes',               label: 'Alkanes',               flag: OrdpoolTransactionFlags.ordpool_alkanes, important: true, tooltip: true, txPage: true, },
 };
 
 // Create a new object with the desired order of properties in 3 'easy' steps

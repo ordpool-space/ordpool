@@ -3,7 +3,7 @@
 ![Preview](frontend/src/resources/mempool-space-preview.png)
 
 A Bitcoin MEMEpool explorer.  
-Inscriptions, Runes, BRC-20, SRC-20 (Stamps), and 😺 CAT-21 Ordinals?  
+Inscriptions, Runes (including Alkanes), BRC-20, SRC-20 (Stamps), and 😺 CAT-21 Ordinals?  
 We have you covered!  
 
 This is a fork of the [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with significant changes for the Bitcoin Ordinals community.

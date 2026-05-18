@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
-import { Cenotaph, ParsedRunestone, RunestoneSpec } from 'ordpool-parser';
+import {
+  ALKANES_PROTOCOL_TAG,
+  Cenotaph,
+  ParsedRunestone,
+  RunestoneSpec,
+  protostoneProtocolTags,
+} from 'ordpool-parser';
 import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api.service';
 import { Observable, shareReplay } from 'rxjs';
 
@@ -48,6 +54,12 @@ export class RunestoneViewerComponent {
   cenotaph: Cenotaph | undefined = undefined;
   transactionId: string | undefined = undefined;
 
+  // Protostones decoded from Runestone tag PROTOCOL (16383). Each entry is
+  // the protocol_tag identifier; 1 is Alkanes (kungfuflex/alkanes-rs), other
+  // values are reserved for future protorunes-based subprotocols.
+  protostoneTags: bigint[] = [];
+  hasAlkanes = false;
+
   @Input() showDetails = false;
 
   @Input()
@@ -64,12 +76,18 @@ export class RunestoneViewerComponent {
       this.runestone = parsedRunestone.runestone;
       this.cenotaph = parsedRunestone.cenotaph;
       this.transactionId = parsedRunestone.transactionId;
+      this.protostoneTags = parsedRunestone.runestone?.protocol
+        ? protostoneProtocolTags(parsedRunestone.runestone.protocol)
+        : [];
+      this.hasAlkanes = this.protostoneTags.includes(ALKANES_PROTOCOL_TAG);
       return;
     }
 
     this.runestone = undefined;
     this.cenotaph = undefined;
     this.transactionId = undefined;
+    this.protostoneTags = [];
+    this.hasAlkanes = false;
   }
 
   get isUncommonGoods() {
