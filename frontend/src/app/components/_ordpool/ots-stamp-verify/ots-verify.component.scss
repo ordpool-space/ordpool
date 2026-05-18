@@ -35,4 +35,20 @@
   }
 
   .verify-result code { word-break: break-all; }
+
+  // Label-above-value layout so long values wrap naturally instead of
+  // overflowing a fixed-width table column on narrow viewports.
+  .ots-merkle-math-list {
+    margin: 0;
+    dt {
+      color: #9aa0c0;
+      font-weight: normal;
+      margin-top: 8px;
+    }
+    dt:first-child { margin-top: 0; }
+    dd {
+      margin: 0;
+      strong { color: #fff; }
+    }
+  }
 }
