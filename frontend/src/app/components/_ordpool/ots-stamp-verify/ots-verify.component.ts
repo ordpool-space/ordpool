@@ -13,6 +13,9 @@ import {
 } from 'ordpool-parser';
 import { environment } from '@environments/environment';
 
+import { firstValueFrom } from 'rxjs';
+
+import { OrdpoolApiService } from '../../../services/ordinals/ordpool-api.service';
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
 import { hexEncode } from './ots-store.service';
 
@@ -37,18 +40,20 @@ interface BitcoinAttestationView {
   actualMerkleRoot: string | null;
   blockTime: number | null;
   match: boolean | null;
-  /** Structural facts about the OTS proof path (depth, leaf position,
-   *  hashing rounds, proof bytes). Null when the parser couldn't
-   *  associate any path with this attestation -- shouldn't happen for
-   *  any well-formed receipt but we degrade gracefully. */
+  /** Structural facts about the OTS proof path. */
   math: MerkleMath | null;
   /** Bounds on the calendar-tree batch size, derived from
-   *  `math.calendar.depth` via `estimatedBatchSize()`. Null when no
-   *  calendar tree (pre-aggregation receipts). */
+   *  `math.calendar.depth`. Null when no calendar tree. */
   calendarBatchBounds: { min: bigint; max: bigint } | null;
   /** Bounds on the Bitcoin block's tx count, derived from
-   *  `math.bitcoin.depth`. Null when no Bitcoin merkle path. */
+   *  `math.bitcoin.depth`. */
   blockTxCountBounds: { min: bigint; max: bigint } | null;
+  /** Calendar nickname for this anchor, recovered when the verified
+   *  receipt matches one of the user's own pending stamps in local
+   *  storage. Null when the receipt is foreign (no matching local
+   *  stamp record) -- in that case we fall back to "Anchor #N of M"
+   *  in the UI using `subtreeIndex` + `subtreeCount`. */
+  calendarNickname: string | null;
 }
 
 interface ReceiptView {
@@ -85,6 +90,7 @@ export class OtsVerifyComponent {
 
   private cdr = inject(ChangeDetectorRef);
   private picker = inject(OtsCalendarPickerService);
+  private api = inject(OrdpoolApiService);
   private modalService = inject(NgbModal);
   private apiBase = environment.apiBaseUrl || '';
 
@@ -264,11 +270,21 @@ export class OtsVerifyComponent {
       this.cdr.markForCheck();
       const att = await this.checkAttestation(a.blockheight, a.expectedMerkleRoot);
       const math = merkleMathByIndex[i] ?? null;
+      // Resolve calendar identity via our indexer when possible: the
+      // bitcoin attestation tells us the block; math.bitcoin.leafIndex
+      // tells us the calendar's anchor tx position within that block;
+      // /ots/tx/:txid on our backend maps that tx to a calendar
+      // nickname. When the backend has no row (foreign calendar, not
+      // indexed yet, or a fixture that predates our indexer's start
+      // block) we silently fall back to position-based labeling in the
+      // UI -- never breaks the verify panel.
+      const calendarNickname = await this.lookupCalendarFromAnchor(att.blockHash, math?.bitcoin?.leafIndex);
       view.push({
         ...att,
         math,
         calendarBatchBounds: math?.calendar ? estimatedBatchSize(math.calendar.depth) : null,
         blockTxCountBounds: math?.bitcoin ? estimatedBatchSize(math.bitcoin.depth) : null,
+        calendarNickname,
       });
     }
 
@@ -328,7 +344,7 @@ export class OtsVerifyComponent {
   private async checkAttestation(
     blockheight: number,
     expectedRootInternal: Uint8Array,
-  ): Promise<Omit<BitcoinAttestationView, 'math' | 'calendarBatchBounds' | 'blockTxCountBounds'>> {
+  ): Promise<Omit<BitcoinAttestationView, 'math' | 'calendarBatchBounds' | 'blockTxCountBounds' | 'calendarNickname'>> {
     const expectedDisplayHex = hexEncode(this.reverseBytes(expectedRootInternal));
     try {
       const hashResp = await fetch(this.apiBase + '/api/block-height/' + blockheight);
@@ -357,6 +373,29 @@ export class OtsVerifyComponent {
         blockTime: null,
         match: null,
       };
+    }
+  }
+
+  /** Best-effort: identify the calendar that anchored a confirmed
+   *  Bitcoin attestation. The merkle-math gives us the anchor tx's
+   *  position in the block; mempool's /api/block/<hash>/txid/<pos>
+   *  resolves position → txid; our /ots/tx/:txid backend returns the
+   *  calendar nickname for known anchor txs. Any step that fails
+   *  returns null and the caller renders a position-based fallback. */
+  private async lookupCalendarFromAnchor(
+    blockHash: string | null,
+    anchorTxPosition: bigint | undefined,
+  ): Promise<string | null> {
+    if (!blockHash || anchorTxPosition === undefined) return null;
+    try {
+      const resp = await fetch(`${this.apiBase}/api/block/${blockHash}/txid/${anchorTxPosition}`);
+      if (!resp.ok) return null;
+      const txid = (await resp.text()).trim().toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(txid)) return null;
+      const row = await firstValueFrom(this.api.getOtsTx$(txid));
+      return row?.calendar ?? null;
+    } catch {
+      return null;
     }
   }
 

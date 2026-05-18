@@ -1,7 +1,9 @@
 import { ChangeDetectorRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { ReadableStream } from 'stream/web';
 
+import { OrdpoolApiService } from '../../../services/ordinals/ordpool-api.service';
 import { OtsVerifyComponent } from './ots-verify.component';
 import { OtsCalendarPickerService } from './ots-calendar-picker.service';
 
@@ -104,16 +106,22 @@ function makePicker(): jest.Mocked<OtsCalendarPickerService> {
 function makeComponent() {
   const cdr = makeCdr();
   const picker = makePicker();
+  // OrdpoolApiService.getOtsTx$ is invoked from the calendar-attribution
+  // lookup path; stub it to always return null (no row found) so tests
+  // exercise the "graceful fallback" branch without hitting the real
+  // backend or pulling HttpClient into the test module.
+  const api = { getOtsTx$: jest.fn().mockReturnValue(of(null)) } as unknown as OrdpoolApiService;
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
       OtsVerifyComponent,
       { provide: ChangeDetectorRef,         useValue: cdr },
       { provide: OtsCalendarPickerService,  useValue: picker },
+      { provide: OrdpoolApiService,         useValue: api },
     ],
   });
   const comp = TestBed.inject(OtsVerifyComponent);
-  return { comp, cdr, picker };
+  return { comp, cdr, picker, api };
 }
 
 // --- the state-machine tests ---
