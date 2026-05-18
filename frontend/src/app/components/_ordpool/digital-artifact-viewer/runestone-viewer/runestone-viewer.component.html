@@ -287,6 +287,25 @@
     </div>
   }
 
+  @if (hasAlkanes) {
+    <div class="mb-4">
+      <strong>▣ Alkanes</strong><br>
+      <br *ngIf="showDetails">
+
+      <ng-container *ngIf="showDetails">
+        This runestone carries a Protostone with <code>protocol_tag = 1</code>,
+        the marker for the <a href="https://github.com/kungfuflex/alkanes-rs" target="_blank" rel="noreferrer">Alkanes</a>
+        metaprotocol. Alkanes runs WASM smart contracts on Bitcoin L1; the
+        contract body itself is inscribed separately and isn't decoded here.
+        <br>
+      </ng-container>
+
+      <ng-container *ngIf="protostoneTags.length > 1">
+        Protostone tags: {{ protostoneTags.join(', ') }}
+      </ng-container>
+    </div>
+  }
+
 </div>
 
 <div *ngIf="cenotaph">
