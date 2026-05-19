@@ -21,11 +21,6 @@
               @if (lookupAlkane(message.target.block, message.target.tx); as known) {
                 <strong>{{ known.name }}</strong>
                 <span class="text-muted">({{ formatAlkaneId(message.target.block, message.target.tx) }})</span>
-                @if (known.url) {
-                  <a [href]="known.url" target="_blank" rel="noreferrer" class="ml-2 smaller-text">
-                    external
-                  </a>
-                }
               } @else {
                 <code>{{ formatAlkaneId(message.target.block, message.target.tx) }}</code>
               }
