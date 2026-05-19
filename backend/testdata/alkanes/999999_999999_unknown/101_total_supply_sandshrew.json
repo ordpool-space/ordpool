@@ -1,0 +1,14 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "execution": {
+      "alkanes": [],
+      "data": "0x",
+      "error": "unexpected end-of-file (at offset 0x0)",
+      "storage": []
+    },
+    "gasUsed": 0,
+    "status": 1
+  },
+  "id": 1
+}
