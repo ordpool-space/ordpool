@@ -108,13 +108,12 @@ app-confirmations button {
 
 // Counter mempool's `tr { white-space: nowrap }` (styles.scss line ~812)
 // for our digital-artifact viewers. Whenever a viewer renders inside a
-// <td> (block-overview tooltip, tx-detail panel, anywhere), the prose
-// descriptions inside need to wrap. Targeting the host element of every
-// viewer in one rule is the generic fix; the previous per-viewer list
-// (runestone + atomical) silently missed counterparty, src721, labitbu,
-// stamp, alkanes, and every future addition.
-app-digital-artifact-viewer,
-app-digital-artifact-viewer * {
+// <td> (block-overview tooltip, tx-detail panel, anywhere), prose
+// descriptions inside need to wrap. We only set white-space on the
+// HOST element; descendants inherit `normal` unless they have their
+// own rule (which is critical for <pre>/<code> blocks rendering raw
+// JSON, hex, etc. -- those keep their UA-default `white-space: pre`).
+app-digital-artifact-viewer {
   white-space: normal;
 }
 
