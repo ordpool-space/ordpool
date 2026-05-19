@@ -107,14 +107,19 @@ app-confirmations button {
 }
 
 // Counter mempool's `tr { white-space: nowrap }` (styles.scss line ~812)
-// for our digital-artifact viewers. Whenever a viewer renders inside a
-// <td> (block-overview tooltip, tx-detail panel, anywhere), prose
-// descriptions inside need to wrap. We only set white-space on the
-// HOST element; descendants inherit `normal` unless they have their
-// own rule (which is critical for <pre>/<code> blocks rendering raw
-// JSON, hex, etc. -- those keep their UA-default `white-space: pre`).
-app-digital-artifact-viewer {
-  white-space: normal;
+// for viewers that render free-flowing prose. Explicit allowlist
+// rather than a host-level rule on app-digital-artifact-viewer,
+// because viewers built around tables + inline icons (alkanes, the
+// tag-17 gallery in inscription-viewer) rely on the inherited
+// nowrap to keep <td> rows + their info icons on one line.
+//
+// Add a viewer here when its description text overflows the tooltip
+// inside a <tr>; leave it out when wrapping makes inline icons or
+// table layouts break.
+app-runestone-viewer,
+app-atomical-viewer,
+app-counterparty-viewer {
+  white-space: normal !important;
 }
 
 // HACK -- Ordpool: <app-block-filters> renders as a sibling above
