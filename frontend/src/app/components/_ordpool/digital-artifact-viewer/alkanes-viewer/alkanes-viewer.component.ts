@@ -7,18 +7,7 @@ import {
 } from 'ordpool-parser';
 import { KnownAlkane, lookupAlkane } from './known-alkanes';
 
-/**
- * Renders the Alkanes-specific parts of a Runestone: the protostone(s)
- * tagged with protocol_tag = 1, including target contract, function
- * selector, arguments, edicts, and the burn / pointer / refund / from
- * optionals. Sibling of runestone-viewer; runestone-viewer keeps showing
- * the rune-only fields (etching / mint / pointer / cenotaph) and stays
- * out of this component's way.
- *
- * Decoding is purely on-chain -- no indexer call needed. Function
- * selectors stay as numbers (no name resolution); alkane ids resolve
- * to names only via the small curated lookup in `known-alkanes.ts`.
- */
+/** Renders the Alkanes protostones (protocol_tag = 1) from a Runestone. */
 @Component({
   selector: 'app-alkanes-viewer',
   templateUrl: './alkanes-viewer.component.html',

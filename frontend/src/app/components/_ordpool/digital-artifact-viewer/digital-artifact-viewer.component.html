@@ -10,9 +10,6 @@
   [parsedRunestone]="asRunestone"
 />
 
-<!-- Alkanes is a sub-protocol of Runes carried inside the Runestone
-     PROTOCOL tag, but it gets its own viewer so the rune-only sections
-     (etching / mint / pointer / cenotaph) stay clean. -->
 <app-alkanes-viewer
   *ngIf="whatToShow === 'runestone'"
   [showDetails]="showDetails"

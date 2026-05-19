@@ -1,23 +1,11 @@
 
 import DB from '../database';
 import logger from '../logger';
-import { ORDPOOL_PARSER_FLAG_GENERATION } from './ordpool-parser-flag-version';
 
 class OrdpoolDatabaseMigration {
 
-  // Schema version. Bump for any DDL change (new column, new satellite
-  // table, new index). Parser-flag-only bumps don't bump THIS -- they bump
-  // ORDPOOL_PARSER_FLAG_GENERATION instead, and pair that bump with a new
-  // migration block here that wipes stale ordpool_stats rows. The two
-  // counters move on different cadences but each generation bump must
-  // come with a matching migration block, see
-  // src/api/ordpool-parser-flag-version.ts for the linkage.
+  // Schema version. Bump for any DDL change.
   private static currentVersion = 9;
-
-  // Tracked separately so reviewers can scan one file to verify the pairing.
-  // Read in `getMigrationQueries` to assert the generation history line
-  // matches the migration blocks below.
-  public static readonly flagGeneration = ORDPOOL_PARSER_FLAG_GENERATION;
 
   private queryTimeout = 3600_000;
 
