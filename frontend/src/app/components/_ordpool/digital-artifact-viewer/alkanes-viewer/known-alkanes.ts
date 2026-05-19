@@ -1,21 +1,15 @@
 /**
- * Curated lookup for known Alkanes contracts. Maps `block:tx` AlkaneId
- * strings to human-readable names and (optional) external explorer URLs.
- *
- * We don't run an indexer, so this list is hand-maintained. Add an entry
- * when an alkane gets enough activity that surfacing its name in the
- * viewer is worth the extra characters of code.
+ * Curated lookup for known Alkanes contracts. Temporary stopgap until the
+ * backend alkanes-metadata endpoint replaces it. Outbound `url` field is
+ * intentionally absent -- we don't link visitors to other explorers unless
+ * they link back to us.
  */
 export interface KnownAlkane {
   name: string;
-  url?: string;
 }
 
 export const KNOWN_ALKANES: Record<string, KnownAlkane> = {
-  '2:0': {
-    name: 'DIESEL',
-    url: 'https://ordiscan.com/alkane/DIESEL/2:0',
-  },
+  '2:0': { name: 'DIESEL' },
 };
 
 export function lookupAlkane(block: bigint, tx: bigint): KnownAlkane | undefined {
