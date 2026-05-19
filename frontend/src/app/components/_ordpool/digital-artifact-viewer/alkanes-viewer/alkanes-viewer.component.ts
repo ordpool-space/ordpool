@@ -52,4 +52,21 @@ export class AlkanesViewerComponent {
   formatAlkaneId(block: bigint, tx: bigint): string {
     return `${block}:${tx}`;
   }
+
+  // Common opcodes from the alkanes-runtime MessageDispatch / Token traits.
+  // Genesis-alkane template uses 0/1/77/78; every fungible derived from
+  // the Token trait uses 99/100/101. Real contracts may override these,
+  // hence the tooltip + always-show-the-number rule.
+  selectorLabel(selector: string | bigint | number): string | null {
+    const map: Record<string, string> = {
+      '0':   'initialize',
+      '1':   'upgrade',
+      '77':  'mint',
+      '78':  'collectFees',
+      '99':  'name',
+      '100': 'symbol',
+      '101': 'totalSupply',
+    };
+    return map[String(selector)] ?? null;
+  }
 }
