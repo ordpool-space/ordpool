@@ -45,16 +45,13 @@ import CpfpRepository from '../repositories/CpfpRepository';
 import { parseDATUMTemplateCreator } from '../utils/bitcoin-script';
 import database from '../database';
 import { getBlockFirstSeenFromLogs, getOldestLogTimestampFromLogs, scanLogsForBlocksFirstSeen } from '../utils/file-read';
+import { ORDPOOL_PARSER_FLAG_GENERATION } from './ordpool-parser-flag-version';
 
 // HACK -- Ordpool: min summary version that carries ordpool flags. Older rows
-// fall through to a fresh classify. Bump every time the parser adds a new
-// ordpool flag bit, otherwise cached per-tx flags stay stale (the v9 ordpool_stats
-// migration alone doesn't refresh this -- it's a separate cache).
-//
-// History:
-//   v3: stamps-family flags + OTS
-//   v4: ordpool_alkanes (parser v2.4.8, bit 82)
-const ORDPOOL_BLOCK_SUMMARY_VERSION = 4;
+// fall through to a fresh classify. Tied to ORDPOOL_PARSER_FLAG_GENERATION
+// so one constant bump covers both this cache AND the ordpool_stats migration
+// pairing -- see src/api/ordpool-parser-flag-version.ts for the rules.
+const ORDPOOL_BLOCK_SUMMARY_VERSION = ORDPOOL_PARSER_FLAG_GENERATION;
 
 class Blocks {
   private blocks: BlockExtended[] = [];
