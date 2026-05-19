@@ -102,6 +102,7 @@ export class WalletConnectComponent {
       ordinalsPublicKey: '5df12ac222a1cd78dd4681c7c7a56f3e273884a086b2b6100957d20c73be3c37',
       paymentAddress: '3Ec1WB9ihWTxAfZSpGmQpNq4pr4goi3KgP',
       paymentPublicKey: '0278875d226dd610b06c41d698c9fe0ea4915c797ddc31a3310299d9acd07ff37b',
+      signingSupported: true,
     };
 
     this.walletService.connectFakeWallet(walletInfo);
