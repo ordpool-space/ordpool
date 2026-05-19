@@ -1,0 +1,14 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "execution": {
+      "alkanes": [],
+      "data": "0x37055ace943a00000000000000000000",
+      "error": null,
+      "storage": []
+    },
+    "gasUsed": 50058,
+    "status": 0
+  },
+  "id": 1
+}
