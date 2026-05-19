@@ -4,6 +4,7 @@ import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isV
 import config from '../../../config';
 import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
+import alkanesMetadataService from '../../ordpool-alkanes-metadata';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolOtsRepository from '../../../repositories/OrdpoolOtsRepository';
 import { OTS_OUTBOUND_USER_AGENT } from '../../ordpool-ots-user-agent';
@@ -41,6 +42,7 @@ class GeneralOrdpoolRoutes {
         this.$proxyOtsDigest,
       )
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/stamp-calendars', this.$getOtsStampCalendars)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/alkanes/:block/:tx', this.$getAlkaneMetadata)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -354,6 +356,36 @@ class GeneralOrdpoolRoutes {
       res.json(statistics);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
+    }
+  }
+
+  // GET https://ordpool.space/api/v1/ordpool/alkanes/2/0  -> DIESEL
+  async $getAlkaneMetadata(req: Request, res: Response): Promise<void> {
+    const blockRaw = req.params.block;
+    const txRaw = req.params.tx;
+    if (!/^\d+$/.test(blockRaw) || !/^\d+$/.test(txRaw)) {
+      res.status(400).json({ error: 'Invalid alkane id; expected non-negative integers' });
+      return;
+    }
+    try {
+      const row = await alkanesMetadataService.$getAlkaneMetadata(BigInt(blockRaw), BigInt(txRaw));
+      if (!row) {
+        res.status(404).json({ error: 'No metadata; alkanes RPC not configured or alkane id invalid' });
+        return;
+      }
+      res.setHeader('Cache-Control', row.name ? 'public, max-age=86400' : 'public, max-age=300');
+      res.json({
+        alkaneId: row.alkaneId,
+        block: blockRaw,
+        tx: txRaw,
+        name: row.name,
+        symbol: row.symbol,
+        totalSupply: row.totalSupply,
+        fetchedAt: row.fetchedAt.toISOString(),
+        lastError: row.lastError,
+      });
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : String(e));
     }
   }
 

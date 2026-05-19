@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, Input } from '@angular/core';
 import {
   ALKANES_PROTOCOL_TAG,
   ParsedProtostone,
   ParsedRunestone,
   decodeProtostones,
 } from 'ordpool-parser';
-import { KnownAlkane, lookupAlkane } from './known-alkanes';
+import { Observable } from 'rxjs';
+import { AlkaneMetadata, AlkanesApiService } from '../../../../services/ordinals/alkanes-api.service';
 
 /** Renders the Alkanes protostones (protocol_tag = 1) from a Runestone. */
 @Component({
@@ -16,6 +17,8 @@ import { KnownAlkane, lookupAlkane } from './known-alkanes';
   standalone: false,
 })
 export class AlkanesViewerComponent {
+
+  private alkanesApi = inject(AlkanesApiService);
 
   private _runestone: ParsedRunestone | undefined;
   protostones: ParsedProtostone[] = [];
@@ -42,8 +45,8 @@ export class AlkanesViewerComponent {
       .filter(p => p.protocolTag === ALKANES_PROTOCOL_TAG);
   }
 
-  lookupAlkane(block: bigint, tx: bigint): KnownAlkane | undefined {
-    return lookupAlkane(block, tx);
+  getAlkaneDetails(block: bigint, tx: bigint): Observable<AlkaneMetadata | null> {
+    return this.alkanesApi.getAlkaneDetails(block, tx);
   }
 
   formatAlkaneId(block: bigint, tx: bigint): string {
