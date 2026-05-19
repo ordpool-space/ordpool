@@ -5,7 +5,7 @@ import logger from '../logger';
 class OrdpoolDatabaseMigration {
 
   // Schema version. Bump for any DDL change.
-  private static currentVersion = 9;
+  private static currentVersion = 10;
 
   private queryTimeout = 3600_000;
 
@@ -664,6 +664,26 @@ class OrdpoolDatabaseMigration {
       queries.push(`ALTER TABLE ordpool_stats
         ADD COLUMN IF NOT EXISTS amounts_alkanes INT UNSIGNED NOT NULL DEFAULT 0;`);
       queries.push(`DELETE FROM ordpool_stats WHERE amounts_rune > 0;`);
+    }
+
+    // Per-alkane metadata cache. Backs the /api/v1/ordpool/alkanes/:block/:tx
+    // endpoint. Rows are filled on first request via JSON-RPC to a
+    // subfrost / sandshrew endpoint. Fungible alkanes resolve to name +
+    // symbol + total_supply; non-fungibles (AMMs, vaults) leave those
+    // NULL and the row carries last_error.
+    if (version <= 10) {
+      queries.push(`
+        CREATE TABLE IF NOT EXISTS alkane_metadata (
+          alkane_id      VARCHAR(40)    NOT NULL PRIMARY KEY,
+          name           VARCHAR(64)    DEFAULT NULL,
+          symbol         VARCHAR(32)    DEFAULT NULL,
+          total_supply   DECIMAL(39, 0) DEFAULT NULL,
+          fetched_at     DATETIME       NOT NULL,
+          last_error     VARCHAR(255)   DEFAULT NULL,
+          fetch_attempts INT UNSIGNED   NOT NULL DEFAULT 0,
+          INDEX idx_fetched_at (fetched_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
     }
 
     return queries;

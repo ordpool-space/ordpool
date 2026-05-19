@@ -10,6 +10,7 @@ import { DigitalArtifactType } from 'ordpool-parser';
 // module-load chain so the suite boots without a real config file.
 jest.mock('../../blocks', () => ({ __esModule: true, default: { getCurrentBlockHeight: jest.fn() } }));
 jest.mock('../../ordpool-missing-stats', () => ({ __esModule: true, default: { getLastSuccessAt: jest.fn(), getBlocksPerMinute: jest.fn() } }));
+jest.mock('../../ordpool-alkanes-metadata', () => ({ __esModule: true, default: { $getAlkaneMetadata: jest.fn() } }));
 jest.mock('../../../repositories/OrdpoolBlocksRepository', () => ({ __esModule: true, default: {} }));
 jest.mock('../../../repositories/OrdpoolSkippedBlocksRepository', () => ({ __esModule: true, default: {} }));
 jest.mock('../../../repositories/OrdpoolOtsRepository', () => ({ __esModule: true, default: {} }));

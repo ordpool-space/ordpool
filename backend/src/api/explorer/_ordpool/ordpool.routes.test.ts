@@ -19,6 +19,10 @@ jest.mock('../../ordpool-missing-stats', () => ({
   __esModule: true,
   default: { getLastSuccessAt: jest.fn(), getBlocksPerMinute: jest.fn() },
 }));
+jest.mock('../../ordpool-alkanes-metadata', () => ({
+  __esModule: true,
+  default: { $getAlkaneMetadata: jest.fn() },
+}));
 jest.mock('../../../repositories/OrdpoolBlocksRepository', () => ({
   __esModule: true,
   default: { getMaxStatsHeight: jest.fn(), getPendingStatsCount: jest.fn() },
