@@ -57,7 +57,7 @@ function bytesToHex(bytes: Uint8Array): string {
 const MESSAGE_TYPE_DESCRIPTIONS: Record<CounterpartyMessageType, string> = {
   send:               'Classic asset send (v1 encoding)',
   enhanced_send:      'Asset send with attached memo',
-  mpma:               'Multi-Party Multi-Asset send -- one tx, multiple recipients, multiple assets',
+  mpma:               'Multi-Party Multi-Asset send: one tx, multiple recipients, multiple assets',
   sweep:              'Transfer all assets from one address to another',
   order:              'DEX order',
   btcpay:             'BTC payment for a matched DEX order',

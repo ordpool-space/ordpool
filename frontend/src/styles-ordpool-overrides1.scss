@@ -106,10 +106,16 @@ app-confirmations button {
   display: none;
 }
 
-// fixes the whitepaces handling from style.scss line 707
-app-runestone-viewer,
-app-atomical-viewer {
-  white-space: normal !important;
+// Counter mempool's `tr { white-space: nowrap }` (styles.scss line ~812)
+// for our digital-artifact viewers. Whenever a viewer renders inside a
+// <td> (block-overview tooltip, tx-detail panel, anywhere), the prose
+// descriptions inside need to wrap. Targeting the host element of every
+// viewer in one rule is the generic fix; the previous per-viewer list
+// (runestone + atomical) silently missed counterparty, src721, labitbu,
+// stamp, alkanes, and every future addition.
+app-digital-artifact-viewer,
+app-digital-artifact-viewer * {
+  white-space: normal;
 }
 
 // HACK -- Ordpool: <app-block-filters> renders as a sibling above
