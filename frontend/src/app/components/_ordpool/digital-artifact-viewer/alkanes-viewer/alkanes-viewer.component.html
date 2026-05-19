@@ -21,8 +21,10 @@
               @if (getAlkaneDetails(message.target.block, message.target.tx) | async; as known) {
                 @if (known?.name) {
                   <strong>{{ known.name }}</strong>
-                  @if (known.symbol) { <span class="text-muted">/ {{ known.symbol }}</span> }
-                  <span class="text-muted">({{ formatAlkaneId(message.target.block, message.target.tx) }})</span>
+                  @if (known.symbol && known.symbol !== known.name) {
+                    <span class="text-muted">&nbsp;/ {{ known.symbol }}</span>
+                  }
+                  <span class="text-muted">&nbsp;({{ formatAlkaneId(message.target.block, message.target.tx) }})</span>
                 } @else {
                   <code>{{ formatAlkaneId(message.target.block, message.target.tx) }}</code>
                 }
@@ -42,7 +44,7 @@
               <td>
                 <code>{{ message.inputs[0] }}</code>
                 @if (selectorLabel(message.inputs[0]); as label) {
-                  <span class="text-muted ml-1">({{ label }})</span>
+                  <span class="text-muted">&nbsp;({{ label }})</span>
                 }
               </td>
             </tr>
