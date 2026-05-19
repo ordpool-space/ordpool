@@ -37,9 +37,14 @@
               <td>
                 Function selector
                 <fa-icon class="ml-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-                  ngbTooltip="The first input is the function selector by convention. Function names aren't standardised; you need the contract's source to resolve a number to a name."></fa-icon>
+                  ngbTooltip="The first input is the function selector by convention. The label is the common alkanes-runtime convention; actual semantics depend on the deployed contract."></fa-icon>
               </td>
-              <td><code>{{ message.inputs[0] }}</code></td>
+              <td>
+                <code>{{ message.inputs[0] }}</code>
+                @if (selectorLabel(message.inputs[0]); as label) {
+                  <span class="text-muted ml-1">({{ label }})</span>
+                }
+              </td>
             </tr>
           }
 
