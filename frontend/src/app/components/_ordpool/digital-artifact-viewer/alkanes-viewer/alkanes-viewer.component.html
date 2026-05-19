@@ -16,14 +16,12 @@
 
         @if (protostone.message; as message) {
           <tr>
-            <td>Target</td>
+            <td>Target (name / symbol)</td>
             <td>
               @if (getAlkaneDetails(message.target.block, message.target.tx) | async; as known) {
                 @if (known?.name) {
                   <strong>{{ known.name }}</strong>
-                  @if (known.symbol && known.symbol !== known.name) {
-                    <span class="text-muted">&nbsp;/ {{ known.symbol }}</span>
-                  }
+                  <span class="text-muted">&nbsp;/ {{ known.symbol || '?' }}</span>
                   <span class="text-muted">&nbsp;({{ formatAlkaneId(message.target.block, message.target.tx) }})</span>
                 } @else {
                   <code>{{ formatAlkaneId(message.target.block, message.target.tx) }}</code>
