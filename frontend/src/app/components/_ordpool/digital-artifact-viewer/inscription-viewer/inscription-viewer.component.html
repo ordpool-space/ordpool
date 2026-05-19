@@ -135,7 +135,7 @@
       <div class="mt-3" *ngIf="properties.gallery && properties.gallery.length">
         <strong>Gallery ({{ properties.gallery.length | number }})</strong>
         <fa-icon class="ms-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-          ngbTooltip="A curated list of inscription IDs referenced from this inscription's tag 17. Galleries are permissionless -- inclusion does NOT imply provenance."
+          ngbTooltip="A curated list of inscription IDs referenced from this inscription's tag 17. Galleries are permissionless. Inclusion does NOT imply provenance."
         ></fa-icon>
         <ol class="smaller-text mt-2" [attr.start]="(galleryPage - 1) * GALLERY_PAGE_SIZE + 1">
           <li *ngFor="let item of properties.gallery.slice((galleryPage - 1) * GALLERY_PAGE_SIZE, galleryPage * GALLERY_PAGE_SIZE)" class="mb-1">
