@@ -21,7 +21,9 @@ const ENDPOINTS = {
 // (Alkane Pandas #342).
 const FIXTURES = [
   { dir: '2_0_diesel',               target: { block: '2', tx: '0'    } },
+  { dir: '2_50_alker',               target: { block: '2', tx: '50'   } },
   { dir: '2_100_fartune100',         target: { block: '2', tx: '100'  } },
+  { dir: '2_200_hydrogen',           target: { block: '2', tx: '200'  } },
   { dir: '2_1000_alkane_pandas_342', target: { block: '2', tx: '1000' } },
   { dir: '999999_999999_unknown',    target: { block: '999999', tx: '999999' } },
 ];

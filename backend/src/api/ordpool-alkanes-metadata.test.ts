@@ -18,6 +18,20 @@ function dataHex(fixture: any): string {
   return fixture?.result?.execution?.data;
 }
 
+// Independent reference decoder. Splits the 16-byte payload into two u64s
+// via Buffer.readBigUInt64LE (Node stdlib, separately implemented from the
+// hand-rolled BigInt loop in production code) and recombines them. Used to
+// verify totalSupply assertions without baking hand-computed numbers into
+// the test — the values float as fixtures get refetched.
+function referenceDecodeU128LE(hex: string): bigint {
+  const stripped = hex.startsWith('0x') ? hex.slice(2) : hex;
+  const buf = Buffer.alloc(16);
+  Buffer.from(stripped, 'hex').copy(buf, 0, 0, Math.min(16, stripped.length / 2));
+  const low  = buf.readBigUInt64LE(0);
+  const high = buf.readBigUInt64LE(8);
+  return (high << 64n) | low;
+}
+
 describe('decodeSimulateData — synthetic edge cases', () => {
 
   it('decodes a symbol with trailing nulls', () => {
@@ -40,99 +54,72 @@ describe('decodeSimulateData — synthetic edge cases', () => {
   });
 });
 
-// Each block below pins one real alkane (subfrost + sandshrew fixtures
-// captured by `node fetch-alkanes-testdata.js`). Both endpoints must
-// return identical bytes for the same on-chain query — the decoder is
-// then verified against the bytes directly.
+// Fixture-driven tests. Names and symbols are immutable contract state,
+// asserted as exact literals. totalSupply is asserted against the
+// reference decoder above — that way mint activity between refetches
+// doesn't break tests. Cross-endpoint byte equality is checked for
+// every selector (subfrost vs sandshrew must return identical bytes).
 
-describe('decodeSimulateData — real on-chain responses (alkane 2:0 DIESEL)', () => {
+const FIXTURES: { dir: string; name: string; symbol: string; cross_check_url: string }[] = [
+  {
+    dir: '2_0_diesel',
+    name: 'DIESEL',
+    symbol: 'DIESEL',
+    cross_check_url: 'https://ordiscan.com/alkane/2:0',
+  },
+  {
+    dir: '2_50_alker',
+    name: 'ALKer',
+    symbol: 'R',
+    cross_check_url: 'https://ordiscan.com/alkane/2:50',
+  },
+  {
+    dir: '2_100_fartune100',
+    name: 'FARTUNE100',
+    symbol: 'F100',
+    cross_check_url: 'https://ordiscan.com/alkane/2:100',
+  },
+  {
+    dir: '2_200_hydrogen',
+    name: 'HYDROGEN',
+    symbol: 'H',
+    cross_check_url: 'https://ordiscan.com/alkane/2:200',
+  },
+  {
+    dir: '2_1000_alkane_pandas_342',
+    name: 'Alkane Pandas #342',
+    symbol: 'alkane-pandas-342',
+    cross_check_url: 'https://ordiscan.com/alkane/2:1000',
+  },
+];
 
-  const alkane = '2_0_diesel';
+describe.each(FIXTURES)('real on-chain alkane $dir', ({ dir, name, symbol }) => {
 
-  it('decodes name() = "DIESEL" from both endpoints', () => {
-    const sub = loadFixture(alkane, '99_name', 'subfrost');
-    const san = loadFixture(alkane, '99_name', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x44494553454c');
+  it(`decodes name() = "${name}" from both endpoints`, () => {
+    const sub = loadFixture(dir, '99_name', 'subfrost');
+    const san = loadFixture(dir, '99_name', 'sandshrew');
     expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_NAME)).toBe('DIESEL');
+    expect(decodeSimulateData(dataHex(sub), SELECTOR_NAME)).toBe(name);
   });
 
-  it('decodes symbol() = "DIESEL" from both endpoints', () => {
-    const sub = loadFixture(alkane, '100_symbol', 'subfrost');
-    const san = loadFixture(alkane, '100_symbol', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x44494553454c');
+  it(`decodes symbol() = "${symbol}" from both endpoints`, () => {
+    const sub = loadFixture(dir, '100_symbol', 'subfrost');
+    const san = loadFixture(dir, '100_symbol', 'sandshrew');
     expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_SYMBOL)).toBe('DIESEL');
+    expect(decodeSimulateData(dataHex(sub), SELECTOR_SYMBOL)).toBe(symbol);
   });
 
-  it('decodes totalSupply() as a 16-byte u128 little-endian', () => {
-    const sub = loadFixture(alkane, '101_total_supply', 'subfrost');
-    const san = loadFixture(alkane, '101_total_supply', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x37055ace943a00000000000000000000');
+  it('decodes totalSupply() matching an independent stdlib u128 LE decoder', () => {
+    const sub = loadFixture(dir, '101_total_supply', 'subfrost');
+    const san = loadFixture(dir, '101_total_supply', 'sandshrew');
     expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_TOTAL_SUPPLY)).toBe(64410791576887n);
-  });
-});
-
-describe('decodeSimulateData — real on-chain responses (alkane 2:100 FARTUNE100)', () => {
-
-  const alkane = '2_100_fartune100';
-
-  it('decodes name() = "FARTUNE100" from both endpoints', () => {
-    const sub = loadFixture(alkane, '99_name', 'subfrost');
-    const san = loadFixture(alkane, '99_name', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x46415254554e45313030');
-    expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_NAME)).toBe('FARTUNE100');
-  });
-
-  it('decodes symbol() = "F100" — different from the name', () => {
-    const sub = loadFixture(alkane, '100_symbol', 'subfrost');
-    const san = loadFixture(alkane, '100_symbol', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x46313030');
-    expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_SYMBOL)).toBe('F100');
-  });
-
-  it('decodes totalSupply() = 10^15 (one quadrillion)', () => {
-    const sub = loadFixture(alkane, '101_total_supply', 'subfrost');
-    const san = loadFixture(alkane, '101_total_supply', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x0080c6a47e8d03000000000000000000');
-    expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_TOTAL_SUPPLY)).toBe(1000000000000000n);
-  });
-});
-
-describe('decodeSimulateData — real on-chain responses (alkane 2:1000 Alkane Pandas #342)', () => {
-
-  const alkane = '2_1000_alkane_pandas_342';
-
-  it('decodes name() = "Alkane Pandas #342" — name contains a space and a hash', () => {
-    const sub = loadFixture(alkane, '99_name', 'subfrost');
-    const san = loadFixture(alkane, '99_name', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x416c6b616e652050616e6461732023333432');
-    expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_NAME)).toBe('Alkane Pandas #342');
-  });
-
-  it('decodes symbol() = "alkane-pandas-342" — symbol is hyphenated lowercase', () => {
-    const sub = loadFixture(alkane, '100_symbol', 'subfrost');
-    const san = loadFixture(alkane, '100_symbol', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x616c6b616e652d70616e6461732d333432');
-    expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_SYMBOL)).toBe('alkane-pandas-342');
-  });
-
-  it('decodes totalSupply() = 1 (NFT-style single-supply token)', () => {
-    const sub = loadFixture(alkane, '101_total_supply', 'subfrost');
-    const san = loadFixture(alkane, '101_total_supply', 'sandshrew');
-    expect(dataHex(sub)).toBe('0x01000000000000000000000000000000');
-    expect(dataHex(san)).toBe(dataHex(sub));
-    expect(decodeSimulateData(dataHex(sub), SELECTOR_TOTAL_SUPPLY)).toBe(1n);
+    const expected = referenceDecodeU128LE(dataHex(sub));
+    expect(decodeSimulateData(dataHex(sub), SELECTOR_TOTAL_SUPPLY)).toBe(expected);
+    expect(expected).toBeGreaterThan(0n);
   });
 });
 
-describe('decodeSimulateData — non-existent alkane (negative-cache path)', () => {
+describe('non-existent alkane (negative-cache path)', () => {
 
   const alkane = '999999_999999_unknown';
 
@@ -155,14 +142,14 @@ describe('decodeSimulateData — non-existent alkane (negative-cache path)', () 
 describe('alkanes_simulate wire format (pins the JSON-RPC response shape)', () => {
 
   it('every fixture is JSON-RPC 2.0 with result.execution.data at the canonical path', () => {
-    const alkanes = ['2_0_diesel', '2_100_fartune100', '2_1000_alkane_pandas_342', '999999_999999_unknown'];
-    const labels  = ['99_name', '100_symbol', '101_total_supply'];
+    const dirs = [...FIXTURES.map((f) => f.dir), '999999_999999_unknown'];
+    const labels = ['99_name', '100_symbol', '101_total_supply'];
     const endpoints: ('subfrost' | 'sandshrew')[] = ['subfrost', 'sandshrew'];
 
-    for (const a of alkanes) {
+    for (const d of dirs) {
       for (const l of labels) {
         for (const e of endpoints) {
-          const f = loadFixture(a, l, e);
+          const f = loadFixture(d, l, e);
           expect(f.jsonrpc).toBe('2.0');
           expect(f.id).toBe(1);
           expect(typeof f.result.execution.data).toBe('string');
@@ -170,5 +157,15 @@ describe('alkanes_simulate wire format (pins the JSON-RPC response shape)', () =
         }
       }
     }
+  });
+});
+
+describe('reference decoder sanity', () => {
+
+  it('matches known fixed-width little-endian values', () => {
+    expect(referenceDecodeU128LE('0x01000000000000000000000000000000')).toBe(1n);
+    expect(referenceDecodeU128LE('0x00000000000000000100000000000000')).toBe(1n << 64n);
+    expect(referenceDecodeU128LE('0xffffffffffffffff0000000000000000')).toBe((1n << 64n) - 1n);
+    expect(referenceDecodeU128LE('0x00000000000000000000000000000000')).toBe(0n);
   });
 });

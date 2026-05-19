@@ -3,11 +3,11 @@
   "result": {
     "execution": {
       "alkanes": [],
-      "data": "0xb1bef075953a00000000000000000000",
+      "data": "0x48",
       "error": null,
       "storage": []
     },
-    "gasUsed": 50058,
+    "gasUsed": 44658,
     "status": 0
   },
   "id": 1
