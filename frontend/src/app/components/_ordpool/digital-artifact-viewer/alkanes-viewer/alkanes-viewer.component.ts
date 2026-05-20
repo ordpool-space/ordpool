@@ -1,21 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, Input } from '@angular/core';
 import {
   ALKANES_PROTOCOL_TAG,
+  ALKANE_SELECTOR_LABELS,
   ParsedProtostone,
   ParsedRunestone,
   decodeProtostones,
 } from 'ordpool-parser';
 import { AlkanesApiService } from '../../../../services/ordinals/alkanes-api.service';
-
-const SELECTOR_LABELS: Record<string, string> = {
-  '0':   'initialize',
-  '1':   'upgrade',
-  '77':  'mint',
-  '78':  'collectFees',
-  '99':  'name',
-  '100': 'symbol',
-  '101': 'totalSupply',
-};
 
 @Component({
   selector: 'app-alkanes-viewer',
@@ -58,6 +49,6 @@ export class AlkanesViewerComponent {
   }
 
   selectorLabel(selector: bigint): string | null {
-    return SELECTOR_LABELS[selector.toString()] ?? null;
+    return ALKANE_SELECTOR_LABELS[selector.toString()] ?? null;
   }
 }

@@ -1,11 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { decodeSimulateData } from './ordpool-alkanes-metadata';
+import {
+  ALKANE_SELECTOR_NAME as SELECTOR_NAME,
+  ALKANE_SELECTOR_SYMBOL as SELECTOR_SYMBOL,
+  ALKANE_SELECTOR_TOTAL_SUPPLY as SELECTOR_TOTAL_SUPPLY,
+} from 'ordpool-parser';
 
-const SELECTOR_NAME = 99;
-const SELECTOR_SYMBOL = 100;
-const SELECTOR_TOTAL_SUPPLY = 101;
+import { decodeSimulateData } from './ordpool-alkanes-metadata';
 
 const TESTDATA_ROOT = path.join(__dirname, '..', '..', 'testdata', 'alkanes');
 

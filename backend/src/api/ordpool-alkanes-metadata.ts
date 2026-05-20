@@ -1,10 +1,13 @@
+import {
+  ALKANE_SELECTOR_NAME,
+  ALKANE_SELECTOR_SYMBOL,
+  ALKANE_SELECTOR_TOTAL_SUPPLY,
+  hexToBytes,
+  littleEndianBytesToBigInt,
+} from 'ordpool-parser';
 import AlkaneMetadataRepository, { AlkaneMetadataRow } from '../repositories/AlkaneMetadataRepository';
 import { getAlkanesRpcConfig } from './explorer/_ordpool/alkanes-rpc-config';
 import { fetchWithTimeout } from './ordpool-fetch';
-
-const SELECTOR_NAME = 99;
-const SELECTOR_SYMBOL = 100;
-const SELECTOR_TOTAL_SUPPLY = 101;
 
 interface SimulateResult {
   execution?: {
@@ -84,9 +87,9 @@ class AlkanesMetadataService {
     for (const url of urls) {
       try {
         const [name, symbol, totalSupply] = await Promise.all([
-          this.$callSimulate(url, block, tx, SELECTOR_NAME),
-          this.$callSimulate(url, block, tx, SELECTOR_SYMBOL),
-          this.$callSimulate(url, block, tx, SELECTOR_TOTAL_SUPPLY),
+          this.$callSimulate(url, block, tx, ALKANE_SELECTOR_NAME),
+          this.$callSimulate(url, block, tx, ALKANE_SELECTOR_SYMBOL),
+          this.$callSimulate(url, block, tx, ALKANE_SELECTOR_TOTAL_SUPPLY),
         ]);
         if (typeof name === 'string' && name.length > 0) {
           return {
@@ -153,22 +156,17 @@ export function decodeSimulateData(hex: string, selector: number): string | bigi
   if (hex === '0x' || hex.length < 4) {
     return null;
   }
-  const body = hex.slice(2);
-  if (selector === SELECTOR_NAME || selector === SELECTOR_SYMBOL) {
+  const bytes = hexToBytes(hex.slice(2));
+  if (selector === ALKANE_SELECTOR_NAME || selector === ALKANE_SELECTOR_SYMBOL) {
     let chars = '';
-    for (let i = 0; i < body.length; i += 2) {
-      const byte = parseInt(body.substr(i, 2), 16);
+    for (const byte of bytes) {
       if (byte === 0) break;
       if (byte < 0x20 || byte > 0x7e) return null;
       chars += String.fromCharCode(byte);
     }
     return chars.length > 0 ? chars : null;
   }
-  let value = 0n;
-  for (let i = body.length - 2; i >= 0; i -= 2) {
-    value = (value << 8n) | BigInt(parseInt(body.substr(i, 2), 16));
-  }
-  return value;
+  return littleEndianBytesToBigInt(bytes);
 }
 
 export default new AlkanesMetadataService();
