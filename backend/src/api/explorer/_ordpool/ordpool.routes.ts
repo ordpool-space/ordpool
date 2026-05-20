@@ -359,7 +359,6 @@ class GeneralOrdpoolRoutes {
     }
   }
 
-  // GET https://ordpool.space/api/v1/ordpool/alkanes/2/0  -> DIESEL
   async $getAlkaneMetadata(req: Request, res: Response): Promise<void> {
     const blockRaw = req.params.block;
     const txRaw = req.params.tx;
@@ -373,7 +372,11 @@ class GeneralOrdpoolRoutes {
         res.status(404).json({ error: 'No metadata; alkanes RPC not configured or alkane id invalid' });
         return;
       }
-      res.setHeader('Cache-Control', row.name ? 'public, max-age=86400' : 'public, max-age=300');
+      // totalSupply is mutable (grows on mint). Short TTL with SWR so the
+      // browser shows something instantly while we refresh in the background.
+      res.setHeader('Cache-Control', row.name
+        ? 'public, max-age=300, stale-while-revalidate=86400'
+        : 'public, max-age=300');
       res.json({
         alkaneId: row.alkaneId,
         block: blockRaw,

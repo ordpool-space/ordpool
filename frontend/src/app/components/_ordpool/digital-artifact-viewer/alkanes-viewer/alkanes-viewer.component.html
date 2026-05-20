@@ -18,14 +18,11 @@
           <tr>
             <td>Target (name / symbol)</td>
             <td>
-              @if (getAlkaneDetails(message.target.block, message.target.tx) | async; as known) {
-                @if (known?.name) {
-                  <strong>{{ known.name }}</strong>
-                  <span class="text-muted">&nbsp;/ {{ known.symbol || '?' }}</span>
-                  <span class="text-muted">&nbsp;({{ formatAlkaneId(message.target.block, message.target.tx) }})</span>
-                } @else {
-                  <code>{{ formatAlkaneId(message.target.block, message.target.tx) }}</code>
-                }
+              @let known = alkanesApi.getAlkaneDetails(message.target.block, message.target.tx) | async;
+              @if (known?.name; as name) {
+                <strong>{{ name }}</strong>
+                <span class="text-muted">&nbsp;/ {{ known?.symbol || '?' }}</span>
+                <span class="text-muted">&nbsp;({{ formatAlkaneId(message.target.block, message.target.tx) }})</span>
               } @else {
                 <code>{{ formatAlkaneId(message.target.block, message.target.tx) }}</code>
               }

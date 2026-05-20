@@ -18,11 +18,9 @@ function dataHex(fixture: any): string {
   return fixture?.result?.execution?.data;
 }
 
-// Independent reference decoder. Splits the 16-byte payload into two u64s
-// via Buffer.readBigUInt64LE (Node stdlib, separately implemented from the
-// hand-rolled BigInt loop in production code) and recombines them. Used to
-// verify totalSupply assertions without baking hand-computed numbers into
-// the test — the values float as fixtures get refetched.
+// Stdlib-based u128 LE decoder. Different implementation from the
+// production hand-rolled BigInt loop; if both agree on the same payload,
+// the decoded value is verified by two independent paths.
 function referenceDecodeU128LE(hex: string): bigint {
   const stripped = hex.startsWith('0x') ? hex.slice(2) : hex;
   const buf = Buffer.alloc(16);
@@ -54,11 +52,8 @@ describe('decodeSimulateData — synthetic edge cases', () => {
   });
 });
 
-// Fixture-driven tests. Names and symbols are immutable contract state,
-// asserted as exact literals. totalSupply is asserted against the
-// reference decoder above — that way mint activity between refetches
-// doesn't break tests. Cross-endpoint byte equality is checked for
-// every selector (subfrost vs sandshrew must return identical bytes).
+// totalSupply must NOT be hard-coded: it changes on every mint. Names and
+// symbols are immutable per-contract and stay as exact literals.
 
 const FIXTURES: { dir: string; name: string; symbol: string; cross_check_url: string }[] = [
   {
