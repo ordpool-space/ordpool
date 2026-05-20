@@ -5,6 +5,7 @@ import config from '../../../config';
 import blocks from '../../blocks';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import alkanesMetadataService from '../../ordpool-alkanes-metadata';
+import { fetchWithTimeout } from '../../ordpool-fetch';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolOtsRepository from '../../../repositories/OrdpoolOtsRepository';
 import { OTS_OUTBOUND_USER_AGENT } from '../../ordpool-ots-user-agent';
@@ -107,24 +108,14 @@ class GeneralOrdpoolRoutes {
       res.status(400).send('invalid hash');
       return;
     }
-    // 10-second timeout via AbortController -- fetch has no built-in
-    // timeout option (the original axios call used `timeout: 10000`).
-    const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), 10_000);
     try {
-      const upstream = await fetch(`https://${calendar}/timestamp/${hash}`, {
-        signal: abort.signal,
+      const upstream = await fetchWithTimeout(`https://${calendar}/timestamp/${hash}`, {
         headers: { 'User-Agent': OTS_OUTBOUND_USER_AGENT },
-      });
-      // We always return HTTP 200 from this proxy and distinguish via
-      // Content-Type:
+      }, 10_000);
+      // Always return HTTP 200 and distinguish via Content-Type:
       //   200 + application/vnd.opentimestamps.v1 + binary body  -> upgraded
-      //   200 + application/json + {"status":"pending"}          -> calendar
-      //                                                              hasn't
-      //                                                              published
-      //                                                              this hash
-      //                                                              yet
-      // This avoids Chrome's auto-logging "Failed to load resource: 404"
+      //   200 + application/json + {"status":"pending"}          -> not yet published
+      // This avoids Chrome auto-logging "Failed to load resource: 404"
       // every minute for every still-pending stamp -- the response IS
       // expected and successful from our perspective.
       // Upstream 5xx maps to our 502 so genuine errors are visible.
@@ -143,8 +134,6 @@ class GeneralOrdpoolRoutes {
       }
     } catch {
       res.status(502).send('upstream error');
-    } finally {
-      clearTimeout(timeout);
     }
   }
 
@@ -166,25 +155,21 @@ class GeneralOrdpoolRoutes {
       res.status(400).send('invalid digest body');
       return;
     }
-    const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), 10_000);
     try {
-      const upstream = await fetch(`https://${calendar}/digest`, {
+      const upstream = await fetchWithTimeout(`https://${calendar}/digest`, {
         method: 'POST',
-        // text/plain matches what the original direct-from-browser request
-        // used and keeps the upstream's "simple request" code path; no
+        // text/plain matches what the direct-from-browser request used
+        // and keeps the upstream's "simple request" code path; no
         // calendar validates Content-Type, they read the body verbatim.
         headers: {
           'Content-Type': 'text/plain',
           'User-Agent': OTS_OUTBOUND_USER_AGENT,
         },
         body,
-        signal: abort.signal,
-      });
+      }, 10_000);
       if (upstream.status === 200) {
         const out = Buffer.from(await upstream.arrayBuffer());
-        // The response is a pending OTS commitment subtree -- different
-        // every call, never cacheable.
+        // Pending OTS commitment subtree -- different every call, never cacheable.
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('Content-Type', 'application/vnd.opentimestamps.v1');
         res.status(200).end(out);
@@ -194,8 +179,6 @@ class GeneralOrdpoolRoutes {
       }
     } catch {
       res.status(502).send('upstream error');
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

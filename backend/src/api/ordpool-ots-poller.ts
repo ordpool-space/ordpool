@@ -3,6 +3,7 @@ import ordpoolOtsRepository from '../repositories/OrdpoolOtsRepository';
 import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
 import { OTS_OUTBOUND_USER_AGENT } from './ordpool-ots-user-agent';
 import { getOtsCalendars, OtsCalendar as ConfiguredCalendar } from './explorer/_ordpool/ots-calendars-config';
+import { fetchWithTimeout } from './ordpool-fetch';
 
 /**
  * One known OTS calendar -- loaded from ots-calendars.json via the shared
@@ -209,24 +210,17 @@ class OrdpoolOtsPoller {
   }
 
   private async fetchCalendarJson(url: string): Promise<CalendarResponse> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-    try {
-      const res = await this.fetchImpl(url, {
-        headers: {
-          'Accept': 'application/json',
-          // Identify ourselves on every 60-second indexer poll so calendar
-          // operators recognise the traffic and have a path to contact us
-          // instead of rate-limiting an anonymous Node fetch UA.
-          'User-Agent': OTS_OUTBOUND_USER_AGENT,
-        },
-        signal: ctrl.signal,
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json() as CalendarResponse;
-    } finally {
-      clearTimeout(timer);
-    }
+    const res = await fetchWithTimeout(url, {
+      headers: {
+        // Identify ourselves on every 60-second indexer poll so calendar
+        // operators recognise the traffic and have a path to contact us
+        // instead of rate-limiting an anonymous Node fetch UA.
+        'Accept': 'application/json',
+        'User-Agent': OTS_OUTBOUND_USER_AGENT,
+      },
+    }, FETCH_TIMEOUT_MS, this.fetchImpl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json() as CalendarResponse;
   }
 }
 
