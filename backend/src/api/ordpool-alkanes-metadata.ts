@@ -1,5 +1,6 @@
 import AlkaneMetadataRepository, { AlkaneMetadataRow } from '../repositories/AlkaneMetadataRepository';
 import { getAlkanesRpcConfig } from './explorer/_ordpool/alkanes-rpc-config';
+import { fetchWithTimeout } from './ordpool-fetch';
 
 const SELECTOR_NAME = 99;
 const SELECTOR_SYMBOL = 100;
@@ -112,47 +113,39 @@ class AlkanesMetadataService {
     url: string, block: bigint, tx: bigint, selector: number,
   ): Promise<string | bigint | null> {
     const { timeoutMs } = getAlkanesRpcConfig();
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: selector,
-          method: 'alkanes_simulate',
-          params: [{
-            target: { block: block.toString(), tx: tx.toString() },
-            alkanes: [],
-            transaction: '0x',
-            block: '0x',
-            height: '20000',
-            txindex: 0,
-            inputs: [selector.toString()],
-            pointer: 0,
-            refundPointer: 0,
-            vout: 0,
-          }],
-        }),
-      });
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
-      const json: { result?: SimulateResult; error?: { message?: string } } = await resp.json();
-      if (json.error) {
-        throw new Error(`rpc: ${json.error.message ?? 'unknown'}`);
-      }
-      const data = json.result?.execution?.data;
-      if (typeof data !== 'string' || !data.startsWith('0x')) {
-        return null;
-      }
-      return decodeSimulateData(data, selector);
-    } finally {
-      clearTimeout(timer);
+    const resp = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: selector,
+        method: 'alkanes_simulate',
+        params: [{
+          target: { block: block.toString(), tx: tx.toString() },
+          alkanes: [],
+          transaction: '0x',
+          block: '0x',
+          height: '20000',
+          txindex: 0,
+          inputs: [selector.toString()],
+          pointer: 0,
+          refundPointer: 0,
+          vout: 0,
+        }],
+      }),
+    }, timeoutMs);
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
     }
+    const json: { result?: SimulateResult; error?: { message?: string } } = await resp.json();
+    if (json.error) {
+      throw new Error(`rpc: ${json.error.message ?? 'unknown'}`);
+    }
+    const data = json.result?.execution?.data;
+    if (typeof data !== 'string' || !data.startsWith('0x')) {
+      return null;
+    }
+    return decodeSimulateData(data, selector);
   }
 }
 
