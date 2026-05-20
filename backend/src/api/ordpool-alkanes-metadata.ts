@@ -1,29 +1,21 @@
-import logger from '../logger';
 import AlkaneMetadataRepository, { AlkaneMetadataRow } from '../repositories/AlkaneMetadataRepository';
 import { getAlkanesRpcConfig } from './explorer/_ordpool/alkanes-rpc-config';
 
-// Standard fungible-token selectors per alkanes-std-fungible. Non-fungibles
-// won't respond meaningfully; we degrade to NULL name/symbol/supply.
 const SELECTOR_NAME = 99;
 const SELECTOR_SYMBOL = 100;
 const SELECTOR_TOTAL_SUPPLY = 101;
 
-const U32_MAX = 4294967295;
-
 interface SimulateResult {
   execution?: {
-    data?: string;       // 0x-prefixed hex, LE bytes
+    data?: string;
     error?: string | null;
   };
 }
 
 class AlkanesMetadataService {
 
-  /**
-   * Returns the metadata row for an alkane, fetching from RPC on first access
-   * (or after the negative-cache window has expired) and caching to the DB.
-   * Returns null when alkaneId is invalid.
-   */
+  private pending = new Map<string, Promise<AlkaneMetadataRow | null>>();
+
   async $getAlkaneMetadata(block: bigint, tx: bigint): Promise<AlkaneMetadataRow | null> {
     if (block < 0n || tx < 0n) {
       return null;
@@ -31,47 +23,54 @@ class AlkanesMetadataService {
     const alkaneId = `${block}:${tx}`;
 
     const existing = await AlkaneMetadataRepository.$getByAlkaneId(alkaneId);
-
     if (existing && this.isRowFresh(existing)) {
       return existing;
     }
 
+    const inflight = this.pending.get(alkaneId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const promise = this.$resolveAlkane(alkaneId, block, tx, existing)
+      .finally(() => this.pending.delete(alkaneId));
+    this.pending.set(alkaneId, promise);
+    return promise;
+  }
+
+  private async $resolveAlkane(
+    alkaneId: string, block: bigint, tx: bigint, existing: AlkaneMetadataRow | null,
+  ): Promise<AlkaneMetadataRow | null> {
     const { urls } = getAlkanesRpcConfig();
     if (urls.length === 0) {
       return existing ?? null;
     }
 
     const fetched = await this.$fetchFromRpcs(block, tx);
+    const fetchedAt = new Date();
 
-    const row: Omit<AlkaneMetadataRow, 'fetchedAt'> = {
+    const row: AlkaneMetadataRow = {
       alkaneId,
       name: fetched.name,
       symbol: fetched.symbol,
       totalSupply: fetched.totalSupply,
       lastError: fetched.error ?? null,
       fetchAttempts: (existing?.fetchAttempts ?? 0) + 1,
+      fetchedAt,
     };
     await AlkaneMetadataRepository.$upsert(row);
-    return await AlkaneMetadataRepository.$getByAlkaneId(alkaneId);
+    return row;
   }
 
   private isRowFresh(row: AlkaneMetadataRow): boolean {
-    // Resolved (got at least a name) is cached forever; immutable for
-    // the contract's lifetime.
+    // Resolved rows are immutable: name/symbol never change on-chain.
     if (row.name !== null) {
       return true;
     }
-    // Negative cache: retry after the configured window.
     const { negativeCacheMs } = getAlkanesRpcConfig();
-    const age = Date.now() - row.fetchedAt.getTime();
-    return age < negativeCacheMs;
+    return Date.now() - row.fetchedAt.getTime() < negativeCacheMs;
   }
 
-  /**
-   * Try each configured RPC URL in order. First URL that returns a name
-   * (even if symbol/totalSupply fail) wins. Returns aggregated metadata
-   * or an `error` when every URL failed.
-   */
   private async $fetchFromRpcs(block: bigint, tx: bigint): Promise<{
     name: string | null;
     symbol: string | null;
@@ -83,9 +82,6 @@ class AlkanesMetadataService {
 
     for (const url of urls) {
       try {
-        // Three selectors in parallel against the same URL. If `name`
-        // succeeds, we accept this URL's result even if symbol/supply
-        // fail (many non-fungibles still expose `name`).
         const [name, symbol, totalSupply] = await Promise.all([
           this.$callSimulate(url, block, tx, SELECTOR_NAME),
           this.$callSimulate(url, block, tx, SELECTOR_SYMBOL),
@@ -112,11 +108,6 @@ class AlkanesMetadataService {
     };
   }
 
-  /**
-   * Single JSON-RPC alkanes_simulate call. Returns a string (for name /
-   * symbol) or bigint (for total_supply / decimals). Throws on network /
-   * timeout / non-2xx / parse error.
-   */
   private async $callSimulate(
     url: string, block: bigint, tx: bigint, selector: number,
   ): Promise<string | bigint | null> {
@@ -165,18 +156,12 @@ class AlkanesMetadataService {
   }
 }
 
-/**
- * Decode the `data` field from an alkanes_simulate response. String
- * getters (name, symbol) return ASCII bytes; integer getters return
- * little-endian u128.
- */
 export function decodeSimulateData(hex: string, selector: number): string | bigint | null {
   if (hex === '0x' || hex.length < 4) {
     return null;
   }
   const body = hex.slice(2);
   if (selector === SELECTOR_NAME || selector === SELECTOR_SYMBOL) {
-    // ASCII bytes; strip trailing nulls (padding artefact)
     let chars = '';
     for (let i = 0; i < body.length; i += 2) {
       const byte = parseInt(body.substr(i, 2), 16);
@@ -186,7 +171,6 @@ export function decodeSimulateData(hex: string, selector: number): string | bigi
     }
     return chars.length > 0 ? chars : null;
   }
-  // Numeric: little-endian bigint (up to 16 bytes for u128)
   let value = 0n;
   for (let i = body.length - 2; i >= 0; i -= 2) {
     value = (value << 8n) | BigInt(parseInt(body.substr(i, 2), 16));

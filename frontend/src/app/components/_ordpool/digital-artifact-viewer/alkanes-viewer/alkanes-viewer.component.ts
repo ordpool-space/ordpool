@@ -5,10 +5,18 @@ import {
   ParsedRunestone,
   decodeProtostones,
 } from 'ordpool-parser';
-import { Observable } from 'rxjs';
-import { AlkaneMetadata, AlkanesApiService } from '../../../../services/ordinals/alkanes-api.service';
+import { AlkanesApiService } from '../../../../services/ordinals/alkanes-api.service';
 
-/** Renders the Alkanes protostones (protocol_tag = 1) from a Runestone. */
+const SELECTOR_LABELS: Record<string, string> = {
+  '0':   'initialize',
+  '1':   'upgrade',
+  '77':  'mint',
+  '78':  'collectFees',
+  '99':  'name',
+  '100': 'symbol',
+  '101': 'totalSupply',
+};
+
 @Component({
   selector: 'app-alkanes-viewer',
   templateUrl: './alkanes-viewer.component.html',
@@ -18,7 +26,7 @@ import { AlkaneMetadata, AlkanesApiService } from '../../../../services/ordinals
 })
 export class AlkanesViewerComponent {
 
-  private alkanesApi = inject(AlkanesApiService);
+  alkanesApi = inject(AlkanesApiService);
 
   private _runestone: ParsedRunestone | undefined;
   protostones: ParsedProtostone[] = [];
@@ -45,28 +53,11 @@ export class AlkanesViewerComponent {
       .filter(p => p.protocolTag === ALKANES_PROTOCOL_TAG);
   }
 
-  getAlkaneDetails(block: bigint, tx: bigint): Observable<AlkaneMetadata | null> {
-    return this.alkanesApi.getAlkaneDetails(block, tx);
-  }
-
   formatAlkaneId(block: bigint, tx: bigint): string {
     return `${block}:${tx}`;
   }
 
-  // Common opcodes from the alkanes-runtime MessageDispatch / Token traits.
-  // Genesis-alkane template uses 0/1/77/78; every fungible derived from
-  // the Token trait uses 99/100/101. Real contracts may override these,
-  // hence the tooltip + always-show-the-number rule.
-  selectorLabel(selector: string | bigint | number): string | null {
-    const map: Record<string, string> = {
-      '0':   'initialize',
-      '1':   'upgrade',
-      '77':  'mint',
-      '78':  'collectFees',
-      '99':  'name',
-      '100': 'symbol',
-      '101': 'totalSupply',
-    };
-    return map[String(selector)] ?? null;
+  selectorLabel(selector: bigint): string | null {
+    return SELECTOR_LABELS[selector.toString()] ?? null;
   }
 }

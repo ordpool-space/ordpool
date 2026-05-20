@@ -18,9 +18,8 @@ export class AlkanesApiService {
 
   private http = inject(HttpClient);
 
-  // Per-session cache: each AlkaneId only triggers one outbound request.
-  // Backend already caches in MariaDB, so this is just to dedupe within
-  // a single tab.
+  // Same shape as OrdApiService.getRuneDetails: Map<id, Observable> +
+  // shareReplay. refCount stays false so the cache survives unsubscribes.
   private cache = new Map<string, Observable<AlkaneMetadata | null>>();
 
   getAlkaneDetails(block: bigint, tx: bigint): Observable<AlkaneMetadata | null> {
