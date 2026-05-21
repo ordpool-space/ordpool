@@ -121,10 +121,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(container);
     container.add(instances);
 
-    // Ordpool orange (#FF9900, var(--primary)). Read from the CSS variable so
-    // any future theme change carries through to the 3D cubes automatically.
+    // Ordpool orange (#FF9900, var(--primary)). Read the CSS variable so any
+    // future theme change carries through. Multiply by 0.7 to take the edge
+    // off -- the SAO+AmbientLight pipeline amplifies the saturation, and
+    // full-strength brand orange ends up looking neon on the cubes.
     const cssOrange = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-    const orange = new THREE.Color(cssOrange || '#FF9900');
+    const orange = new THREE.Color(cssOrange || '#FF9900').multiplyScalar(0.7);
     const matrix = new THREE.Matrix4();
     const pos = new THREE.Vector3();
     const sca = new THREE.Vector3();
@@ -161,8 +163,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(directional);
     scene.add(new THREE.AmbientLight(new THREE.Color('white'), 3));
 
-    // Fit camera so the layout occupies most of the viewport with a small margin.
-    const fitOffset = 1.5;
+    // Fit camera so the layout occupies most of the viewport. fitOffset 1.1
+    // sits closer than bitfeed/bitlodo's 1.5; the cubes fill more of the frame
+    // and you see the texture detail without zooming in.
+    const fitOffset = 1.1;
     const fitHeightDist = maxSize / (2 * Math.atan(Math.PI * camera.fov / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const distance = fitOffset * Math.max(fitHeightDist, fitWidthDist);
@@ -170,9 +174,22 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     camera.near = distance / 100;
     camera.far = distance * 100;
     camera.updateProjectionMatrix();
-    camera.position.set(distance / Math.SQRT2, distance / Math.SQRT2, distance / Math.SQRT2);
+
+    // Final (after-intro) camera position: standard isometric corner.
+    const finalCamera = new THREE.Vector3(
+      distance / Math.SQRT2, distance / Math.SQRT2, distance / Math.SQRT2,
+    );
+    // Intro starting position: looking straight down, slightly off-axis so
+    // OrbitControls doesn't hit the gimbal singularity.
+    const startCamera = new THREE.Vector3(0.001, distance * 1.6, 0.001);
+    camera.position.copy(startCamera);
     controls.update();
     controls.saveState();
+    // Disable interaction during the intro -- otherwise a dragged camera
+    // fights the tween.
+    controls.enabled = false;
+    // Cubes start flat (height = 0) and grow upward over the animation.
+    container.scale.y = 0;
 
     // Ambient occlusion + AA gives the soft shadows + clean edges. Without
     // it the cubes look harsh and flat.
@@ -189,12 +206,51 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     sao.params.saoBlurDepthCutoff = 0.00001;
     composer.addPass(sao);
 
+    // Intro sequence (matches bitmap.trade's reveal): camera tilts from
+    // top-down to isometric, then the cubes grow upward from the ground.
+    // Sequential, not simultaneous; the rotate-then-grow rhythm reads
+    // cleanly without overwhelming the viewer.
+    const CAMERA_TWEEN_MS = 700;
+    const GROW_TWEEN_MS = 800;
+    const startedAt = performance.now();
+
+    // easeInOutCubic for the camera (symmetric, settles smoothly),
+    // easeOutBack for the cubes (small overshoot = satisfying snap).
+    const easeInOutCubic = (t: number): number =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easeOutBack = (t: number): number => {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    };
+
     // Render loop runs outside Angular's zone so it doesn't trigger CD.
     this.zone.runOutsideAngular(() => {
       const dummy = new THREE.Object3D();
       const m = new THREE.Matrix4();
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
+
+        const elapsed = performance.now() - startedAt;
+
+        // Phase 1: camera tilt from top-down to isometric.
+        if (elapsed < CAMERA_TWEEN_MS) {
+          const t = easeInOutCubic(elapsed / CAMERA_TWEEN_MS);
+          camera.position.lerpVectors(startCamera, finalCamera, t);
+        }
+        // Phase 2: cube growth (starts right after the camera tween).
+        else if (elapsed < CAMERA_TWEEN_MS + GROW_TWEEN_MS) {
+          camera.position.copy(finalCamera);
+          const t = (elapsed - CAMERA_TWEEN_MS) / GROW_TWEEN_MS;
+          container.scale.y = Math.max(0.001, easeOutBack(t));
+        }
+        // Phase 3: done — hand control over to OrbitControls (once).
+        else if (!controls.enabled) {
+          camera.position.copy(finalCamera);
+          container.scale.y = 1;
+          controls.enabled = true;
+        }
+
         controls.update();
         // Light follows the camera so shadows stay alive while orbiting.
         m.extractRotation(camera.matrixWorld);
