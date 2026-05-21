@@ -179,11 +179,9 @@ Three canonical claims, spanning trivial to busy, for visual cross-checking agai
 | 210,000 (1st halving, 457 txs) | `b8505f82…b13104` | [view](https://ordpool.space/tx/b8505f82e5ba0f7179f8d05213e631b375815c1af820eed9d6a34b48e1b13104) | [view](https://bitmap.trade/bitmap/210000.bitmap) | [view](https://bitfeed.live/block/height/210000) |
 | 840,000 (4th halving, 3,050 txs) | `05f8584c…7660ee` | [view](https://ordpool.space/tx/05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660ee) | [view](https://bitmap.trade/bitmap/840000.bitmap) | [view](https://bitfeed.live/block/height/840000) |
 
-[bitfeed.live](https://bitfeed.live) is the canonical reference: the mempool and block explorer [Bitfeed](https://github.com/bitfeed-project/bitfeed) by mononaut (MIT). Every Bitmap renderer in the ecosystem ports from its codebase. Same caveats as mempool.space's block view apply — Bitfeed sizes tiles by tx weight and shows block fullness, so it's not pixel-identical to a Bitmap render, but the packing geometry is the common ancestor.
+[bitfeed.live](https://bitfeed.live) is [Bitfeed](https://github.com/bitfeed-project/bitfeed), an OSS Bitcoin explorer by mononaut (MIT). The Bitmap community liked its block visualisation and adopted it for rendering bitmap claims.
 
 Bitmap has no on-chain spec, only convention. There are two camps on whether the protocol stops at the halving block (840,000). bitlords.land indexes only heights up to and including 840,000; bitmap.trade and most other indexers accept claims indefinitely. ordpool follows the "render anything validly-shaped" line: any confirmed block height with a `.bitmap` claim gets the Mondrian render, no cutoff.
-
-**This is not the same as mempool.space's block visualisation.** Both descend from the same Mondrian packing algorithm (Bitfeed, by mononaut), but they answer different questions. Bitmap renderers (us, bitmap.trade, ordinalswallet, bitlords) size each tile by **output value** and pack into a grid sized to the sum of those tiles — the result is always a fully-filled deterministic shape, the block's "bitmap". mempool.space sizes tiles by **transaction weight** and draws them inside a fixed canvas representing the consensus block-weight budget, with fee-rate colouring — so a half-empty historical block (e.g. 210,000) renders as mostly empty space. The Bitmap protocol deliberately discarded the fullness signal in favour of a shape that any indexer can reproduce byte-for-byte from on-chain data alone.
 
 ## OpenTimestamps
 
