@@ -121,9 +121,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(container);
     container.add(instances);
 
-    // CSS 'orange' (#ffa500), matching bitlodo's reference; Bitcoin-orange
-    // (#F7931A) over-saturates under the SAO+SSAA pipeline.
-    const orange = new THREE.Color('#ffa500');
+    // Ordpool orange (#FF9900, var(--primary)). Read from the CSS variable so
+    // any future theme change carries through to the 3D cubes automatically.
+    const cssOrange = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+    const orange = new THREE.Color(cssOrange || '#FF9900');
     const matrix = new THREE.Matrix4();
     const pos = new THREE.Vector3();
     const sca = new THREE.Vector3();
