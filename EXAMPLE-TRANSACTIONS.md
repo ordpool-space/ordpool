@@ -181,6 +181,8 @@ Three canonical claims, spanning trivial to busy, for visual cross-checking agai
 
 Bitmap has no on-chain spec, only convention. There are two camps on whether the protocol stops at the halving block (840,000). bitlords.land indexes only heights up to and including 840,000; bitmap.trade and most other indexers accept claims indefinitely. ordpool follows the "render anything validly-shaped" line: any confirmed block height with a `.bitmap` claim gets the Mondrian render, no cutoff.
 
+**This is not the same as mempool.space's block visualisation.** Both descend from the same Mondrian packing algorithm (bitfeed-project/bitfeed), but they answer different questions. Bitmap renderers (us, bitmap.trade, ordinalswallet, bitlords) size each tile by **output value** and pack into a grid sized to the sum of those tiles — the result is always a fully-filled deterministic shape, the block's "bitmap". mempool.space sizes tiles by **transaction weight** and draws them inside a fixed canvas representing the consensus block-weight budget, with fee-rate colouring — so a half-empty historical block (e.g. 210,000) renders as mostly empty space. The Bitmap protocol deliberately discarded the fullness signal in favour of a shape that any indexer can reproduce byte-for-byte from on-chain data alone.
+
 ## OpenTimestamps
 
 OTS commits are bare `OP_RETURN OP_PUSHBYTES_32 <32 bytes>` — no magic prefix, no marker. The parser side handles the `.ots` receipt (verifies attestations, walks Merkle paths up to the published calendar commit); the on-chain commit txs live separately.
