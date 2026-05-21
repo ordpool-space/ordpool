@@ -173,11 +173,13 @@ Bitmap is a text inscription whose body matches the canonical `<height>.bitmap` 
 
 Three canonical claims, spanning trivial to busy, for visual cross-checking against other indexers:
 
-| Block | Inscription | ordpool | Cross-check on bitmap.trade |
-|---|---|---|---|
-| 0 (Genesis, 1 tx) | `86539aff…7660ee` | [view](https://ordpool.space/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732) | [view](https://bitmap.trade/bitmap/0.bitmap) |
-| 210,000 (1st halving, 457 txs) | `b8505f82…b13104` | [view](https://ordpool.space/tx/b8505f82e5ba0f7179f8d05213e631b375815c1af820eed9d6a34b48e1b13104) | [view](https://bitmap.trade/bitmap/210000.bitmap) |
-| 840,000 (4th halving, 3,050 txs) | `05f8584c…7660ee` | [view](https://ordpool.space/tx/05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660ee) | [view](https://bitmap.trade/bitmap/840000.bitmap) |
+| Block | Inscription | ordpool | bitmap.trade | bitfeed.live (root source) |
+|---|---|---|---|---|
+| 0 (Genesis, 1 tx) | `86539aff…7660ee` | [view](https://ordpool.space/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732) | [view](https://bitmap.trade/bitmap/0.bitmap) | [view](https://bitfeed.live/block/height/0) |
+| 210,000 (1st halving, 457 txs) | `b8505f82…b13104` | [view](https://ordpool.space/tx/b8505f82e5ba0f7179f8d05213e631b375815c1af820eed9d6a34b48e1b13104) | [view](https://bitmap.trade/bitmap/210000.bitmap) | [view](https://bitfeed.live/block/height/210000) |
+| 840,000 (4th halving, 3,050 txs) | `05f8584c…7660ee` | [view](https://ordpool.space/tx/05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660ee) | [view](https://bitmap.trade/bitmap/840000.bitmap) | [view](https://bitfeed.live/block/height/840000) |
+
+[bitfeed.live](https://bitfeed.live) is the canonical reference: it's the live deployment of the `bitfeed-project/bitfeed` codebase (by mononaut, MIT) that every Bitmap renderer in the ecosystem ports from. Same caveats as mempool.space's block view apply — bitfeed sizes tiles by tx weight and shows block fullness, so it's not pixel-identical to a Bitmap render, but the packing geometry is the common ancestor.
 
 Bitmap has no on-chain spec, only convention. There are two camps on whether the protocol stops at the halving block (840,000). bitlords.land indexes only heights up to and including 840,000; bitmap.trade and most other indexers accept claims indefinitely. ordpool follows the "render anything validly-shaped" line: any confirmed block height with a `.bitmap` claim gets the Mondrian render, no cutoff.
 
