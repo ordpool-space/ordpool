@@ -74,15 +74,8 @@
       }
     </div>
 
-    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getParents() as parents">
-      <ng-container *ngIf="parents.length === 1">
-        Parent Inscription:
-        <a class="address smaller-text" [routerLink]="['/tx/' | relativeUrl, parents[0].split('i')[0]]" title="{{ parents[0] }}">
-          <app-truncate [text]="parents[0]" [lastChars]="10"></app-truncate>
-        </a>
-      </ng-container>
-
-      <ng-container *ngIf="parents.length > 1">
+    <ng-container *ngIf="showDetails && _parsedInscription.getParents() as parents">
+      <div class="mt-2" *ngIf="parents.length > 1">
         Parent Inscriptions:
         <ol class="smaller-text pb-2 mt-2">
           <li *ngFor="let parent of parents" class="ps-2">
@@ -91,38 +84,12 @@
             </a>
           </li>
         </ol>
-      </ng-container>
-
-
-    </div>
-
-    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getMetaprotocol() as metaprotocol">
-      Metaprotocol: {{ metaprotocol }}
-    </div>
+      </div>
+    </ng-container>
 
     <div class="mt-2" *ngIf="showDetails && _parsedInscription.getMetadata() as metadata">
       Metadata:
       <app-metadata-viewer [data]="metadata" />
-    </div>
-
-    <div class="mt-2" *ngIf="showDetails && _parsedInscription.getContentEncoding() as contentEncoding">
-      Content Encoding: {{ contentEncoding }}
-    </div>
-
-    <div class="mt-2" *ngIf="showDetails && note">
-      Note (tag 15):
-      <code class="smaller-text">{{ note }}</code>
-      <fa-icon class="ms-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-        ngbTooltip="Tag 15 (Tag::Note in ord). Free-form note attached to the inscription. The reference indexer stores it but does not display it."
-      ></fa-icon>
-    </div>
-
-    <div class="mt-2" *ngIf="showDetails && runeCommitmentHex">
-      Rune commitment (tag 13):
-      <code class="smaller-text">{{ runeCommitmentHex }}</code>
-      <fa-icon class="ms-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
-        ngbTooltip="Little-endian bytes of the rune's u128 value with trailing zeros stripped. Used by the rune protocol to commit to an etching from inside an inscription; the etching tx must spend this inscription's UTXO."
-      ></fa-icon>
     </div>
 
     <ng-container *ngIf="showDetails && properties$ && (properties$ | async) as properties">
@@ -172,6 +139,42 @@
 
     <table class="mt-2 table table-borderless table-striped w-50" *ngIf="showDetails">
       <tbody>
+        <ng-container *ngIf="_parsedInscription.getParents() as parents">
+          <tr *ngIf="parents.length === 1">
+            <td>Parent Inscription</td>
+            <td>
+              <a class="address smaller-text" [routerLink]="['/tx/' | relativeUrl, parents[0].split('i')[0]]" title="{{ parents[0] }}">
+                <app-truncate [text]="parents[0]" [lastChars]="10"></app-truncate>
+              </a>
+            </td>
+          </tr>
+        </ng-container>
+        <tr *ngIf="_parsedInscription.getMetaprotocol() as metaprotocol">
+          <td>Metaprotocol</td>
+          <td>{{ metaprotocol }}</td>
+        </tr>
+        <tr *ngIf="_parsedInscription.getContentEncoding() as contentEncoding">
+          <td>Content Encoding</td>
+          <td>{{ contentEncoding }}</td>
+        </tr>
+        <tr *ngIf="note">
+          <td>
+            Note (tag 15)
+            <fa-icon class="ms-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+              ngbTooltip="Tag 15 (Tag::Note in ord). Free-form note attached to the inscription. The reference indexer stores it but does not display it."
+            ></fa-icon>
+          </td>
+          <td><code class="smaller-text">{{ note }}</code></td>
+        </tr>
+        <tr *ngIf="runeCommitmentHex">
+          <td>
+            Rune commitment (tag 13)
+            <fa-icon class="ms-1 smaller-text" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+              ngbTooltip="Little-endian bytes of the rune's u128 value with trailing zeros stripped. Used by the rune protocol to commit to an etching from inside an inscription; the etching tx must spend this inscription's UTXO."
+            ></fa-icon>
+          </td>
+          <td><code class="smaller-text">{{ runeCommitmentHex }}</code></td>
+        </tr>
         <tr>
           <td>Content size</td>
           <td [innerHTML]="'&lrm;' + (_parsedInscription.contentSize | bytes: 2)"></td>
@@ -189,7 +192,7 @@
           <td><a href="/content/{{ _parsedInscription.inscriptionId }}" target="_blank">Link</a></td>
         </tr>
         <tr *ngIf="_parsedInscription.getPointer() !== undefined">
-          <td>Pointer:</td>
+          <td>Pointer</td>
           <td>{{ _parsedInscription.getPointer() }}</td>
         </tr>
       </tbody>
