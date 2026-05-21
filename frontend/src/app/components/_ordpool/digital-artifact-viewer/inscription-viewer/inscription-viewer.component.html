@@ -32,39 +32,47 @@
     <strong >◉ Inscription: </strong><span title="Content Type">{{ _parsedInscription.contentType }}</span><br>
     <br *ngIf="showDetails">
 
-    @if (contentTypeInstructions$ && contentTypeInstructions$ | async; as instructions) {
+    @let bitmapHeight = bitmapHeight$ | async;
+    <div class="row">
+      <div [class]="bitmapHeight !== null ? 'col-md-6' : 'col-12'">
+        @if (contentTypeInstructions$ && contentTypeInstructions$ | async; as instructions) {
 
-      @if (instructions.whatToShow === 'json') {
-        <app-json-viewer
-          [text]="instructions.content"
-        />
-      } @else if (instructions.whatToShow === 'code') {
+          @if (instructions.whatToShow === 'json') {
+            <app-json-viewer
+              [text]="instructions.content"
+            />
+          } @else if (instructions.whatToShow === 'code') {
 
-        <app-code-viewer
-          [textAndContentType]="{
-            text: instructions.content,
-            contentType: _parsedInscription.contentType
-          }"
-        />
-      } @else if (instructions.whatToShow === 'decode-failure') {
-        <div class="alert alert-warning">
-          <strong>Decode failure:</strong>
-          @if (instructions.reason === 'invalid-data') {
-            inscription content is malformed (compression header doesn't match the body).
-          } @else if (instructions.reason === 'size-limit') {
-            inscription content exceeds the safe decompression budget.
+            <app-code-viewer
+              [textAndContentType]="{
+                text: instructions.content,
+                contentType: _parsedInscription.contentType
+              }"
+            />
+          } @else if (instructions.whatToShow === 'decode-failure') {
+            <div class="alert alert-warning">
+              <strong>Decode failure:</strong>
+              @if (instructions.reason === 'invalid-data') {
+                inscription content is malformed (compression header doesn't match the body).
+              } @else if (instructions.reason === 'size-limit') {
+                inscription content exceeds the safe decompression budget.
+              } @else {
+                content could not be decoded.
+              }
+            </div>
           } @else {
-            content could not be decoded.
+            <app-preview-viewer
+              [parsedInscription]="_parsedInscription"
+            />
           }
+        }
+      </div>
+      @if (bitmapHeight !== null) {
+        <div class="col-md-6 mt-3 mt-md-0">
+          <app-bitmap-viewer [height]="bitmapHeight"/>
         </div>
-      } @else {
-        <app-preview-viewer
-          [parsedInscription]="_parsedInscription"
-        />
       }
-    }
-
-    <app-bitmap-viewer [parsedInscription]="_parsedInscription"/>
+    </div>
 
     <div class="mt-2" *ngIf="showDetails && _parsedInscription.getParents() as parents">
       <ng-container *ngIf="parents.length === 1">

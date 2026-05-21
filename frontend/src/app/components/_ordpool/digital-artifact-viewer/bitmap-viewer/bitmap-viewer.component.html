@@ -1,12 +1,10 @@
-@if (vm$ | async; as vm) {
-  <div class="mt-3">
-    <p class="mb-2 smaller-text">
-      This inscription is a land claim for block {{ formatHeight(vm.height) }}. Each square is
-      one of its transactions, sized by output value and packed Mondrian-style. Ordpool renders
-      any well-formed claim; first-claim validity isn&rsquo;t enforced here.
-    </p>
-    @if (vm.svg; as svg) {
-      <div class="bitmap-canvas" [innerHTML]="svg"></div>
-    }
-  </div>
+@if (height !== null) {
+  <p class="mb-2 smaller-text">
+    This inscription is a land claim for block {{ formatHeight(height) }}. Each square is
+    one of its transactions, sized by output value and packed Mondrian-style. Ordpool renders
+    any well-formed claim; first-claim validity isn&rsquo;t enforced here.
+  </p>
+  @if (svg$ | async; as svg) {
+    <div class="bitmap-canvas" [innerHTML]="svg"></div>
+  }
 }
