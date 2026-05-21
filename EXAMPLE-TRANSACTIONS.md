@@ -59,6 +59,7 @@ Genesis cat plus a representative sample of subsequent mints, plus one third-par
 - [`6d895bcdb8af…`](https://ordpool.space/tx/6d895bcdb8af42669305f3360b35c403b35064ed7ff3e6845983016adb29af01) — early mint
 - [`e8b98486b151…`](https://ordpool.space/tx/e8b98486b151fcc4570dbd526f6ef50d5c194e54e248592d04bb092d5c08c430) — early mint
 - [`b0d6d810f4b3…`](https://ordpool.space/tx/b0d6d810f4b3a6c6f92c2d5f502877f30a7a343f8f937a41985ea1db8bf82f14) — cat minted independently of the official ordpool minting tool
+- [`08770f28ab15…`](https://ordpool.space/tx/08770f28ab15ec0acf1103ce6af34c57c05ba7db5df783b3b75058725e0bd480) — cat #27 mint, witness also carries a real brotli decompression bomb
 
 ## Runestones
 
@@ -192,3 +193,4 @@ OTS commits are bare `OP_RETURN OP_PUSHBYTES_32 <32 bytes>` — no magic prefix,
 - [`28baf9374797…`](https://ordpool.space/tx/28baf9374797230174803b0c3f63fd39e22bb1972a25cc2af4e791ca8fc89dae) — minimal OP_RETURN, no real message
 - [`1af2a846befb…`](https://ordpool.space/tx/1af2a846befbfac4091bf540adad4fd1a86604c26c004066077d5fe22510e99b) — massive single-edict airdrop (DOG)
 - [`c7a7cf4c146e…`](https://ordpool.space/tx/c7a7cf4c146e48e39b1ab2d235263886d364a225255d421dd61f19538e96e79c) — massive single-edict airdrop (EPIC)
+- [`bd7d46310b33…`](https://ordpool.space/tx/bd7d46310b3354b35b4362e9efdc5966d64e5d2cc228f568dc6d5eea79c3d278) — standalone brotli decompression bomb, paired with the cat-#27 mint above
