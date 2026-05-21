@@ -1,8 +1,9 @@
 @if (vm$ | async; as vm) {
   <div class="mt-3">
     <p class="mb-2 smaller-text">
-      A land claim for block {{ formatHeight(vm.height) }}. One square per transaction,
-      sized by output value. This is a visual representation of this &ldquo;bitmap&rdquo;.
+      This inscription is a land claim for block {{ formatHeight(vm.height) }}. Each square is
+      one of its transactions, sized by output value and packed Mondrian-style. Ordpool renders
+      any well-formed claim; first-claim validity isn&rsquo;t enforced here.
     </p>
     @if (vm.svg; as svg) {
       <div class="bitmap-canvas" [innerHTML]="svg"></div>
