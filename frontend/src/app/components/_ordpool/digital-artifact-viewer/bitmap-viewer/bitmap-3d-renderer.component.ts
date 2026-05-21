@@ -72,12 +72,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   private async renderCubes(sizes: number[]): Promise<void> {
     // Dynamic imports: three.js + addons land in a separate webpack chunk.
     // Visitors who never open a .bitmap inscription pay zero bytes for this.
-    const [THREE, { OrbitControls }, { EffectComposer }, { SAOPass }, { RenderPass }, parser] = await Promise.all([
+    const [THREE, { OrbitControls }, { EffectComposer }, { SAOPass }, { SSAARenderPass }, parser] = await Promise.all([
       import('three'),
       import('three/examples/jsm/controls/OrbitControls.js'),
       import('three/examples/jsm/postprocessing/EffectComposer.js'),
       import('three/examples/jsm/postprocessing/SAOPass.js'),
-      import('three/examples/jsm/postprocessing/RenderPass.js'),
+      import('three/examples/jsm/postprocessing/SSAARenderPass.js'),
       import('ordpool-parser'),
     ]);
 
@@ -121,7 +121,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(container);
     container.add(instances);
 
-    const orange = new THREE.Color('#F7931A');
+    // CSS 'orange' (#ffa500), matching bitlodo's reference; Bitcoin-orange
+    // (#F7931A) over-saturates under the SAO+SSAA pipeline.
+    const orange = new THREE.Color('#ffa500');
     const matrix = new THREE.Matrix4();
     const pos = new THREE.Vector3();
     const sca = new THREE.Vector3();
@@ -175,7 +177,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // it the cubes look harsh and flat.
     const composer = new EffectComposer(renderer);
     composer.setSize(width, heightPx);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new SSAARenderPass(scene, camera));
     const sao = new SAOPass(scene, camera);
     sao.params.saoIntensity = 1 / maxSize / 50;
     sao.params.saoScale = 50;
