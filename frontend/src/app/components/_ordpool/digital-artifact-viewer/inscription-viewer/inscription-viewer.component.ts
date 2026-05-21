@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
-import { DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, InscriptionProperties, ParsedInscription } from 'ordpool-parser';
-import { map, Observable } from 'rxjs';
+import { DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, InscriptionProperties, parseBitmapHeight, ParsedInscription } from 'ordpool-parser';
+import { catchError, from, map, Observable, of, shareReplay } from 'rxjs';
 
 import { ElectrsApiService } from '../../../../services/electrs-api.service';
 
@@ -71,6 +71,11 @@ export class InscriptionViewerComponent {
   galleryPage = 1;
   readonly GALLERY_PAGE_SIZE = 20;
 
+  // Bitmap claim height parsed from inscription text content. Drives the
+  // side-by-side layout (preview left, bitmap render right) and the
+  // bitmap-viewer's API call. Null when content isn't a `.bitmap` claim.
+  bitmapHeight$: Observable<number | null> = of(null);
+
   @Input() showDetails = false;
 
   @Input()
@@ -88,8 +93,15 @@ export class InscriptionViewerComponent {
       this.note = undefined;
       this.runeCommitmentHex = undefined;
       this.properties$ = undefined;
+      this.bitmapHeight$ = of(null);
       return;
     }
+
+    this.bitmapHeight$ = from(inscription.getContent()).pipe(
+      map(content => parseBitmapHeight(content ?? '')),
+      catchError(() => of(null)),
+      shareReplay({ bufferSize: 1, refCount: false }),
+    );
 
     this.note = inscription.getNote();
 
