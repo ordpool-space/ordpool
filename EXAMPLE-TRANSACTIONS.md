@@ -156,7 +156,7 @@ OLGA-encoded P2WSH stamps — PNG, JPEG, GIF, SVG, HTML, WebP, plus a gzip-compr
 
 ## BRC-20
 
-BRC-20 detection is content-based — any inscription whose body is JSON with `{"p":"brc-20"}` flags as BRC-20. There is no dedicated mainnet fixture tx pinned in the parser tests; coverage runs through the inscription-content branch with synthetic JSON inputs. To see BRC-20 chips on a real block, open a known BRC-20-heavy block such as `https://ordpool.space/block/0000000000000000000221fd1ba086a7672e3e5a18ac5a4efc9f0cff0a78fe86` (block 831,802 — BRC-20 trio mints).
+BRC-20 is content-based — any inscription whose body is JSON with `{"p":"brc-20"}` is BRC-20. To see BRC-20 chips on a real block, open a BRC-20-heavy block like [block 831,802](https://ordpool.space/block/0000000000000000000221fd1ba086a7672e3e5a18ac5a4efc9f0cff0a78fe86) (BRC-20 trio mints).
 
 ## Bitmap
 
