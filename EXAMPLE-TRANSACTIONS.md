@@ -174,9 +174,13 @@ Bitmap has no on-chain spec, only convention. Two camps disagree on whether the 
 
 ## OpenTimestamps
 
-OTS commits are bare `OP_RETURN OP_PUSHBYTES_32 <32 bytes>` — no magic prefix, no marker. The parser side handles the `.ots` receipt (verifies attestations, walks Merkle paths up to the published calendar commit); the on-chain commit txs live separately.
+OpenTimestamps proves a file existed at a specific moment by anchoring
+its hash in a Bitcoin transaction. Public calendar servers batch many
+hashes together and publish the result on-chain via `OP_RETURN`.
+ordpool marks the Bitcoin transactions it learns about from those
+calendars, and provides a UI to create and verify your own timestamps.
 
-- [`8d8ce7ac7b68…`](https://ordpool.space/tx/8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f) — Alice calendar broadcast (block 948,192). Canonical OTS test fixture used by the OTS-poll prototype.
+- [`8d8ce7ac7b68…`](https://ordpool.space/tx/8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f) — Alice calendar broadcast, block 948,192.
 
 ## Edge cases / oddities
 
