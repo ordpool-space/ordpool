@@ -168,8 +168,6 @@ BRC-20 detection is content-based — any inscription whose body is JSON with `{
 
 Bitmap is a text inscription whose body matches the canonical `<height>.bitmap` shape (no whitespace, no leading zeros). The inscription claims the named block; ordpool renders the block's transactions as a Mondrian grid of orange squares (one square per tx, sized by output value via `logTxSize`). Parsed by `parseBitmapHeight` in ordpool-parser; rendered by `<app-bitmap-viewer>` inside the inscription-viewer.
 
-Three canonical claims, spanning trivial to busy, for visual cross-checking against other indexers:
-
 | Block | Inscription | ordpool | bitmap.trade | bitfeed.live (root source) |
 |---|---|---|---|---|
 | 0 (Genesis, 1 tx) | `86539aff…7660ee` | [view](https://ordpool.space/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732) | [view](https://bitmap.trade/bitmap/0.bitmap) | [view](https://bitfeed.live/block/height/0) |
