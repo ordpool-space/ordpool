@@ -1,9 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, Input } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
 import { parseBitmapHeight, ParsedInscription } from 'ordpool-parser';
-import { from, Observable, of, switchMap } from 'rxjs';
+import { catchError, from, map, Observable, of, shareReplay, switchMap } from 'rxjs';
 
 import { BitmapApiService } from '../../../../services/ordinals/bitmap-api.service';
+
+interface BitmapVm {
+  height: number;
+  svg: SafeHtml | null;
+}
 
 @Component({
   selector: 'app-bitmap-viewer',
@@ -17,8 +22,7 @@ export class BitmapViewerComponent {
   private bitmapApi = inject(BitmapApiService);
 
   private _inscription: ParsedInscription | undefined;
-  height: number | null = null;
-  svg$: Observable<SafeHtml | null> = of(null);
+  vm$: Observable<BitmapVm | null> = of(null);
 
   @Input()
   public set parsedInscription(inscription: ParsedInscription | undefined) {
@@ -26,22 +30,24 @@ export class BitmapViewerComponent {
       return;
     }
     this._inscription = inscription;
-    this.height = null;
-    this.svg$ = of(null);
 
     if (!inscription) {
+      this.vm$ = of(null);
       return;
     }
 
-    this.svg$ = from(inscription.getContent()).pipe(
+    this.vm$ = from(inscription.getContent()).pipe(
       switchMap(content => {
-        const h = parseBitmapHeight(content ?? '');
-        if (h === null) {
+        const height = parseBitmapHeight(content ?? '');
+        if (height === null) {
           return of(null);
         }
-        this.height = h;
-        return this.bitmapApi.getBitmapSvg(h);
+        return this.bitmapApi.getBitmapSvg(height).pipe(
+          map(svg => ({ height, svg })),
+        );
       }),
+      catchError(() => of(null)),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
   }
 
