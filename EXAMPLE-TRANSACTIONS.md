@@ -37,13 +37,9 @@ Click a tx to inspect it on https://ordpool.space.
 
 - [`5125c1269bd9…`](https://ordpool.space/tx/5125c1269bd9c4605764fe76d253078d4c35897646004b8fa9837ad41e94a634) — Content-Encoding header lies: declared `br`, body is gzip (block 869,599)
 
-### Plain-tx counter-example
-
-- [`9ba6f71c6176…`](https://ordpool.space/tx/9ba6f71c6176ef7dab6751e4b71f6e6d13694d65134935bb275d89d1f0e9fdb2) — plain p2tr payment with no envelope (REKT commit); negative test
-
 ## CAT-21
 
-Genesis cat plus a representative sample of subsequent mints; one large/oversized cat.
+Genesis cat plus a representative sample of subsequent mints, plus one third-party mint.
 
 - [`98316dcb21da…`](https://ordpool.space/tx/98316dcb21daaa221865208fe0323616ee6dd84e6020b78bc6908e914ac03892) — genesis cat (cat #0, the very first nLockTime=21 tx)
 - [`90dcf7825be0…`](https://ordpool.space/tx/90dcf7825be098d1700014f15c6e4b5f99371d61cc7fc40cd5c3ae9228c64290) — early mint
@@ -196,4 +192,3 @@ OTS commits are bare `OP_RETURN OP_PUSHBYTES_32 <32 bytes>` — no magic prefix,
 - [`28baf9374797…`](https://ordpool.space/tx/28baf9374797230174803b0c3f63fd39e22bb1972a25cc2af4e791ca8fc89dae) — minimal OP_RETURN, no real message
 - [`1af2a846befb…`](https://ordpool.space/tx/1af2a846befbfac4091bf540adad4fd1a86604c26c004066077d5fe22510e99b) — massive single-edict airdrop (DOG)
 - [`c7a7cf4c146e…`](https://ordpool.space/tx/c7a7cf4c146e48e39b1ab2d235263886d364a225255d421dd61f19538e96e79c) — massive single-edict airdrop (EPIC)
-- [`9ba6f71c6176…`](https://ordpool.space/tx/9ba6f71c6176ef7dab6751e4b71f6e6d13694d65134935bb275d89d1f0e9fdb2) — plain p2tr, no artifact (REKT commit, used as the negative-test baseline)
