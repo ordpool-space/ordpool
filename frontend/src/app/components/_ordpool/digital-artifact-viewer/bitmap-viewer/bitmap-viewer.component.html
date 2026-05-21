@@ -1,11 +1,9 @@
-@if (height !== null) {
+@if (vm$ | async; as vm) {
   <div class="bitmap-stage">
     @if (view === '2d') {
-      @if (svg$ | async; as svg) {
-        <div class="bitmap-canvas" [innerHTML]="svg"></div>
-      }
+      <div class="bitmap-canvas" [innerHTML]="vm.svg"></div>
     } @else {
-      <app-bitmap-3d-renderer [height]="height"/>
+      <app-bitmap-3d-renderer [sizes]="vm.data.sizes"/>
     }
     <button type="button" class="bitmap-toggle" (click)="toggleView()"
       [attr.aria-label]="view === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
@@ -28,8 +26,8 @@
     </button>
   </div>
   <p class="mt-2 mb-0 smaller-text">
-    This inscription is a land claim for block {{ formatHeight(height) }}. Each square is
-    one of its transactions, sized by output value and packed Mondrian-style. Ordpool renders
-    any well-formed claim; first-claim validity isn&rsquo;t enforced here.
+    This inscription is a land claim for block {{ formatHeight(vm.data.height) }}. Each square
+    is one of its transactions, sized by output value and packed Mondrian-style. Ordpool
+    renders any well-formed claim; first-claim validity isn&rsquo;t enforced here.
   </p>
 }
