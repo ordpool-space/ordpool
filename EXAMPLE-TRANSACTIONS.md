@@ -160,7 +160,7 @@ BRC-20 is content-based — any inscription whose body is JSON with `{"p":"brc-2
 
 ## Bitmap
 
-Bitmap is a text inscription whose body matches the canonical `<height>.bitmap` shape (no whitespace, no leading zeros). The inscription claims the named block; ordpool renders the block's transactions as a Mondrian grid of orange squares (one square per tx, sized by output value via `logTxSize`). Parsed by `parseBitmapHeight` in ordpool-parser; rendered by `<app-bitmap-viewer>` inside the inscription-viewer.
+A bitmap inscription is just text in the form `<height>.bitmap` (no whitespace, no leading zeros). The inscription claims the named block; ordpool renders the block's transactions as a Mondrian grid of orange squares — one square per tx, sized by output value.
 
 | Block | Inscription | ordpool | bitmap.trade | bitfeed.live (root source) |
 |---|---|---|---|---|
@@ -170,7 +170,7 @@ Bitmap is a text inscription whose body matches the canonical `<height>.bitmap` 
 
 [bitfeed.live](https://bitfeed.live) is [Bitfeed](https://github.com/bitfeed-project/bitfeed), an OSS Bitcoin explorer by mononaut (MIT). The Bitmap community liked its block visualisation and adopted it for rendering bitmap claims.
 
-Bitmap has no on-chain spec, only convention. There are two camps on whether the protocol stops at the halving block (840,000). bitlords.land indexes only heights up to and including 840,000; bitmap.trade and most other indexers accept claims indefinitely. ordpool follows the "render anything validly-shaped" line: any confirmed block height with a `.bitmap` claim gets the Mondrian render, no cutoff.
+Bitmap has no on-chain spec, only convention. Two camps disagree on whether the protocol stops at the halving block (840,000): bitlords.land only indexes up to 840,000; bitmap.trade and most others accept claims indefinitely. ordpool renders any block height with a valid `.bitmap` claim — no cutoff.
 
 ## OpenTimestamps
 
