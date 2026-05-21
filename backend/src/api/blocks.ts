@@ -48,7 +48,9 @@ import { getBlockFirstSeenFromLogs, getOldestLogTimestampFromLogs, scanLogsForBl
 import { ORDPOOL_PARSER_FLAG_GENERATION } from './ordpool-parser-flag-version';
 
 // HACK -- Ordpool: min summary version that carries ordpool flags. Older
-// rows fall through to a fresh classify.
+// rows fall through to a fresh classify. Tied to ORDPOOL_PARSER_FLAG_GENERATION
+// so one constant bump covers both this cache AND the ordpool_stats migration
+// pairing -- see src/api/ordpool-parser-flag-version.ts for the rules.
 const ORDPOOL_BLOCK_SUMMARY_VERSION = ORDPOOL_PARSER_FLAG_GENERATION;
 
 class Blocks {

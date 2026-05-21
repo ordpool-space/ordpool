@@ -2,10 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import logger from '../../../logger';
 
+/**
+ * Failover list of public Alkanes JSON-RPC endpoints. Read by
+ * AlkanesMetadataService; the first endpoint that responds with valid
+ * JSON-RPC wins, the rest are tried in order on failure. An empty `urls`
+ * array disables outbound RPC entirely (cached rows still served).
+ */
 export interface AlkanesRpcConfig {
   readonly urls: readonly string[];
-  readonly timeoutMs: number;
-  readonly negativeCacheMs: number;
+  readonly timeoutMs: number;            // per-RPC-call timeout
+  readonly negativeCacheMs: number;      // how long before we retry a previously-failed lookup
 }
 
 interface AlkanesRpcConfigFile {
@@ -14,13 +20,16 @@ interface AlkanesRpcConfigFile {
   negativeCacheMs?: number;
 }
 
+// Both endpoints are anonymous, free, JSON-RPC 2.0. They appear to share
+// upstream infra (same block-tip responses), but failing over to the second
+// costs nothing and protects against per-host outages.
 const FALLBACK: AlkanesRpcConfig = Object.freeze({
   urls: Object.freeze([
     'https://mainnet.subfrost.io/v4/jsonrpc',
     'https://mainnet.sandshrew.io/v2/lasereyes',
   ]),
   timeoutMs: 8_000,
-  negativeCacheMs: 60 * 60 * 1000,
+  negativeCacheMs: 60 * 60 * 1000, // 1h
 });
 
 let cached: AlkanesRpcConfig | null = null;
