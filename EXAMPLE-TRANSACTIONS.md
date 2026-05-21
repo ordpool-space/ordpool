@@ -1,12 +1,8 @@
 # Example transactions
 
-Click-through catalog of real-mainnet txs that exercise each protocol and use case
-in ordpool's parser and viewers. Curated from the test fixtures in
-`ordpool-parser/src/**/*.spec.ts` and the "Test cases:" comment blocks on the
-frontend viewer components. Every txid below is asserted against real on-chain
-data somewhere in the codebase.
-
-Click a tx to inspect it on https://ordpool.space.
+Real mainnet transactions showing what ordpool can parse and render.
+Each one demonstrates a different protocol or edge case — click to
+see ordpool decode it.
 
 ## Inscriptions
 
