@@ -17,6 +17,7 @@ export class BitmapViewerComponent {
 
   private _height: number | null = null;
   svg$: Observable<SafeHtml | null> = of(null);
+  view: '2d' | '3d' = '2d';
 
   @Input()
   public set height(h: number | null | undefined) {
@@ -29,6 +30,10 @@ export class BitmapViewerComponent {
   }
   public get height(): number | null {
     return this._height;
+  }
+
+  toggleView(): void {
+    this.view = this.view === '2d' ? '3d' : '2d';
   }
 
   formatHeight(h: number): string {

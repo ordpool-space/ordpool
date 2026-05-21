@@ -4,7 +4,18 @@
     one of its transactions, sized by output value and packed Mondrian-style. Ordpool renders
     any well-formed claim; first-claim validity isn&rsquo;t enforced here.
   </p>
-  @if (svg$ | async; as svg) {
-    <div class="bitmap-canvas" [innerHTML]="svg"></div>
-  }
+  <div class="bitmap-stage">
+    @if (view === '2d') {
+      @if (svg$ | async; as svg) {
+        <div class="bitmap-canvas" [innerHTML]="svg"></div>
+      }
+    } @else {
+      <app-bitmap-3d-renderer [height]="height"/>
+    }
+    <button type="button" class="bitmap-toggle" (click)="toggleView()"
+      [attr.aria-label]="view === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
+      [ngbTooltip]="view === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'">
+      <fa-icon [icon]="['fas', view === '2d' ? 'cube' : 'square']" [fixedWidth]="true"></fa-icon>
+    </button>
+  </div>
 }

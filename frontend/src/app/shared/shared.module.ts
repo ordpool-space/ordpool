@@ -159,6 +159,7 @@ import { OtsPendingQueueComponent } from '@components/_ordpool/ots-stamp-verify/
 import { RunestoneViewerComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-viewer.component';
 import { AlkanesViewerComponent } from '@components/_ordpool/digital-artifact-viewer/alkanes-viewer/alkanes-viewer.component';
 import { BitmapViewerComponent } from '@components/_ordpool/digital-artifact-viewer/bitmap-viewer/bitmap-viewer.component';
+import { Bitmap3dRendererComponent } from '@components/_ordpool/digital-artifact-viewer/bitmap-viewer/bitmap-3d-renderer.component';
 import { RunestoneIdToLinkComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-link.component';
 import { RunestoneIdToTextComponent } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/runestone-id-to-text.component';
 import { BigIntFormatterPipe } from '@components/_ordpool/digital-artifact-viewer/runestone-viewer/big-int-formatter.pipe';
@@ -326,6 +327,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     RunestoneViewerComponent,
     AlkanesViewerComponent,
     BitmapViewerComponent,
+    Bitmap3dRendererComponent,
     RunestoneIdToLinkComponent,
     RunestoneIdToTextComponent,
     BigIntFormatterPipe,
