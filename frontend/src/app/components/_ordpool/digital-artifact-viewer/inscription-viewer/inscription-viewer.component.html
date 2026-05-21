@@ -33,8 +33,9 @@
     <br *ngIf="showDetails">
 
     @let bitmapHeight = bitmapHeight$ | async;
+    @let showBitmap = showDetails && bitmapHeight !== null;
     <div class="row">
-      <div [class]="bitmapHeight !== null ? 'col-md-6' : 'col-12'">
+      <div [class]="showBitmap ? 'col-md-6' : 'col-12'">
         @if (contentTypeInstructions$ && contentTypeInstructions$ | async; as instructions) {
 
           @if (instructions.whatToShow === 'json') {
@@ -67,7 +68,7 @@
           }
         }
       </div>
-      @if (bitmapHeight !== null) {
+      @if (showBitmap && bitmapHeight !== null) {
         <div class="col-md-6 mt-3 mt-md-0">
           <app-bitmap-viewer [height]="bitmapHeight"/>
         </div>

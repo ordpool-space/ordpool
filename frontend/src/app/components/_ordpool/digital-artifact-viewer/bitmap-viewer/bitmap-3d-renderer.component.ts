@@ -1,8 +1,4 @@
-import { HttpClient } from '@angular/common/http';
 import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject, Input, NgZone, OnDestroy, ViewChild } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
-
-import { BitmapResponse } from '../../../../services/ordinals/bitmap-api.service';
 
 @Component({
   selector: 'app-bitmap-3d-renderer',
@@ -17,19 +13,18 @@ import { BitmapResponse } from '../../../../services/ordinals/bitmap-api.service
 })
 export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
-  private http = inject(HttpClient);
   private zone = inject(NgZone);
 
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
 
-  private _height: number | null = null;
+  private _sizes: number[] | null = null;
   @Input()
-  public set height(h: number | null | undefined) {
-    const value = (typeof h === 'number') ? h : null;
-    if (this._height === value) {
+  public set sizes(s: number[] | null | undefined) {
+    const value = Array.isArray(s) && s.length > 0 ? s : null;
+    if (this._sizes === value) {
       return;
     }
-    this._height = value;
+    this._sizes = value;
     void this.rebuild();
   }
 
@@ -48,25 +43,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
   private async rebuild(): Promise<void> {
     this.disposeStage();
-    if (this._height === null || !this.host?.nativeElement) {
+    if (this._sizes === null || !this.host?.nativeElement) {
       return;
     }
-    const sizes = await this.fetchSizes(this._height);
-    if (sizes === null || this._height === null) {
-      return;
-    }
-    await this.renderCubes(sizes);
-  }
-
-  private async fetchSizes(height: number): Promise<number[] | null> {
-    try {
-      const resp = await firstValueFrom(
-        this.http.get<BitmapResponse | null>(`/api/v1/ordpool/bitmap/${height}`),
-      );
-      return resp?.sizes ?? null;
-    } catch {
-      return null;
-    }
+    await this.renderCubes(this._sizes);
   }
 
   private async renderCubes(sizes: number[]): Promise<void> {
@@ -81,7 +61,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       import('ordpool-parser'),
     ]);
 
-    if (this._height === null || !this.host?.nativeElement) {
+    if (this._sizes === null || !this.host?.nativeElement) {
       return;
     }
 

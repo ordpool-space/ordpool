@@ -1,8 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, Input } from '@angular/core';
-import { SafeHtml } from '@angular/platform-browser';
-import { Observable, of } from 'rxjs';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { renderBitmapSvg } from 'ordpool-parser';
+import { map, Observable, of } from 'rxjs';
 
-import { BitmapApiService } from '../../../../services/ordinals/bitmap-api.service';
+import { BitmapApiService, BitmapResponse } from '../../../../services/ordinals/bitmap-api.service';
+
+interface BitmapVm {
+  data: BitmapResponse;
+  svg: SafeHtml;
+}
 
 @Component({
   selector: 'app-bitmap-viewer',
@@ -14,9 +20,10 @@ import { BitmapApiService } from '../../../../services/ordinals/bitmap-api.servi
 export class BitmapViewerComponent {
 
   private bitmapApi = inject(BitmapApiService);
+  private sanitizer = inject(DomSanitizer);
 
   private _height: number | null = null;
-  svg$: Observable<SafeHtml | null> = of(null);
+  vm$: Observable<BitmapVm | null> = of(null);
   view: '2d' | '3d' = '2d';
 
   @Input()
@@ -26,10 +33,14 @@ export class BitmapViewerComponent {
       return;
     }
     this._height = value;
-    this.svg$ = value === null ? of(null) : this.bitmapApi.getBitmapSvg(value);
-  }
-  public get height(): number | null {
-    return this._height;
+    this.vm$ = value === null
+      ? of(null)
+      : this.bitmapApi.getBitmapData(value).pipe(
+          map(data => data === null ? null : ({
+            data,
+            svg: this.sanitizer.bypassSecurityTrustHtml(renderBitmapSvg(data.sizes)),
+          })),
+        );
   }
 
   toggleView(): void {
