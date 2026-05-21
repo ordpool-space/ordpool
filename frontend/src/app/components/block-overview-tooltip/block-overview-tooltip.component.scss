@@ -111,10 +111,20 @@ th, td {
 }
 // HACK -- Ordpool: visual separator between the standard tx details
 // (Transaction, First seen, Amount, Fee, ...) and the digital-artifact
-// section. Border on the heading row's td, plus top padding for breathing
-// room. Uses the panel-border token so it stays consistent if the theme
-// shifts.
+// section. Pseudo-element lets us put more space above the line than
+// below it -- a hard border-top on the td would lock both to the same
+// padding boundary. Uses the panel-border token to stay theme-consistent.
 .digital-artifacts-heading {
-  border-top: 1px solid var(--panel-border);
-  padding-top: 0.75em;
+  position: relative;
+  padding-top: 1.4em;
+  padding-bottom: 0.1em;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 1em;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--panel-border);
+  }
 }
