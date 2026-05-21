@@ -1,0 +1,12 @@
+.bitmap-canvas {
+  display: block;
+  max-width: 480px;
+  width: 100%;
+}
+
+.bitmap-canvas ::ng-deep svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
