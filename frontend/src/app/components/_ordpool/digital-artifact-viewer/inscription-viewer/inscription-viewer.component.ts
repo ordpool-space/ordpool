@@ -16,7 +16,9 @@ More test cases:
 - Delegatation (basic support): https://ordpool.space/tx/6b6f65ba4bc2cbb8cec1e1ca5e1d426e442a05729cdbac6009cca185f7d95bab
 - Complex SVG: https://ordpool.space/tx/77709919918d38c8a89761e3cd300d22ef312948044217327f54e62cc01b47a0
 - Decode failure (Content-Encoding: br on a gzip body, block 869,599): https://ordpool.space/tx/5125c1269bd9c4605764fe76d253078d4c35897646004b8fa9837ad41e94a634
-- Bitmap claim ("0.bitmap" -- genesis block): https://ordpool.space/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732
+- Bitmap claim ("0.bitmap" -- genesis block, 1 tx): https://ordpool.space/tx/86539aff946c437af8088955827b7e6ff48fc6192836d4071b697b5359b7a732
+- Bitmap claim ("210000.bitmap" -- 1st halving, 457 txs): https://ordpool.space/tx/b8505f82e5ba0f7179f8d05213e631b375815c1af820eed9d6a34b48e1b13104
+- Bitmap claim ("840000.bitmap" -- 4th halving, 3050 txs): https://ordpool.space/tx/05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660ee
 */
 
 @Component({
