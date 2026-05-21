@@ -109,3 +109,12 @@ th, td {
   50% { background-color: #8457bb; box-shadow: #ad7de5 0px 0px 18px -2px;}
   100% { background-color: #653b9c; box-shadow: #ad7de57f 0px 0px 12px -2px; }
 }
+// HACK -- Ordpool: visual separator between the standard tx details
+// (Transaction, First seen, Amount, Fee, ...) and the digital-artifact
+// section. Border on the heading row's td, plus top padding for breathing
+// room. Uses the panel-border token so it stays consistent if the theme
+// shifts.
+.digital-artifacts-heading {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 0.75em;
+}
