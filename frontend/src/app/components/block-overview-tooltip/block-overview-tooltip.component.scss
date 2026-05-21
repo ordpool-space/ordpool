@@ -118,13 +118,12 @@ th, td {
   position: relative;
   padding-top: 1.4em;
   padding-bottom: 0.1em;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 1em;
-    left: 0;
-    right: 0;
-    border-top: 1px solid var(--panel-border);
-  }
+}
+.digital-artifacts-heading::before {
+  content: '';
+  position: absolute;
+  top: 1em;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--panel-border);
 }
