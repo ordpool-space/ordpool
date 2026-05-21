@@ -1,18 +1,19 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { renderBitmapSvg, txSatsToSizes } from 'ordpool-parser';
-import { catchError, map, Observable, of, shareReplay, switchMap } from 'rxjs';
+import { renderBitmapSvg } from 'ordpool-parser';
+import { catchError, map, Observable, of, shareReplay } from 'rxjs';
 
-import { ApiService } from '../api.service';
-import { ElectrsApiService } from '../electrs-api.service';
+export interface BitmapResponse {
+  height: number;
+  hash: string;
+  sizes: number[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class BitmapApiService {
 
   private http = inject(HttpClient);
-  private electrs = inject(ElectrsApiService);
-  private api = inject(ApiService);
   private sanitizer = inject(DomSanitizer);
 
   // Per-session cache keyed by claimed block height. Same shape as
@@ -24,12 +25,10 @@ export class BitmapApiService {
     if (cached) {
       return cached;
     }
-    const obs$ = this.electrs.getBlockHashFromHeight$(height).pipe(
-      switchMap(hash => this.api.getStrippedBlockTransactions$(hash)),
-      map(txs => {
-        const sizes = txSatsToSizes(txs.map(t => t.value));
-        const svg = renderBitmapSvg(sizes);
-        return this.sanitizer.bypassSecurityTrustHtml(svg);
+    const obs$ = this.http.get<BitmapResponse | null>(`/api/v1/ordpool/bitmap/${height}`).pipe(
+      map(resp => {
+        if (!resp) return null;
+        return this.sanitizer.bypassSecurityTrustHtml(renderBitmapSvg(resp.sizes));
       }),
       catchError(() => of(null)),
       shareReplay({ refCount: false, bufferSize: 1 }),
