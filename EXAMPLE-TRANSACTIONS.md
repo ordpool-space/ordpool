@@ -87,7 +87,7 @@ Genesis cat plus a representative sample of subsequent mints, plus one third-par
 
 ### Alkanes (sub-protocol of Runes — Runestone tag 16383 + Protostone with `protocol_tag = 1`)
 
-- [`972c41e6b564…`](https://ordpool.space/tx/972c41e6b564a5aa9663d94cd1b3cebcddd6ee8eae429c075ac50c841e3701d6) — block 949,000 alkanes tx (Runestone mint + alkanes protostone). Should fire both **Runes** and **Alkanes** chips.
+- [`972c41e6b564…`](https://ordpool.space/tx/972c41e6b564a5aa9663d94cd1b3cebcddd6ee8eae429c075ac50c841e3701d6) — block 949,000 alkanes tx (Runestone mint + alkanes protostone)
 - [`a8e52911c5c3…`](https://ordpool.space/tx/a8e52911c5c398e13ccf37b24e9adca5a799d7e0fb0ac97ff3e65b470c76cf36) — same block, same shape
 
 ## Atomicals
@@ -110,7 +110,7 @@ Genesis cat plus a representative sample of subsequent mints, plus one third-par
 
 ## STAMP
 
-OLGA-encoded P2WSH stamps. One fixture per common image MIME, plus a gzip and an unknown-MIME case.
+OLGA-encoded P2WSH stamps — PNG, JPEG, GIF, SVG, HTML, WebP, plus a gzip-compressed body and an unknown-MIME case.
 
 - [`516e62beeffb…`](https://ordpool.space/tx/516e62beeffb26fb37f8e95e809274e5bbde76eb75a28357f6bbcd4eedbfe8ca) — PNG stamp
 - [`d88d5e4e1adf…`](https://ordpool.space/tx/d88d5e4e1adfdc23117b52f35641ef5918812cf32ec3dcec54faa6d2d4dcae2e) — JPEG stamp
