@@ -1,8 +1,9 @@
 import express, { Application, Request, Response } from 'express';
-import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
+import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, logTxSize, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
 import blocks from '../../blocks';
+import bitcoinApi from '../../bitcoin/bitcoin-api-factory';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import alkanesMetadataService from '../../ordpool-alkanes-metadata';
 import { fetchWithTimeout } from '../../ordpool-fetch';
@@ -44,6 +45,7 @@ class GeneralOrdpoolRoutes {
       )
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/ots/stamp-calendars', this.$getOtsStampCalendars)
       .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/alkanes/:block/:tx', this.$getAlkaneMetadata)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'ordpool/bitmap/:height', this.$getBitmap)
       .get('/content/:inscriptionId', this.getInscriptionContent)
       .get('/preview/:inscriptionId', this.getInscriptionPreview)
       .get('/stamp-content/:txid', this.getStampContent)
@@ -372,6 +374,41 @@ class GeneralOrdpoolRoutes {
       });
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // Returns the per-tx square-size array for the Bitmap protocol's block
+  // visualisation. Status 200 always; null when the block isn't confirmed
+  // yet, the height is malformed, or the upstream RPC errors -- the frontend
+  // treats absence as "no bitmap render available" without an error banner.
+  // Cache: long+immutable for blocks safely below the chain tip; short for
+  // recent confirmations (reorg safety); no-store for unconfirmed.
+  async $getBitmap(req: Request, res: Response): Promise<void> {
+    const heightRaw = req.params.height;
+    if (!/^\d+$/.test(heightRaw)) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json(null);
+      return;
+    }
+    const height = Number(heightRaw);
+    const tip = blocks.getCurrentBlockHeight();
+    if (!Number.isFinite(tip) || height > tip) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json(null);
+      return;
+    }
+    try {
+      const hash = await bitcoinApi.$getBlockHash(height);
+      const txs = await blocks.$getStrippedBlockTransactions(hash);
+      const sizes = txs.map(t => logTxSize(t.value));
+      const depth = tip - height;
+      res.setHeader('Cache-Control', depth >= 6
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=60');
+      res.status(200).json({ height, hash, sizes });
+    } catch {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json(null);
     }
   }
 

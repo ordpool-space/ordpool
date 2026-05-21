@@ -23,6 +23,10 @@ jest.mock('../../ordpool-alkanes-metadata', () => ({
   __esModule: true,
   default: { $getAlkaneMetadata: jest.fn() },
 }));
+jest.mock('../../bitcoin/bitcoin-api-factory', () => ({
+  __esModule: true,
+  default: { $getBlockHash: jest.fn() },
+}));
 jest.mock('../../../repositories/OrdpoolBlocksRepository', () => ({
   __esModule: true,
   default: { getMaxStatsHeight: jest.fn(), getPendingStatsCount: jest.fn() },
