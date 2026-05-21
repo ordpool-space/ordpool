@@ -11,9 +11,13 @@ Test cases:
 */
 
 /**
- * OpenTimestamps section on the block-detail page. Renders a
- * `<thead>/<tbody>` pair inside the parent table. Self-hides on zero
- * commits or API error.
+ * Block-page protocol section: renders a `<thead>/<tbody>` pair inside the
+ * parent block-detail table, mirroring the structure of every other
+ * protocol section (CAT-21, Inscriptions, Runes, ...) so OpenTimestamps
+ * reads as its own block rather than wedging itself into General Block Data.
+ *
+ * Self-hides on zero commits or API error -- the summary should never
+ * block or clutter the block page.
  */
 @Component({
   selector: 'app-block-ots-summary',

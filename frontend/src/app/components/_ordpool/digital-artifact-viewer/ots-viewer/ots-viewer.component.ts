@@ -43,8 +43,13 @@ export class OtsViewerComponent implements OnDestroy {
   private _txid: string | undefined;
   private _isOtsCommit: boolean | null | undefined = undefined;
 
-  /** When `false`, skip the lookup entirely (strip-fill already
-   *  confirmed the tx is NOT an OTS commit). */
+  /** Tristate from `TransactionExtended.isOtsCommit`:
+   *  - `true`  → tx is a known OTS calendar commit; fetch the row.
+   *  - `false` → server already confirmed tx is NOT OTS; skip the network
+   *              call entirely (avoids logging a 404 to the browser console
+   *              for every rune / inscription / random OP_RETURN tx).
+   *  - `null` / `undefined` → unknown; fall back to fetching and let
+   *              the null-row path silently no-op. */
   @Input() set isOtsCommit(v: boolean | null | undefined) {
     this._isOtsCommit = v;
     this.maybeLookup();
@@ -71,7 +76,7 @@ export class OtsViewerComponent implements OnDestroy {
     this.txid$.pipe(
       distinctUntilChanged(),
       switchMap(txid => this.api.getOtsTx$(txid).pipe(
-        catchError(() => of(null)),
+        catchError(() => of(null)),  // network/5xx -> just don't render the panel
       )),
       takeUntil(this.destroy$),
     ).subscribe(row => {
