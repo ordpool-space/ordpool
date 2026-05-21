@@ -8,6 +8,12 @@ We have you covered!
 
 This is a fork of the [The Mempool Open Source Project](https://github.com/mempool/mempool#the-mempool-open-source-project) – with significant changes for the Bitcoin Ordinals community.
 
+### 🟧 What ordpool does that other explorers don't
+
+Other explorers stop at "this is a transaction". Ordpool opens it up: inscriptions decoded inline, runes named, alkanes contract calls labelled, CAT-21 cats rendered, OpenTimestamps verified, Counterparty messages decoded, STAMP / SRC-20 / SRC-721 / SRC-101 / Labitbu / Atomicals / Bitmap — every metaprotocol on Bitcoin L1, all parsed from raw on-chain bytes.
+
+**See it in action: [EXAMPLE-TRANSACTIONS.md](./EXAMPLE-TRANSACTIONS.md)** — a click-through catalog of real mainnet txs that exercise each protocol and viewer. The doc doubles as the canonical test-case index used by the parser specs and the frontend viewer components.
+
 
 
 ## 🟧 Quick Setup for Backend Development
