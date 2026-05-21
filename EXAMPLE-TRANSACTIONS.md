@@ -88,8 +88,7 @@ Genesis cat plus a representative sample of subsequent mints, plus one third-par
 ### Alkanes (sub-protocol of Runes — Runestone tag 16383 + Protostone with `protocol_tag = 1`)
 
 - [`972c41e6b564…`](https://ordpool.space/tx/972c41e6b564a5aa9663d94cd1b3cebcddd6ee8eae429c075ac50c841e3701d6) — block 949,000 alkanes tx (Runestone mint + alkanes protostone). Should fire both **Runes** and **Alkanes** chips.
-- [`a8e52911c5c3…`](https://ordpool.space/tx/a8e52911c5c398e13ccf37b24e9adca5a799d7e0fb0ac97ff3e65b470c76cf36) — same block, same shape (second positive)
-- [`bc668122adc8…`](https://ordpool.space/tx/bc668122adc872c81c91a1ddb3e2dee64372d6e4d749b3a655523b3af8ff9816) — same block, plain Runestone with no PROTOCOL tag — negative control, fires **Runes** but NOT Alkanes
+- [`a8e52911c5c3…`](https://ordpool.space/tx/a8e52911c5c398e13ccf37b24e9adca5a799d7e0fb0ac97ff3e65b470c76cf36) — same block, same shape
 
 ## Atomicals
 
