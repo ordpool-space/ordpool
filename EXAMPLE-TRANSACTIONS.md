@@ -15,7 +15,7 @@ see ordpool decode it.
 - [`4c83f2e1d12d…`](https://ordpool.space/tx/4c83f2e1d12d6f71e9f69159aff48f7946ce04c5ffcc3a3feee4080bac343722) — SVG, gzip-encoded body, carries a tag-15 note
 - [`6dc2c16a74de…`](https://ordpool.space/tx/6dc2c16a74dedcae46300b2058ebadc7ca78aea78236459662375c8d7d9804db) — JavaScript, brotli-encoded body
 - [`2c0c49fc122d…`](https://ordpool.space/tx/2c0c49fc122d223b7178a74064e59ffaa2db7ce7e541ef5c1a9188064f2f24ab) — gzip-encoded content
-- [`7923e59abd8f…`](https://ordpool.space/tx/7923e59abd8f8ab40dcc7915ae864d8b7ad6776811ba4d478f42248a7827a7f3) — JPEG, exercises the pointer field (tag 2)
+- [`7923e59abd8f…`](https://ordpool.space/tx/7923e59abd8f8ab40dcc7915ae864d8b7ad6776811ba4d478f42248a7827a7f3) — JPEG, uses the pointer field (tag 2)
 - [`73eb12c506ad…`](https://ordpool.space/tx/73eb12c506adaf02e219229b1c800ea1caa70c86a981e8fdb9e231237957224f) — CSS source
 - [`77709919918d…`](https://ordpool.space/tx/77709919918d38c8a89761e3cd300d22ef312948044217327f54e62cc01b47a0) — complex SVG with embedded JavaScript
 
@@ -85,7 +85,7 @@ Genesis cat plus a representative sample of subsequent mints, plus one third-par
 - [`25d919c2f02c…`](https://ordpool.space/tx/25d919c2f02c00ef26a4d674ac1ecffd92684bce35fc449b7834841fd017a9f9) — first cenotaph (invalid runestone)
 - [`28baf9374797…`](https://ordpool.space/tx/28baf9374797230174803b0c3f63fd39e22bb1972a25cc2af4e791ca8fc89dae) — `OP_RETURN OP_PUSHNUM_13 OP_PUSHBYTES_1 00`, no real message
 
-### Alkanes (sub-protocol of Runes — Runestone tag 16383 + Protostone with `protocol_tag = 1`)
+### Alkanes (sub-protocol of Runes)
 
 - [`972c41e6b564…`](https://ordpool.space/tx/972c41e6b564a5aa9663d94cd1b3cebcddd6ee8eae429c075ac50c841e3701d6) — block 949,000 alkanes tx (Runestone mint + alkanes protostone)
 - [`a8e52911c5c3…`](https://ordpool.space/tx/a8e52911c5c398e13ccf37b24e9adca5a799d7e0fb0ac97ff3e65b470c76cf36) — same block, same shape
@@ -156,7 +156,7 @@ OLGA-encoded P2WSH stamps — PNG, JPEG, GIF, SVG, HTML, WebP, plus a gzip-compr
 
 ## BRC-20
 
-BRC-20 is content-based — any inscription whose body is JSON with `{"p":"brc-20"}` is BRC-20. To see BRC-20 chips on a real block, open a BRC-20-heavy block like [block 831,802](https://ordpool.space/block/0000000000000000000221fd1ba086a7672e3e5a18ac5a4efc9f0cff0a78fe86) (BRC-20 trio mints).
+BRC-20 is content-based — any inscription whose body is JSON with `{"p":"brc-20"}` is BRC-20. To see BRC-20 in action, open a BRC-20-heavy block like [block 831,802](https://ordpool.space/block/0000000000000000000221fd1ba086a7672e3e5a18ac5a4efc9f0cff0a78fe86) (BRC-20 trio mints).
 
 ## Bitmap
 
