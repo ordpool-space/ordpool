@@ -101,6 +101,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(15, width / heightPx, 0.1, 1000);
     const controls = new OrbitControls(camera, renderer.domElement);
+    // Polar = 0 is straight up, π/2 is at the horizon, π is straight down.
+    // Cap at π/2 - 0.01 so the camera can't dip below the ground plane and
+    // see the bitmap from underneath (breaks immersion when orbiting).
+    controls.maxPolarAngle = Math.PI / 2 - 0.01;
 
     // One InstancedMesh, one cube per tx. Scaled in all three dimensions
     // by its log-size, so taller cubes = bigger txs.
@@ -166,10 +170,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const fitHeightDist = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const fitDist = Math.max(fitHeightDist, fitWidthDist);
-    // fitOffset < 1.0 crops into the bitmap's edges. 0.92 sits close enough
+    // fitOffset < 1.0 crops into the bitmap's edges. 0.97 sits close enough
     // to match the 2D viewport without clipping when the iso-corner diamond
     // swings into view.
-    const fitOffset = 0.92;
+    const fitOffset = 0.97;
     const cameraDistance = fitOffset * fitDist;
 
     controls.target.set(0, maxHeight / 2, 0);
