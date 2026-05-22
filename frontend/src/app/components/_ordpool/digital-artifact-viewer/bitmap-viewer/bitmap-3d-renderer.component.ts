@@ -166,10 +166,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const fitHeightDist = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const fitDist = Math.max(fitHeightDist, fitWidthDist);
-    // fitOffset < 1.0 means "crop into the bitmap's edges". 0.85 brings the
-    // top-down view right up to the canvas border like the 2D SVG, and lets
-    // the iso corner show the full diamond without dark margin.
-    const fitOffset = 0.85;
+    // fitOffset < 1.0 crops into the bitmap's edges. 0.92 sits close enough
+    // to match the 2D viewport without clipping when the iso-corner diamond
+    // swings into view.
+    const fitOffset = 0.92;
     const cameraDistance = fitOffset * fitDist;
 
     controls.target.set(0, maxHeight / 2, 0);
