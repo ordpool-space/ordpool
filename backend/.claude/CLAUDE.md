@@ -6,6 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fork of mempool.space backend with ordpool indexing for digital artifacts (inscriptions, runes, BRC-20, SRC-20, CAT-21, atomicals).
 
+### HARD RULE: Keep useful comments
+
+**Don't strip JSDoc or "why" inline comments under the banner of
+"simplification".** The text inside a comment can be trimmed (no
+bombast, no LLM-speak, no before-after history); the block itself
+stays. Route-handler example URLs, alkanes / OTS / parser-flag
+linkage notes, and migration-generation cross-references are exactly
+the kind of comment a future reader cannot reconstruct from code
+alone. The 2026-05-20 alkanes `/simplify` pass (commit `1d8d82a15`)
+stripped 10 useful comments in this backend and had to be rolled
+back in `6a880bfd3`. Full decision tree in the workspace `CLAUDE.md`
+HARD RULE "Keep useful comments (JSDoc AND inline 'why')".
+
 ### Node Version
 
 Requires **Node.js v24** (see `.nvmrc`). Also requires a **Rust toolchain** for the native `rust-gbt` module (built during `npm install`).

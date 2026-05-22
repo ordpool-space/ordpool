@@ -28,6 +28,26 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     void this.rebuild();
   }
 
+  // DEV TUNING -- live-bound from the bitmap-viewer's inputs. Each change
+  // forces a full scene rebuild (cheap enough, ~50ms for 3k cubes).
+  private _fitOffset = 0.97;
+  @Input()
+  public set fitOffset(v: number | null | undefined) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return;
+    if (this._fitOffset === v) return;
+    this._fitOffset = v;
+    void this.rebuild();
+  }
+
+  private _skipIntro = false;
+  @Input()
+  public set skipIntro(v: boolean | null | undefined) {
+    const value = v === true;
+    if (this._skipIntro === value) return;
+    this._skipIntro = value;
+    void this.rebuild();
+  }
+
   // Cleanup handles. Animation frame + WebGL context disposal are critical;
   // without them three.js leaks GPU memory across height switches.
   private animFrame: number | null = null;
@@ -151,6 +171,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
+    // Tron-style grid on the floor. Each cell is one layout unit, so the
+    // lines pass through cube edges; what you see is the band of grid
+    // outside the bitmap's footprint when the camera orbits low. Slightly
+    // dimmed orange so it reads as ambient ground texture, not a UI element.
+    const gridDivisions = Math.max(2, Math.round(maxSize * 2));
+    const gridColor = orange.clone().multiplyScalar(0.6);
+    const grid = new THREE.GridHelper(maxSize * 2, gridDivisions, gridColor, gridColor);
+    grid.position.y = 0.001;  // lift a hair so z-fighting with the ground plane stays away
+    scene.add(grid);
+
     const directional = new THREE.DirectionalLight(new THREE.Color('white'), 0.4);
     directional.castShadow = true;
     directional.shadow.mapSize.set(2048, 2048);
@@ -170,11 +200,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const fitHeightDist = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const fitDist = Math.max(fitHeightDist, fitWidthDist);
-    // fitOffset < 1.0 crops into the bitmap's edges. 0.97 sits close enough
-    // to match the 2D viewport without clipping when the iso-corner diamond
-    // swings into view.
-    const fitOffset = 0.97;
-    const cameraDistance = fitOffset * fitDist;
+    // fitOffset < 1.0 crops into the bitmap's edges. Live-tunable via the
+    // dev input in bitmap-viewer; default 0.97 sits close enough to match
+    // the 2D viewport without clipping when the iso-corner diamond swings
+    // into view.
+    const cameraDistance = this._fitOffset * fitDist;
 
     controls.target.set(0, maxHeight / 2, 0);
     camera.near = cameraDistance / 100;
@@ -231,9 +261,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat).
     //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height.
     //   beyond             : OrbitControls takes over.
-    const HOLD_MS = 600;
-    const CAMERA_TWEEN_MS = 1300;
-    const GROW_TWEEN_MS = 1400;
+    // DEV TUNING: skipIntro=true zeros all durations so the renderer jumps
+    // straight to the final iso pose with full-height cubes. Lets us dial in
+    // the camera framing without re-watching the intro every rebuild.
+    const HOLD_MS = this._skipIntro ? 0 : 600;
+    const CAMERA_TWEEN_MS = this._skipIntro ? 0 : 1300;
+    const GROW_TWEEN_MS = this._skipIntro ? 0 : 1400;
     const startedAt = performance.now();
 
     // easeInOutCubic for the camera (symmetric, settles smoothly),
@@ -322,6 +355,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       cubeGeometry.dispose();
       material.dispose();
       instances.dispose();
+      grid.geometry.dispose();
+      // GridHelper always carries a single LineBasicMaterial; cast through any
+      // so we don't have to drag in three's type module just for this line.
+      (grid.material as { dispose: () => void }).dispose();
       controls.dispose();
       while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
     };

@@ -43,8 +43,25 @@ export class BitmapViewerComponent {
         );
   }
 
+  // DEV TUNING -- temporary controls for dialling in the 3D look.
+  // Remove the input + button in the template and these two properties
+  // once we lock the final values.
+  devFitOffset = 0.97;
+  devSkipIntro = false;
+
   toggleView(): void {
     this.view = this.view === '2d' ? '3d' : '2d';
+  }
+
+  toggleSkipIntro(): void {
+    this.devSkipIntro = !this.devSkipIntro;
+  }
+
+  setFitOffset(value: string): void {
+    const n = parseFloat(value);
+    if (Number.isFinite(n) && n > 0.1 && n < 3) {
+      this.devFitOffset = n;
+    }
   }
 
   formatHeight(h: number): string {
