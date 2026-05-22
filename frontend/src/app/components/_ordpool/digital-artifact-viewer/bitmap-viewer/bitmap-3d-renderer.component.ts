@@ -72,12 +72,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   private async renderCubes(sizes: number[]): Promise<void> {
     // Dynamic imports: three.js + addons land in a separate webpack chunk.
     // Visitors who never open a .bitmap inscription pay zero bytes for this.
-    const [THREE, { OrbitControls }, { EffectComposer }, { SAOPass }, { SSAARenderPass }, parser] = await Promise.all([
+    const [THREE, { OrbitControls }, { EffectComposer }, { SAOPass }, { SSAARenderPass },
+           { LineSegments2 }, { LineSegmentsGeometry }, { LineMaterial }, parser] = await Promise.all([
       import('three'),
       import('three/examples/jsm/controls/OrbitControls.js'),
       import('three/examples/jsm/postprocessing/EffectComposer.js'),
       import('three/examples/jsm/postprocessing/SAOPass.js'),
       import('three/examples/jsm/postprocessing/SSAARenderPass.js'),
+      import('three/examples/jsm/lines/LineSegments2.js'),
+      import('three/examples/jsm/lines/LineSegmentsGeometry.js'),
+      import('three/examples/jsm/lines/LineMaterial.js'),
       import('ordpool-parser'),
     ]);
 
@@ -171,14 +175,38 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
-    // Tron-style grid on the floor. Each cell is one layout unit, so the
-    // lines pass through cube edges; what you see is the band of grid
-    // outside the bitmap's footprint when the camera orbits low. Slightly
-    // dimmed orange so it reads as ambient ground texture, not a UI element.
-    const gridDivisions = Math.max(2, Math.round(maxSize * 2));
-    const gridColor = orange.clone().multiplyScalar(0.6);
-    const grid = new THREE.GridHelper(maxSize * 2, gridDivisions, gridColor, gridColor);
-    grid.position.y = 0.001;  // lift a hair so z-fighting with the ground plane stays away
+    // Tron-style grid on the floor. Each cell is one layout unit. The floor
+    // extends 5x the bitmap on each side so the "edge of the world" stays
+    // out of frame when the user orbits low. Lines drop just below y=0 so
+    // they don't paint over the bottoms of the flat cubes during the intro.
+    // Uses LineSegments2 + LineMaterial because LineBasicMaterial.linewidth
+    // is silently ignored on WebGL (browsers cap it at 1px); the fat-line
+    // shader-based variant gives us a real 2-pixel line.
+    const FLOOR_RADIUS_MULT = 5;
+    const floorSize = maxSize * FLOOR_RADIUS_MULT * 2;
+    const gridDivisions = Math.max(2, Math.round(floorSize));
+    const gridStep = floorSize / gridDivisions;
+    const gridColor = orange.clone().multiplyScalar(0.55);
+    const gridPositions: number[] = [];
+    const half = floorSize / 2;
+    for (let i = 0; i <= gridDivisions; i++) {
+      const t = -half + i * gridStep;
+      // Line along X at z=t
+      gridPositions.push(-half, 0, t,  half, 0, t);
+      // Line along Z at x=t
+      gridPositions.push(t, 0, -half,  t, 0,  half);
+    }
+    const gridGeom = new LineSegmentsGeometry();
+    gridGeom.setPositions(gridPositions);
+    const gridMat = new LineMaterial({
+      color: gridColor.getHex(),
+      linewidth: 2,           // screen-space pixels (fat-line shader)
+      worldUnits: false,
+      transparent: false,
+    });
+    gridMat.resolution.set(width, heightPx);
+    const grid = new LineSegments2(gridGeom, gridMat);
+    grid.position.y = -0.02;  // sit just below cube bottoms so flat-phase cubes occlude the grid under them
     scene.add(grid);
 
     // Static "sun" positioned upper-right of the layout relative to the
@@ -365,6 +393,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       composer.setSize(r.width, r.height);
       camera.aspect = r.width / r.height;
       camera.updateProjectionMatrix();
+      // Fat-line shader needs the current viewport resolution to scale pixels.
+      gridMat.resolution.set(r.width, r.height);
     };
     const ro = new ResizeObserver(resize);
     ro.observe(hostEl);
@@ -379,10 +409,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       cubeGeometry.dispose();
       material.dispose();
       instances.dispose();
-      grid.geometry.dispose();
-      // GridHelper always carries a single LineBasicMaterial; cast through any
-      // so we don't have to drag in three's type module just for this line.
-      (grid.material as { dispose: () => void }).dispose();
+      gridGeom.dispose();
+      gridMat.dispose();
       controls.dispose();
       while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
     };
