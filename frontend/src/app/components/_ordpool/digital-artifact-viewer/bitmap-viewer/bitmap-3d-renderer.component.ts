@@ -106,7 +106,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // by its log-size, so taller cubes = bigger txs.
     const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
     cubeGeometry.translate(0.5, 0.5, 0.5);
-    const material = new THREE.MeshPhongMaterial();
+    // MeshLambert is matte -- no specular highlights. MeshPhong's default
+    // shininess of 30 was the reason cube tops blew out under the
+    // directional light during the grow phase.
+    const material = new THREE.MeshLambertMaterial();
     const instances = new THREE.InstancedMesh(cubeGeometry, material, sizes.length);
     instances.frustumCulled = false;
     instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -169,12 +172,18 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     camera.updateProjectionMatrix();
 
     // Final (after-intro) camera position: standard isometric corner.
+    // Distance from origin = distance * sqrt(3/2) ≈ 1.22 * distance.
     const finalCamera = new THREE.Vector3(
       distance / Math.SQRT2, distance / Math.SQRT2, distance / Math.SQRT2,
     );
-    // Intro starting position: looking straight down, slightly off-axis so
-    // OrbitControls doesn't hit the gimbal singularity.
-    const startCamera = new THREE.Vector3(0.001, distance * 1.6, 0.001);
+    // Start straight above the layout. Tiny +Z offset (not equal X+Z) avoids
+    // the 45° auto-roll the gimbal-resolver picks when both off-axis values
+    // match; it also makes the camera's screen-up land along -Z, so the
+    // bitmap appears axis-aligned with the 2D view (slot.y=0 at the top of
+    // the screen). Magnitude matches finalCamera, so the apparent grid size
+    // doesn't shrink during the camera tween -- only the angle changes.
+    const startCameraY = distance * Math.sqrt(3 / 2);
+    const startCamera = new THREE.Vector3(0, startCameraY, 0.001);
     camera.position.copy(startCamera);
     controls.update();
     controls.saveState();
@@ -203,8 +212,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // top-down to isometric, then the cubes grow upward from the ground.
     // Sequential, not simultaneous; the rotate-then-grow rhythm reads
     // cleanly without overwhelming the viewer.
-    const CAMERA_TWEEN_MS = 700;
-    const GROW_TWEEN_MS = 800;
+    const CAMERA_TWEEN_MS = 1300;
+    const GROW_TWEEN_MS = 1400;
     const startedAt = performance.now();
 
     // easeInOutCubic for the camera (symmetric, settles smoothly),
