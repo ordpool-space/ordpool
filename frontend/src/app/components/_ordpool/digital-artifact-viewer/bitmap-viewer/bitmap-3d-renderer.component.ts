@@ -176,21 +176,26 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const finalCamera = new THREE.Vector3(
       distance / Math.SQRT2, distance / Math.SQRT2, distance / Math.SQRT2,
     );
-    // Start straight above the layout. Tiny +Z offset (not equal X+Z) avoids
-    // the 45° auto-roll the gimbal-resolver picks when both off-axis values
-    // match; it also makes the camera's screen-up land along -Z, so the
-    // bitmap appears axis-aligned with the 2D view (slot.y=0 at the top of
-    // the screen). Magnitude matches finalCamera, so the apparent grid size
-    // doesn't shrink during the camera tween -- only the angle changes.
+    // Start camera: straight above the layout, same magnitude as finalCamera
+    // so the apparent grid size doesn't shrink during the camera tween.
     const startCameraY = distance * Math.sqrt(3 / 2);
-    const startCamera = new THREE.Vector3(0, startCameraY, 0.001);
+    const startCamera = new THREE.Vector3(0, startCameraY, 0);
+
+    // OrbitControls would collapse our orientation cue (project to spherical
+    // and back) -- the start state needs to be driven directly. We set
+    // camera.up explicitly to (0, 0, -1), which forces screen-up to align
+    // with world -Z, matching the 2D view (slot.y=0 at the top of the
+    // screen). During the intro we lerp up FROM (0,0,-1) TO (0,1,0) so the
+    // camera handoff to OrbitControls (phase 3) lands on its expected up.
+    const startUp = new THREE.Vector3(0, 0, -1);
+    const finalUp = new THREE.Vector3(0, 1, 0);
+    camera.up.copy(startUp);
     camera.position.copy(startCamera);
-    controls.update();
+    camera.lookAt(controls.target);
     controls.saveState();
-    // Disable interaction during the intro -- otherwise a dragged camera
-    // fights the tween.
+    // Disable controls for the entire intro; phase 3 enables them.
     controls.enabled = false;
-    // Cubes start flat (height = 0) and grow upward over the animation.
+    // Cubes start flat (height = 0) and grow upward in phase 2.
     container.scale.y = 0;
 
     // Ambient occlusion + AA gives the soft shadows + clean edges. Without
@@ -208,10 +213,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     sao.params.saoBlurDepthCutoff = 0.00001;
     composer.addPass(sao);
 
-    // Intro sequence (matches bitmap.trade's reveal): camera tilts from
-    // top-down to isometric, then the cubes grow upward from the ground.
-    // Sequential, not simultaneous; the rotate-then-grow rhythm reads
-    // cleanly without overwhelming the viewer.
+    // Intro sequence:
+    //   0..HOLD_MS         : hold the top-down axis-aligned view -- this is
+    //                        the moment the user clocks "this matches 2D".
+    //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat).
+    //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height.
+    //   beyond             : OrbitControls takes over.
+    const HOLD_MS = 600;
     const CAMERA_TWEEN_MS = 1300;
     const GROW_TWEEN_MS = 1400;
     const startedAt = performance.now();
@@ -234,26 +242,43 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         this.animFrame = requestAnimationFrame(animate);
 
         const elapsed = performance.now() - startedAt;
+        const tweenStart = HOLD_MS;
+        const growStart = HOLD_MS + CAMERA_TWEEN_MS;
+        const introEnd = HOLD_MS + CAMERA_TWEEN_MS + GROW_TWEEN_MS;
 
-        // Phase 1: camera tilt from top-down to isometric.
-        if (elapsed < CAMERA_TWEEN_MS) {
-          const t = easeInOutCubic(elapsed / CAMERA_TWEEN_MS);
+        if (elapsed < tweenStart) {
+          // Phase 0: hold the axis-aligned top-down view.
+          camera.position.copy(startCamera);
+          camera.up.copy(startUp);
+          camera.lookAt(controls.target);
+        } else if (elapsed < growStart) {
+          // Phase 1: tilt camera from top-down to isometric. Lerp position
+          // AND up vector so screen-up rolls smoothly from world -Z to +Y.
+          const t = easeInOutCubic((elapsed - tweenStart) / CAMERA_TWEEN_MS);
           camera.position.lerpVectors(startCamera, finalCamera, t);
-        }
-        // Phase 2: cube growth (starts right after the camera tween).
-        else if (elapsed < CAMERA_TWEEN_MS + GROW_TWEEN_MS) {
+          camera.up.copy(startUp).lerp(finalUp, t).normalize();
+          camera.lookAt(controls.target);
+        } else if (elapsed < introEnd) {
+          // Phase 2: cubes grow at the final isometric camera position.
           camera.position.copy(finalCamera);
-          const t = (elapsed - CAMERA_TWEEN_MS) / GROW_TWEEN_MS;
+          camera.up.copy(finalUp);
+          camera.lookAt(controls.target);
+          const t = (elapsed - growStart) / GROW_TWEEN_MS;
           container.scale.y = Math.max(0.001, easeOutBack(t));
-        }
-        // Phase 3: done — hand control over to OrbitControls (once).
-        else if (!controls.enabled) {
+        } else if (!controls.enabled) {
+          // Phase 3 (one-shot): lock the final state and hand off to
+          // OrbitControls.
           camera.position.copy(finalCamera);
+          camera.up.copy(finalUp);
+          camera.lookAt(controls.target);
           container.scale.y = 1;
           controls.enabled = true;
         }
 
-        controls.update();
+        // OrbitControls only updates while it owns the camera (phase 3+).
+        if (controls.enabled) {
+          controls.update();
+        }
         // Light follows the camera so shadows stay alive while orbiting.
         m.extractRotation(camera.matrixWorld);
         dummy.position.set(10, 0, 0).applyMatrix4(m);
