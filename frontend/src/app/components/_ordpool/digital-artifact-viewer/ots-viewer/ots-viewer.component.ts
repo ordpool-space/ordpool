@@ -50,14 +50,29 @@ export class OtsViewerComponent implements OnDestroy {
    *              for every rune / inscription / random OP_RETURN tx).
    *  - `null` / `undefined` → unknown; fall back to fetching and let
    *              the null-row path silently no-op. */
+  // Both setters defer to a microtask so all Inputs settle before we decide
+  // whether to fire the lookup. Angular sets inputs in template-binding order,
+  // so without the deferral the txid setter would run before isOtsCommit on
+  // the first paint -- and the early-return on `_isOtsCommit === false` would
+  // miss its chance to short-circuit the network call.
   @Input() set isOtsCommit(v: boolean | null | undefined) {
     this._isOtsCommit = v;
-    this.maybeLookup();
+    this.scheduleLookup();
   }
 
   @Input() set txid(v: string | undefined) {
     this._txid = v;
-    this.maybeLookup();
+    this.scheduleLookup();
+  }
+
+  private _lookupScheduled = false;
+  private scheduleLookup(): void {
+    if (this._lookupScheduled) return;
+    this._lookupScheduled = true;
+    Promise.resolve().then(() => {
+      this._lookupScheduled = false;
+      this.maybeLookup();
+    });
   }
 
   private maybeLookup(): void {
