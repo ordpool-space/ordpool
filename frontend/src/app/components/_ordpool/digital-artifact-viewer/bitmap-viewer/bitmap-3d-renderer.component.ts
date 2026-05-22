@@ -373,9 +373,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         PLAYER_RADIUS,
       );
 
-      // Point the camera at the bitmap centre so the spawn faces it.
-      camera.position.copy(playerCollider.end);
-      camera.lookAt(0, playerCollider.end.y, 0);
+      // Fly-in transition: capture the current camera pose so we can lerp
+      // to spawn over FLY_MS instead of teleporting (jump-cuts ruin the
+      // spatial context). Camera looks at the bitmap centre throughout
+      // the fly so the bitmap stays anchored on screen.
+      const flyStartPos = camera.position.clone();
+      const FLY_MS = 1500;
+      const flyStartedAt = performance.now();
+      let pfpReady = false;
+      const easeInOutCubic = (t: number) =>
+        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
       const GRAVITY = 8;          // demo uses 30 -- ours is floatier
       const JUMP_VELOCITY = 18;    // demo uses 15 -- "we can jump very much"
@@ -443,17 +450,27 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         if (playerOnFloor && keyStates['Space']) playerVelocity.y = JUMP_VELOCITY;
       };
       const collidePlayer = () => {
-        const result = worldOctree.capsuleIntersect(playerCollider);
+        // capsuleIntersect only returns the deepest contact; in a corner
+        // (two cube faces) we'd resolve one, leaving the other still
+        // penetrated -- the demo gets away with a single pass because its
+        // capsule is big (radius 0.35) so corners rarely happen in one
+        // step. With our tiny 0.12 capsule and sharp cube edges, walking
+        // into an interior corner can clip the head into the cube. Iterate
+        // until the octree reports no contact, max 4 passes per substep.
         playerOnFloor = false;
-        if (result) {
-          playerOnFloor = result.normal.y >= 0.15;
-          if (!playerOnFloor) {
-            // Subtract the velocity component along the contact normal so
-            // we slide along walls instead of sticking.
+        for (let i = 0; i < 4; i++) {
+          const result = worldOctree.capsuleIntersect(playerCollider);
+          if (!result) break;
+          if (result.normal.y >= 0.15) playerOnFloor = true;
+          if (result.normal.y < 0.15) {
+            // Subtract velocity component along the contact normal -- slide
+            // along walls instead of sticking.
             playerVelocity.addScaledVector(result.normal, -result.normal.dot(playerVelocity));
           }
           if (result.depth >= 1e-10) {
             playerCollider.translate(result.normal.multiplyScalar(result.depth));
+          } else {
+            break;
           }
         }
       };
@@ -480,7 +497,22 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         }
       };
       const clock = new THREE.Clock();
+      const spawnEye = playerCollider.end.clone();
       (camera.userData as any).pfpStep = () => {
+        if (!pfpReady) {
+          // Fly-in: lerp camera from its iso-orbit pose to the spawn-eye
+          // position. Keep the camera aimed at the bitmap centre so the
+          // bitmap stays the visual anchor as we swoop down.
+          const elapsed = performance.now() - flyStartedAt;
+          const t = Math.min(1, elapsed / FLY_MS);
+          camera.position.lerpVectors(flyStartPos, spawnEye, easeInOutCubic(t));
+          camera.lookAt(0, spawnEye.y, 0);
+          // Drop the clock so the first real-physics frame doesn't see the
+          // huge delta accumulated during the fly.
+          clock.getDelta();
+          if (t >= 1) pfpReady = true;
+          return;
+        }
         const dt = Math.min(0.05, clock.getDelta()) / STEPS_PER_FRAME;
         for (let i = 0; i < STEPS_PER_FRAME; i++) {
           applyControls(dt);
