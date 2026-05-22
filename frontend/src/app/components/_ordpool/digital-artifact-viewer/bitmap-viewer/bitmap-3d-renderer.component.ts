@@ -458,7 +458,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       }
     };
     const updatePlayer = (dt: number) => {
-      let damping = Math.exp(-4 * dt) - 1;
+      // Damping exponent controls how quickly the player decelerates when
+      // input keys are released. Demo uses -4; with our tiny cubes that
+      // reads as "slippery" -- you slide a noticeable distance after a
+      // jump. Crank to -10 for snappier ground control. Air drag stays
+      // small (×0.1) so jumps keep horizontal momentum.
+      let damping = Math.exp(-10 * dt) - 1;
       if (!playerOnFloor) {
         playerVelocity.y -= GRAVITY * dt;
         damping *= 0.1;
@@ -577,6 +582,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       container.scale.y = 1;
       beginFlyToPfp();
     }
+    // Pick up Inputs that were set during the async scene build. The setters
+    // dispatch lazily (this.dispatch was null while we were awaiting the
+    // dynamic imports), so we call it once here as a catch-up.
+    this.dispatch();
 
     // Ambient occlusion + AA gives the soft shadows + clean edges. Without
     // it the cubes look harsh and flat.

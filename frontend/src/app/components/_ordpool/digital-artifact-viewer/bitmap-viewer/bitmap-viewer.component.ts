@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, ElementRef, inject, Input, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { renderBitmapSvg } from 'ordpool-parser';
 import { map, Observable, of } from 'rxjs';
@@ -22,6 +22,9 @@ export class BitmapViewerComponent {
   private bitmapApi = inject(BitmapApiService);
   private sanitizer = inject(DomSanitizer);
   private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+
+  @ViewChild('stage') stage!: ElementRef<HTMLElement>;
 
   private _height: number | null = null;
   vm$: Observable<BitmapVm | null> = of(null);
@@ -30,6 +33,30 @@ export class BitmapViewerComponent {
   // While true, the 3D renderer is mid-back-fly to its initial iso pose.
   // When the renderer emits exitDone we commit mode='2d' and tear it down.
   exiting = false;
+  fullscreen = false;
+
+  constructor() {
+    const onFsChange = () => {
+      // Sync our local state with the browser's actual fullscreen element.
+      // User can leave fullscreen via ESC too -- this catches that path.
+      this.fullscreen = document.fullscreenElement === this.stage?.nativeElement;
+      this.cdr.markForCheck();
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    this.destroyRef.onDestroy(() => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+    });
+  }
+
+  toggleFullscreen(): void {
+    const el = this.stage?.nativeElement;
+    if (!el) return;
+    if (document.fullscreenElement === el) {
+      document.exitFullscreen?.();
+    } else {
+      el.requestFullscreen?.();
+    }
+  }
 
   @Input()
   public set height(h: number | null | undefined) {
