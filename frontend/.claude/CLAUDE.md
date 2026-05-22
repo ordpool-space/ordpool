@@ -6,6 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fork of mempool.space frontend with Ordinals customizations. After the upstream-merge in April 2026 the stack is Angular 20 + Bootstrap 5 + Node 24 (was Angular 17 / Bootstrap 4 / Node 20 in v1).
 
+### HARD RULE: Keep useful comments
+
+**Don't strip JSDoc or "why" inline comments under the banner of
+"simplification".** The text inside a comment can be trimmed (no
+bombast, no LLM-speak, no before-after history); the block itself
+stays. Viewer-component design rationale (alkanes-vs-runes split,
+ots-viewer tristate semantics, block-protocol-section structure) and
+service caching/dedupe notes are exactly the kind of comment a future
+reader cannot reconstruct from code alone. Full decision tree in the
+workspace `CLAUDE.md` HARD RULE "Keep useful comments (JSDoc AND
+inline 'why')".
+
 ### Node Version
 
 Requires **Node.js v24** (see `.nvmrc`). The CI workflows pin `node-version: 24`.

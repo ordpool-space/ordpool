@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input, OnChanges, OnDestroy } from '@angular/core';
 import { catchError, distinctUntilChanged, of, Subject, switchMap, takeUntil } from 'rxjs';
 
 import { OrdpoolApiService, OrdpoolOtsRow } from '../../../../services/ordinals/ordpool-api.service';
@@ -31,7 +31,7 @@ const CALENDAR_URL_BY_NICKNAME = new Map<string, string>(
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class OtsViewerComponent implements OnDestroy {
+export class OtsViewerComponent implements OnChanges, OnDestroy {
 
   private api = inject(OrdpoolApiService);
   private cdr = inject(ChangeDetectorRef);
@@ -40,8 +40,6 @@ export class OtsViewerComponent implements OnDestroy {
 
   row: OrdpoolOtsRow | null = null;
   loaded = false;
-  private _txid: string | undefined;
-  private _isOtsCommit: boolean | null | undefined = undefined;
 
   /** Tristate from `TransactionExtended.isOtsCommit`:
    *  - `true`  → tx is a known OTS calendar commit; fetch the row.
@@ -50,40 +48,28 @@ export class OtsViewerComponent implements OnDestroy {
    *              for every rune / inscription / random OP_RETURN tx).
    *  - `null` / `undefined` → unknown; fall back to fetching and let
    *              the null-row path silently no-op. */
-  // Both setters defer to a microtask so all Inputs settle before we decide
-  // whether to fire the lookup. Angular sets inputs in template-binding order,
-  // so without the deferral the txid setter would run before isOtsCommit on
-  // the first paint -- and the early-return on `_isOtsCommit === false` would
-  // miss its chance to short-circuit the network call.
-  @Input() set isOtsCommit(v: boolean | null | undefined) {
-    this._isOtsCommit = v;
-    this.scheduleLookup();
-  }
+  @Input() isOtsCommit: boolean | null | undefined;
+  @Input() txid: string | undefined;
 
-  @Input() set txid(v: string | undefined) {
-    this._txid = v;
-    this.scheduleLookup();
-  }
-
-  private _lookupScheduled = false;
-  private scheduleLookup(): void {
-    if (this._lookupScheduled) return;
-    this._lookupScheduled = true;
-    Promise.resolve().then(() => {
-      this._lookupScheduled = false;
-      this.maybeLookup();
-    });
-  }
-
-  private maybeLookup(): void {
-    if (!this._txid || this._isOtsCommit === false) {
+  // WARNING -- when this component migrates to signals/effects: per-Input
+  // setters fire INDEPENDENTLY in template-binding order, so a setter that
+  // reads sibling Inputs sees a stale value on the first paint. (Concrete
+  // example here: txid was set before isOtsCommit, and the gate on
+  // `_isOtsCommit === false` missed its short-circuit window -- the API
+  // call had already fired by the time the false value arrived.) ngOnChanges
+  // batches all Input changes into one SimpleChanges callback per CD pass,
+  // which is exactly the synchronisation we want. If/when you replace this
+  // with input() signals + effect(), make sure the effect reads BOTH inputs
+  // and runs as a single reaction -- don't split into one effect per input.
+  ngOnChanges(): void {
+    if (!this.txid || this.isOtsCommit === false) {
       this.row = null;
       this.loaded = true;
       this.cdr.markForCheck();
       return;
     }
     this.loaded = false;
-    this.txid$.next(this._txid);
+    this.txid$.next(this.txid);
     this.cdr.markForCheck();
   }
 

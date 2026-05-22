@@ -5,6 +5,17 @@ Repo-level guidance for `ordpool-space/ordpool`. The two halves of the repo
 with stack-specific conventions; this file documents cross-cutting rules
 that apply to the whole repo.
 
+## HARD RULE: Keep useful comments
+
+**Don't strip JSDoc or "why" inline comments under the banner of
+"simplification".** The text inside a comment can be trimmed (no
+bombast, no LLM-speak, no before-after history); the block itself
+stays. The 2026-05-20 alkanes `/simplify` pass (commit `1d8d82a15`)
+stripped 10 useful comments in this repo and had to be rolled back
+in commit `6a880bfd3` on 2026-05-21. Full decision tree in the
+workspace `CLAUDE.md` HARD RULE "Keep useful comments (JSDoc AND
+inline 'why')".
+
 ## HARD RULE: Dependabot is BANNED
 
 **Dependabot stays off in this repo. No exceptions.**
