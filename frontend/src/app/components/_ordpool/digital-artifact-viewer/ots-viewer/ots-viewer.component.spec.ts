@@ -35,9 +35,18 @@ describe('OtsViewerComponent', () => {
     };
   }
 
+  // The component reacts to Input changes via ngOnChanges (batched per CD
+  // pass, so both isOtsCommit and txid land before the lookup decision).
+  // Tests assign Inputs directly and then call ngOnChanges() to simulate
+  // what Angular's runtime does after a binding update.
+  function applyInputs(comp: OtsViewerComponent, inputs: Partial<Pick<OtsViewerComponent, 'txid' | 'isOtsCommit'>>): void {
+    Object.assign(comp, inputs);
+    comp.ngOnChanges();
+  }
+
   it('sets row=null + loaded=true when txid is undefined', () => {
     const fixture = TestBed.createComponent(OtsViewerComponent);
-    fixture.componentInstance.txid = undefined;
+    applyInputs(fixture.componentInstance, { txid: undefined });
     expect(fixture.componentInstance.row).toBeNull();
     expect(fixture.componentInstance.loaded).toBe(true);
     expect(api.getOtsTx$).not.toHaveBeenCalled();
@@ -46,7 +55,7 @@ describe('OtsViewerComponent', () => {
   it('renders the row when the API returns one', () => {
     api.getOtsTx$.mockReturnValueOnce(of(makeRow()));
     const fixture = TestBed.createComponent(OtsViewerComponent);
-    fixture.componentInstance.txid = '8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f';
+    applyInputs(fixture.componentInstance, { txid: '8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f' });
     expect(api.getOtsTx$).toHaveBeenCalledWith('8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f');
     expect(fixture.componentInstance.row?.calendar).toBe('alice');
     expect(fixture.componentInstance.loaded).toBe(true);
@@ -55,7 +64,7 @@ describe('OtsViewerComponent', () => {
   it('silently no-ops when the API returns null (non-OTS tx) -- row stays null', () => {
     api.getOtsTx$.mockReturnValueOnce(of(null));
     const fixture = TestBed.createComponent(OtsViewerComponent);
-    fixture.componentInstance.txid = '2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e';
+    applyInputs(fixture.componentInstance, { txid: '2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e' });
     expect(fixture.componentInstance.row).toBeNull();
     expect(fixture.componentInstance.loaded).toBe(true);
   });
@@ -63,15 +72,20 @@ describe('OtsViewerComponent', () => {
   it('handles 5xx via catchError -- row stays null', () => {
     api.getOtsTx$.mockReturnValueOnce(throwError(() => ({ status: 503 })));
     const fixture = TestBed.createComponent(OtsViewerComponent);
-    fixture.componentInstance.txid = 'some-txid';
+    applyInputs(fixture.componentInstance, { txid: 'some-txid' });
     expect(fixture.componentInstance.row).toBeNull();
     expect(fixture.componentInstance.loaded).toBe(true);
   });
 
   it('skips the API call entirely when isOtsCommit === false', () => {
     const fixture = TestBed.createComponent(OtsViewerComponent);
-    fixture.componentInstance.isOtsCommit = false;
-    fixture.componentInstance.txid = '2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e';
+    // Both Inputs in one batch -- this is exactly the race the ngOnChanges
+    // rewrite was designed to fix: setter order WOULD have fired the lookup
+    // before the false value landed.
+    applyInputs(fixture.componentInstance, {
+      isOtsCommit: false,
+      txid: '2bb85f4b004be6da54f766c17c1e855187327112c231ef2ff35ebad0ea67c69e',
+    });
     expect(api.getOtsTx$).not.toHaveBeenCalled();
     expect(fixture.componentInstance.row).toBeNull();
     expect(fixture.componentInstance.loaded).toBe(true);
@@ -80,7 +94,7 @@ describe('OtsViewerComponent', () => {
   it('exposes pending vs confirmed state via the row.confirmedAt field', () => {
     api.getOtsTx$.mockReturnValueOnce(of(makeRow({ confirmedAt: null, blockheight: null, blockhash: null })));
     const fixture = TestBed.createComponent(OtsViewerComponent);
-    fixture.componentInstance.txid = '8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f';
+    applyInputs(fixture.componentInstance, { txid: '8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f' });
     expect(fixture.componentInstance.row?.confirmedAt).toBeNull();
   });
 });
