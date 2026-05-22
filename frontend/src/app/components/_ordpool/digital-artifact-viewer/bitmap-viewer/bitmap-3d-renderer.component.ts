@@ -373,11 +373,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         PLAYER_RADIUS,
       );
 
-      // Fly-in transition: capture the current camera pose so we can lerp
-      // to spawn over FLY_MS instead of teleporting (jump-cuts ruin the
-      // spatial context). Camera looks at the bitmap centre throughout
-      // the fly so the bitmap stays anchored on screen.
+      // Fly-in transition: capture the current camera pose (position AND
+      // quaternion) so the fly lerps from where the user is looking right
+      // now to the spawn pose, rather than snapping the rotation at frame 1
+      // and only animating position.
       const flyStartPos = camera.position.clone();
+      const flyStartQuat = camera.quaternion.clone();
       const FLY_MS = 1500;
       const flyStartedAt = performance.now();
       let pfpReady = false;
@@ -498,15 +499,24 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       };
       const clock = new THREE.Clock();
       const spawnEye = playerCollider.end.clone();
+      // Compute the end-of-fly quaternion: position the camera at the spawn
+      // eye, look at the bitmap centre, capture the resulting quaternion,
+      // then restore -- we don't want this scratch frame to be visible.
+      camera.position.copy(spawnEye);
+      camera.lookAt(0, spawnEye.y, 0);
+      const flyEndQuat = camera.quaternion.clone();
+      camera.position.copy(flyStartPos);
+      camera.quaternion.copy(flyStartQuat);
       (camera.userData as any).pfpStep = () => {
         if (!pfpReady) {
-          // Fly-in: lerp camera from its iso-orbit pose to the spawn-eye
-          // position. Keep the camera aimed at the bitmap centre so the
-          // bitmap stays the visual anchor as we swoop down.
+          // Fly-in: slerp BOTH position and rotation from the orbit pose to
+          // the spawn pose. Position lerp gives us motion; quaternion slerp
+          // gives us a smooth gaze sweep instead of a snap-then-translate.
           const elapsed = performance.now() - flyStartedAt;
           const t = Math.min(1, elapsed / FLY_MS);
-          camera.position.lerpVectors(flyStartPos, spawnEye, easeInOutCubic(t));
-          camera.lookAt(0, spawnEye.y, 0);
+          const eased = easeInOutCubic(t);
+          camera.position.lerpVectors(flyStartPos, spawnEye, eased);
+          camera.quaternion.slerpQuaternions(flyStartQuat, flyEndQuat, eased);
           // Drop the clock so the first real-physics frame doesn't see the
           // huge delta accumulated during the fly.
           clock.getDelta();
