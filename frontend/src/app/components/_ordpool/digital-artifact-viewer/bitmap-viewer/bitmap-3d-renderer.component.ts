@@ -163,22 +163,31 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // Uses LineSegments2 + LineMaterial because LineBasicMaterial.linewidth
     // is silently ignored on WebGL (browsers cap it at 1px); the fat-line
     // shader-based variant gives us a real 2-pixel line.
+    // Step the grid by 1/CELLS_PER_BITMAP of the bitmap's actual dimensions
+    // on each axis, so the outer edges of the bitmap land exactly on grid
+    // lines (otherwise non-square bitmaps -- the common case -- leave the
+    // shorter edge floating between lines). The floor extends ~5x beyond
+    // the bitmap on each side; we walk outward from the centre in step
+    // increments until we leave that box.
+    const CELLS_PER_BITMAP = 4;
     const FLOOR_RADIUS_MULT = 5;
-    const floorSize = maxSize * FLOOR_RADIUS_MULT * 2;
-    // Big cells, few lines -- Tron-style sparse glow, not a dense mesh. Fixed
-    // division count means each cell ≈ maxSize/4 world units; ~4 cells span
-    // the bitmap, plenty empty space outside.
-    const gridDivisions = 40;
-    const gridStep = floorSize / gridDivisions;
+    const stepX = layoutSize.width / CELLS_PER_BITMAP;
+    const stepZ = layoutSize.height / CELLS_PER_BITMAP;
+    const halfX = maxSize * FLOOR_RADIUS_MULT;
+    const halfZ = maxSize * FLOOR_RADIUS_MULT;
+    const stepsOutwardX = Math.ceil(halfX / stepX);
+    const stepsOutwardZ = Math.ceil(halfZ / stepZ);
     const gridColor = orange.clone().multiplyScalar(0.3);
     const gridPositions: number[] = [];
-    const half = floorSize / 2;
-    for (let i = 0; i <= gridDivisions; i++) {
-      const t = -half + i * gridStep;
-      // Line along X at z=t
-      gridPositions.push(-half, 0, t,  half, 0, t);
-      // Line along Z at x=t
-      gridPositions.push(t, 0, -half,  t, 0,  half);
+    // Lines parallel to X (constant z)
+    for (let i = -stepsOutwardZ; i <= stepsOutwardZ; i++) {
+      const z = i * stepZ;
+      gridPositions.push(-halfX, 0, z,  halfX, 0, z);
+    }
+    // Lines parallel to Z (constant x)
+    for (let i = -stepsOutwardX; i <= stepsOutwardX; i++) {
+      const x = i * stepX;
+      gridPositions.push(x, 0, -halfZ,  x, 0,  halfZ);
     }
     const gridGeom = new LineSegmentsGeometry();
     gridGeom.setPositions(gridPositions);
