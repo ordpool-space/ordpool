@@ -28,6 +28,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     void this.rebuild();
   }
 
+  private _pfp = false;
+  @Input()
+  public set pfp(v: boolean | null | undefined) {
+    const value = v === true;
+    if (this._pfp === value) return;
+    this._pfp = value;
+    void this.rebuild();
+  }
+
 
   // Cleanup handles. Animation frame + WebGL context disposal are critical;
   // without them three.js leaks GPU memory across height switches.
@@ -53,10 +62,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   private async renderCubes(sizes: number[]): Promise<void> {
     // Dynamic imports: three.js + addons land in a separate webpack chunk.
     // Visitors who never open a .bitmap inscription pay zero bytes for this.
-    const [THREE, { OrbitControls }, { EffectComposer }, { SAOPass }, { SSAARenderPass },
+    const [THREE, { OrbitControls }, { Octree }, { Capsule }, { EffectComposer }, { SAOPass }, { SSAARenderPass },
            { LineSegments2 }, { LineSegmentsGeometry }, { LineMaterial }, parser] = await Promise.all([
       import('three'),
       import('three/examples/jsm/controls/OrbitControls.js'),
+      // FPS-demo pattern: Octree for the static world + Capsule for the player.
+      // PointerLockControls is skipped on purpose -- the upstream games_fps
+      // demo wires pointer lock by hand (4 lines) and integrates the substep
+      // loop directly, which is what we follow below.
+      import('three/examples/jsm/math/Octree.js'),
+      import('three/examples/jsm/math/Capsule.js'),
       import('three/examples/jsm/postprocessing/EffectComposer.js'),
       import('three/examples/jsm/postprocessing/SAOPass.js'),
       import('three/examples/jsm/postprocessing/SSAARenderPass.js'),
@@ -104,7 +119,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     hostEl.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(15, width / heightPx, 0.1, 1000);
+    // PFP (walk) mode uses wide FOV typical for first-person -- the 15°
+    // iso-orbit lens would look like binocular zoom on foot. Cubes stay
+    // full-size; the player is just small.
+    const pfpMode = this._pfp;
+    const camera = new THREE.PerspectiveCamera(pfpMode ? 75 : 15, width / heightPx, 0.05, 1000);
     const controls = new OrbitControls(camera, renderer.domElement);
     // Polar = 0 is straight up, π/2 is at the horizon, π is straight down.
     // Cap at π/2 - 0.01 so the camera can't dip below the ground plane and
@@ -286,6 +305,187 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const SCALE_MIN = 0.05;
     container.scale.y = SCALE_MIN;
 
+    // ---- PFP MODE -----------------------------------------------------
+    // Tron-world walk, ported from three.js's official games_fps demo.
+    //   - Static-world collision: Octree built from a throwaway Group with
+    //     real Meshes for each cube slot + the ground. We can't feed the
+    //     real InstancedMesh because Octree.fromGraphNode ignores
+    //     per-instance matrices (only reads geometry once).
+    //   - Player: Capsule. Each frame we integrate velocity, translate
+    //     the capsule, and resolve against the Octree.
+    //   - Mouse-look + pointer lock wired by hand (4 lines, matches the
+    //     demo). PointerLockControls / FirstPersonControls aren't used --
+    //     the demo doesn't use them either; it would add boilerplate
+    //     between our substep loop and the controls helper.
+    //   - GRAVITY 8 + jump impulse 18 give the "floaty, jump very much"
+    //     feel the user asked for. Real-world values would be 30 / 15.
+    let pfpDetach: (() => void) | null = null;
+    if (pfpMode) {
+      camera.up.copy(finalUp);
+      camera.rotation.order = 'YXZ';                  // yaw + pitch, no roll
+      // Cubes already at full height -- no growth animation.
+      container.scale.y = 1;
+      controls.enabled = false;
+
+      // Build a collision-only Octree from one Mesh per slot. The throwaway
+      // Group is discarded right after fromGraphNode reads the triangles;
+      // the InstancedMesh keeps doing the actual rendering.
+      const collisionRoot = new THREE.Group();
+      const cubeColliderGeom = new THREE.BoxGeometry(1, 1, 1);
+      cubeColliderGeom.translate(0.5, 0.5, 0.5);
+      for (let i = 0; i < mondrian.slots.length; i++) {
+        const slot = mondrian.slots[i];
+        const s = slot.size - 0.5;
+        const m = new THREE.Mesh(cubeColliderGeom);
+        m.scale.set(s, s, s);
+        m.position.set(slot.position.x - layoutSize.width / 2, 0, slot.position.y - layoutSize.height / 2);
+        collisionRoot.add(m);
+      }
+      // Ground: a wide thin slab so the player can't fall off the world.
+      const groundColliderGeom = new THREE.BoxGeometry(maxSize * FLOOR_RADIUS_MULT * 2, 0.1, maxSize * FLOOR_RADIUS_MULT * 2);
+      const groundCollider = new THREE.Mesh(groundColliderGeom);
+      groundCollider.position.set(0, -0.05, 0);
+      collisionRoot.add(groundCollider);
+      collisionRoot.updateMatrixWorld(true);
+
+      const worldOctree = new Octree();
+      worldOctree.fromGraphNode(collisionRoot);
+      cubeColliderGeom.dispose();
+      groundColliderGeom.dispose();
+      // collisionRoot was never added to the scene; just let GC have it.
+
+      // Player capsule. start = bottom-centre, end = top-centre (eye height).
+      // Total height = 0.5 (head a tiny tron citizen, towers feel huge).
+      // Radius 0.12 so we can slip through 0.5-unit-wide street gaps.
+      const PLAYER_HEIGHT = 0.5;
+      const PLAYER_RADIUS = 0.12;
+      const SPAWN_X = 0;
+      const SPAWN_Z = layoutSize.height / 2 + 2;       // just south of the bitmap
+      const playerCollider = new Capsule(
+        new THREE.Vector3(SPAWN_X, PLAYER_RADIUS, SPAWN_Z),
+        new THREE.Vector3(SPAWN_X, PLAYER_HEIGHT - PLAYER_RADIUS, SPAWN_Z),
+        PLAYER_RADIUS,
+      );
+
+      const GRAVITY = 8;          // demo uses 30 -- ours is floatier
+      const JUMP_VELOCITY = 18;    // demo uses 15 -- "we can jump very much"
+      const SPEED_ON_FLOOR = 25;
+      const SPEED_IN_AIR = 8;
+      const STEPS_PER_FRAME = 5;   // substepping = stable collision
+
+      const playerVelocity = new THREE.Vector3();
+      const playerDirection = new THREE.Vector3();
+      let playerOnFloor = false;
+
+      const keyStates: Record<string, boolean> = {};
+      const KEY_ALIASES: Record<string, string> = {
+        ArrowUp: 'KeyW', ArrowDown: 'KeyS', ArrowLeft: 'KeyA', ArrowRight: 'KeyD',
+      };
+      const onKeyDown = (e: KeyboardEvent) => {
+        const code = KEY_ALIASES[e.code] ?? e.code;
+        keyStates[code] = true;
+        if (code === 'Space') e.preventDefault();
+      };
+      const onKeyUp = (e: KeyboardEvent) => {
+        const code = KEY_ALIASES[e.code] ?? e.code;
+        keyStates[code] = false;
+      };
+      const onCanvasClick = () => {
+        if (document.pointerLockElement !== renderer.domElement) {
+          renderer.domElement.requestPointerLock?.();
+        }
+      };
+      const onMouseMove = (e: MouseEvent) => {
+        if (document.pointerLockElement !== renderer.domElement) return;
+        camera.rotation.y -= e.movementX / 500;
+        camera.rotation.x -= e.movementY / 500;
+        // Clamp pitch so we can't backflip into Z-up gimbal.
+        camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
+      };
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+      renderer.domElement.addEventListener('click', onCanvasClick);
+      document.addEventListener('mousemove', onMouseMove);
+
+      const getForwardVector = () => {
+        camera.getWorldDirection(playerDirection);
+        playerDirection.y = 0;
+        playerDirection.normalize();
+        return playerDirection;
+      };
+      const getSideVector = () => {
+        camera.getWorldDirection(playerDirection);
+        playerDirection.y = 0;
+        playerDirection.normalize();
+        playerDirection.cross(camera.up);
+        return playerDirection;
+      };
+      const applyControls = (dt: number) => {
+        const speedDelta = dt * (playerOnFloor ? SPEED_ON_FLOOR : SPEED_IN_AIR);
+        if (keyStates['KeyW']) playerVelocity.add(getForwardVector().multiplyScalar( speedDelta));
+        if (keyStates['KeyS']) playerVelocity.add(getForwardVector().multiplyScalar(-speedDelta));
+        if (keyStates['KeyA']) playerVelocity.add(getSideVector().multiplyScalar(-speedDelta));
+        if (keyStates['KeyD']) playerVelocity.add(getSideVector().multiplyScalar( speedDelta));
+        if (playerOnFloor && keyStates['Space']) playerVelocity.y = JUMP_VELOCITY;
+      };
+      const collidePlayer = () => {
+        const result = worldOctree.capsuleIntersect(playerCollider);
+        playerOnFloor = false;
+        if (result) {
+          playerOnFloor = result.normal.y >= 0.15;
+          if (!playerOnFloor) {
+            // Subtract the velocity component along the contact normal so
+            // we slide along walls instead of sticking.
+            playerVelocity.addScaledVector(result.normal, -result.normal.dot(playerVelocity));
+          }
+          if (result.depth >= 1e-10) {
+            playerCollider.translate(result.normal.multiplyScalar(result.depth));
+          }
+        }
+      };
+      const updatePlayer = (dt: number) => {
+        let damping = Math.exp(-4 * dt) - 1;
+        if (!playerOnFloor) {
+          playerVelocity.y -= GRAVITY * dt;
+          damping *= 0.1;             // air drag is much lower than ground
+        }
+        playerVelocity.addScaledVector(playerVelocity, damping);
+        const delta = playerVelocity.clone().multiplyScalar(dt);
+        playerCollider.translate(delta);
+        collidePlayer();
+        // Sync the camera (eye) to the capsule's top.
+        camera.position.copy(playerCollider.end);
+      };
+      // If the player falls into the void (e.g. nudged off the ground slab),
+      // teleport back to spawn.
+      const teleportIfOob = () => {
+        if (camera.position.y < -10) {
+          playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
+          playerCollider.end.set(SPAWN_X, PLAYER_HEIGHT - PLAYER_RADIUS, SPAWN_Z);
+          playerVelocity.set(0, 0, 0);
+        }
+      };
+      const clock = new THREE.Clock();
+      (camera.userData as any).pfpStep = () => {
+        const dt = Math.min(0.05, clock.getDelta()) / STEPS_PER_FRAME;
+        for (let i = 0; i < STEPS_PER_FRAME; i++) {
+          applyControls(dt);
+          updatePlayer(dt);
+          teleportIfOob();
+        }
+      };
+
+      pfpDetach = () => {
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('keyup', onKeyUp);
+        renderer.domElement.removeEventListener('click', onCanvasClick);
+        document.removeEventListener('mousemove', onMouseMove);
+        if (document.pointerLockElement === renderer.domElement) {
+          document.exitPointerLock?.();
+        }
+      };
+    }
+
     // Ambient occlusion + AA gives the soft shadows + clean edges. Without
     // it the cubes look harsh and flat.
     const composer = new EffectComposer(renderer);
@@ -326,6 +526,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     this.zone.runOutsideAngular(() => {
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
+
+        if (pfpMode) {
+          // Walk mode: drive movement from keyboard, mouse-look handled by
+          // PointerLockControls itself. No intro animation.
+          (camera.userData as any).pfpStep?.();
+          composer.render();
+          return;
+        }
 
         const elapsed = performance.now() - startedAt;
         const tweenStart = HOLD_MS;
@@ -393,6 +601,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (this.animFrame !== null) cancelAnimationFrame(this.animFrame);
       this.animFrame = null;
       ro.disconnect();
+      pfpDetach?.();
       composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

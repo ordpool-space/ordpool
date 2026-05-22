@@ -1,14 +1,36 @@
 @if (vm$ | async; as vm) {
   <div class="bitmap-stage">
-    @if (view === '2d') {
+    @if (mode === '2d') {
       <div class="bitmap-canvas" [innerHTML]="vm.svg"></div>
     } @else {
-      <app-bitmap-3d-renderer [sizes]="vm.data.sizes"/>
+      <app-bitmap-3d-renderer [sizes]="vm.data.sizes" [pfp]="mode === 'pfp'"/>
+    }
+    <!-- PFP toggle: only meaningful in 3D context. Sits to the left of the
+         2D/3D toggle. From 3D enter PFP; from PFP exit back to 3D. Hidden
+         in 2D mode entirely. -->
+    @if (mode !== '2d') {
+      <button type="button" class="bitmap-toggle bitmap-toggle-pfp" (click)="togglePfp()"
+        [attr.aria-label]="mode === 'pfp' ? 'Exit walk mode' : 'Enter walk mode'"
+        [ngbTooltip]="mode === 'pfp' ? 'Exit walk mode' : 'Walk between the blocks (WASD + mouse)'">
+        @if (mode === 'pfp') {
+          <!-- door / exit icon -->
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M10 2.5 L3 2.5 L3 13.5 L10 13.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M7 8 L13.5 8 M11 5.5 L13.5 8 L11 10.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        } @else {
+          <!-- person icon: head + shoulders -->
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="8" cy="4.5" r="2.3" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M2.7 14 Q2.7 8.7 8 8.7 Q13.3 8.7 13.3 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+          </svg>
+        }
+      </button>
     }
     <button type="button" class="bitmap-toggle" (click)="toggleView()"
-      [attr.aria-label]="view === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
-      [ngbTooltip]="view === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'">
-      @if (view === '2d') {
+      [attr.aria-label]="mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
+      [ngbTooltip]="mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'">
+      @if (mode === '2d') {
         <!-- isometric cube outline: click to enter 3D -->
         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M8 1.5 L14 4.5 L14 11.5 L8 14.5 L2 11.5 L2 4.5 Z"

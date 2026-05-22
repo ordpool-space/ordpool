@@ -24,7 +24,8 @@ export class BitmapViewerComponent {
 
   private _height: number | null = null;
   vm$: Observable<BitmapVm | null> = of(null);
-  view: '2d' | '3d' = '2d';
+  // 2d  = SVG | 3d = iso/orbit | pfp = first-person walk through the streets
+  mode: '2d' | '3d' | 'pfp' = '2d';
 
   @Input()
   public set height(h: number | null | undefined) {
@@ -44,7 +45,14 @@ export class BitmapViewerComponent {
   }
 
   toggleView(): void {
-    this.view = this.view === '2d' ? '3d' : '2d';
+    // 2D <-> 3D. PFP collapses back to 3D first.
+    this.mode = (this.mode === '2d') ? '3d' : '2d';
+  }
+
+  togglePfp(): void {
+    // PFP <-> 3D. Only meaningful from 3D or PFP; the 2D button doesn't show
+    // the PFP toggle.
+    this.mode = (this.mode === 'pfp') ? '3d' : 'pfp';
   }
 
   formatHeight(h: number): string {

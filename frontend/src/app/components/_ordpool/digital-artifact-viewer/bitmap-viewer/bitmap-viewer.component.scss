@@ -45,3 +45,8 @@
     display: block;
   }
 }
+
+// PFP toggle sits to the left of the 2D/3D toggle (10px + 36px + 8px gap).
+.bitmap-toggle.bitmap-toggle-pfp {
+  right: 54px;
+}
