@@ -19,10 +19,15 @@
   image-rendering: pixelated;
 }
 
-.bitmap-toggle {
+.bitmap-toolbar {
   position: absolute;
   right: 10px;
   bottom: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.bitmap-toggle {
   width: 36px;
   height: 36px;
   display: inline-flex;
@@ -46,19 +51,22 @@
   }
 }
 
-// PFP toggle sits to the left of the 2D/3D toggle (10px + 36px + 8px gap).
-.bitmap-toggle.bitmap-toggle-pfp {
-  right: 54px;
-}
-// Fullscreen toggle leftmost in the toolbar row.
-.bitmap-toggle.bitmap-toggle-fullscreen {
-  right: 98px;
-}
-
 .bitmap-stage.is-fullscreen {
   max-width: none;
   width: 100vw;
   height: 100vh;
   aspect-ratio: auto;
   background: #11131a;
+
+  // Renderer's own :host has max-width: 600px and aspect-ratio: 1 / 1 baked
+  // in -- override from here so the WebGL canvas fills the fullscreen
+  // viewport. ::ng-deep is needed because the child component has its own
+  // view-encapsulation scope.
+  ::ng-deep app-bitmap-3d-renderer {
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    display: block;
+  }
 }
