@@ -160,7 +160,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // MeshLambert is matte -- no specular highlights. MeshPhong's default
     // shininess of 30 was the reason cube tops blew out under the
     // directional light during the grow phase.
-    const material = new THREE.MeshLambertMaterial();
+    // side = DoubleSide so PFP-mode "see-through cubes" stops being a
+    // thing: when the player capsule briefly clips into a cube, the
+    // camera is inside the cube body and front-face-culled geometry
+    // would let you see straight through to the world beyond. Rendering
+    // both sides keeps cubes opaque from any vantage point.
+    const material = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
     const instances = new THREE.InstancedMesh(cubeGeometry, material, sizes.length);
     instances.frustumCulled = false;
     instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -670,6 +675,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
             camera.quaternion.slerpQuaternions(flyStartQuat, flyEndQuat, eased);
             camera.fov = flyStartFov + (flyEndFov - flyStartFov) * eased;
             camera.updateProjectionMatrix();
+            // Exit reverse: shrink cubes back to the tile baseline as the
+            // camera tilts up. Mirrors the intro's grow phase (just done
+            // simultaneously with the tilt rather than after it).
+            if (state === 'fly-to-iso' && flyAfterIso === 'exit') {
+              container.scale.y = 1 - (1 - SCALE_MIN) * eased;
+            }
             if (t >= 1) {
               if (state === 'fly-to-pfp') {
                 // Snap capsule to spawn; clear physics state so first
