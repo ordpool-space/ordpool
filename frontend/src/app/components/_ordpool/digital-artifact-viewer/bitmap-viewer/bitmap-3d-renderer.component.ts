@@ -323,6 +323,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     if (pfpMode) {
       camera.up.copy(finalUp);
       camera.rotation.order = 'YXZ';                  // yaw + pitch, no roll
+      // Camera carried a "looking straight down" quaternion from the
+      // iso-orbit setup; without an explicit reorientation here, PFP
+      // spawn would face away from the bitmap (the +Z direction) and the
+      // forward-vector derived from camera.getWorldDirection would project
+      // to a near-zero XZ vector. Explicitly face the bitmap centre at
+      // eye height. Mouse-look takes over from there.
       // Cubes already at full height -- no growth animation.
       container.scale.y = 1;
       controls.enabled = false;
@@ -367,11 +373,19 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         PLAYER_RADIUS,
       );
 
+      // Point the camera at the bitmap centre so the spawn faces it.
+      camera.position.copy(playerCollider.end);
+      camera.lookAt(0, playerCollider.end.y, 0);
+
       const GRAVITY = 8;          // demo uses 30 -- ours is floatier
       const JUMP_VELOCITY = 18;    // demo uses 15 -- "we can jump very much"
       const SPEED_ON_FLOOR = 25;
       const SPEED_IN_AIR = 8;
-      const STEPS_PER_FRAME = 5;   // substepping = stable collision
+      // 10 substeps (demo uses 5). Our capsule is small (radius 0.12) and
+      // the cube edges are sharp -- bumping substeps to 10 keeps the
+      // resolution tight enough that walking into a corner doesn't let
+      // the player half-clip the cube before the next iteration resolves.
+      const STEPS_PER_FRAME = 10;
 
       const playerVelocity = new THREE.Vector3();
       const playerDirection = new THREE.Vector3();
