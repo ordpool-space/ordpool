@@ -50,3 +50,15 @@
 .bitmap-toggle.bitmap-toggle-pfp {
   right: 54px;
 }
+// Fullscreen toggle leftmost in the toolbar row.
+.bitmap-toggle.bitmap-toggle-fullscreen {
+  right: 98px;
+}
+
+.bitmap-stage.is-fullscreen {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  background: #11131a;
+}
