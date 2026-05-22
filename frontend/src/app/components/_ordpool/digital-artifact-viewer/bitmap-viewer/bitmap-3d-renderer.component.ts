@@ -165,9 +165,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // shader-based variant gives us a real 2-pixel line.
     const FLOOR_RADIUS_MULT = 5;
     const floorSize = maxSize * FLOOR_RADIUS_MULT * 2;
-    const gridDivisions = Math.max(2, Math.round(floorSize));
+    // Big cells, few lines -- Tron-style sparse glow, not a dense mesh. Fixed
+    // division count means each cell ≈ maxSize/4 world units; ~4 cells span
+    // the bitmap, plenty empty space outside.
+    const gridDivisions = 40;
     const gridStep = floorSize / gridDivisions;
-    // 0.3 multiplier reads as a faint orange wash, not a foreground UI line.
     const gridColor = orange.clone().multiplyScalar(0.3);
     const gridPositions: number[] = [];
     const half = floorSize / 2;
@@ -182,16 +184,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     gridGeom.setPositions(gridPositions);
     const gridMat = new LineMaterial({
       color: gridColor.getHex(),
-      linewidth: 2,           // screen-space pixels (fat-line shader)
+      linewidth: 1,           // 1px screen-space (fat-line shader) -- thin Tron lines
       worldUnits: false,
       transparent: false,
     });
     gridMat.resolution.set(width, heightPx);
     const grid = new LineSegments2(gridGeom, gridMat);
-    // Drop the grid well below cube bottoms so flat-phase cubes still occlude
-    // the lines under them and the fat-line shader's pixel halo doesn't
-    // bleed up into the cube edges.
-    grid.position.y = -0.5;
+    // Grid sits on the ground at y=0. Cubes always carry SCALE_MIN height,
+    // so their bottoms occlude the grid below them; no need to drop the
+    // grid into the basement anymore. Tiny +Y nudge to dodge z-fight with
+    // the ShadowMaterial ground plane.
+    grid.position.y = 0.001;
     scene.add(grid);
 
     // Static "sun" positioned upper-right of the layout relative to the
@@ -265,8 +268,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     controls.saveState();
     // Disable controls for the entire intro; phase 3 enables them.
     controls.enabled = false;
-    // Cubes start flat (height = 0) and grow upward in phase 2.
-    container.scale.y = 0;
+    // Cubes start tile-thin and grow upward in phase 2. Zero height makes
+    // the geometry degenerate, so the directional sun can't differentiate
+    // top from sides and the colour reads as ambient-only brown. SCALE_MIN
+    // lifts the top face just clear of the ground so it catches the sun
+    // properly -- the squares still look flat from the camera but render
+    // in the intended orange.
+    const SCALE_MIN = 0.05;
+    container.scale.y = SCALE_MIN;
 
     // Ambient occlusion + AA gives the soft shadows + clean edges. Without
     // it the cubes look harsh and flat.
@@ -332,7 +341,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           camera.up.copy(finalUp);
           camera.lookAt(controls.target);
           const t = (elapsed - growStart) / GROW_TWEEN_MS;
-          container.scale.y = Math.max(0.001, easeOutBack(t));
+          // Grow from the tile-thin baseline up to full height.
+          container.scale.y = SCALE_MIN + (1 - SCALE_MIN) * easeOutBack(t);
         } else if (!controls.enabled) {
           // Phase 3 (one-shot): lock the final state and hand off to
           // OrbitControls.
