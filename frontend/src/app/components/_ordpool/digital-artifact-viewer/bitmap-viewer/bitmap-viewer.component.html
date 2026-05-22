@@ -3,10 +3,7 @@
     @if (view === '2d') {
       <div class="bitmap-canvas" [innerHTML]="vm.svg"></div>
     } @else {
-      <app-bitmap-3d-renderer
-        [sizes]="vm.data.sizes"
-        [fitOffset]="devFitOffset"
-        [skipIntro]="devSkipIntro"/>
+      <app-bitmap-3d-renderer [sizes]="vm.data.sizes"/>
     }
     <button type="button" class="bitmap-toggle" (click)="toggleView()"
       [attr.aria-label]="view === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
@@ -33,17 +30,4 @@
     is one of its transactions, sized by output value and packed Mondrian-style. Ordpool
     renders any well-formed claim; first-claim validity isn&rsquo;t enforced here.
   </p>
-  <!-- DEV TUNING -- always rendered (both 2D and 3D view) so the toggles
-       can be flipped BEFORE switching to 3D. Otherwise the intro fires by
-       default and there's no time to react. Remove once values are locked. -->
-  <div class="mt-2 smaller-text dev-tuning">
-    <label>fitOffset
-      <input type="number" step="0.01" min="0.2" max="2"
-        [value]="devFitOffset"
-        (change)="setFitOffset($any($event.target).value)"/>
-    </label>
-    <button type="button" class="btn btn-sm btn-outline-secondary ms-2" (click)="toggleSkipIntro()">
-      {{ devSkipIntro ? 'Intro: off' : 'Intro: on' }}
-    </button>
-  </div>
 }

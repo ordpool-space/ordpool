@@ -28,25 +28,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     void this.rebuild();
   }
 
-  // DEV TUNING -- live-bound from the bitmap-viewer's inputs. Each change
-  // forces a full scene rebuild (cheap enough, ~50ms for 3k cubes).
-  private _fitOffset = 0.97;
-  @Input()
-  public set fitOffset(v: number | null | undefined) {
-    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return;
-    if (this._fitOffset === v) return;
-    this._fitOffset = v;
-    void this.rebuild();
-  }
-
-  private _skipIntro = false;
-  @Input()
-  public set skipIntro(v: boolean | null | undefined) {
-    const value = v === true;
-    if (this._skipIntro === value) return;
-    this._skipIntro = value;
-    void this.rebuild();
-  }
 
   // Cleanup handles. Animation frame + WebGL context disposal are critical;
   // without them three.js leaks GPU memory across height switches.
@@ -186,7 +167,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const floorSize = maxSize * FLOOR_RADIUS_MULT * 2;
     const gridDivisions = Math.max(2, Math.round(floorSize));
     const gridStep = floorSize / gridDivisions;
-    const gridColor = orange.clone().multiplyScalar(0.55);
+    // 0.3 multiplier reads as a faint orange wash, not a foreground UI line.
+    const gridColor = orange.clone().multiplyScalar(0.3);
     const gridPositions: number[] = [];
     const half = floorSize / 2;
     for (let i = 0; i <= gridDivisions; i++) {
@@ -206,7 +188,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     });
     gridMat.resolution.set(width, heightPx);
     const grid = new LineSegments2(gridGeom, gridMat);
-    grid.position.y = -0.02;  // sit just below cube bottoms so flat-phase cubes occlude the grid under them
+    // Drop the grid well below cube bottoms so flat-phase cubes still occlude
+    // the lines under them and the fat-line shader's pixel halo doesn't
+    // bleed up into the cube edges.
+    grid.position.y = -0.5;
     scene.add(grid);
 
     // Static "sun" positioned upper-right of the layout relative to the
@@ -242,11 +227,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const fitHeightDist = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const fitDist = Math.max(fitHeightDist, fitWidthDist);
-    // fitOffset < 1.0 crops into the bitmap's edges. Live-tunable via the
-    // dev input in bitmap-viewer; default 0.97 sits close enough to match
-    // the 2D viewport without clipping when the iso-corner diamond swings
-    // into view.
-    const cameraDistance = this._fitOffset * fitDist;
+    // cameraDistance = fitDist puts the bitmap right up to the canvas edges
+    // at top-down (matching the 2D SVG's viewBox-tight layout). The iso-
+    // corner diamond is narrower than the square, so nothing clips when the
+    // camera tilts. Tuned empirically; do not change without re-checking
+    // both the top-down start frame and the iso-corner final pose.
+    const cameraDistance = fitDist;
 
     controls.target.set(0, maxHeight / 2, 0);
     camera.near = cameraDistance / 100;
@@ -303,14 +289,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat).
     //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height.
     //   beyond             : OrbitControls takes over.
-    // DEV TUNING: skipIntro=true holds the render LOCKED at the start frame
-    // (axis-aligned top-down, cubes flat). Lets us tune the initial zoom
-    // without the animation moving the target every rebuild.
     const HOLD_MS = 600;
     const CAMERA_TWEEN_MS = 1300;
     const GROW_TWEEN_MS = 1400;
     const startedAt = performance.now();
-    const lockToStart = this._skipIntro;
 
     // easeInOutCubic for the camera (symmetric, settles smoothly),
     // easeOutBack for the cubes (small overshoot = satisfying snap).
@@ -331,17 +313,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         const tweenStart = HOLD_MS;
         const growStart = HOLD_MS + CAMERA_TWEEN_MS;
         const introEnd = HOLD_MS + CAMERA_TWEEN_MS + GROW_TWEEN_MS;
-
-        if (lockToStart) {
-          // DEV: freeze in the top-down start frame. No camera tween, no
-          // cube growth, no OrbitControls -- just the initial pose.
-          camera.position.copy(startCamera);
-          camera.up.copy(startUp);
-          camera.lookAt(controls.target);
-          container.scale.y = 0.001;
-          composer.render();
-          return;
-        }
 
         if (elapsed < tweenStart) {
           // Phase 0: hold the axis-aligned top-down view.
