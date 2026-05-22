@@ -539,15 +539,24 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       flyStartPos.copy(camera.position);
       flyStartQuat.copy(camera.quaternion);
       flyStartFov = camera.fov;
+      // exit -> fly all the way back to the top-down/intro-start frame,
+      //         so the user sees the camera tilt back and the SVG flip in.
+      //         (Going only to iso is a near-no-op when the user hasn't
+      //         orbited away from iso, and 'nothing happens then SVG' was
+      //         exactly the broken-feeling case.)
+      // orbit -> we're returning from PFP; land at iso so OrbitControls
+      //          has a sensible pose to take over.
+      const targetPos = afterFly === 'exit' ? startCamera : finalCamera;
+      const targetUp = afterFly === 'exit' ? startUp : finalUp;
       const savedPos = camera.position.clone();
       const savedQuat = camera.quaternion.clone();
-      camera.position.copy(finalCamera);
-      camera.up.copy(finalUp);
+      camera.position.copy(targetPos);
+      camera.up.copy(targetUp);
       camera.lookAt(controls.target);
       flyEndQuat.copy(camera.quaternion);
       camera.position.copy(savedPos);
       camera.quaternion.copy(savedQuat);
-      flyEndPos.copy(finalCamera);
+      flyEndPos.copy(targetPos);
       flyEndFov = FOV_ISO;
       flyAfterIso = afterFly;
       flyStartedAt = performance.now();
