@@ -159,29 +159,35 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(directional);
     scene.add(new THREE.AmbientLight(new THREE.Color('white'), 3));
 
-    // Fit camera tight. The 2D SVG fills its viewport edge-to-edge (viewBox
-    // matches the bitmap's bounding box exactly); bitfeed/bitlodo's 1.5 and
-    // even our previous 1.1 left a noticeable dark border. 0.95 brings the
-    // bitmap right up to the canvas edges at top-down. The isometric corner
-    // still fits because the diamond projection is narrower than the square.
-    const fitOffset = 0.95;
-    const fitHeightDist = maxSize / (2 * Math.atan(Math.PI * camera.fov / 360));
+    // fitDist = perpendicular distance needed to make the bitmap fit the
+    // viewport exactly (apparent width = maxSize). The previous formula
+    // used Math.atan instead of Math.tan -- at fov=15° the two are numerically
+    // close, but it's the wrong identity. Fix while we're here.
+    const fitHeightDist = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
-    const distance = fitOffset * Math.max(fitHeightDist, fitWidthDist);
+    const fitDist = Math.max(fitHeightDist, fitWidthDist);
+    // fitOffset < 1.0 means "crop into the bitmap's edges". 0.85 brings the
+    // top-down view right up to the canvas border like the 2D SVG, and lets
+    // the iso corner show the full diamond without dark margin.
+    const fitOffset = 0.85;
+    const cameraDistance = fitOffset * fitDist;
+
     controls.target.set(0, maxHeight / 2, 0);
-    camera.near = distance / 100;
-    camera.far = distance * 100;
+    camera.near = cameraDistance / 100;
+    camera.far = cameraDistance * 100;
     camera.updateProjectionMatrix();
 
-    // Final (after-intro) camera position: standard isometric corner.
-    // Distance from origin = distance * sqrt(3/2) ≈ 1.22 * distance.
+    // Both start and final cameras sit at MAGNITUDE = cameraDistance from
+    // target, so the apparent grid size stays constant through the tween.
+    // Previously the iso corner was at magnitude sqrt(3/2)*distance ≈
+    // 1.22*distance -- farther than the perpendicular fit distance, which
+    // is the second reason the bitmap looked too small.
     const finalCamera = new THREE.Vector3(
-      distance / Math.SQRT2, distance / Math.SQRT2, distance / Math.SQRT2,
+      cameraDistance / Math.sqrt(3),
+      cameraDistance / Math.sqrt(3),
+      cameraDistance / Math.sqrt(3),
     );
-    // Start camera: straight above the layout, same magnitude as finalCamera
-    // so the apparent grid size doesn't shrink during the camera tween.
-    const startCameraY = distance * Math.sqrt(3 / 2);
-    const startCamera = new THREE.Vector3(0, startCameraY, 0);
+    const startCamera = new THREE.Vector3(0, cameraDistance, 0);
 
     // OrbitControls would collapse our orientation cue (project to spherical
     // and back) -- the start state needs to be driven directly. We set
