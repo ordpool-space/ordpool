@@ -3,7 +3,11 @@
     @if (mode === '2d') {
       <div class="bitmap-canvas" [innerHTML]="vm.svg"></div>
     } @else {
-      <app-bitmap-3d-renderer [sizes]="vm.data.sizes" [pfp]="mode === 'pfp'"/>
+      <app-bitmap-3d-renderer
+        [sizes]="vm.data.sizes"
+        [pfp]="mode === 'pfp'"
+        [exit]="exiting"
+        (exitDone)="onExitDone()"/>
     }
     <!-- PFP toggle: only meaningful in 3D context. Sits to the left of the
          2D/3D toggle. From 3D enter PFP; from PFP exit back to 3D. Hidden
