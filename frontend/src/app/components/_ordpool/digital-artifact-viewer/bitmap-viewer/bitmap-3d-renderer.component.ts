@@ -181,17 +181,31 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     grid.position.y = 0.001;  // lift a hair so z-fighting with the ground plane stays away
     scene.add(grid);
 
-    const directional = new THREE.DirectionalLight(new THREE.Color('white'), 0.4);
+    // Static "sun" positioned upper-right of the layout relative to the
+    // iso-corner camera (which sits at (+, +, +)). With this placement at
+    // the final rotation:
+    //   - top face   (+Y): receives the strongest light
+    //   - +X side    : medium-lit (the "right" face from the iso camera)
+    //   - +Z side    : in shadow (the "left" face from the iso camera)
+    // Sun stays fixed in world space as the user orbits, which is what
+    // real lighting does. Intensities are tuned for the post-r155 physical-
+    // light model: lower ambient than legacy (3 -> 1.2) so unlit faces
+    // actually read as shadow, higher directional (0.4 -> 1.6) so the lit
+    // face stands out.
+    const directional = new THREE.DirectionalLight(new THREE.Color('white'), 1.6);
+    directional.position.set(maxSize * 0.6, maxSize * 2.2, -maxSize * 0.6);
+    directional.target.position.set(0, 0, 0);
     directional.castShadow = true;
     directional.shadow.mapSize.set(2048, 2048);
     directional.shadow.camera.near = 0.1;
-    directional.shadow.camera.far = 100;
+    directional.shadow.camera.far = maxSize * 6;
     directional.shadow.camera.left = -maxSize;
     directional.shadow.camera.right = maxSize;
     directional.shadow.camera.top = maxSize;
     directional.shadow.camera.bottom = -maxSize;
     scene.add(directional);
-    scene.add(new THREE.AmbientLight(new THREE.Color('white'), 3));
+    scene.add(directional.target);
+    scene.add(new THREE.AmbientLight(new THREE.Color('white'), 1.2));
 
     // fitDist = perpendicular distance needed to make the bitmap fit the
     // viewport exactly (apparent width = maxSize). The previous formula
@@ -261,13 +275,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat).
     //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height.
     //   beyond             : OrbitControls takes over.
-    // DEV TUNING: skipIntro=true zeros all durations so the renderer jumps
-    // straight to the final iso pose with full-height cubes. Lets us dial in
-    // the camera framing without re-watching the intro every rebuild.
-    const HOLD_MS = this._skipIntro ? 0 : 600;
-    const CAMERA_TWEEN_MS = this._skipIntro ? 0 : 1300;
-    const GROW_TWEEN_MS = this._skipIntro ? 0 : 1400;
+    // DEV TUNING: skipIntro=true holds the render LOCKED at the start frame
+    // (axis-aligned top-down, cubes flat). Lets us tune the initial zoom
+    // without the animation moving the target every rebuild.
+    const HOLD_MS = 600;
+    const CAMERA_TWEEN_MS = 1300;
+    const GROW_TWEEN_MS = 1400;
     const startedAt = performance.now();
+    const lockToStart = this._skipIntro;
 
     // easeInOutCubic for the camera (symmetric, settles smoothly),
     // easeOutBack for the cubes (small overshoot = satisfying snap).
@@ -281,8 +296,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     // Render loop runs outside Angular's zone so it doesn't trigger CD.
     this.zone.runOutsideAngular(() => {
-      const dummy = new THREE.Object3D();
-      const m = new THREE.Matrix4();
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
 
@@ -290,6 +303,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         const tweenStart = HOLD_MS;
         const growStart = HOLD_MS + CAMERA_TWEEN_MS;
         const introEnd = HOLD_MS + CAMERA_TWEEN_MS + GROW_TWEEN_MS;
+
+        if (lockToStart) {
+          // DEV: freeze in the top-down start frame. No camera tween, no
+          // cube growth, no OrbitControls -- just the initial pose.
+          camera.position.copy(startCamera);
+          camera.up.copy(startUp);
+          camera.lookAt(controls.target);
+          container.scale.y = 0.001;
+          composer.render();
+          return;
+        }
 
         if (elapsed < tweenStart) {
           // Phase 0: hold the axis-aligned top-down view.
@@ -324,10 +348,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         if (controls.enabled) {
           controls.update();
         }
-        // Light follows the camera so shadows stay alive while orbiting.
-        m.extractRotation(camera.matrixWorld);
-        dummy.position.set(10, 0, 0).applyMatrix4(m);
-        directional.position.set(-dummy.position.x, 20, -dummy.position.z);
+        // Sun stays fixed in world space -- it's set once at scene build and
+        // we don't touch it here. As the user orbits, the bright/medium/dark
+        // faces shift naturally, which is the realistic "sun at a fixed
+        // place in the sky" feel.
         composer.render();
       };
       animate();
