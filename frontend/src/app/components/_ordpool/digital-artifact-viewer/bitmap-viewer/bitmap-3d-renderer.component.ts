@@ -159,10 +159,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(directional);
     scene.add(new THREE.AmbientLight(new THREE.Color('white'), 3));
 
-    // Fit camera so the layout occupies most of the viewport. fitOffset 1.1
-    // sits closer than bitfeed/bitlodo's 1.5; the cubes fill more of the frame
-    // and you see the texture detail without zooming in.
-    const fitOffset = 1.1;
+    // Fit camera tight. The 2D SVG fills its viewport edge-to-edge (viewBox
+    // matches the bitmap's bounding box exactly); bitfeed/bitlodo's 1.5 and
+    // even our previous 1.1 left a noticeable dark border. 0.95 brings the
+    // bitmap right up to the canvas edges at top-down. The isometric corner
+    // still fits because the diamond projection is narrower than the square.
+    const fitOffset = 0.95;
     const fitHeightDist = maxSize / (2 * Math.atan(Math.PI * camera.fov / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const distance = fitOffset * Math.max(fitHeightDist, fitWidthDist);
