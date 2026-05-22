@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject, Input, NgZone, OnDestroy, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, inject, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
 
 @Component({
   selector: 'app-bitmap-3d-renderer',
@@ -28,14 +28,36 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     void this.rebuild();
   }
 
+  // pfp / exit Inputs trigger STATE TRANSITIONS, not rebuilds. The scene
+  // stays alive (cubes, octree, capsule, listeners) and the animate loop's
+  // state machine handles the transition. Rebuilds are reserved for `sizes`
+  // changes -- those genuinely need a fresh scene.
   private _pfp = false;
   @Input()
   public set pfp(v: boolean | null | undefined) {
     const value = v === true;
     if (this._pfp === value) return;
     this._pfp = value;
-    void this.rebuild();
+    this.dispatch?.();
   }
+
+  private _exit = false;
+  @Input()
+  public set exit(v: boolean | null | undefined) {
+    const value = v === true;
+    if (this._exit === value) return;
+    this._exit = value;
+    this.dispatch?.();
+  }
+
+  // Emitted when an exit-to-iso back-fly finishes (because `exit` was set).
+  // Parent uses this to tear the renderer down and flip to 2D mode.
+  @Output() exitDone = new EventEmitter<void>();
+
+  // Set inside renderCubes(): a closure that re-evaluates state when the
+  // pfp/exit Inputs change. Lets the setters dispatch transitions without
+  // having to wire through method args.
+  private dispatch: (() => void) | null = null;
 
 
   // Cleanup handles. Animation frame + WebGL context disposal are critical;
@@ -119,11 +141,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     hostEl.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    // PFP (walk) mode uses wide FOV typical for first-person -- the 15°
-    // iso-orbit lens would look like binocular zoom on foot. Cubes stay
-    // full-size; the player is just small.
-    const pfpMode = this._pfp;
-    const camera = new THREE.PerspectiveCamera(pfpMode ? 75 : 15, width / heightPx, 0.05, 1000);
+    // Iso FOV (15°) is the default; we lerp to 75° during fly-to-pfp and
+    // back to 15° during fly-to-iso so the perspective shift accompanies
+    // the camera sweep.
+    const FOV_ISO = 15;
+    const FOV_PFP = 75;
+    const camera = new THREE.PerspectiveCamera(FOV_ISO, width / heightPx, 0.05, 1000);
     const controls = new OrbitControls(camera, renderer.domElement);
     // Polar = 0 is straight up, π/2 is at the horizon, π is straight down.
     // Cap at π/2 - 0.01 so the camera can't dip below the ground plane and
@@ -305,241 +328,254 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const SCALE_MIN = 0.05;
     container.scale.y = SCALE_MIN;
 
-    // ---- PFP MODE -----------------------------------------------------
+    // ---- PFP MACHINERY (always set up; activated via state machine) -------
     // Tron-world walk, ported from three.js's official games_fps demo.
-    //   - Static-world collision: Octree built from a throwaway Group with
-    //     real Meshes for each cube slot + the ground. We can't feed the
-    //     real InstancedMesh because Octree.fromGraphNode ignores
-    //     per-instance matrices (only reads geometry once).
-    //   - Player: Capsule. Each frame we integrate velocity, translate
-    //     the capsule, and resolve against the Octree.
-    //   - Mouse-look + pointer lock wired by hand (4 lines, matches the
-    //     demo). PointerLockControls / FirstPersonControls aren't used --
-    //     the demo doesn't use them either; it would add boilerplate
-    //     between our substep loop and the controls helper.
-    //   - GRAVITY 8 + jump impulse 18 give the "floaty, jump very much"
-    //     feel the user asked for. Real-world values would be 30 / 15.
-    let pfpDetach: (() => void) | null = null;
-    if (pfpMode) {
-      camera.up.copy(finalUp);
-      camera.rotation.order = 'YXZ';                  // yaw + pitch, no roll
-      // Camera carried a "looking straight down" quaternion from the
-      // iso-orbit setup; without an explicit reorientation here, PFP
-      // spawn would face away from the bitmap (the +Z direction) and the
-      // forward-vector derived from camera.getWorldDirection would project
-      // to a near-zero XZ vector. Explicitly face the bitmap centre at
-      // eye height. Mouse-look takes over from there.
-      // Cubes already at full height -- no growth animation.
-      container.scale.y = 1;
-      controls.enabled = false;
+    //   - Octree-from-throwaway-Group collision (InstancedMesh isn't
+    //     traversed per-instance by Octree.fromGraphNode).
+    //   - Capsule player. tiny radius 0.12 + height 0.5 -- a Tron citizen,
+    //     towers feel huge.
+    //   - Mouse-look + pointer lock wired by hand (4 lines, matches demo).
+    //   - GRAVITY 8 + jump 18 = floaty arc.
+    // Setup runs whether we're entering iso or pfp mode; activation gates
+    // happen in the state machine below.
+    camera.rotation.order = 'YXZ';                  // yaw + pitch, no roll
 
-      // Build a collision-only Octree from one Mesh per slot. The throwaway
-      // Group is discarded right after fromGraphNode reads the triangles;
-      // the InstancedMesh keeps doing the actual rendering.
-      const collisionRoot = new THREE.Group();
-      const cubeColliderGeom = new THREE.BoxGeometry(1, 1, 1);
-      cubeColliderGeom.translate(0.5, 0.5, 0.5);
-      for (let i = 0; i < mondrian.slots.length; i++) {
-        const slot = mondrian.slots[i];
-        const s = slot.size - 0.5;
-        const m = new THREE.Mesh(cubeColliderGeom);
-        m.scale.set(s, s, s);
-        m.position.set(slot.position.x - layoutSize.width / 2, 0, slot.position.y - layoutSize.height / 2);
-        collisionRoot.add(m);
+    const collisionRoot = new THREE.Group();
+    const cubeColliderGeom = new THREE.BoxGeometry(1, 1, 1);
+    cubeColliderGeom.translate(0.5, 0.5, 0.5);
+    for (let i = 0; i < mondrian.slots.length; i++) {
+      const slot = mondrian.slots[i];
+      const s = slot.size - 0.5;
+      const m = new THREE.Mesh(cubeColliderGeom);
+      m.scale.set(s, s, s);
+      m.position.set(slot.position.x - layoutSize.width / 2, 0, slot.position.y - layoutSize.height / 2);
+      collisionRoot.add(m);
+    }
+    const groundColliderGeom = new THREE.BoxGeometry(maxSize * FLOOR_RADIUS_MULT * 2, 0.1, maxSize * FLOOR_RADIUS_MULT * 2);
+    const groundCollider = new THREE.Mesh(groundColliderGeom);
+    groundCollider.position.set(0, -0.05, 0);
+    collisionRoot.add(groundCollider);
+    collisionRoot.updateMatrixWorld(true);
+    const worldOctree = new Octree();
+    worldOctree.fromGraphNode(collisionRoot);
+    cubeColliderGeom.dispose();
+    groundColliderGeom.dispose();
+
+    const PLAYER_HEIGHT = 0.5;
+    const PLAYER_RADIUS = 0.12;
+    const SPAWN_X = 0;
+    const SPAWN_Z = layoutSize.height / 2 + 2;
+    const SPAWN_EYE_Y = PLAYER_HEIGHT - PLAYER_RADIUS;
+    const playerCollider = new Capsule(
+      new THREE.Vector3(SPAWN_X, PLAYER_RADIUS, SPAWN_Z),
+      new THREE.Vector3(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z),
+      PLAYER_RADIUS,
+    );
+
+    const GRAVITY = 8;
+    const JUMP_VELOCITY = 18;
+    const SPEED_ON_FLOOR = 25;
+    const SPEED_IN_AIR = 8;
+    const STEPS_PER_FRAME = 10;
+    const playerVelocity = new THREE.Vector3();
+    const playerDirection = new THREE.Vector3();
+    let playerOnFloor = false;
+
+    const keyStates: Record<string, boolean> = {};
+    const KEY_ALIASES: Record<string, string> = {
+      ArrowUp: 'KeyW', ArrowDown: 'KeyS', ArrowLeft: 'KeyA', ArrowRight: 'KeyD',
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (state !== 'pfp') return;
+      const code = KEY_ALIASES[e.code] ?? e.code;
+      keyStates[code] = true;
+      if (code === 'Space') e.preventDefault();
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      const code = KEY_ALIASES[e.code] ?? e.code;
+      keyStates[code] = false;
+    };
+    const onCanvasClick = () => {
+      if (state !== 'pfp') return;
+      if (document.pointerLockElement !== renderer.domElement) {
+        renderer.domElement.requestPointerLock?.();
       }
-      // Ground: a wide thin slab so the player can't fall off the world.
-      const groundColliderGeom = new THREE.BoxGeometry(maxSize * FLOOR_RADIUS_MULT * 2, 0.1, maxSize * FLOOR_RADIUS_MULT * 2);
-      const groundCollider = new THREE.Mesh(groundColliderGeom);
-      groundCollider.position.set(0, -0.05, 0);
-      collisionRoot.add(groundCollider);
-      collisionRoot.updateMatrixWorld(true);
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      if (state !== 'pfp') return;
+      if (document.pointerLockElement !== renderer.domElement) return;
+      camera.rotation.y -= e.movementX / 500;
+      camera.rotation.x -= e.movementY / 500;
+      camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    renderer.domElement.addEventListener('click', onCanvasClick);
+    document.addEventListener('mousemove', onMouseMove);
+    const pfpDetach = () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      renderer.domElement.removeEventListener('click', onCanvasClick);
+      document.removeEventListener('mousemove', onMouseMove);
+      if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
+    };
 
-      const worldOctree = new Octree();
-      worldOctree.fromGraphNode(collisionRoot);
-      cubeColliderGeom.dispose();
-      groundColliderGeom.dispose();
-      // collisionRoot was never added to the scene; just let GC have it.
-
-      // Player capsule. start = bottom-centre, end = top-centre (eye height).
-      // Total height = 0.5 (head a tiny tron citizen, towers feel huge).
-      // Radius 0.12 so we can slip through 0.5-unit-wide street gaps.
-      const PLAYER_HEIGHT = 0.5;
-      const PLAYER_RADIUS = 0.12;
-      const SPAWN_X = 0;
-      const SPAWN_Z = layoutSize.height / 2 + 2;       // just south of the bitmap
-      const playerCollider = new Capsule(
-        new THREE.Vector3(SPAWN_X, PLAYER_RADIUS, SPAWN_Z),
-        new THREE.Vector3(SPAWN_X, PLAYER_HEIGHT - PLAYER_RADIUS, SPAWN_Z),
-        PLAYER_RADIUS,
-      );
-
-      // Fly-in transition: capture the current camera pose (position AND
-      // quaternion) so the fly lerps from where the user is looking right
-      // now to the spawn pose, rather than snapping the rotation at frame 1
-      // and only animating position.
-      const flyStartPos = camera.position.clone();
-      const flyStartQuat = camera.quaternion.clone();
-      const FLY_MS = 1500;
-      const flyStartedAt = performance.now();
-      let pfpReady = false;
-      const easeInOutCubic = (t: number) =>
-        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-      const GRAVITY = 8;          // demo uses 30 -- ours is floatier
-      const JUMP_VELOCITY = 18;    // demo uses 15 -- "we can jump very much"
-      const SPEED_ON_FLOOR = 25;
-      const SPEED_IN_AIR = 8;
-      // 10 substeps (demo uses 5). Our capsule is small (radius 0.12) and
-      // the cube edges are sharp -- bumping substeps to 10 keeps the
-      // resolution tight enough that walking into a corner doesn't let
-      // the player half-clip the cube before the next iteration resolves.
-      const STEPS_PER_FRAME = 10;
-
-      const playerVelocity = new THREE.Vector3();
-      const playerDirection = new THREE.Vector3();
-      let playerOnFloor = false;
-
-      const keyStates: Record<string, boolean> = {};
-      const KEY_ALIASES: Record<string, string> = {
-        ArrowUp: 'KeyW', ArrowDown: 'KeyS', ArrowLeft: 'KeyA', ArrowRight: 'KeyD',
-      };
-      const onKeyDown = (e: KeyboardEvent) => {
-        const code = KEY_ALIASES[e.code] ?? e.code;
-        keyStates[code] = true;
-        if (code === 'Space') e.preventDefault();
-      };
-      const onKeyUp = (e: KeyboardEvent) => {
-        const code = KEY_ALIASES[e.code] ?? e.code;
-        keyStates[code] = false;
-      };
-      const onCanvasClick = () => {
-        if (document.pointerLockElement !== renderer.domElement) {
-          renderer.domElement.requestPointerLock?.();
+    const getForwardVector = () => {
+      camera.getWorldDirection(playerDirection);
+      playerDirection.y = 0;
+      playerDirection.normalize();
+      return playerDirection;
+    };
+    const getSideVector = () => {
+      camera.getWorldDirection(playerDirection);
+      playerDirection.y = 0;
+      playerDirection.normalize();
+      playerDirection.cross(camera.up);
+      return playerDirection;
+    };
+    const applyControls = (dt: number) => {
+      const speedDelta = dt * (playerOnFloor ? SPEED_ON_FLOOR : SPEED_IN_AIR);
+      if (keyStates['KeyW']) playerVelocity.add(getForwardVector().multiplyScalar( speedDelta));
+      if (keyStates['KeyS']) playerVelocity.add(getForwardVector().multiplyScalar(-speedDelta));
+      if (keyStates['KeyA']) playerVelocity.add(getSideVector().multiplyScalar(-speedDelta));
+      if (keyStates['KeyD']) playerVelocity.add(getSideVector().multiplyScalar( speedDelta));
+      if (playerOnFloor && keyStates['Space']) playerVelocity.y = JUMP_VELOCITY;
+    };
+    const collidePlayer = () => {
+      playerOnFloor = false;
+      for (let i = 0; i < 4; i++) {
+        const result = worldOctree.capsuleIntersect(playerCollider);
+        if (!result) break;
+        if (result.normal.y >= 0.15) playerOnFloor = true;
+        if (result.normal.y < 0.15) {
+          playerVelocity.addScaledVector(result.normal, -result.normal.dot(playerVelocity));
         }
-      };
-      const onMouseMove = (e: MouseEvent) => {
-        if (document.pointerLockElement !== renderer.domElement) return;
-        camera.rotation.y -= e.movementX / 500;
-        camera.rotation.x -= e.movementY / 500;
-        // Clamp pitch so we can't backflip into Z-up gimbal.
-        camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
-      };
-      window.addEventListener('keydown', onKeyDown);
-      window.addEventListener('keyup', onKeyUp);
-      renderer.domElement.addEventListener('click', onCanvasClick);
-      document.addEventListener('mousemove', onMouseMove);
+        if (result.depth >= 1e-10) {
+          playerCollider.translate(result.normal.multiplyScalar(result.depth));
+        } else {
+          break;
+        }
+      }
+    };
+    const updatePlayer = (dt: number) => {
+      let damping = Math.exp(-4 * dt) - 1;
+      if (!playerOnFloor) {
+        playerVelocity.y -= GRAVITY * dt;
+        damping *= 0.1;
+      }
+      playerVelocity.addScaledVector(playerVelocity, damping);
+      const delta = playerVelocity.clone().multiplyScalar(dt);
+      playerCollider.translate(delta);
+      collidePlayer();
+      camera.position.copy(playerCollider.end);
+    };
+    const teleportIfOob = () => {
+      if (camera.position.y < -10) {
+        playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
+        playerCollider.end.set(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z);
+        playerVelocity.set(0, 0, 0);
+      }
+    };
+    const physicsClock = new THREE.Clock();
 
-      const getForwardVector = () => {
-        camera.getWorldDirection(playerDirection);
-        playerDirection.y = 0;
-        playerDirection.normalize();
-        return playerDirection;
-      };
-      const getSideVector = () => {
-        camera.getWorldDirection(playerDirection);
-        playerDirection.y = 0;
-        playerDirection.normalize();
-        playerDirection.cross(camera.up);
-        return playerDirection;
-      };
-      const applyControls = (dt: number) => {
-        const speedDelta = dt * (playerOnFloor ? SPEED_ON_FLOOR : SPEED_IN_AIR);
-        if (keyStates['KeyW']) playerVelocity.add(getForwardVector().multiplyScalar( speedDelta));
-        if (keyStates['KeyS']) playerVelocity.add(getForwardVector().multiplyScalar(-speedDelta));
-        if (keyStates['KeyA']) playerVelocity.add(getSideVector().multiplyScalar(-speedDelta));
-        if (keyStates['KeyD']) playerVelocity.add(getSideVector().multiplyScalar( speedDelta));
-        if (playerOnFloor && keyStates['Space']) playerVelocity.y = JUMP_VELOCITY;
-      };
-      const collidePlayer = () => {
-        // capsuleIntersect only returns the deepest contact; in a corner
-        // (two cube faces) we'd resolve one, leaving the other still
-        // penetrated -- the demo gets away with a single pass because its
-        // capsule is big (radius 0.35) so corners rarely happen in one
-        // step. With our tiny 0.12 capsule and sharp cube edges, walking
-        // into an interior corner can clip the head into the cube. Iterate
-        // until the octree reports no contact, max 4 passes per substep.
-        playerOnFloor = false;
-        for (let i = 0; i < 4; i++) {
-          const result = worldOctree.capsuleIntersect(playerCollider);
-          if (!result) break;
-          if (result.normal.y >= 0.15) playerOnFloor = true;
-          if (result.normal.y < 0.15) {
-            // Subtract velocity component along the contact normal -- slide
-            // along walls instead of sticking.
-            playerVelocity.addScaledVector(result.normal, -result.normal.dot(playerVelocity));
-          }
-          if (result.depth >= 1e-10) {
-            playerCollider.translate(result.normal.multiplyScalar(result.depth));
-          } else {
-            break;
-          }
-        }
-      };
-      const updatePlayer = (dt: number) => {
-        let damping = Math.exp(-4 * dt) - 1;
-        if (!playerOnFloor) {
-          playerVelocity.y -= GRAVITY * dt;
-          damping *= 0.1;             // air drag is much lower than ground
-        }
-        playerVelocity.addScaledVector(playerVelocity, damping);
-        const delta = playerVelocity.clone().multiplyScalar(dt);
-        playerCollider.translate(delta);
-        collidePlayer();
-        // Sync the camera (eye) to the capsule's top.
-        camera.position.copy(playerCollider.end);
-      };
-      // If the player falls into the void (e.g. nudged off the ground slab),
-      // teleport back to spawn.
-      const teleportIfOob = () => {
-        if (camera.position.y < -10) {
-          playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
-          playerCollider.end.set(SPAWN_X, PLAYER_HEIGHT - PLAYER_RADIUS, SPAWN_Z);
-          playerVelocity.set(0, 0, 0);
-        }
-      };
-      const clock = new THREE.Clock();
-      const spawnEye = playerCollider.end.clone();
-      // Compute the end-of-fly quaternion: position the camera at the spawn
-      // eye, look at the bitmap centre, capture the resulting quaternion,
-      // then restore -- we don't want this scratch frame to be visible.
+    // ---- STATE MACHINE ----------------------------------------------------
+    // intro      -> orbit            (first 3.3s after mount, plays once)
+    // orbit      -> fly-to-pfp       (when _pfp set true)
+    // orbit/pfp  -> fly-to-iso(exit) (when _exit set true)
+    // pfp        -> fly-to-iso(orbit)(when _pfp set false)
+    // fly-to-pfp -> pfp              (when fly tween done)
+    // fly-to-iso -> orbit or exit-done (per fly target)
+    type State = 'intro' | 'orbit' | 'fly-to-pfp' | 'pfp' | 'fly-to-iso' | 'exit-done';
+    let state: State = 'intro';
+    let flyAfterIso: 'orbit' | 'exit' = 'orbit';
+    const FLY_MS = 1500;
+    let flyStartedAt = 0;
+    const flyStartPos = new THREE.Vector3();
+    const flyStartQuat = new THREE.Quaternion();
+    const flyEndPos = new THREE.Vector3();
+    const flyEndQuat = new THREE.Quaternion();
+    let flyStartFov = FOV_ISO;
+    let flyEndFov = FOV_ISO;
+    const spawnEye = new THREE.Vector3(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z);
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easeOutBack = (t: number) => {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    };
+
+    const beginFlyToPfp = () => {
+      flyStartPos.copy(camera.position);
+      flyStartQuat.copy(camera.quaternion);
+      flyStartFov = camera.fov;
+      // Compute end quat: place camera at spawn looking at centre, capture,
+      // restore. Same trick as before.
+      const savedPos = camera.position.clone();
+      const savedQuat = camera.quaternion.clone();
       camera.position.copy(spawnEye);
+      camera.up.copy(finalUp);
       camera.lookAt(0, spawnEye.y, 0);
-      const flyEndQuat = camera.quaternion.clone();
-      camera.position.copy(flyStartPos);
-      camera.quaternion.copy(flyStartQuat);
-      (camera.userData as any).pfpStep = () => {
-        if (!pfpReady) {
-          // Fly-in: slerp BOTH position and rotation from the orbit pose to
-          // the spawn pose. Position lerp gives us motion; quaternion slerp
-          // gives us a smooth gaze sweep instead of a snap-then-translate.
-          const elapsed = performance.now() - flyStartedAt;
-          const t = Math.min(1, elapsed / FLY_MS);
-          const eased = easeInOutCubic(t);
-          camera.position.lerpVectors(flyStartPos, spawnEye, eased);
-          camera.quaternion.slerpQuaternions(flyStartQuat, flyEndQuat, eased);
-          // Drop the clock so the first real-physics frame doesn't see the
-          // huge delta accumulated during the fly.
-          clock.getDelta();
-          if (t >= 1) pfpReady = true;
-          return;
-        }
-        const dt = Math.min(0.05, clock.getDelta()) / STEPS_PER_FRAME;
-        for (let i = 0; i < STEPS_PER_FRAME; i++) {
-          applyControls(dt);
-          updatePlayer(dt);
-          teleportIfOob();
-        }
-      };
+      flyEndQuat.copy(camera.quaternion);
+      camera.position.copy(savedPos);
+      camera.quaternion.copy(savedQuat);
+      flyEndPos.copy(spawnEye);
+      flyEndFov = FOV_PFP;
+      flyStartedAt = performance.now();
+      controls.enabled = false;
+      // Cubes must be at full height for PFP (they are during orbit;
+      // during intro they're growing -- if we leave the intro before the
+      // grow phase ends, force-finish the scale).
+      container.scale.y = 1;
+      state = 'fly-to-pfp';
+    };
 
-      pfpDetach = () => {
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
-        renderer.domElement.removeEventListener('click', onCanvasClick);
-        document.removeEventListener('mousemove', onMouseMove);
-        if (document.pointerLockElement === renderer.domElement) {
-          document.exitPointerLock?.();
-        }
-      };
+    const beginFlyToIso = (afterFly: 'orbit' | 'exit') => {
+      flyStartPos.copy(camera.position);
+      flyStartQuat.copy(camera.quaternion);
+      flyStartFov = camera.fov;
+      const savedPos = camera.position.clone();
+      const savedQuat = camera.quaternion.clone();
+      camera.position.copy(finalCamera);
+      camera.up.copy(finalUp);
+      camera.lookAt(controls.target);
+      flyEndQuat.copy(camera.quaternion);
+      camera.position.copy(savedPos);
+      camera.quaternion.copy(savedQuat);
+      flyEndPos.copy(finalCamera);
+      flyEndFov = FOV_ISO;
+      flyAfterIso = afterFly;
+      flyStartedAt = performance.now();
+      controls.enabled = false;
+      if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
+      // Clear keyStates so a held-down key doesn't carry over.
+      Object.keys(keyStates).forEach(k => keyStates[k] = false);
+      playerVelocity.set(0, 0, 0);
+      state = 'fly-to-iso';
+    };
+
+    // The dispatch closure: setters call this when _pfp / _exit change.
+    this.dispatch = () => {
+      if (this._exit && state !== 'fly-to-iso' && state !== 'exit-done') {
+        beginFlyToIso('exit');
+        return;
+      }
+      if (this._pfp && (state === 'orbit' || state === 'intro')) {
+        beginFlyToPfp();
+        return;
+      }
+      if (!this._pfp && (state === 'pfp' || state === 'fly-to-pfp')) {
+        beginFlyToIso('orbit');
+        return;
+      }
+    };
+
+    // Initial-mount case: if the consumer asked for pfp at mount time,
+    // skip the intro and go straight to the fly-in. (Doesn't happen today
+    // since parent always opens in 3D first, but worth keeping consistent.)
+    if (this._pfp) {
+      container.scale.y = 1;
+      beginFlyToPfp();
     }
 
     // Ambient occlusion + AA gives the soft shadows + clean edges. Without
@@ -557,83 +593,102 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     sao.params.saoBlurDepthCutoff = 0.00001;
     composer.addPass(sao);
 
-    // Intro sequence:
-    //   0..HOLD_MS         : hold the top-down axis-aligned view -- this is
-    //                        the moment the user clocks "this matches 2D".
-    //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat).
-    //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height.
-    //   beyond             : OrbitControls takes over.
+    // Intro sequence durations (used by the 'intro' state in the loop).
+    //   0..HOLD_MS         : hold the top-down axis-aligned view
+    //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat)
+    //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height
+    //   beyond             : OrbitControls takes over (state -> 'orbit')
     const HOLD_MS = 600;
     const CAMERA_TWEEN_MS = 1300;
     const GROW_TWEEN_MS = 1400;
-    const startedAt = performance.now();
+    const introStartedAt = performance.now();
 
-    // easeInOutCubic for the camera (symmetric, settles smoothly),
-    // easeOutBack for the cubes (small overshoot = satisfying snap).
-    const easeInOutCubic = (t: number): number =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    const easeOutBack = (t: number): number => {
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-    };
-
-    // Render loop runs outside Angular's zone so it doesn't trigger CD.
     this.zone.runOutsideAngular(() => {
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
 
-        if (pfpMode) {
-          // Walk mode: drive movement from keyboard, mouse-look handled by
-          // PointerLockControls itself. No intro animation.
-          (camera.userData as any).pfpStep?.();
-          composer.render();
-          return;
+        switch (state) {
+          case 'intro': {
+            const elapsed = performance.now() - introStartedAt;
+            const tweenStart = HOLD_MS;
+            const growStart = HOLD_MS + CAMERA_TWEEN_MS;
+            const introEnd = HOLD_MS + CAMERA_TWEEN_MS + GROW_TWEEN_MS;
+            if (elapsed < tweenStart) {
+              camera.position.copy(startCamera);
+              camera.up.copy(startUp);
+              camera.lookAt(controls.target);
+            } else if (elapsed < growStart) {
+              const t = easeInOutCubic((elapsed - tweenStart) / CAMERA_TWEEN_MS);
+              camera.position.lerpVectors(startCamera, finalCamera, t);
+              camera.up.copy(startUp).lerp(finalUp, t).normalize();
+              camera.lookAt(controls.target);
+            } else if (elapsed < introEnd) {
+              camera.position.copy(finalCamera);
+              camera.up.copy(finalUp);
+              camera.lookAt(controls.target);
+              const t = (elapsed - growStart) / GROW_TWEEN_MS;
+              container.scale.y = SCALE_MIN + (1 - SCALE_MIN) * easeOutBack(t);
+            } else {
+              // Hand off to orbit.
+              camera.position.copy(finalCamera);
+              camera.up.copy(finalUp);
+              camera.lookAt(controls.target);
+              container.scale.y = 1;
+              controls.enabled = true;
+              state = 'orbit';
+            }
+            break;
+          }
+          case 'orbit': {
+            controls.update();
+            break;
+          }
+          case 'fly-to-pfp':
+          case 'fly-to-iso': {
+            const elapsed = performance.now() - flyStartedAt;
+            const t = Math.min(1, elapsed / FLY_MS);
+            const eased = easeInOutCubic(t);
+            camera.position.lerpVectors(flyStartPos, flyEndPos, eased);
+            camera.quaternion.slerpQuaternions(flyStartQuat, flyEndQuat, eased);
+            camera.fov = flyStartFov + (flyEndFov - flyStartFov) * eased;
+            camera.updateProjectionMatrix();
+            if (t >= 1) {
+              if (state === 'fly-to-pfp') {
+                // Snap capsule to spawn; clear physics state so first
+                // physics frame starts cleanly.
+                playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
+                playerCollider.end.set(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z);
+                playerVelocity.set(0, 0, 0);
+                playerOnFloor = false;
+                physicsClock.getDelta();
+                state = 'pfp';
+              } else if (flyAfterIso === 'orbit') {
+                controls.enabled = true;
+                state = 'orbit';
+              } else {
+                state = 'exit-done';
+                this.zone.run(() => this.exitDone.emit());
+              }
+            }
+            break;
+          }
+          case 'pfp': {
+            const dt = Math.min(0.05, physicsClock.getDelta()) / STEPS_PER_FRAME;
+            for (let i = 0; i < STEPS_PER_FRAME; i++) {
+              applyControls(dt);
+              updatePlayer(dt);
+              teleportIfOob();
+            }
+            break;
+          }
+          case 'exit-done': {
+            // Idle; parent will tear us down on its next CD pass.
+            break;
+          }
         }
 
-        const elapsed = performance.now() - startedAt;
-        const tweenStart = HOLD_MS;
-        const growStart = HOLD_MS + CAMERA_TWEEN_MS;
-        const introEnd = HOLD_MS + CAMERA_TWEEN_MS + GROW_TWEEN_MS;
-
-        if (elapsed < tweenStart) {
-          // Phase 0: hold the axis-aligned top-down view.
-          camera.position.copy(startCamera);
-          camera.up.copy(startUp);
-          camera.lookAt(controls.target);
-        } else if (elapsed < growStart) {
-          // Phase 1: tilt camera from top-down to isometric. Lerp position
-          // AND up vector so screen-up rolls smoothly from world -Z to +Y.
-          const t = easeInOutCubic((elapsed - tweenStart) / CAMERA_TWEEN_MS);
-          camera.position.lerpVectors(startCamera, finalCamera, t);
-          camera.up.copy(startUp).lerp(finalUp, t).normalize();
-          camera.lookAt(controls.target);
-        } else if (elapsed < introEnd) {
-          // Phase 2: cubes grow at the final isometric camera position.
-          camera.position.copy(finalCamera);
-          camera.up.copy(finalUp);
-          camera.lookAt(controls.target);
-          const t = (elapsed - growStart) / GROW_TWEEN_MS;
-          // Grow from the tile-thin baseline up to full height.
-          container.scale.y = SCALE_MIN + (1 - SCALE_MIN) * easeOutBack(t);
-        } else if (!controls.enabled) {
-          // Phase 3 (one-shot): lock the final state and hand off to
-          // OrbitControls.
-          camera.position.copy(finalCamera);
-          camera.up.copy(finalUp);
-          camera.lookAt(controls.target);
-          container.scale.y = 1;
-          controls.enabled = true;
-        }
-
-        // OrbitControls only updates while it owns the camera (phase 3+).
-        if (controls.enabled) {
-          controls.update();
-        }
-        // Sun stays fixed in world space -- it's set once at scene build and
-        // we don't touch it here. As the user orbits, the bright/medium/dark
-        // faces shift naturally, which is the realistic "sun at a fixed
-        // place in the sky" feel.
+        // Sun stays fixed in world space. Composer renders all states the
+        // same way -- only the camera/state changed.
         composer.render();
       };
       animate();
@@ -657,7 +712,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (this.animFrame !== null) cancelAnimationFrame(this.animFrame);
       this.animFrame = null;
       ro.disconnect();
-      pfpDetach?.();
+      pfpDetach();
+      this.dispatch = null;
       composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
