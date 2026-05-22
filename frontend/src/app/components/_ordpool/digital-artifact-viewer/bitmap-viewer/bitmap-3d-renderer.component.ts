@@ -61,6 +61,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       import('ordpool-parser'),
     ]);
 
+    // Three.js r155 (July 2023) made ColorManagement.enabled = true and
+    // outputColorSpace = SRGBColorSpace defaults. Both turn brand orange
+    // into a muddy brown under the lighting pipeline. Bitlodo's reference
+    // renderer explicitly disables ColorManagement; we mirror that AND
+    // switch outputColorSpace to LinearSRGBColorSpace, which together
+    // give us back the pre-r155 colour behaviour the bitmap aesthetic
+    // was designed around.
+    THREE.ColorManagement.enabled = false;
+
     if (this._sizes === null || !this.host?.nativeElement) {
       return;
     }
@@ -78,7 +87,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, heightPx);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCFSoftShadowMap throws a deprecation warning under the SSAA+SAO pipeline
+    // ("Using PCFShadowMap instead") -- just ask for the non-soft variant up
+    // front so the console stays quiet.
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Pair with ColorManagement.enabled = false above to restore pre-r155
+    // colour fidelity.
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
     hostEl.appendChild(renderer.domElement);
@@ -102,11 +117,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     container.add(instances);
 
     // Ordpool orange (#FF9900, var(--primary)). Read the CSS variable so any
-    // future theme change carries through. Multiply by 0.7 to take the edge
-    // off -- the SAO+AmbientLight pipeline amplifies the saturation, and
-    // full-strength brand orange ends up looking neon on the cubes.
+    // future theme change carries through.
     const cssOrange = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-    const orange = new THREE.Color(cssOrange || '#FF9900').multiplyScalar(0.7);
+    const orange = new THREE.Color(cssOrange || '#FF9900');
     const matrix = new THREE.Matrix4();
     const pos = new THREE.Vector3();
     const sca = new THREE.Vector3();
