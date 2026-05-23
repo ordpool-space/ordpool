@@ -158,19 +158,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
     cubeGeometry.translate(0.5, 0.5, 0.5);
     // MeshLambert is matte -- no specular highlights. MeshPhong's default
-    // shininess of 30 was the reason cube tops blew out under the
-    // directional light during the grow phase.
-    // side = DoubleSide so PFP-mode "see-through cubes" stops being a
-    // thing: when the player capsule briefly clips into a cube, the
-    // camera is inside the cube body and front-face-culled geometry
-    // would let you see straight through to the world beyond. Rendering
-    // both sides keeps cubes opaque from any vantage point.
-    // shadowSide = FrontSide so the shadow caster only uses front faces
-    // -- with DoubleSide casting, each cube's back faces project shadows
-    // back onto its own front faces, producing diagonal shadow-acne
-    // stripes and a globally darker scene.
-    const material = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
-    material.shadowSide = THREE.FrontSide;
+    // shininess of 30 was the reason cube tops blew out under the grow
+    // phase. FrontSide rendering -- DoubleSide caused fine vertical
+    // banding at glancing angles (gl_FrontFacing flips per-fragment along
+    // the edges, normals flip with it, lighting bands appear).
+    // See-through (camera inside a cube during PFP collisions) is handled
+    // via the camera near-plane raise + collision-iteration count below,
+    // not by rendering both sides.
+    const material = new THREE.MeshLambertMaterial();
     const instances = new THREE.InstancedMesh(cubeGeometry, material, sizes.length);
     instances.frustumCulled = false;
     instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
