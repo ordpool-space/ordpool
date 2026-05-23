@@ -165,7 +165,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // camera is inside the cube body and front-face-culled geometry
     // would let you see straight through to the world beyond. Rendering
     // both sides keeps cubes opaque from any vantage point.
+    // shadowSide = FrontSide so the shadow caster only uses front faces
+    // -- with DoubleSide casting, each cube's back faces project shadows
+    // back onto its own front faces, producing diagonal shadow-acne
+    // stripes and a globally darker scene.
     const material = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+    material.shadowSide = THREE.FrontSide;
     const instances = new THREE.InstancedMesh(cubeGeometry, material, sizes.length);
     instances.frustumCulled = false;
     instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
