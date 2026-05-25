@@ -1,12 +1,40 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, inject, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, inject, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
 
 @Component({
   selector: 'app-bitmap-3d-renderer',
-  template: `<div #host class="bitmap3d-host"></div>`,
+  template: `
+    <div #host class="bitmap3d-host">
+      @if (showTouchUi) {
+        <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
+      }
+    </div>`,
   styles: [`
     :host { display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 600px; }
     .bitmap3d-host { position: relative; width: 100%; height: 100%; }
     .bitmap3d-host > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+    .touch-jump {
+      position: absolute;
+      right: 16px;
+      bottom: 70px;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.45);
+      color: var(--primary);
+      border: 2px solid var(--primary);
+      font-size: 28px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .touch-jump:active { background: rgba(0, 0, 0, 0.7); }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
@@ -16,6 +44,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   private zone = inject(NgZone);
 
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
+  @ViewChild('jumpBtn') jumpBtn?: ElementRef<HTMLButtonElement>;
+
+  // True on touch-capable devices when in PFP mode -- shows the jump button
+  // overlay. Joystick + look areas are invisible (just touch regions).
+  showTouchUi = false;
+
+  private cdr = inject(ChangeDetectorRef);
 
   private _sizes: number[] | null = null;
   @Input()
@@ -417,11 +452,112 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     window.addEventListener('keyup', onKeyUp);
     renderer.domElement.addEventListener('click', onCanvasClick);
     document.addEventListener('mousemove', onMouseMove);
+
+    // ---- Touch controls (mobile) ----------------------------------------
+    // Left half of the canvas = joystick (drag from anywhere; the anchor is
+    // wherever the finger lands, so there's no fixed thumbstick to miss).
+    // Right half = mouse-look equivalent (drag to rotate).
+    // Floating jump button overlays the bottom-right.
+    const isTouch = window.matchMedia('(pointer: coarse)').matches
+      || ('ontouchstart' in window);
+    const joy = { fwd: 0, right: 0 };
+    let leftId: number | null = null;
+    let leftStartX = 0, leftStartY = 0;
+    let rightId: number | null = null;
+    let rightLastX = 0, rightLastY = 0;
+    let jumpPulse = false;       // one-frame impulse flag drained by applyControls
+    const JOY_DEAD_PX = 8;       // ignore micro-jitter
+    const JOY_MAX_PX = 60;       // full deflection at 60px from anchor
+
+    const updateJoy = (cx: number, cy: number) => {
+      const dx = cx - leftStartX;
+      const dy = cy - leftStartY;
+      const ax = Math.abs(dx) < JOY_DEAD_PX ? 0 : dx;
+      const ay = Math.abs(dy) < JOY_DEAD_PX ? 0 : dy;
+      joy.right = Math.max(-1, Math.min(1, ax / JOY_MAX_PX));
+      // Screen +Y is down; forward on the stick = up = negative dy.
+      joy.fwd = Math.max(-1, Math.min(1, -ay / JOY_MAX_PX));
+    };
+    const canvasRect = () => renderer.domElement.getBoundingClientRect();
+    const onTouchStart = (e: TouchEvent) => {
+      if (state !== 'pfp') return;
+      const r = canvasRect();
+      for (const t of Array.from(e.changedTouches)) {
+        const cx = t.clientX - r.left;
+        const cy = t.clientY - r.top;
+        if (cx < r.width / 2 && leftId === null) {
+          leftId = t.identifier;
+          leftStartX = t.clientX;
+          leftStartY = t.clientY;
+          joy.fwd = 0;
+          joy.right = 0;
+        } else if (cx >= r.width / 2 && rightId === null) {
+          rightId = t.identifier;
+          rightLastX = t.clientX;
+          rightLastY = t.clientY;
+        }
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (state !== 'pfp') return;
+      // Block page-scroll while the user is driving the camera.
+      if (leftId !== null || rightId !== null) e.preventDefault();
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === leftId) {
+          updateJoy(t.clientX, t.clientY);
+        } else if (t.identifier === rightId) {
+          // Same scaling feel as mouse path (which uses /500), but touch
+          // deltas tend to be larger; /4 gives a snappy mobile feel.
+          camera.rotation.y -= (t.clientX - rightLastX) / 4 * (Math.PI / 180);
+          camera.rotation.x -= (t.clientY - rightLastY) / 4 * (Math.PI / 180);
+          camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
+          rightLastX = t.clientX;
+          rightLastY = t.clientY;
+        }
+      }
+    };
+    const onTouchEndOrCancel = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === leftId) {
+          leftId = null;
+          joy.fwd = 0;
+          joy.right = 0;
+        } else if (t.identifier === rightId) {
+          rightId = null;
+        }
+      }
+    };
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+    renderer.domElement.addEventListener('touchend', onTouchEndOrCancel);
+    renderer.domElement.addEventListener('touchcancel', onTouchEndOrCancel);
+
+    // Jump button -- two events to support both touch and click.
+    const triggerJump = (e?: Event) => { e?.preventDefault?.(); jumpPulse = true; };
+    let jumpEl: HTMLButtonElement | null = null;
+    const wireJumpButton = () => {
+      // The button is created by the template's @if (showTouchUi) and won't
+      // exist until after change detection runs. Hook it up lazily.
+      jumpEl = this.jumpBtn?.nativeElement ?? null;
+      if (jumpEl) {
+        jumpEl.addEventListener('touchstart', triggerJump, { passive: false });
+        jumpEl.addEventListener('mousedown', triggerJump);
+      }
+    };
+
     const pfpDetach = () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       renderer.domElement.removeEventListener('click', onCanvasClick);
       document.removeEventListener('mousemove', onMouseMove);
+      renderer.domElement.removeEventListener('touchstart', onTouchStart);
+      renderer.domElement.removeEventListener('touchmove', onTouchMove);
+      renderer.domElement.removeEventListener('touchend', onTouchEndOrCancel);
+      renderer.domElement.removeEventListener('touchcancel', onTouchEndOrCancel);
+      if (jumpEl) {
+        jumpEl.removeEventListener('touchstart', triggerJump);
+        jumpEl.removeEventListener('mousedown', triggerJump);
+      }
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
     };
 
@@ -440,11 +576,19 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     const applyControls = (dt: number) => {
       const speedDelta = dt * (playerOnFloor ? SPEED_ON_FLOOR : SPEED_IN_AIR);
-      if (keyStates['KeyW']) playerVelocity.add(getForwardVector().multiplyScalar( speedDelta));
-      if (keyStates['KeyS']) playerVelocity.add(getForwardVector().multiplyScalar(-speedDelta));
-      if (keyStates['KeyA']) playerVelocity.add(getSideVector().multiplyScalar(-speedDelta));
-      if (keyStates['KeyD']) playerVelocity.add(getSideVector().multiplyScalar( speedDelta));
-      if (playerOnFloor && keyStates['Space']) playerVelocity.y = JUMP_VELOCITY;
+      // Combined axis: keyboard contributes ±1 per direction; joystick adds
+      // its analog [-1, 1]. Clamp so simultaneous key+stick doesn't double-
+      // speed.
+      const fwd = ((keyStates['KeyW'] ? 1 : 0) - (keyStates['KeyS'] ? 1 : 0)) + joy.fwd;
+      const side = ((keyStates['KeyD'] ? 1 : 0) - (keyStates['KeyA'] ? 1 : 0)) + joy.right;
+      const fwdClamped = Math.max(-1, Math.min(1, fwd));
+      const sideClamped = Math.max(-1, Math.min(1, side));
+      if (fwdClamped !== 0) playerVelocity.add(getForwardVector().multiplyScalar(speedDelta * fwdClamped));
+      if (sideClamped !== 0) playerVelocity.add(getSideVector().multiplyScalar(speedDelta * sideClamped));
+      if (playerOnFloor && (keyStates['Space'] || jumpPulse)) {
+        playerVelocity.y = JUMP_VELOCITY;
+      }
+      jumpPulse = false;
     };
     const collidePlayer = () => {
       playerOnFloor = false;
@@ -691,11 +835,27 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 playerOnFloor = false;
                 physicsClock.getDelta();
                 state = 'pfp';
+                // Mobile: show the touch UI now that we're walking. Wait
+                // one CD cycle for the @if to render the jump button, then
+                // wire it.
+                if (isTouch) {
+                  this.zone.run(() => {
+                    this.showTouchUi = true;
+                    this.cdr.markForCheck();
+                    setTimeout(wireJumpButton, 0);
+                  });
+                }
               } else if (flyAfterIso === 'orbit') {
                 controls.enabled = true;
                 state = 'orbit';
+                if (isTouch && this.showTouchUi) {
+                  this.zone.run(() => { this.showTouchUi = false; this.cdr.markForCheck(); });
+                }
               } else {
                 state = 'exit-done';
+                if (isTouch && this.showTouchUi) {
+                  this.zone.run(() => { this.showTouchUi = false; this.cdr.markForCheck(); });
+                }
                 this.zone.run(() => this.exitDone.emit());
               }
             }
