@@ -166,40 +166,55 @@ mempool.space styling.
 
 6. **Cube iconography — perspective + lighting are brand rules.**
 
-   Every cube on ordpool — the block-timeline cubes (confirmed +
-   mempool sides), the brand logo, the bitmap-3d viewer scene cubes
-   — shares two non-negotiable conventions:
+   Every cube on ordpool shares two non-negotiable conventions
+   (perspective + lighting), and one preferred geometric style
+   (isometric corner-on, unless the cube needs a content-bearing
+   front face).
 
-   - **Perspective: up-RIGHT Necker vanishing.** The cube's depth
-     recedes toward the upper-right (viewer is at lower-left). This
-     is the Necker default and matches every other 3D cube on the
-     site. Mempool upstream uses up-LEFT for its block timeline; we
-     reverse it via pure CSS overrides in
+   - **Preferred geometry: isometric corner-on.** One cube vertex
+     points at the viewer, three rhombus faces meet there, outer
+     silhouette is a regular hexagon. This is the canonical ordpool
+     cube — the brand logo (`/resources/ordpool-cube-logo.svg`) and
+     the bitmap-3d viewer scene cubes both use it. Any new cube
+     element that's purely iconographic / decorative (favicons, OG
+     images, hero illustrations) MUST also use this variant unless
+     there's a specific reason not to.
+
+     The one allowed exception is the block-timeline cube
+     (`.bitcoin-block` in blockchain-blocks / mempool-blocks /
+     stale-list). It's a 3-face Necker variant with a flat FRONT
+     face plus top + side because the front carries content (fee
+     rate, MB, cat21 avatar, tx count) that an iso corner-on view
+     has no flat surface for. The same perspective + lighting rules
+     below still apply.
+
+   - **Perspective: up-RIGHT Necker vanishing.** Cube depth recedes
+     toward the upper-right (viewer at lower-left). The Necker
+     default. Mempool upstream uses up-LEFT for the block timeline;
+     we reverse it via pure CSS overrides in
      `styles-ordpool-overrides2.scss` (no upstream files touched).
      Mempool's hidden `.time-ltr` toggle (an opt-in opposite-direction
      mode for RTL locales) is killed there too — the `time-toggle`
-     button is `display: none` and any leftover `.time-ltr` class
-     is transformed to a no-op, so the orientation stays consistent
+     button is `display: none` and any leftover `.time-ltr` class is
+     transformed to a no-op, so the orientation stays consistent
      even for users who toggled it on in a past session.
-   - **Lighting: sun-from-upper-LEFT.** The TOP face is brightest
-     (full bitcoin orange `#FF9900`), the LEFT face is mid (`#C07300`,
-     lifted from the bitmap-3d viewer palette), the RIGHT face is the
-     deepest shadow (`#7E4B00`, also from the viewer palette). Brand
-     orange ALWAYS sits on the sun-lit face — it's the identity
-     anchor; the shaded faces are derived tones.
 
-   The brand logo (`/resources/ordpool-cube-logo.svg`) is the
-   isometric corner-on variant — one cube vertex points at the
-   viewer, three rhombi meet there, outer silhouette is a regular
-   hexagon. Sun-from-upper-left applies. The same SVG is used
-   everywhere a logo appears: master-page header (desktop +
-   mobile), global-footer, and the OTS web-notification icon (where
-   it brand-identifies the source in the OS notification centre).
+   - **Lighting: sun-from-upper-LEFT.** TOP face is brightest (full
+     bitcoin orange `#FF9900`), LEFT face is mid (`#C07300`, lifted
+     from the bitmap-3d viewer palette), RIGHT face is the deepest
+     shadow (`#7E4B00`, also from the viewer palette). Brand orange
+     ALWAYS sits on the sun-lit face — it's the identity anchor;
+     the shaded faces are derived tones.
+
+   The brand logo SVG is used everywhere a logo appears: master-page
+   header (desktop + mobile), global-footer, and the OTS web-
+   notification icon (where it brand-identifies the source in the
+   OS notification centre).
 
    The timeline-cube depth pseudo-elements (`::after` for the top
    face, `::before` for the side face) are overridden globally in
-   `styles-ordpool-overrides2.scss` — don't add per-component
-   CSS for cube depth. If a new cube-bearing component lands, it
+   `styles-ordpool-overrides2.scss` — don't add per-component CSS
+   for cube depth. If a new cube-bearing component lands, it
    inherits the rule for free as long as it uses the `.bitcoin-block`
    class hook.
 
