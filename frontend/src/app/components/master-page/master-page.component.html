@@ -19,8 +19,9 @@
   <a class="navbar-brand d-none d-md-flex" [ngClass]="{'dual-logos': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
     <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
 
-      <!-- HACK: ORDPOOL LOGO!! -->
-      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space<sup><strong>v2</strong></sup></span></h4>
+      <!-- HACK: ORDPOOL LOGO!! Necker-flipped cube matching the up-RIGHT
+           vanishing direction of the block-timeline cubes (see overrides2). -->
+      <h4 class="mb-1"><img width="32" height="32" style="margin-top: -2px; margin-right: 6px" src="/resources/ordpool-cube-logo.svg">ordpool<span class="text-primary">.space<sup><strong>v2</strong></sup></span></h4>
 
       <div class="connection-badge">
         <div class="badge bg-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>
@@ -31,8 +32,9 @@
   <!-- HACK: Mobile - Ordpool logo -->
   <a class="navbar-brand d-flex d-md-none justify-content-center" [ngClass]="{'dual-logos': subdomain, 'me-0': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
 
-      <!-- HACK: ORDPOOL LOGO!! -->
-      <h4 class="mb-1"><img width="30" height="32" style="margin-top: -6px; margin-right: 6px" src="/resources/mempool-cube-logo.png">ordpool<span class="text-primary">.space<sup><strong>v2</strong></sup></span></h4>
+      <!-- HACK: ORDPOOL LOGO!! Necker-flipped cube matching the up-RIGHT
+           vanishing direction of the block-timeline cubes (see overrides2). -->
+      <h4 class="mb-1"><img width="32" height="32" style="margin-top: -2px; margin-right: 6px" src="/resources/ordpool-cube-logo.svg">ordpool<span class="text-primary">.space<sup><strong>v2</strong></sup></span></h4>
 
       <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
 

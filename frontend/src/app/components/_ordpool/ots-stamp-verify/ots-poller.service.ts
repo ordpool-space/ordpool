@@ -167,7 +167,7 @@ export class OtsPollerService implements OnDestroy {
     try {
       new Notification('Your timestamp is ready', {
         body: `"${filename}" is now anchored to Bitcoin. Download the receipt now.`,
-        icon: '/resources/mempool-cube-logo.png',
+        icon: '/resources/ordpool-cube-logo.svg',  // brand-identifies the source in the OS notification center
         tag: 'ots-ready-' + filename,   // tag so multi-stamp doesn't spam
       });
     } catch {

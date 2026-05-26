@@ -41,5 +41,88 @@
 }
 
 
+// Cube orientation -- flip mempool's iconic blocks to the Necker-default
+// (top face recedes up-RIGHT, side face on the RIGHT). Upstream renders
+// them up-LEFT, which feels unintuitive to most readers and exists only
+// because the .time-ltr toggle (hidden in the blockchain header, never
+// found by normal users) ships an opt-in flipped variant for RTL locales.
+// We make the Necker default the only orientation.
+//
+// `!important` because mempool-blocks and blockchain-blocks ship compound
+// class selectors at higher specificity than we can reasonably match from
+// a global override (`.mempool-block.bitcoin-block::after`,
+// `.bitcoin-block.placeholder-block::after`). A doubled-class global
+// override gets to (0,2,2) but upstream's compound-class is (0,4,1)
+// after view encapsulation -- it wins. Targeted !important is the
+// least bad option.
+body .bitcoin-block::after {
+  // top face -- shift element right of front, reverse skew direction
+  left: calc(0.16 * var(--block-size)) !important;
+  transform: skew(-40deg) !important;
+}
+
+body .bitcoin-block::before {
+  // side face -- now sits to the RIGHT of the front, mirrored skew
+  left: var(--block-size) !important;
+  transform: skewY(-50deg) !important;
+}
+
+// Stale-block ghost stack (blockchain-blocks only): the predecessor
+// blocks recede the same direction as the live block's depth, otherwise
+// the ghost stack lands in the wrong corner. Mirror the per-index
+// horizontal offset and the small top + side faces.
+body .bitcoin-block .stale-ghost {
+  left: calc(((var(--stale-index) * 0.12) + 0.20) * var(--block-size)) !important;
+}
+body .bitcoin-block .stale-ghost::after {
+  left: calc(0.08 * var(--block-size)) !important;
+  transform: skew(-40deg) !important;
+}
+body .bitcoin-block .stale-ghost::before {
+  left: var(--block-size) !important;
+  transform: skewY(-50deg) !important;
+}
+
+// The inner .block-body stays in normal text orientation -- since our
+// flip only repositions the depth pseudo-elements (::after / ::before)
+// and never applies scaleX to the .bitcoin-block itself, the block-body
+// coordinate system is unchanged and text/images render normally.
+// (Upstream's `.time-ltr` mode flipped via scaleX(-1) on the block and
+// THEN had to counter-mirror block-body. We skip both layers.)
+
+// The floating block-height label above each cube is offset to land over
+// the cube's visual silhouette centre, not the front face's centre.
+// Upstream's up-LEFT cube extends 16% past the front to the LEFT, so
+// upstream shifts the label LEFT by 12px (`left: -12px`). Our up-RIGHT
+// flip extends 16% past the front to the RIGHT, so we mirror the offset.
+body .bitcoin-block .block-height {
+  left: 12px;
+}
+
+// Neutralize the .time-ltr toggle path so it can't double-flip our
+// overrides. mempool ships a hidden user preference ("Switch to
+// displaying newest blocks on the right") that adds `.time-ltr` to
+// the chain wrapper; some upstream rules then transform parts of
+// the cube to re-flip. Our overrides already produce the desired
+// orientation, so any time-ltr-triggered transform would land us
+// in a doubled / broken state.
+//
+// 1) Kill the toggle UI so the path is unreachable for new users.
+//    (Users who already toggled to ltr in a past session still have
+//    localStorage time-preference-ltr=true; rule (2) handles them.)
+// 2) Override the only conflict point -- blockchain-blocks ships
+//    `.time-ltr .bitcoin-block { transform: scaleX(-1); }`, which
+//    would mirror the entire block on top of our face-flip. Force
+//    it back to none. (mempool-blocks' .time-ltr rules already
+//    happen to match our intended values; stale-list has no
+//    .time-ltr rules; so this single counter is sufficient.)
+body .time-toggle {
+  display: none;
+}
+body .time-ltr .bitcoin-block.bitcoin-block {
+  transform: none;
+}
+
+
 @import "./styles_highlightjs_solarized-dark";
 @import "./styles_form-control";

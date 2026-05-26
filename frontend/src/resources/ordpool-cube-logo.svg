@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ordpool brand cube. Isometric corner-on view: one cube vertex
+  points straight at the viewer (centre of canvas), three rhombus
+  faces meet there, outer silhouette is a regular hexagon. Reads
+  instantly as a 3D cube at any size (block-explorer iconography,
+  classic isometric pixel art).
+
+  Lighting is sun-from-upper-LEFT (the classical isometric art
+  default): TOP brightest, LEFT mid, RIGHT darkest. Tones lift
+  the dominant orange palette from ordpool's bitmap-3d viewer so
+  the brand reads coherently across logo + 3D scenes; TOP stays
+  pure bitcoin orange because brand identity sits on the sun side.
+
+  viewBox is 160x160 square: hexagon outer radius is 80, centred
+  at (80, 80) so it fills vertically with ~11px horizontal padding.
+  Square canvas keeps the same SVG usable as a favicon source
+  without extra cropping.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+  <!-- TOP face: brightest, full bitcoin orange (lit by overhead sun) -->
+  <polygon points="80,80 149.28,40 80,0 10.72,40" fill="#FF9900"/>
+  <!-- LEFT face: dominant mid-orange from the bitmap-3d viewer palette -->
+  <polygon points="80,80 10.72,40 10.72,120 80,160" fill="#C07300"/>
+  <!-- RIGHT face: viewer's next-darker shadow tone -->
+  <polygon points="80,80 149.28,40 149.28,120 80,160" fill="#7E4B00"/>
+</svg>
