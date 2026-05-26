@@ -449,6 +449,38 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const playerDirection = new THREE.Vector3();
     let playerOnFloor = false;
 
+    // ---- Input-class detection (detect-it pattern, inlined) -----------------
+    // Single-shot probes are unreliable (iPad+Pencil reports pointer:fine;
+    // some Android desktop-mode sessions skip ontouchstart; Surface tablets
+    // are both). Triangulate across 4 primitives at mount, then refine on
+    // first real input via PointerEvent.pointerType.
+    //   mouseOnly  -> WASD overlay, no jump button
+    //   touchOnly  -> jump button + joystick
+    //   hybrid     -> touch UI initially; first key press hides it; first
+    //                 touch shows it again. Both schemes stay functional.
+    const hasTouch = (navigator.maxTouchPoints || 0) > 0 || ('ontouchstart' in window);
+    const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+    const anyHover = window.matchMedia('(any-hover: hover)').matches;
+    const anyFinePointer = window.matchMedia('(any-pointer: fine)').matches;
+    const inputClass: 'mouseOnly' | 'touchOnly' | 'hybrid' =
+      hasTouch && (hasFinePointer || anyHover || anyFinePointer) ? 'hybrid'
+      : hasTouch ? 'touchOnly'
+      : 'mouseOnly';
+    // Last-used input determines which overlay is visible. Refined per-event.
+    let lastInput: 'kbm' | 'touch' = inputClass === 'mouseOnly' ? 'kbm' : 'touch';
+    const setLastInput = (t: 'kbm' | 'touch') => {
+      if (lastInput === t) return;
+      lastInput = t;
+      // Only flip the UI flag if we're in PFP (no point updating the toggle
+      // for a key press received while orbiting).
+      if (state === 'pfp') {
+        this.zone.run(() => {
+          this.showTouchUi = (t === 'touch');
+          this.cdr.markForCheck();
+        });
+      }
+    };
+
     const keyStates: Record<string, boolean> = {};
     const KEY_ALIASES: Record<string, string> = {
       ArrowUp: 'KeyW', ArrowDown: 'KeyS', ArrowLeft: 'KeyA', ArrowRight: 'KeyD',
@@ -458,6 +490,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       const code = KEY_ALIASES[e.code] ?? e.code;
       keyStates[code] = true;
       if (code === 'Space') e.preventDefault();
+      setLastInput('kbm');
     };
     const onKeyUp = (e: KeyboardEvent) => {
       const code = KEY_ALIASES[e.code] ?? e.code;
@@ -465,6 +498,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     const onCanvasClick = () => {
       if (state !== 'pfp') return;
+      // Don't request pointer lock from a touch tap -- iOS Safari refuses
+      // anyway and we don't want to override the touch-look gesture.
+      if (lastInput === 'touch') return;
       if (document.pointerLockElement !== renderer.domElement) {
         renderer.domElement.requestPointerLock?.();
       }
@@ -476,10 +512,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       camera.rotation.x -= e.movementY / 500;
       camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
     };
+    // First-input refinement via PointerEvent.pointerType. Fires for every
+    // pointer event regardless of source; cheaper than guessing.
+    const onPointerDown = (e: PointerEvent) => {
+      if (state !== 'pfp') return;
+      setLastInput(e.pointerType === 'touch' ? 'touch' : 'kbm');
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     renderer.domElement.addEventListener('click', onCanvasClick);
     document.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
 
     // ---- Touch controls (mobile) ----------------------------------------
     // Left half of the canvas = joystick (drag from anywhere; the anchor is
@@ -603,6 +646,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       window.removeEventListener('keyup', onKeyUp);
       renderer.domElement.removeEventListener('click', onCanvasClick);
       document.removeEventListener('mousemove', onMouseMove);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('touchstart', onTouchStart);
       renderer.domElement.removeEventListener('touchmove', onTouchMove);
       renderer.domElement.removeEventListener('touchend', onTouchEndOrCancel);
@@ -888,13 +932,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 playerOnFloor = false;
                 physicsClock.getDelta();
                 state = 'pfp';
-                // Always show the touch UI in PFP. Pointer-coarse detection
-                // is unreliable on some browsers; the jump button doesn't
-                // hurt desktop (you can click it too), and the joystick
-                // base/knob only render on actual finger contact via the
-                // touchstart handler.
+                // Initial overlay visibility follows the device class:
+                //   mouseOnly  -> no touch UI (Space + mouse only)
+                //   touchOnly  -> touch UI shown
+                //   hybrid     -> touch UI shown initially, hidden on first
+                //                 key press (lastInput refinement)
+                // setLastInput won't trigger an update while state isn't
+                // 'pfp', so we set the flag directly here for the initial
+                // render. Subsequent input events flip it via setLastInput.
                 this.zone.run(() => {
-                  this.showTouchUi = true;
+                  this.showTouchUi = (lastInput === 'touch');
                   this.cdr.markForCheck();
                   setTimeout(wireJumpButton, 0);
                 });
