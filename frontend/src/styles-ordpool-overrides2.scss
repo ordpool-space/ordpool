@@ -55,26 +55,42 @@
 // override gets to (0,2,2) but upstream's compound-class is (0,4,1)
 // after view encapsulation -- it wins. Targeted !important is the
 // least bad option.
-// Depth percentages bumped from upstream's shallow 0.192 / 0.16 to a
-// fuller 0.25 / 0.22, bringing the timeline cubes geometrically
-// closer to the iso-corner-on brand cube while keeping the front
-// face the same square (content area unchanged, ~6% more bbox).
+// True isometric depth (30° from horizontal, same axes as the iso
+// corner-on brand logo). Upstream uses a steeper ~50° "cabinet
+// projection"; we drop to 30° so the timeline cubes live in the
+// same iso world the logo + bitmap-3d viewer are drawn in.
 //
-// Math: skew(-40°) means top face's left shift = depth * tan(40°) =
-// 0.25 * 0.839 ≈ 0.21. skewY(-50°) means side face's vertical shift
-// = depth * tan(50°) / 2 = 0.22 * 0.595 ≈ 0.131.
+// Math for depth d (3D edge length) at iso projection:
+//   horizontal shift = d * cos(30°) = d * 0.866
+//   vertical shift   = d * sin(30°) = d * 0.5
+//
+// We pick d = 0.254 * block-size so the horizontal shift is
+// 0.22 * BS (matching content-area-friendly width budget) and the
+// vertical shift is 0.125 * BS (= half the horizontal — the
+// characteristic iso ratio).
+//
+// CSS-skew implications:
+//   - Top face skew angle from depth/height ratio: arctan(0.22 /
+//     0.125) ≈ 60° → skew(-60deg)
+//   - Side face skew angle (skewY uses half-shift because origin
+//     top is at element centre): arctan(0.125 / 0.22) ≈ 30° →
+//     skewY(-30deg)
+//
+// Net visual: timeline cube top is a flat parallelogram (not a
+// near-square trapezoid), bbox grows ~22% wider but only ~12.5%
+// taller, and the cube reads as a "small iso world block".
 body .bitcoin-block::after {
-  height: calc(0.25 * var(--block-size)) !important;
-  top:    calc(-0.25 * var(--block-size)) !important;
-  left:   calc(0.21 * var(--block-size)) !important;
-  transform: skew(-40deg) !important;
+  height: calc(0.125 * var(--block-size)) !important;
+  top:    calc(-0.125 * var(--block-size)) !important;
+  left:   calc(0.22  * var(--block-size)) !important;
+  transform: skew(-60deg) !important;
 }
 
 body .bitcoin-block::before {
-  width:  calc(0.22 * var(--block-size)) !important;
-  top:    calc(-0.131 * var(--block-size)) !important;
+  width:  calc(0.22   * var(--block-size)) !important;
+  top:    calc(-0.0635 * var(--block-size)) !important;
   left:   var(--block-size) !important;
-  transform: skewY(-50deg) !important;
+  transform: skewY(-30deg) !important;
 }
 
 // Stale-block ghost stack (blockchain-blocks only): the predecessor
