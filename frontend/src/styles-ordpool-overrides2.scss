@@ -55,15 +55,25 @@
 // override gets to (0,2,2) but upstream's compound-class is (0,4,1)
 // after view encapsulation -- it wins. Targeted !important is the
 // least bad option.
+// Depth percentages bumped from upstream's shallow 0.192 / 0.16 to a
+// fuller 0.25 / 0.22, bringing the timeline cubes geometrically
+// closer to the iso-corner-on brand cube while keeping the front
+// face the same square (content area unchanged, ~6% more bbox).
+//
+// Math: skew(-40°) means top face's left shift = depth * tan(40°) =
+// 0.25 * 0.839 ≈ 0.21. skewY(-50°) means side face's vertical shift
+// = depth * tan(50°) / 2 = 0.22 * 0.595 ≈ 0.131.
 body .bitcoin-block::after {
-  // top face -- shift element right of front, reverse skew direction
-  left: calc(0.16 * var(--block-size)) !important;
+  height: calc(0.25 * var(--block-size)) !important;
+  top:    calc(-0.25 * var(--block-size)) !important;
+  left:   calc(0.21 * var(--block-size)) !important;
   transform: skew(-40deg) !important;
 }
 
 body .bitcoin-block::before {
-  // side face -- now sits to the RIGHT of the front, mirrored skew
-  left: var(--block-size) !important;
+  width:  calc(0.22 * var(--block-size)) !important;
+  top:    calc(-0.131 * var(--block-size)) !important;
+  left:   var(--block-size) !important;
   transform: skewY(-50deg) !important;
 }
 
@@ -96,7 +106,9 @@ body .bitcoin-block .stale-ghost::before {
 // upstream shifts the label LEFT by 12px (`left: -12px`). Our up-RIGHT
 // flip extends 16% past the front to the RIGHT, so we mirror the offset.
 body .bitcoin-block .block-height {
-  left: 12px;
+  // 16 = 12 * (0.21 / 0.16): proportional bump of upstream's 12px tweak
+  // to match the deeper top-face horizontal shift (0.21 vs old 0.16).
+  left: 16px;
 }
 
 // Neutralize the .time-ltr toggle path so it can't double-flip our
