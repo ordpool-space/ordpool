@@ -124,6 +124,13 @@ mempool.space styling.
    `var(--warning)` (yellow), `var(--danger)` (red). They're already in
    the colour vocabulary the user knows.
 
+   The brand cube logo and the 3D bitmap viewer scene cubes use an
+   orange tonal cascade (`#FF9900` brand → `#C07300` mid → `#7E4B00`
+   shadow) for dimensional shading on the three visible faces. Those
+   are NOT additional accent colours — they're internal tonal
+   variations of the same brand orange, only ever applied to cube
+   faces. See rule 6 below for the full spec.
+
 2. **No rounded corners.** Upstream mempool uses `border-radius` on
    cards, buttons, dropzones, badges. Ordpool deliberately ships
    square. We kill it globally by overriding the Bootstrap CSS vars
@@ -156,6 +163,45 @@ mempool.space styling.
 
 5. **Icons**: FontAwesome solid (`['fas', '<name>']`), single colour
    (white over the dark theme). Don't mix in emoji icons.
+
+6. **Cube iconography — perspective + lighting are brand rules.**
+
+   Every cube on ordpool — the block-timeline cubes (confirmed +
+   mempool sides), the brand logo, the bitmap-3d viewer scene cubes
+   — shares two non-negotiable conventions:
+
+   - **Perspective: up-RIGHT Necker vanishing.** The cube's depth
+     recedes toward the upper-right (viewer is at lower-left). This
+     is the Necker default and matches every other 3D cube on the
+     site. Mempool upstream uses up-LEFT for its block timeline; we
+     reverse it via pure CSS overrides in
+     `styles-ordpool-overrides2.scss` (no upstream files touched).
+     Mempool's hidden `.time-ltr` toggle (an opt-in opposite-direction
+     mode for RTL locales) is killed there too — the `time-toggle`
+     button is `display: none` and any leftover `.time-ltr` class
+     is transformed to a no-op, so the orientation stays consistent
+     even for users who toggled it on in a past session.
+   - **Lighting: sun-from-upper-LEFT.** The TOP face is brightest
+     (full bitcoin orange `#FF9900`), the LEFT face is mid (`#C07300`,
+     lifted from the bitmap-3d viewer palette), the RIGHT face is the
+     deepest shadow (`#7E4B00`, also from the viewer palette). Brand
+     orange ALWAYS sits on the sun-lit face — it's the identity
+     anchor; the shaded faces are derived tones.
+
+   The brand logo (`/resources/ordpool-cube-logo.svg`) is the
+   isometric corner-on variant — one cube vertex points at the
+   viewer, three rhombi meet there, outer silhouette is a regular
+   hexagon. Sun-from-upper-left applies. The same SVG is used
+   everywhere a logo appears: master-page header (desktop +
+   mobile), global-footer, and the OTS web-notification icon (where
+   it brand-identifies the source in the OS notification centre).
+
+   The timeline-cube depth pseudo-elements (`::after` for the top
+   face, `::before` for the side face) are overridden globally in
+   `styles-ordpool-overrides2.scss` — don't add per-component
+   CSS for cube depth. If a new cube-bearing component lands, it
+   inherits the rule for free as long as it uses the `.bitcoin-block`
+   class hook.
 
 When you're unsure, check `cat21-mint`'s component for the canonical
 ordpool look — it's the reference page for typography + spacing +
