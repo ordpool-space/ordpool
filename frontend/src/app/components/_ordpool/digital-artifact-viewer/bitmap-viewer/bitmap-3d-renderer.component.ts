@@ -429,7 +429,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     cubeColliderGeom.dispose();
     groundColliderGeom.dispose();
 
-    const PLAYER_HEIGHT = 0.5;
+    const PLAYER_HEIGHT = 0.8;          // taller citizen; eye at ~0.64
     const PLAYER_RADIUS = 0.12;
     const SPAWN_X = 0;
     const SPAWN_Z = layoutSize.height / 2 + 2;
@@ -485,9 +485,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // Left half of the canvas = joystick (drag from anywhere; the anchor is
     // wherever the finger lands, so there's no fixed thumbstick to miss).
     // Right half = mouse-look equivalent (drag to rotate).
-    // Floating jump button overlays the bottom-right.
-    const isTouch = window.matchMedia('(pointer: coarse)').matches
-      || ('ontouchstart' in window);
+    // Floating jump button overlays the bottom-right (shown in any PFP).
     const joy = { fwd: 0, right: 0 };
     let leftId: number | null = null;
     let leftStartX = 0, leftStartY = 0;
@@ -890,25 +888,25 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 playerOnFloor = false;
                 physicsClock.getDelta();
                 state = 'pfp';
-                // Mobile: show the touch UI now that we're walking. Wait
-                // one CD cycle for the @if to render the jump button, then
-                // wire it.
-                if (isTouch) {
-                  this.zone.run(() => {
-                    this.showTouchUi = true;
-                    this.cdr.markForCheck();
-                    setTimeout(wireJumpButton, 0);
-                  });
-                }
+                // Always show the touch UI in PFP. Pointer-coarse detection
+                // is unreliable on some browsers; the jump button doesn't
+                // hurt desktop (you can click it too), and the joystick
+                // base/knob only render on actual finger contact via the
+                // touchstart handler.
+                this.zone.run(() => {
+                  this.showTouchUi = true;
+                  this.cdr.markForCheck();
+                  setTimeout(wireJumpButton, 0);
+                });
               } else if (flyAfterIso === 'orbit') {
                 controls.enabled = true;
                 state = 'orbit';
-                if (isTouch && this.showTouchUi) {
+                if (this.showTouchUi) {
                   this.zone.run(() => { this.showTouchUi = false; this.cdr.markForCheck(); });
                 }
               } else {
                 state = 'exit-done';
-                if (isTouch && this.showTouchUi) {
+                if (this.showTouchUi) {
                   this.zone.run(() => { this.showTouchUi = false; this.cdr.markForCheck(); });
                 }
                 this.zone.run(() => this.exitDone.emit());
