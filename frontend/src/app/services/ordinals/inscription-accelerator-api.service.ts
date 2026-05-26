@@ -2,8 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import * as btc from '@scure/btc-signer';
 import { hexToBytes } from 'ordpool-parser';
-import { BehaviorSubject, concatMap, from, map, Observable, switchMap, tap } from 'rxjs';
-import { BitcoinNetworkType, InputToSign, signTransaction } from 'sats-connect';
+import { BehaviorSubject, concatMap, from, map, Observable, switchMap, tap, throwError } from 'rxjs';
 
 import { ApiService } from '../api.service';
 import { StorageService } from '../storage.service';
@@ -147,12 +146,13 @@ export class InscriptionAcceleratorApiService {
         // return of({ txId: '1212' });
 
         if (walletType === KnownOrdinalWalletType.xverse) {
-          // Xverse is broadcasting on its own
-          return this.signTransactionAndBroadcastXverse({
-            preparedPsbt,
-            buyerOrdinalAddress: requestBody.buyerOrdinalAddress,
-            buyerPaymentAddress: requestBody.buyerPaymentAddress
-          });
+          // Xverse accelerator path is parked until the SDK exposes a
+          // multi-input + broadcast-by-wallet signing surface (the
+          // current SignAndBroadcastInput is single-input + caller-
+          // broadcasts, tuned for CAT-21 mints). The accelerator
+          // needs SIGHASH_SINGLE|ANYONECANPAY on input 0 and a
+          // distinct sigHash on payment inputs.
+          return throwError(() => new Error('Xverse accelerator signing is being migrated to the SDK; not available right now.'));
         }
 
         if (walletType === KnownOrdinalWalletType.leather) {
@@ -161,65 +161,12 @@ export class InscriptionAcceleratorApiService {
           );
         }
 
-        // Unisat!
         throw new Error('Your wallet is not supported!');
       }),
       tap(({ txId }) => {
         this.saveNewAcceleration(txId, requestBody);
       })
     );
-  }
-
-  /**
-   * Sign and broadcast the PSBT with Xverse
-   *
-   * If the transaction is broadcasted, you will receive a TXID in the response.
-   *
-   * see also: https://docs.xverse.app/sats-connect/sign-transaction
-   */
-  private signTransactionAndBroadcastXverse({ preparedPsbt, buyerOrdinalAddress, buyerPaymentAddress }: {
-    preparedPsbt: CreatePsbtSuccessResponse,
-    buyerOrdinalAddress: string,
-    buyerPaymentAddress: string
-  }): Observable<{ txId: string }> {
-
-    const inputsToSign: InputToSign[] = preparedPsbt.buyerInputIndices
-      .filter(index => index !== 0)
-      .map(index => ({
-        address: buyerPaymentAddress,
-        signingIndexes: [index]
-      }));
-
-    inputsToSign.push({
-      address: buyerOrdinalAddress,
-      signingIndexes: [0],
-      sigHash: 131 // SIGHASH_SINGLE | ANYONECANPAY
-    });
-
-    return new Observable<{ txId: string }>((observer) => {
-      signTransaction({
-        payload: {
-          network: {
-            type: this.isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet,
-            address: buyerOrdinalAddress // WTF? this param is not required!
-          },
-          message: 'Sign Transaction (Inscription Accelerator)',
-          psbtBase64: preparedPsbt.psbt,
-          broadcast: true,
-          inputsToSign
-        },
-        onFinish: (response) => {
-
-          const txId = response.txId;
-
-          observer.next({ txId });
-          observer.complete();
-        },
-        onCancel: () => {
-          observer.error(new Error('Request was cancelled'));
-        }
-      });
-    });
   }
 
   /**

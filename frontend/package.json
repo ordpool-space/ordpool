@@ -96,7 +96,6 @@
     "ordpool-sdk": "github:ordpool-space/ordpool-sdk#adbc70877f5a916523e2e631699301afd6d421ab",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",
-    "sats-connect": "^1.1.2",
     "three": "^0.184.0",
     "tslib": "~2.8.0",
     "zone.js": "~0.15.1"
