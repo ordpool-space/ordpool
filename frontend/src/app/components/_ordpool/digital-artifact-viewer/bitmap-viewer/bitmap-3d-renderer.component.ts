@@ -5,6 +5,8 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
   template: `
     <div #host class="bitmap3d-host">
       @if (showTouchUi) {
+        <div #joyBase class="touch-joy-base"></div>
+        <div #joyKnob class="touch-joy-knob"></div>
         <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
       }
     </div>`,
@@ -12,8 +14,18 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
     :host { display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 600px; }
     .bitmap3d-host { position: relative; width: 100%; height: 100%; }
     .bitmap3d-host > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
-    .touch-jump {
+    .touch-jump,
+    .touch-joy-base,
+    .touch-joy-knob {
       position: absolute;
+      pointer-events: none;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 2;
+    }
+    .touch-jump {
       right: 16px;
       bottom: 70px;
       width: 64px;
@@ -27,14 +39,28 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       display: flex;
       align-items: center;
       justify-content: center;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: transparent;
+      pointer-events: auto;
       cursor: pointer;
-      z-index: 2;
     }
     .touch-jump:active { background: rgba(0, 0, 0, 0.7); }
+    .touch-joy-base, .touch-joy-knob {
+      display: none;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .touch-joy-base {
+      width: 120px;
+      height: 120px;
+      border: 2px solid rgba(255, 153, 0, 0.55);
+      background: rgba(0, 0, 0, 0.25);
+    }
+    .touch-joy-knob {
+      width: 56px;
+      height: 56px;
+      background: rgba(255, 153, 0, 0.75);
+    }
+    .touch-joy-active.touch-joy-base,
+    .touch-joy-active.touch-joy-knob { display: block; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
@@ -45,6 +71,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
   @ViewChild('jumpBtn') jumpBtn?: ElementRef<HTMLButtonElement>;
+  @ViewChild('joyBase') joyBase?: ElementRef<HTMLDivElement>;
+  @ViewChild('joyKnob') joyKnob?: ElementRef<HTMLDivElement>;
 
   // True on touch-capable devices when in PFP mode -- shows the jump button
   // overlay. Joystick + look areas are invisible (just touch regions).
@@ -477,6 +505,31 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       joy.right = Math.max(-1, Math.min(1, ax / JOY_MAX_PX));
       // Screen +Y is down; forward on the stick = up = negative dy.
       joy.fwd = Math.max(-1, Math.min(1, -ay / JOY_MAX_PX));
+      // Keep the knob inside the base ring -- clamp the visual to JOY_MAX_PX.
+      const len = Math.hypot(dx, dy);
+      const k = len > JOY_MAX_PX ? JOY_MAX_PX / len : 1;
+      moveJoyKnob(leftStartX + dx * k, leftStartY + dy * k);
+    };
+    const showJoy = (cx: number, cy: number) => {
+      const base = this.joyBase?.nativeElement;
+      const knob = this.joyKnob?.nativeElement;
+      if (!base || !knob) return;
+      base.style.left = cx + 'px';
+      base.style.top = cy + 'px';
+      base.classList.add('touch-joy-active');
+      knob.style.left = cx + 'px';
+      knob.style.top = cy + 'px';
+      knob.classList.add('touch-joy-active');
+    };
+    const moveJoyKnob = (cx: number, cy: number) => {
+      const knob = this.joyKnob?.nativeElement;
+      if (!knob) return;
+      knob.style.left = cx + 'px';
+      knob.style.top = cy + 'px';
+    };
+    const hideJoy = () => {
+      this.joyBase?.nativeElement.classList.remove('touch-joy-active');
+      this.joyKnob?.nativeElement.classList.remove('touch-joy-active');
     };
     const canvasRect = () => renderer.domElement.getBoundingClientRect();
     const onTouchStart = (e: TouchEvent) => {
@@ -491,6 +544,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           leftStartY = t.clientY;
           joy.fwd = 0;
           joy.right = 0;
+          showJoy(t.clientX, t.clientY);
         } else if (cx >= r.width / 2 && rightId === null) {
           rightId = t.identifier;
           rightLastX = t.clientX;
@@ -522,6 +576,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           leftId = null;
           joy.fwd = 0;
           joy.right = 0;
+          hideJoy();
         } else if (t.identifier === rightId) {
           rightId = null;
         }
@@ -896,11 +951,23 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     const ro = new ResizeObserver(resize);
     ro.observe(hostEl);
+    // Safety net for mobile orientation changes: some browsers fire
+    // ResizeObserver reliably here, some don't until the next interaction.
+    // Pin to window resize / orientationchange so the canvas always
+    // tracks the new viewport on rotation. Two rAFs because iOS Safari
+    // resolves the new viewport dimensions a couple of frames late.
+    const onOrientation = () => {
+      requestAnimationFrame(() => requestAnimationFrame(resize));
+    };
+    window.addEventListener('resize', onOrientation);
+    window.addEventListener('orientationchange', onOrientation);
 
     this.cleanup = () => {
       if (this.animFrame !== null) cancelAnimationFrame(this.animFrame);
       this.animFrame = null;
       ro.disconnect();
+      window.removeEventListener('resize', onOrientation);
+      window.removeEventListener('orientationchange', onOrientation);
       pfpDetach();
       this.dispatch = null;
       composer.dispose();

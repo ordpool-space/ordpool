@@ -93,7 +93,22 @@ export class BitmapViewerComponent {
     // 3D <-> PFP. Renderer handles both fly-to-pfp (going in) and
     // fly-to-iso(after=orbit) (coming out) without rebuilding.
     if (this.exiting) return;
-    this.mode = (this.mode === 'pfp') ? '3d' : 'pfp';
+    const enteringPfp = this.mode !== 'pfp';
+    this.mode = enteringPfp ? 'pfp' : '3d';
+    // Mobile: auto-fullscreen on PFP entry. Without this, the canvas
+    // stays at its aspect-ratio:1/1 max-width:600px size -- rotating the
+    // phone gives more viewport real estate but the canvas doesn't grow.
+    // Fullscreen tracks the actual viewport, so orientation changes work
+    // automatically. The browser requires this be called within a user-
+    // gesture handler -- the click on the PFP toggle qualifies.
+    if (enteringPfp && this.isCoarsePointer() && !document.fullscreenElement) {
+      this.stage?.nativeElement.requestFullscreen?.();
+    }
+  }
+
+  private isCoarsePointer(): boolean {
+    return window.matchMedia?.('(pointer: coarse)').matches
+      || ('ontouchstart' in window);
   }
 
   onExitDone(): void {
