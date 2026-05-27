@@ -449,36 +449,21 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const playerDirection = new THREE.Vector3();
     let playerOnFloor = false;
 
-    // ---- Input-class detection (detect-it pattern, inlined) -----------------
-    // Single-shot probes are unreliable (iPad+Pencil reports pointer:fine;
-    // some Android desktop-mode sessions skip ontouchstart; Surface tablets
-    // are both). Triangulate across 4 primitives at mount, then refine on
-    // first real input via PointerEvent.pointerType.
-    //   mouseOnly  -> WASD overlay, no jump button
-    //   touchOnly  -> jump button + joystick
-    //   hybrid     -> touch UI initially; first key press hides it; first
-    //                 touch shows it again. Both schemes stay functional.
-    const hasTouch = (navigator.maxTouchPoints || 0) > 0 || ('ontouchstart' in window);
-    const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
-    const anyHover = window.matchMedia('(any-hover: hover)').matches;
-    const anyFinePointer = window.matchMedia('(any-pointer: fine)').matches;
-    const inputClass: 'mouseOnly' | 'touchOnly' | 'hybrid' =
-      hasTouch && (hasFinePointer || anyHover || anyFinePointer) ? 'hybrid'
-      : hasTouch ? 'touchOnly'
-      : 'mouseOnly';
-    // Last-used input determines which overlay is visible. Refined per-event.
-    let lastInput: 'kbm' | 'touch' = inputClass === 'mouseOnly' ? 'kbm' : 'touch';
+    // ---- Input-scheme tracking ------------------------------------------
+    // Strategy: show touch UI by default in PFP. Hide on first keyboard
+    // input (user has a keyboard; jump button just clutters). Show again
+    // on first touch event (user switched back). Simpler and more
+    // reliable than upfront device classification, which had too many
+    // false-negatives on devices that DO have touch (iPad with
+    // Pencil/Magic Keyboard, Android with desktop-mode toggles, etc.).
     const setLastInput = (t: 'kbm' | 'touch') => {
-      if (lastInput === t) return;
-      lastInput = t;
-      // Only flip the UI flag if we're in PFP (no point updating the toggle
-      // for a key press received while orbiting).
-      if (state === 'pfp') {
-        this.zone.run(() => {
-          this.showTouchUi = (t === 'touch');
-          this.cdr.markForCheck();
-        });
-      }
+      if (state !== 'pfp') return;
+      const wantTouchUi = (t === 'touch');
+      if (this.showTouchUi === wantTouchUi) return;
+      this.zone.run(() => {
+        this.showTouchUi = wantTouchUi;
+        this.cdr.markForCheck();
+      });
     };
 
     const keyStates: Record<string, boolean> = {};
@@ -498,9 +483,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     const onCanvasClick = () => {
       if (state !== 'pfp') return;
-      // Don't request pointer lock from a touch tap -- iOS Safari refuses
-      // anyway and we don't want to override the touch-look gesture.
-      if (lastInput === 'touch') return;
+      // Don't request pointer lock when the touch UI is visible -- iOS
+      // Safari rejects pointer lock and we don't want to steal a tap from
+      // the touch-look gesture.
+      if (this.showTouchUi) return;
       if (document.pointerLockElement !== renderer.domElement) {
         renderer.domElement.requestPointerLock?.();
       }
@@ -932,16 +918,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 playerOnFloor = false;
                 physicsClock.getDelta();
                 state = 'pfp';
-                // Initial overlay visibility follows the device class:
-                //   mouseOnly  -> no touch UI (Space + mouse only)
-                //   touchOnly  -> touch UI shown
-                //   hybrid     -> touch UI shown initially, hidden on first
-                //                 key press (lastInput refinement)
-                // setLastInput won't trigger an update while state isn't
-                // 'pfp', so we set the flag directly here for the initial
-                // render. Subsequent input events flip it via setLastInput.
+                // Touch UI starts visible in every PFP session. Keyboard
+                // users see it disappear on their first WASD/Space press
+                // (setLastInput('kbm')); touch users see it stay. Showing
+                // it by default is the safe option -- mobile browsers that
+                // misreport pointer/hover capabilities still get usable
+                // controls.
                 this.zone.run(() => {
-                  this.showTouchUi = (lastInput === 'touch');
+                  this.showTouchUi = true;
                   this.cdr.markForCheck();
                   setTimeout(wireJumpButton, 0);
                 });
