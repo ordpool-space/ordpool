@@ -1,4 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 import poolsParser from '../api/pools-parser';
 import config from '../config';
 import DB from '../database';
@@ -18,6 +20,38 @@ class PoolsUpdater {
   currentSha: string | null = null;
   poolsUrl: string = config.MEMPOOL.POOLS_JSON_URL;
   treeUrl: string = config.MEMPOOL.POOLS_JSON_TREE_URL;
+
+  /**
+   * HACK -- Ordpool: load the bundled pools-v2.json. The file ships
+   * alongside the compiled JS at dist/tasks/_ordpool/pools-v2.json
+   * (copied by the create-resources script in package.json).
+   *
+   * The bundled file is the only source of pool definitions; upstream's
+   * live fetch (updatePoolsJson) and periodic refresh ($startService)
+   * are neutralised at the call sites in index.ts. New pool data arrives
+   * via .github/workflows/refresh-pools-v2.yml pushing an updated
+   * bundle, which deploys on the next regular build.
+   *
+   * currentSha is left at its default null -- blocks.definition_hash is
+   * nullable, so block inserts succeed; we just don't tag block rows
+   * with a pools-list version.
+   */
+  public async loadBundledPools(): Promise<void> {
+    const bundlePath = path.join(__dirname, '_ordpool', 'pools-v2.json');
+    const raw = fs.readFileSync(bundlePath, 'utf8');
+    const json = JSON.parse(raw);
+    poolsParser.setMiningPools(json);
+    if (config.DATABASE.ENABLED === true) {
+      try {
+        await DB.query('START TRANSACTION;');
+        await poolsParser.migratePoolsJson();
+        await DB.query('COMMIT;');
+      } catch (e) {
+        await DB.query('ROLLBACK;');
+        throw e;
+      }
+    }
+  }
 
   /** @asyncSafe */
   public async $startService(): Promise<void> {
