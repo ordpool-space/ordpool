@@ -198,11 +198,19 @@ class Server {
 
     this.setUpWebsocketHandling();
 
+    // HACK -- Ordpool: live pools-v2.json fetch retired in favour of the
+    // bundled file at backend/src/tasks/_ordpool/pools-v2.json. The file
+    // is refreshed nightly by .github/workflows/refresh-pools-v2.yml
+    // (commits with [skip ci] so no 3am deploy). New pool definitions
+    // ride into prod with the next regular deployment.
+    await poolsUpdater.loadBundledPools();
+    /* HACK -- Ordpool: original upstream block retained for merge symmetry.
     await poolsUpdater.updatePoolsJson(); // Needs to be done before loading the disk cache because we sometimes wipe it
     if (config.DATABASE.ENABLED === true && config.MEMPOOL.ENABLED && ['mainnet', 'testnet', 'signet', 'testnet4', 'regtest'].includes(config.MEMPOOL.NETWORK) && !poolsUpdater.currentSha) {
       logger.err(`Failed to retreive pools-v2.json sha, cannot run block indexing. Please make sure you've set valid urls in your mempool-config.json::MEMPOOL::POOLS_JSON_URL and mempool-config.json::MEMPOOL::POOLS_JSON_TREE_UR, aborting now`);
       return process.exit(1);
     }
+    */
 
     await syncAssets.syncAssets$();
     if (config.DATABASE.ENABLED) {
@@ -271,7 +279,12 @@ class Server {
       });
     }
 
-    void poolsUpdater.$startService();
+    /* HACK -- Ordpool: pools-updater $startService loop retired; bundled
+     * file is the only source (see backend/src/tasks/_ordpool/pools-v2.json
+     * and the comment above where loadBundledPools() is called).
+     *
+     * void poolsUpdater.$startService();
+     */
   }
 
   /** @asyncSafe */
