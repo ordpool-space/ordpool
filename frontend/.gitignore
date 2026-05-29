@@ -62,7 +62,11 @@ src/resources/assets.minimal.json
 src/resources/assets-testnet.json
 src/resources/assets-testnet.minimal.json
 src/resources/pools.json
-src/resources/mining-pools/*
+# HACK -- Ordpool: mining-pool logos are now committed (pre-warmed by
+# .github/workflows/refresh-pools-v2.yml). Upstream excluded them
+# because sync-assets.js fetched them at build time; we disabled that
+# branch and moved the sync nightly. The old exclude was:
+# src/resources/mining-pools/*
 src/resources/**/*.mp4
 src/resources/**/*.vtt
 src/resources/customize.js

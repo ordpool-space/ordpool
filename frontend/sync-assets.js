@@ -353,11 +353,17 @@ const downloadLiquidAssets = () => {
     // Download Liquid assets (non-blocking)
     downloadLiquidAssets();
 
-    // Download GitHub assets sequentially
+    // HACK -- Ordpool: disabled downloadMiningPoolLogos(); the logos
+    // are pre-warmed into git by .github/workflows/refresh-pools-v2.yml
+    // and shipped as committed assets in src/resources/mining-pools/.
+    // Removing the build-time fetch removes a GitHub dependency from
+    // every CI build and keeps the deploy resilient to upstream outages.
+    /*
     if (config.verbose) {
       console.log(`${LOG_TAG} Downloading mining pool logos`);
     }
     await downloadMiningPoolLogos();
+    */
 
     // HACK -- Ordpool: disabled downloadPromoVideoSubtitles() and downloadPromoVideo()
     // (mempool/mempool-promo is a private repo, downloads always fail)

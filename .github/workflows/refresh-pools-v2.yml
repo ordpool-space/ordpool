@@ -1,10 +1,26 @@
-# Refresh the bundled mempool mining-pools list. Two ways to run:
+# Refresh the bundled mempool mining-pools list AND the SVG logos. Two
+# ways to run:
 #   1. Nightly (cron at 03:17 UTC) -- the default cadence.
 #   2. On demand via Actions -> Run workflow, or from the CLI:
 #        gh workflow run refresh-pools-v2.yml --ref main
 #      Use the manual trigger to refresh ahead of cron, or to retry
 #      after an upstream outage. Both modes share the same diff check
-#      and the same no-op exit when upstream is unchanged.
+#      and the same no-op exit when nothing upstream has changed.
+#
+# What this workflow touches:
+#   - backend/src/tasks/_ordpool/pools-v2.json  (from mempool/mining-pools)
+#   - frontend/src/resources/mining-pools/*.svg (from mempool/mining-pool-logos)
+#
+# Logo sync rules:
+#   - ADD new logos that exist upstream but not locally.
+#   - UPDATE local logos whose git blob SHA differs from upstream.
+#   - NEVER DELETE local logos (old logos stay even if upstream removes
+#     them; preserves history of retired pools).
+#
+# Upstream's sync-assets.js (frontend/sync-assets.js) was the original
+# build-time sync. Its mining-pool-logos branch is disabled in the same
+# // HACK -- Ordpool pattern as the promo-video branch; this workflow
+# takes over the role and pre-warms the SVGs into git.
 name: Refresh pools-v2.json bundle
 
 on:
@@ -25,7 +41,7 @@ jobs:
           fetch-depth: 0       # need full history to push both branches
           ref: main
 
-      - name: Fetch upstream pools-v2.json
+      - name: Refresh bundled pools-v2.json from mempool/mining-pools
         run: |
           set -euo pipefail
           curl -sSfL --retry 3 --retry-delay 5 \
@@ -39,29 +55,109 @@ jobs:
             echo "Refusing pools-v2.json with suspicious size $SZ bytes"
             exit 1
           fi
+          # Unconditional overwrite. If bytes are identical, git status
+          # below sees no change and we exit clean.
+          cp /tmp/pools-v2.upstream.json backend/src/tasks/_ordpool/pools-v2.json
 
-      - name: Check for change
+      - name: Sync mining-pool logos from mempool/mining-pool-logos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p frontend/src/resources/mining-pools
+
+          # GitHub contents API returns one entry per file with its git
+          # blob SHA -- the same SHA `git hash-object` computes locally,
+          # so we can compare exactly without downloading the file first.
+          # Authorization header bumps the rate limit from 60/hr (unauth)
+          # to 1000/hr (auth) -- one call per day, but cheap insurance.
+          curl -sSfL --retry 3 --retry-delay 5 \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/mempool/mining-pool-logos/contents/?ref=master" \
+            -o /tmp/upstream-listing.json
+          # Sanity: must be a non-empty JSON array
+          python3 -c "import json,sys; d=json.load(open('/tmp/upstream-listing.json')); assert isinstance(d, list) and len(d) > 0, 'empty or wrong shape'"
+
+          ADDED=0
+          UPDATED=0
+          UNCHANGED=0
+
+          # Process substitution keeps counters in the outer shell.
+          while IFS=$'\t' read -r upstream_sha upstream_name; do
+            local_file="frontend/src/resources/mining-pools/$upstream_name"
+            if [ -f "$local_file" ]; then
+              local_sha=$(git hash-object "$local_file")
+              if [ "$upstream_sha" = "$local_sha" ]; then
+                UNCHANGED=$((UNCHANGED + 1))
+                continue
+              fi
+              echo "  update  $upstream_name (local=${local_sha:0:8} -> upstream=${upstream_sha:0:8})"
+              UPDATED=$((UPDATED + 1))
+            else
+              echo "  add     $upstream_name (upstream=${upstream_sha:0:8})"
+              ADDED=$((ADDED + 1))
+            fi
+            curl -sSfL --retry 3 --retry-delay 5 \
+              "https://raw.githubusercontent.com/mempool/mining-pool-logos/master/$upstream_name" \
+              -o "$local_file"
+          done < <(jq -r '.[] | select(.name | endswith(".svg")) | "\(.sha)\t\(.name)"' /tmp/upstream-listing.json)
+
+          echo "Logo sync summary: added=$ADDED, updated=$UPDATED, unchanged=$UNCHANGED"
+
+      - name: Check for changes
         id: diff
         run: |
-          if cmp -s /tmp/pools-v2.upstream.json backend/src/tasks/_ordpool/pools-v2.json; then
-            echo "Upstream pools-v2.json unchanged. Nothing to do -- exiting cleanly."
+          set -euo pipefail
+          git status --porcelain \
+            backend/src/tasks/_ordpool/pools-v2.json \
+            frontend/src/resources/mining-pools/ \
+            > /tmp/changes.txt
+          if [ ! -s /tmp/changes.txt ]; then
+            echo "Nothing changed upstream. Exiting cleanly."
             echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Upstream pools-v2.json differs. Will push the refreshed bundle."
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          cat /tmp/changes.txt
+
+          # Counters for the commit message
+          JSON_CHANGED=0
+          if grep -q "pools-v2.json" /tmp/changes.txt; then JSON_CHANGED=1; fi
+          # ?? = untracked (new file), M / space-M = modified
+          LOGOS_NEW=$(grep -c "^?? frontend/src/resources/mining-pools/" /tmp/changes.txt || true)
+          LOGOS_UPDATED=$(grep -cE "^( M|M ) frontend/src/resources/mining-pools/" /tmp/changes.txt || true)
+
+          echo "json_changed=$JSON_CHANGED"   >> "$GITHUB_OUTPUT"
+          echo "logos_new=$LOGOS_NEW"         >> "$GITHUB_OUTPUT"
+          echo "logos_updated=$LOGOS_UPDATED" >> "$GITHUB_OUTPUT"
+          echo "changed=true"                 >> "$GITHUB_OUTPUT"
 
       - name: Commit and push to main + stage_prod
         if: steps.diff.outputs.changed == 'true'
+        env:
+          JSON_CHANGED:   ${{ steps.diff.outputs.json_changed }}
+          LOGOS_NEW:      ${{ steps.diff.outputs.logos_new }}
+          LOGOS_UPDATED:  ${{ steps.diff.outputs.logos_updated }}
         run: |
           set -euo pipefail
-          cp /tmp/pools-v2.upstream.json backend/src/tasks/_ordpool/pools-v2.json
-          git add backend/src/tasks/_ordpool/pools-v2.json
+          git add backend/src/tasks/_ordpool/pools-v2.json \
+                  frontend/src/resources/mining-pools/
 
-          # [skip ci] prevents build-backend / backend-integration /
-          # test-count-floor-backend from firing on this push. Pool
-          # updates ride the next regular code commit's deployment.
-          git commit -m "chore(backend): refresh bundled pools-v2.json [skip ci]"
+          # Build a title that names whichever surface actually changed.
+          # The literal CI-skip marker in the message tail prevents
+          # build-backend / build-frontend / backend-integration /
+          # test-count-floor-backend from firing on this bot push. Pool
+          # updates and logo refreshes ride the next regular code commit.
+          if [ "$JSON_CHANGED" = "1" ] && [ "$LOGOS_NEW" = "0" ] && [ "$LOGOS_UPDATED" = "0" ]; then
+            TITLE="chore(backend): refresh bundled pools-v2.json"
+          elif [ "$JSON_CHANGED" = "0" ]; then
+            TITLE="chore(frontend): refresh mining-pool logos ($LOGOS_NEW new, $LOGOS_UPDATED updated)"
+          else
+            TITLE="chore: refresh pools-v2.json + mining-pool logos ($LOGOS_NEW new, $LOGOS_UPDATED updated)"
+          fi
+
+          git commit -m "${TITLE} [skip ci]"
 
           # Push the new commit to main.
           git push origin main
