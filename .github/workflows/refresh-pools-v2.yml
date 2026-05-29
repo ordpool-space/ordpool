@@ -141,6 +141,13 @@ jobs:
           LOGOS_UPDATED:  ${{ steps.diff.outputs.logos_updated }}
         run: |
           set -euo pipefail
+
+          # actions/checkout@v5 doesn't set git identity by default.
+          # Configure the github-actions[bot] noreply identity so the
+          # commit attribution is the truthful "this is a bot" string.
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
           git add backend/src/tasks/_ordpool/pools-v2.json \
                   frontend/src/resources/mining-pools/
 
