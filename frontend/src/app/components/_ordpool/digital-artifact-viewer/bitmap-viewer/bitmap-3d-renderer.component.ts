@@ -3,12 +3,10 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
 @Component({
   selector: 'app-bitmap-3d-renderer',
   template: `
-    <div #host class="bitmap3d-host">
-      @if (showTouchUi) {
-        <div #joyBase class="touch-joy-base"></div>
-        <div #joyKnob class="touch-joy-knob"></div>
-        <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
-      }
+    <div #host class="bitmap3d-host" [class.touch-ui]="showTouchUi">
+      <div #joyBase class="touch-joy-base"></div>
+      <div #joyKnob class="touch-joy-knob"></div>
+      <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
     </div>`,
   styles: [`
     :host { display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 600px; }
@@ -24,6 +22,7 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
       z-index: 2;
+      display: none;
     }
     .touch-jump {
       right: 16px;
@@ -36,7 +35,6 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       border: 2px solid var(--primary);
       font-size: 28px;
       line-height: 1;
-      display: flex;
       align-items: center;
       justify-content: center;
       pointer-events: auto;
@@ -44,7 +42,6 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
     }
     .touch-jump:active { background: rgba(0, 0, 0, 0.7); }
     .touch-joy-base, .touch-joy-knob {
-      display: none;
       border-radius: 50%;
       transform: translate(-50%, -50%);
     }
@@ -59,8 +56,11 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       height: 56px;
       background: rgba(255, 153, 0, 0.75);
     }
-    .touch-joy-active.touch-joy-base,
-    .touch-joy-active.touch-joy-knob { display: block; }
+    /* Jump button visible whenever touch UI is on. */
+    .bitmap3d-host.touch-ui .touch-jump { display: flex; }
+    /* Joystick base+knob only when ALSO actively touched (showJoy adds 'touch-joy-active'). */
+    .bitmap3d-host.touch-ui .touch-joy-base.touch-joy-active,
+    .bitmap3d-host.touch-ui .touch-joy-knob.touch-joy-active { display: block; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
@@ -462,7 +462,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (this.showTouchUi === wantTouchUi) return;
       this.zone.run(() => {
         this.showTouchUi = wantTouchUi;
-        this.cdr.markForCheck();
+        this.cdr.detectChanges();
       });
     };
 
@@ -617,18 +617,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     renderer.domElement.addEventListener('touchend', onTouchEndOrCancel);
     renderer.domElement.addEventListener('touchcancel', onTouchEndOrCancel);
 
-    // Jump button -- two events to support both touch and click.
+    // Jump button -- always rendered in the DOM, visibility toggled by the
+    // .touch-ui class on the host. Wire the listeners once at scene init.
     const triggerJump = (e?: Event) => { e?.preventDefault?.(); jumpPulse = true; };
-    let jumpEl: HTMLButtonElement | null = null;
-    const wireJumpButton = () => {
-      // The button is created by the template's @if (showTouchUi) and won't
-      // exist until after change detection runs. Hook it up lazily.
-      jumpEl = this.jumpBtn?.nativeElement ?? null;
-      if (jumpEl) {
-        jumpEl.addEventListener('touchstart', triggerJump, { passive: false });
-        jumpEl.addEventListener('mousedown', triggerJump);
-      }
-    };
+    const jumpEl: HTMLButtonElement | null = this.jumpBtn?.nativeElement ?? null;
+    if (jumpEl) {
+      jumpEl.addEventListener('touchstart', triggerJump, { passive: false });
+      jumpEl.addEventListener('mousedown', triggerJump);
+    }
 
     const pfpDetach = () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -922,26 +918,21 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 physicsClock.getDelta();
                 state = 'pfp';
                 // Touch UI starts visible in every PFP session. Keyboard
-                // users see it disappear on their first WASD/Space press
-                // (setLastInput('kbm')); touch users see it stay. Showing
-                // it by default is the safe option -- mobile browsers that
-                // misreport pointer/hover capabilities still get usable
-                // controls.
+                // users see it disappear on their first WASD/Space press.
                 this.zone.run(() => {
                   this.showTouchUi = true;
-                  this.cdr.markForCheck();
-                  setTimeout(wireJumpButton, 0);
+                  this.cdr.detectChanges();
                 });
               } else if (flyAfterIso === 'orbit') {
                 controls.enabled = true;
                 state = 'orbit';
                 if (this.showTouchUi) {
-                  this.zone.run(() => { this.showTouchUi = false; this.cdr.markForCheck(); });
+                  this.zone.run(() => { this.showTouchUi = false; this.cdr.detectChanges(); });
                 }
               } else {
                 state = 'exit-done';
                 if (this.showTouchUi) {
-                  this.zone.run(() => { this.showTouchUi = false; this.cdr.markForCheck(); });
+                  this.zone.run(() => { this.showTouchUi = false; this.cdr.detectChanges(); });
                 }
                 this.zone.run(() => this.exitDone.emit());
               }
