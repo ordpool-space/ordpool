@@ -530,11 +530,22 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const LOOK_DEADZONE = 0.15;
     const INVERT_LOOK_Y = false;
 
+    // Helper to strip nipplejs's hardcoded `z-index: 999` inline style off
+    // the rendered UI so overlay buttons / dialogs stay clickable above
+    // the joystick visuals. Pattern lifted from Hubs-Foundation/hubs
+    // (src/components/virtual-gamepad-controls.js). Applied right after
+    // each stick is created.
+    const stripNippleZIndex = (mgr: any) => {
+      try {
+        const el = mgr?.[0]?.ui?.el;
+        if (el?.style) el.style.removeProperty('z-index');
+      } catch { /* noop */ }
+    };
+
     const initJoysticks = async () => {
       if (nippleL && nippleR) return;
       const { default: nipplejs } = await import('nipplejs');
-      // Left stick: movement. Centered in the left zone div (50% across
-      // the zone from each edge).
+      // Left stick: movement, STATIC -- fixed origin, muscle memory.
       const moveStick: any = (nipplejs as any).create({
         zone: this.joyZoneL.nativeElement,
         mode: 'static',
@@ -542,6 +553,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         color: '#FF9900',
         size: 120,
       });
+      stripNippleZIndex(moveStick);
       moveStick.on('move', (_e: unknown, d: any) => {
         // nipplejs vector y is positive UP (screen-inverted from CSS y).
         joy.right = d.vector.x;
@@ -550,14 +562,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       moveStick.on('end', () => { joy.fwd = 0; joy.right = 0; });
       nippleL = moveStick;
 
-      // Right stick: look.
+      // Right stick: look, DYNAMIC -- appears under the thumb anywhere in
+      // the right zone. Console-FPS ergonomics: fixed move, free-aim look.
+      // Pattern from needle-tools/needle-engine-samples FirstPersonController.
       const lookStick: any = (nipplejs as any).create({
         zone: this.joyZoneR.nativeElement,
-        mode: 'static',
-        position: { left: '50%', top: '50%' },
+        mode: 'dynamic',
         color: '#FF9900',
         size: 120,
       });
+      stripNippleZIndex(lookStick);
       lookStick.on('move', (_e: unknown, d: any) => {
         look.x = d.vector.x;
         look.y = d.vector.y;
@@ -577,6 +591,24 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       else if (state === 'pfp') void initJoysticks();
     };
     document.addEventListener('visibilitychange', onVisibility);
+    // Touch-cancel defence (nipplejs #64): a system gesture / call /
+    // alert can swallow the touchend, leaving the stick partially active
+    // and the cached vector frozen. rune/rune (the multiplayer SDK
+    // sample) does an explicit destroy+recreate on touchcancel; we
+    // mirror that. Listen on the document so it catches cancels that
+    // happen outside the zone divs.
+    const onTouchCancel = () => {
+      // Zero cached state immediately so the camera stops moving.
+      joy.fwd = 0; joy.right = 0;
+      look.x = 0; look.y = 0;
+      // Rebuild the sticks so any partially-active internal state in
+      // nipplejs is discarded. Only when we're still in PFP.
+      if (state === 'pfp') {
+        destroyJoysticks();
+        void initJoysticks();
+      }
+    };
+    document.addEventListener('touchcancel', onTouchCancel);
 
     // Per-frame look integration (rate-of-change). Runs each rAF tick
     // while in PFP. Yaw and pitch advance proportional to stick
@@ -606,6 +638,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       document.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('touchcancel', onTouchCancel);
       destroyJoysticks();
       jumpEl.removeEventListener('touchstart', triggerJump);
       jumpEl.removeEventListener('mousedown', triggerJump);
