@@ -3,7 +3,7 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
 @Component({
   selector: 'app-bitmap-3d-renderer',
   template: `
-    <div #host class="bitmap3d-host" [class.touch-ui]="showTouchUi">
+    <div #host class="bitmap3d-host">
       <div #joyBase class="touch-joy-base"></div>
       <div #joyKnob class="touch-joy-knob"></div>
       <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
@@ -12,6 +12,13 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
     :host { display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 600px; }
     .bitmap3d-host { position: relative; width: 100%; height: 100%; }
     .bitmap3d-host > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+
+    /* Touch UI elements default to HIDDEN. Only when the host carries
+       .pfp-on AND .touch-on does the jump button show. Visibility is
+       toggled by direct DOM classList manipulation (renderer state
+       machine writes to host.classList) rather than Angular [class.x]
+       binding -- bypasses OnPush + zone-run CD entirely so it's
+       impossible for the binding to silently not propagate. */
     .touch-jump,
     .touch-joy-base,
     .touch-joy-knob {
@@ -56,11 +63,11 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       height: 56px;
       background: rgba(255, 153, 0, 0.75);
     }
-    /* Jump button visible whenever touch UI is on. */
-    .bitmap3d-host.touch-ui .touch-jump { display: flex; }
+    /* Jump button visible whenever the host is in PFP + touch mode. */
+    .bitmap3d-host.pfp-on.touch-on .touch-jump { display: flex; }
     /* Joystick base+knob only when ALSO actively touched (showJoy adds 'touch-joy-active'). */
-    .bitmap3d-host.touch-ui .touch-joy-base.touch-joy-active,
-    .bitmap3d-host.touch-ui .touch-joy-knob.touch-joy-active { display: block; }
+    .bitmap3d-host.pfp-on.touch-on .touch-joy-base.touch-joy-active,
+    .bitmap3d-host.pfp-on.touch-on .touch-joy-knob.touch-joy-active { display: block; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
@@ -456,14 +463,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // reliable than upfront device classification, which had too many
     // false-negatives on devices that DO have touch (iPad with
     // Pencil/Magic Keyboard, Android with desktop-mode toggles, etc.).
+    const setTouchClass = (on: boolean) => {
+      // Direct DOM, no Angular binding -- can't be lost to a missed CD.
+      hostEl.classList.toggle('touch-on', on);
+      this.showTouchUi = on;
+    };
+    const setPfpClass = (on: boolean) => {
+      hostEl.classList.toggle('pfp-on', on);
+    };
     const setLastInput = (t: 'kbm' | 'touch') => {
       if (state !== 'pfp') return;
-      const wantTouchUi = (t === 'touch');
-      if (this.showTouchUi === wantTouchUi) return;
-      this.zone.run(() => {
-        this.showTouchUi = wantTouchUi;
-        this.cdr.detectChanges();
-      });
+      setTouchClass(t === 'touch');
     };
 
     const keyStates: Record<string, boolean> = {};
@@ -919,21 +929,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 state = 'pfp';
                 // Touch UI starts visible in every PFP session. Keyboard
                 // users see it disappear on their first WASD/Space press.
-                this.zone.run(() => {
-                  this.showTouchUi = true;
-                  this.cdr.detectChanges();
-                });
+                setPfpClass(true);
+                setTouchClass(true);
               } else if (flyAfterIso === 'orbit') {
                 controls.enabled = true;
                 state = 'orbit';
-                if (this.showTouchUi) {
-                  this.zone.run(() => { this.showTouchUi = false; this.cdr.detectChanges(); });
-                }
+                setPfpClass(false);
+                setTouchClass(false);
               } else {
                 state = 'exit-done';
-                if (this.showTouchUi) {
-                  this.zone.run(() => { this.showTouchUi = false; this.cdr.detectChanges(); });
-                }
+                setPfpClass(false);
+                setTouchClass(false);
                 this.zone.run(() => this.exitDone.emit());
               }
             }
