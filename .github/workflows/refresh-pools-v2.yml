@@ -1,3 +1,10 @@
+# Refresh the bundled mempool mining-pools list. Two ways to run:
+#   1. Nightly (cron at 03:17 UTC) -- the default cadence.
+#   2. On demand via Actions -> Run workflow, or from the CLI:
+#        gh workflow run refresh-pools-v2.yml --ref main
+#      Use the manual trigger to refresh ahead of cron, or to retry
+#      after an upstream outage. Both modes share the same diff check
+#      and the same no-op exit when upstream is unchanged.
 name: Refresh pools-v2.json bundle
 
 on:
