@@ -498,11 +498,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       camera.rotation.x -= e.movementY / 500;
       camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
     };
-    // First-input refinement via PointerEvent.pointerType. Fires for every
-    // pointer event regardless of source; cheaper than guessing.
+    // Pointer-based "re-show touch UI" path. Asymmetric on purpose: we only
+    // ever flip TOWARDS touch from here. Some Android browsers/webviews
+    // misreport touch as pointerType='mouse', and we don't want a
+    // misclassified tap to hide the controls a phone user needs. Keyboard
+    // input is the only path that can hide the touch UI.
     const onPointerDown = (e: PointerEvent) => {
       if (state !== 'pfp') return;
-      setLastInput(e.pointerType === 'touch' ? 'touch' : 'kbm');
+      if (e.pointerType === 'touch' || e.pointerType === 'pen') setLastInput('touch');
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
