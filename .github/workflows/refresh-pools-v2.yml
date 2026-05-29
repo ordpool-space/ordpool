@@ -1,0 +1,70 @@
+name: Refresh pools-v2.json bundle
+
+on:
+  schedule:
+    # 03:17 UTC -- off-peak; avoids GitHub's top-of-the-hour cron rush.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to push directly to main and stage_prod
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0       # need full history to push both branches
+          ref: main
+
+      - name: Fetch upstream pools-v2.json
+        run: |
+          set -euo pipefail
+          curl -sSfL --retry 3 --retry-delay 5 \
+            "https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json" \
+            -o /tmp/pools-v2.upstream.json
+          # Sanity: must be valid JSON
+          python3 -m json.tool /tmp/pools-v2.upstream.json > /dev/null
+          # Sanity: size in believable range (10 KB - 1 MB)
+          SZ=$(wc -c < /tmp/pools-v2.upstream.json)
+          if [ "$SZ" -lt 10000 ] || [ "$SZ" -gt 1000000 ]; then
+            echo "Refusing pools-v2.json with suspicious size $SZ bytes"
+            exit 1
+          fi
+
+      - name: Check for change
+        id: diff
+        run: |
+          if cmp -s /tmp/pools-v2.upstream.json backend/src/tasks/_ordpool/pools-v2.json; then
+            echo "Upstream pools-v2.json unchanged. Nothing to do -- exiting cleanly."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Upstream pools-v2.json differs. Will push the refreshed bundle."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push to main + stage_prod
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          cp /tmp/pools-v2.upstream.json backend/src/tasks/_ordpool/pools-v2.json
+          git add backend/src/tasks/_ordpool/pools-v2.json
+
+          # [skip ci] prevents build-backend / backend-integration /
+          # test-count-floor-backend from firing on this push. Pool
+          # updates ride the next regular code commit's deployment.
+          git commit -m "chore(backend): refresh bundled pools-v2.json [skip ci]"
+
+          # Push the new commit to main.
+          git push origin main
+
+          # Mirror to stage_prod. Fetch first so we know its tip.
+          git fetch origin stage_prod
+          git checkout stage_prod
+          # Fast-forward stage_prod onto main's new tip. If stage_prod
+          # is ahead of main for any other reason (branch-sync convention
+          # keeps them in lock-step), --ff-only fails loudly and the
+          # workflow stops; a maintainer resolves.
+          git merge --ff-only main
+          git push origin stage_prod
