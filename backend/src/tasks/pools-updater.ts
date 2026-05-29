@@ -30,10 +30,13 @@ class PoolsUpdater {
    * live fetch (updatePoolsJson) and periodic refresh ($startService)
    * are neutralised at the call sites in index.ts. New pool data arrives
    * via .github/workflows/refresh-pools-v2.yml pushing an updated
-   * bundle, which deploys on the next regular build. Pool icons (SVG
-   * logos at frontend/src/resources/mining-pools/) are shipped from
-   * upstream mempool/mempool, not from mempool/mining-pools, so newly
-   * added pools fall back to default.svg until the next upstream merge.
+   * bundle, which deploys on the next regular build. The same workflow
+   * also syncs pool icons (SVG logos at frontend/src/resources/mining-pools/)
+   * from upstream mempool/mining-pool-logos -- adds new logos and updates
+   * changed ones, but never deletes (old logos stay even if upstream
+   * removes them, preserving history of retired pools). The build-time
+   * fetch in frontend/sync-assets.js is disabled for the same reason
+   * the JSON is bundled: builds shouldn't depend on GitHub availability.
    *
    * currentSha is left at its default null -- blocks.definition_hash is
    * nullable, so block inserts succeed; we just don't tag block rows

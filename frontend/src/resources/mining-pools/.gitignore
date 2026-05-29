@@ -1,0 +1,10 @@
+node_modules/
+
+# Tooling that ships in the upstream mempool/mining-pool-logos repo but
+# isn't part of our pre-warmed asset surface. The nightly workflow at
+# .github/workflows/refresh-pools-v2.yml syncs *.svg only; these files
+# can stay on disk for local check_logos.js runs without polluting
+# git status.
+check_logos.js
+package.json
+package-lock.json
