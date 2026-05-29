@@ -1776,7 +1776,8 @@
     "name": "BTCLab",
     "addresses": [],
     "tags": [
-      "BTCLab"
+      "BTCLab",
+      "BTCLab.dev"
     ],
     "link": "https://btclab.dev/"
   },
