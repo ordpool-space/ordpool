@@ -4,7 +4,8 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
   selector: 'app-bitmap-3d-renderer',
   template: `
     <div #host class="bitmap3d-host">
-      <div #joyZone class="touch-joy-zone"></div>
+      <div #joyZoneL class="touch-joy-zone touch-joy-zone-left"></div>
+      <div #joyZoneR class="touch-joy-zone touch-joy-zone-right"></div>
       <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
     </div>`,
   styles: [`
@@ -12,12 +13,11 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
     .bitmap3d-host { position: relative; width: 100%; height: 100%; }
     .bitmap3d-host > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
 
-    /* Touch zone for nipplejs joystick: lower-left quadrant. nipplejs
-       renders its own DOM/canvas inside this div in 'dynamic' mode -- we
-       don't manage the visual, that's the whole point. */
+    /* Twin-stick zones. nipplejs renders its own canvas inside each zone
+       (mode 'static' -- fixed origin, the way every shipped twin-stick
+       game does it for muscle memory). */
     .touch-joy-zone {
       position: absolute;
-      left: 0;
       bottom: 0;
       width: 50%;
       height: 50%;
@@ -28,6 +28,8 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       z-index: 2;
       display: none;
     }
+    .touch-joy-zone-left  { left: 0; }
+    .touch-joy-zone-right { right: 0; }
     .touch-jump {
       position: absolute;
       right: 16px;
@@ -51,9 +53,7 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
       display: none;
     }
     .touch-jump:active { background: rgba(0, 0, 0, 0.7); }
-    /* Both visible when the host carries pfp-on + touch-on. Class
-       toggling happens via direct DOM (no Angular binding -- CD path
-       wasn't reliable on the user's mobile browser). */
+    /* All three visible when the host carries pfp-on + touch-on. */
     .bitmap3d-host.pfp-on.touch-on .touch-joy-zone { display: block; }
     .bitmap3d-host.pfp-on.touch-on .touch-jump { display: flex; }
   `],
@@ -66,7 +66,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
   @ViewChild('jumpBtn', { static: true }) jumpBtn!: ElementRef<HTMLButtonElement>;
-  @ViewChild('joyZone', { static: true }) joyZone!: ElementRef<HTMLDivElement>;
+  @ViewChild('joyZoneL', { static: true }) joyZoneL!: ElementRef<HTMLDivElement>;
+  @ViewChild('joyZoneR', { static: true }) joyZoneR!: ElementRef<HTMLDivElement>;
 
   // True on touch-capable devices when in PFP mode -- shows the jump button
   // overlay. Joystick + look areas are invisible (just touch regions).
@@ -510,89 +511,87 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     document.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
 
-    // ---- Touch controls (mobile) ----------------------------------------
-    // Joystick = nipplejs in 'dynamic' mode bound to the .touch-joy-zone
-    // div (lower-left quadrant of the canvas). nipplejs renders its own
-    // visual (canvas-based) and handles all the dead-zone / multi-touch
-    // ID routing / pointercancel quirks that we don't want to rebuild.
-    // Right half of the canvas = look (mouse-look equivalent, touch-driven).
-    // Jump button = plain <button> with touchstart/mousedown handlers.
+    // ---- Twin-stick mobile controls ------------------------------------
+    // Left stick (movement) + right stick (look) via two nipplejs
+    // instances in 'static' mode. Cached vectors are integrated per-frame
+    // with dt (rate-of-change look) rather than applied directly in the
+    // event handler -- the latter pattern is event-rate-dependent and
+    // produces jittery rotation.
     const joy = { fwd: 0, right: 0 };
+    const look = { x: 0, y: 0 };
     let jumpPulse = false;
-    let rightId: number | null = null;
-    let rightLastX = 0, rightLastY = 0;
-    let nipple: { destroy: () => void } | null = null;
+    let nippleL: { destroy: () => void } | null = null;
+    let nippleR: { destroy: () => void } | null = null;
 
-    const initJoystick = async () => {
-      if (nipple) return;
+    // Tuned per the research-agent's "what shipped twin-stick games use":
+    // 2.5 rad/s yaw, 1.8 rad/s pitch at full deflection, 0.15 deadzone.
+    const YAW_SPEED = 2.5;
+    const PITCH_SPEED = 1.8;
+    const LOOK_DEADZONE = 0.15;
+    const INVERT_LOOK_Y = false;
+
+    const initJoysticks = async () => {
+      if (nippleL && nippleR) return;
       const { default: nipplejs } = await import('nipplejs');
-      // Cast to any -- the lib's TS types are vague about the event payload.
-      const manager: any = (nipplejs as any).create({
-        zone: this.joyZone.nativeElement,
-        mode: 'dynamic',
+      // Left stick: movement. Centered in the left zone div (50% across
+      // the zone from each edge).
+      const moveStick: any = (nipplejs as any).create({
+        zone: this.joyZoneL.nativeElement,
+        mode: 'static',
+        position: { left: '50%', top: '50%' },
         color: '#FF9900',
         size: 120,
-        threshold: 0.05,
       });
-      manager.on('move', (_e: unknown, data: any) => {
-        // data.vector is in [-1, 1] each axis; screen +Y is down so we
-        // negate Y for forward.
-        joy.right = data.vector.x;
-        joy.fwd = -data.vector.y;
+      moveStick.on('move', (_e: unknown, d: any) => {
+        // nipplejs vector y is positive UP (screen-inverted from CSS y).
+        joy.right = d.vector.x;
+        joy.fwd = d.vector.y;
       });
-      manager.on('end', () => {
-        joy.fwd = 0;
-        joy.right = 0;
+      moveStick.on('end', () => { joy.fwd = 0; joy.right = 0; });
+      nippleL = moveStick;
+
+      // Right stick: look.
+      const lookStick: any = (nipplejs as any).create({
+        zone: this.joyZoneR.nativeElement,
+        mode: 'static',
+        position: { left: '50%', top: '50%' },
+        color: '#FF9900',
+        size: 120,
       });
-      nipple = manager;
+      lookStick.on('move', (_e: unknown, d: any) => {
+        look.x = d.vector.x;
+        look.y = d.vector.y;
+      });
+      lookStick.on('end', () => { look.x = 0; look.y = 0; });
+      nippleR = lookStick;
     };
-    const destroyJoystick = () => {
-      if (!nipple) return;
-      try { nipple.destroy(); } catch { /* idempotent */ }
-      nipple = null;
-      joy.fwd = 0;
-      joy.right = 0;
+    const destroyJoysticks = () => {
+      if (nippleL) { try { nippleL.destroy(); } catch { /* idempotent */ } nippleL = null; }
+      if (nippleR) { try { nippleR.destroy(); } catch { /* idempotent */ } nippleR = null; }
+      joy.fwd = 0; joy.right = 0;
+      look.x = 0; look.y = 0;
     };
     // Stuck-knob defence (nipplejs #61): rebuild on app-switch.
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') destroyJoystick();
-      else if (state === 'pfp') void initJoystick();
+      if (document.visibilityState === 'hidden') destroyJoysticks();
+      else if (state === 'pfp') void initJoysticks();
     };
     document.addEventListener('visibilitychange', onVisibility);
 
-    // Right-half touch look. Picks up touches that DIDN'T start in the
-    // nipplejs zone (the zone's pointer-events absorb left-quadrant
-    // touches first).
-    const onTouchStart = (e: TouchEvent) => {
-      if (state !== 'pfp') return;
-      for (const t of Array.from(e.changedTouches)) {
-        if (rightId !== null) continue;
-        rightId = t.identifier;
-        rightLastX = t.clientX;
-        rightLastY = t.clientY;
-      }
+    // Per-frame look integration (rate-of-change). Runs each rAF tick
+    // while in PFP. Yaw and pitch advance proportional to stick
+    // deflection and elapsed time, NOT to event arrival rate.
+    const lookClock = new THREE.Clock();
+    const applyLookStick = () => {
+      const dt = lookClock.getDelta();
+      const lx = Math.abs(look.x) > LOOK_DEADZONE ? look.x : 0;
+      const ly = Math.abs(look.y) > LOOK_DEADZONE ? look.y : 0;
+      if (lx === 0 && ly === 0) return;
+      camera.rotation.y -= lx * YAW_SPEED * dt;
+      // nipplejs y is positive UP. Stick up -> look up (positive pitch).
+      camera.rotation.x += (INVERT_LOOK_Y ? -ly : ly) * PITCH_SPEED * dt;
+      camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
     };
-    const onTouchMove = (e: TouchEvent) => {
-      if (state !== 'pfp') return;
-      if (rightId !== null) e.preventDefault();
-      for (const t of Array.from(e.changedTouches)) {
-        if (t.identifier !== rightId) continue;
-        camera.rotation.y -= (t.clientX - rightLastX) / 4 * (Math.PI / 180);
-        camera.rotation.x -= (t.clientY - rightLastY) / 4 * (Math.PI / 180);
-        camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
-        rightLastX = t.clientX;
-        rightLastY = t.clientY;
-      }
-    };
-    const onTouchEndOrCancel = (e: TouchEvent) => {
-      for (const t of Array.from(e.changedTouches)) {
-        if (t.identifier === rightId) rightId = null;
-      }
-    };
-    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
-    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
-    renderer.domElement.addEventListener('touchend', onTouchEndOrCancel);
-    renderer.domElement.addEventListener('touchcancel', onTouchEndOrCancel);
 
     // Jump button -- plain HTML button, visibility gated by host classes.
     const triggerJump = (e?: Event) => { e?.preventDefault?.(); jumpPulse = true; };
@@ -606,12 +605,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       renderer.domElement.removeEventListener('click', onCanvasClick);
       document.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('touchstart', onTouchStart);
-      renderer.domElement.removeEventListener('touchmove', onTouchMove);
-      renderer.domElement.removeEventListener('touchend', onTouchEndOrCancel);
-      renderer.domElement.removeEventListener('touchcancel', onTouchEndOrCancel);
       document.removeEventListener('visibilitychange', onVisibility);
-      destroyJoystick();
+      destroyJoysticks();
       jumpEl.removeEventListener('touchstart', triggerJump);
       jumpEl.removeEventListener('mousedown', triggerJump);
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
@@ -897,24 +892,26 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 // the same chunk as three.js).
                 setPfpClass(true);
                 setTouchClass(true);
-                void initJoystick();
+                void initJoysticks();
+                lookClock.getDelta();   // discard the pre-PFP idle delta
               } else if (flyAfterIso === 'orbit') {
                 controls.enabled = true;
                 state = 'orbit';
                 setPfpClass(false);
                 setTouchClass(false);
-                destroyJoystick();
+                destroyJoysticks();
               } else {
                 state = 'exit-done';
                 setPfpClass(false);
                 setTouchClass(false);
-                destroyJoystick();
+                destroyJoysticks();
                 this.zone.run(() => this.exitDone.emit());
               }
             }
             break;
           }
           case 'pfp': {
+            applyLookStick();
             const dt = Math.min(0.05, physicsClock.getDelta()) / STEPS_PER_FRAME;
             for (let i = 0; i < STEPS_PER_FRAME; i++) {
               applyControls(dt);
