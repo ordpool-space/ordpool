@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
+import { environment } from '@environments/environment';
 import { AppPreloadingStrategy } from '@app/app.preloading-strategy';
 import { BlockViewComponent } from '@components/block-view/block-view.component';
 import { EightBlocksComponent } from '@components/eight-blocks/eight-blocks.component';
@@ -186,7 +187,17 @@ const regtestRoutes: Routes = browserWindowEnv.REGTEST_ENABLED ? [
   },
 ] : [];
 
+// Playwright E2E mount: /e2e/bitmap-3d. Gated on environment.testHooks so
+// the chunk drops out of production builds.
+const e2eRoutes: Routes = environment.testHooks ? [
+  {
+    path: 'e2e/bitmap-3d',
+    loadChildren: () => import('@components/_ordpool/digital-artifact-viewer/bitmap-viewer/bitmap-3d-e2e.module').then(m => m.Bitmap3dE2EModule),
+  },
+] : [];
+
 let routes: Routes = [
+  ...e2eRoutes,
   ...testnetRoutes,
   ...testnet4Routes,
   ...signetRoutes,

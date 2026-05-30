@@ -26,4 +26,5 @@ export const environment = {
   // HACK -- Ordpool absolute URL
   apiBaseUrl: 'https://api.ordpool.space',
   websocketBaseUrl: 'wss://api.ordpool.space',
+  testHooks: false,
 };

@@ -26,6 +26,10 @@ export const environment = {
   // (proxy.conf.local-esplora.js) handles /api/* + /api/v1/ws routing.
   apiBaseUrl: '',
   websocketBaseUrl: '',
+  // Gate for routes / debug hooks that exist only to support Playwright
+  // E2E. Dev = true (e2e route resolves, window.__bitmap3d is exposed).
+  // Prod = false (route + hook are dead code, tree-shaken).
+  testHooks: true,
 };
 
 /*
