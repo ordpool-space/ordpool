@@ -205,6 +205,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const maxHeight = sizes.reduce((m, s) => (s > m ? s : m), 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Mobile-class device heuristic for perf knobs. False positives on
+    // touch-screen laptops are acceptable -- the worst case is slightly less
+    // post-processing on a beefy machine. The opposite (no perf knobs on a
+    // genuine phone) is what we're actually defending against.
+    const isMobileLike = window.matchMedia('(pointer: coarse)').matches
+      || (navigator.maxTouchPoints || 0) > 0
+      || window.innerWidth < 1024;
     renderer.setSize(width, heightPx);
     renderer.shadowMap.enabled = true;
     // PCFSoftShadowMap throws a deprecation warning under the SSAA+SAO pipeline
@@ -214,7 +221,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // Pair with ColorManagement.enabled = false above to restore pre-r155
     // colour fidelity.
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    // DPR clamp: full devicePixelRatio on a 3x-density phone × the SSAA + SAO
+    // passes = ~9× the pixel work of DPR=1. Clamp to 1.5 on mobile, 2 on
+    // desktop -- both give "retina-feel" without paying for it twice.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileLike ? 1.5 : 2));
     while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
     hostEl.appendChild(renderer.domElement);
 
@@ -346,7 +356,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     directional.position.set(maxSize * 0.6, maxSize * 2.2, -maxSize * 0.6);
     directional.target.position.set(0, 0, 0);
     directional.castShadow = true;
-    directional.shadow.mapSize.set(2048, 2048);
+    // Shadow map: 2048² is 16 MB texture re-rasterised every frame, plus
+    // PCF filter cost. Mobile gets a smaller map; the visual difference
+    // on a 100% cube-grid scene is barely perceptible.
+    directional.shadow.mapSize.set(isMobileLike ? 1024 : 2048, isMobileLike ? 1024 : 2048);
     directional.shadow.camera.near = 0.1;
     directional.shadow.camera.far = maxSize * 6;
     directional.shadow.camera.left = -maxSize;
@@ -444,8 +457,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     cubeColliderGeom.dispose();
     groundColliderGeom.dispose();
 
-    const PLAYER_HEIGHT = 0.8;          // taller citizen; eye at ~0.64
-    const PLAYER_RADIUS = 0.12;
+    const PLAYER_HEIGHT = 0.8;          // user-tuned, don't change
+    // Radius bumped from 0.12 -> 0.22 to fix the wall-clip / see-through
+    // bug. At 0.12 the capsule could tunnel a sharp cube edge in one
+    // substep (radius < per-substep velocity at sprint), leaving the eye
+    // inside the cube body where back-faces are culled. 0.22 keeps the
+    // safe-step-per-substep ratio above sprint-velocity-per-substep AND
+    // still slips through the 0.5-unit street gaps (diameter 0.44).
+    const PLAYER_RADIUS = 0.22;
     const SPAWN_X = 0;
     const SPAWN_Z = layoutSize.height / 2 + 2;
     const SPAWN_EYE_Y = PLAYER_HEIGHT - PLAYER_RADIUS;
@@ -462,6 +481,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const SPEED_IN_AIR = 8;
     const STEPS_PER_FRAME = 10;
     const playerVelocity = new THREE.Vector3();
+    // Reused per-frame Ray for the see-through-wall safety net (see
+    // updatePlayer). Foot -> head; if the octree finds geometry on that
+    // axis, we pull the camera back to just before the hit.
+    const eyeSafetyRay = new THREE.Ray();
+    const eyeSafetyDir = new THREE.Vector3();
     const playerDirection = new THREE.Vector3();
     let playerOnFloor = false;
 
@@ -740,6 +764,25 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       playerCollider.translate(delta);
       collidePlayer();
       camera.position.copy(playerCollider.end);
+
+      // Eye-safety raycast (defends against rare corner-wedge clip per
+      // three.js#21921: capsuleIntersect's push-out can fail at sharp
+      // edges, leaving the eye end of the capsule inside a cube body
+      // where back-faces are culled and the player sees through the
+      // world. Cast foot->head; if anything is closer than the full
+      // segment, pull the camera back along the ray to just before it.
+      eyeSafetyDir.copy(playerCollider.end).sub(playerCollider.start);
+      const segLen = eyeSafetyDir.length();
+      if (segLen > 1e-6) {
+        eyeSafetyDir.divideScalar(segLen);
+        eyeSafetyRay.origin.copy(playerCollider.start);
+        eyeSafetyRay.direction.copy(eyeSafetyDir);
+        const hit: any = (worldOctree as any).rayIntersect?.(eyeSafetyRay);
+        if (hit && hit.distance < segLen) {
+          // Pull eye back to just before the wall (2cm clearance).
+          camera.position.copy(eyeSafetyRay.origin).addScaledVector(eyeSafetyDir, Math.max(PLAYER_RADIUS, hit.distance - 0.02));
+        }
+      }
     };
     const teleportIfOob = () => {
       if (camera.position.y < -10) {
@@ -863,20 +906,29 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // dynamic imports), so we call it once here as a catch-up.
     this.dispatch();
 
-    // Ambient occlusion + AA gives the soft shadows + clean edges. Without
-    // it the cubes look harsh and flat.
-    const composer = new EffectComposer(renderer);
-    composer.setSize(width, heightPx);
-    composer.addPass(new SSAARenderPass(scene, camera));
-    const sao = new SAOPass(scene, camera);
-    sao.params.saoIntensity = 1 / maxSize / 50;
-    sao.params.saoScale = 50;
-    sao.params.saoKernelRadius = 30;
-    sao.params.saoMinResolution = 0.0000005;
-    sao.params.saoBlurRadius = 10;
-    sao.params.saoBlurStdDev = 5;
-    sao.params.saoBlurDepthCutoff = 0.00001;
-    composer.addPass(sao);
+    // Render pipeline -- branched on isMobileLike.
+    //   Desktop: EffectComposer with SSAA + SAO. Soft shadows, smooth
+    //   edges, screen-space ambient occlusion. Looks rich.
+    //   Mobile:  null composer -- direct renderer.render(). Hardware MSAA
+    //   from `antialias: true` does the AA work; we skip the multi-sample
+    //   SSAA pass (renders the whole scene N times) AND the SAOPass (full-
+    //   screen depth blur, "more expensive than SSAO" per three.js docs).
+    //   The two passes together were the biggest mobile bottleneck.
+    let composer: InstanceType<typeof EffectComposer> | null = null;
+    if (!isMobileLike) {
+      composer = new EffectComposer(renderer);
+      composer.setSize(width, heightPx);
+      composer.addPass(new SSAARenderPass(scene, camera));
+      const sao = new SAOPass(scene, camera);
+      sao.params.saoIntensity = 1 / maxSize / 50;
+      sao.params.saoScale = 50;
+      sao.params.saoKernelRadius = 30;
+      sao.params.saoMinResolution = 0.0000005;
+      sao.params.saoBlurRadius = 10;
+      sao.params.saoBlurStdDev = 5;
+      sao.params.saoBlurDepthCutoff = 0.00001;
+      composer.addPass(sao);
+    }
 
     // Intro sequence durations (used by the 'intro' state in the loop).
     //   0..HOLD_MS         : hold the top-down axis-aligned view
@@ -995,7 +1047,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
         // Sun stays fixed in world space. Composer renders all states the
         // same way -- only the camera/state changed.
-        composer.render();
+        if (composer) composer.render(); else renderer.render(scene, camera);
       };
       animate();
     });
@@ -1005,7 +1057,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       const r = hostEl.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) return;
       renderer.setSize(r.width, r.height);
-      composer.setSize(r.width, r.height);
+      composer?.setSize(r.width, r.height);
       camera.aspect = r.width / r.height;
       camera.updateProjectionMatrix();
       // Fat-line shader needs the current viewport resolution to scale pixels.
@@ -1032,7 +1084,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       window.removeEventListener('orientationchange', onOrientation);
       pfpDetach();
       this.dispatch = null;
-      composer.dispose();
+      composer?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       cubeGeometry.dispose();
