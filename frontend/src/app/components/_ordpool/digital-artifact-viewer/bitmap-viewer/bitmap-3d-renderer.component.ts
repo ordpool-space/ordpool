@@ -233,7 +233,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // passes = ~9× the pixel work of DPR=1. Clamp to 1.5 on mobile, 2 on
     // desktop -- both give "retina-feel" without paying for it twice.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileLike ? 1.5 : 2));
-    while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
+    // Append the WebGL canvas WITHOUT clearing the template children. The
+    // template renders touch-joy-zone-{left,right} and the jump button as
+    // siblings of the canvas, and they need to stay in the DOM for nipplejs
+    // to attach + the CSS to flip them visible under .pfp-on.touch-on.
+    // The old clear-then-append pattern silently nuked the entire mobile
+    // touch UI — desktop never noticed because the canvas alone fills the
+    // host visually.
     hostEl.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -604,6 +610,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // event handler -- the latter pattern is event-rate-dependent and
     // produces jittery rotation.
     const joy = { fwd: 0, right: 0 };
+    let joyMoves = 0;  // testHooks-only diagnostic counter
+    let joyInit: 'pending' | 'done' | string = 'pending';  // 'done' or error message
     const look = { x: 0, y: 0 };
     let jumpPulse = false;
     let nippleL: { destroy: () => void } | null = null;
@@ -630,6 +638,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     const initJoysticks = async () => {
       if (nippleL && nippleR) return;
+      try {
+        await initJoysticksInner();
+        if (environment.testHooks) joyInit = 'done';
+      } catch (e) {
+        if (environment.testHooks) joyInit = String((e as Error)?.message ?? e);
+        throw e;
+      }
+    };
+    const initJoysticksInner = async () => {
       const { default: nipplejs } = await import('nipplejs');
       // Left stick: movement, STATIC -- fixed origin, muscle memory.
       const moveStick: any = (nipplejs as any).create({
@@ -647,6 +664,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         // jitter would otherwise produce per-frame physics drift.
         joy.right = Math.round(d.vector.x * 30) / 30;
         joy.fwd = Math.round(d.vector.y * 30) / 30;
+        if (environment.testHooks) joyMoves++;
       });
       moveStick.on('end', () => { joy.fwd = 0; joy.right = 0; });
       nippleL = moveStick;
@@ -1170,6 +1188,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           get fov() { return camera.fov; },
           get onFloor() { return playerOnFloor; },
           get vel() { return [playerVelocity.x, playerVelocity.y, playerVelocity.z]; },
+          // Joystick + look-stick analog values, jump-pulse flag, host UI
+          // classes. Lets mobile tests assert what nipplejs is reporting
+          // to the renderer without scraping the DOM.
+          get joy() { return { fwd: joy.fwd, right: joy.right }; },
+          get joyMoves() { return joyMoves; },
+          get joyInit() { return joyInit; },
+          get look() { return { x: look.x, y: look.y }; },
+          get jumpPulse() { return jumpPulse; },
+          get touchOn() { return hostEl.classList.contains('touch-on'); },
+          get pfpOn() { return hostEl.classList.contains('pfp-on'); },
           // Deterministic substitute for rAF — runs the PFP frame body N
           // times at a fixed dt (default 60Hz). Lets Playwright tests
           // advance simulation without depending on the throttled rAF.
@@ -1230,7 +1258,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       gridGeom.dispose();
       gridMat.dispose();
       controls.dispose();
-      while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
+      // Remove only the canvas we appended; leave the template-rendered
+      // touch UI children alone (Angular tears them down when the
+      // component view is destroyed).
+      if (renderer.domElement.parentNode === hostEl) {
+        hostEl.removeChild(renderer.domElement);
+      }
       if (environment.testHooks) {
         delete (window as unknown as { __bitmap3d?: unknown }).__bitmap3d;
       }
