@@ -78,6 +78,9 @@ generated-config.js
 # e2e results
 cypress/videos
 cypress/screenshots
+playwright-report/
+playwright/.cache/
+test-results/
 
 # Base index
 src/index.html

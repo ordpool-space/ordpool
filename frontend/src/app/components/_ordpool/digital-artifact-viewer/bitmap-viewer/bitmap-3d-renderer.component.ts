@@ -1,5 +1,6 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, inject, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
 
+import { environment } from '@environments/environment';
 import {
   capVariableJump,
   clampPitch,
@@ -1147,6 +1148,22 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         // same way -- only the camera/state changed.
         if (composer) composer.render(); else renderer.render(scene, camera);
       };
+
+      // Playwright E2E debug hook. Live getters so the spec reads the
+      // current physics each poll without us pushing updates. Dropped in
+      // production builds (environment.testHooks === false) so it can't
+      // be reached by anything but the test harness.
+      if (environment.testHooks) {
+        (window as unknown as { __bitmap3d?: unknown }).__bitmap3d = {
+          get state() { return state; },
+          get playerState() { return playerState; },
+          get pos() { return [playerCollider.end.x, playerCollider.end.y, playerCollider.end.z]; },
+          get fov() { return camera.fov; },
+          get onFloor() { return playerOnFloor; },
+          get vel() { return [playerVelocity.x, playerVelocity.y, playerVelocity.z]; },
+        };
+      }
+
       animate();
     });
 
@@ -1192,6 +1209,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       gridMat.dispose();
       controls.dispose();
       while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
+      if (environment.testHooks) {
+        delete (window as unknown as { __bitmap3d?: unknown }).__bitmap3d;
+      }
     };
   }
 
