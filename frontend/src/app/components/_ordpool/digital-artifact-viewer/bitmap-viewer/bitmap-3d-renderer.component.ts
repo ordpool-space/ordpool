@@ -89,10 +89,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   @ViewChild('joyZoneL', { static: true }) joyZoneL!: ElementRef<HTMLDivElement>;
   @ViewChild('joyZoneR', { static: true }) joyZoneR!: ElementRef<HTMLDivElement>;
 
-  // True on touch-capable devices when in PFP mode -- shows the jump button
-  // overlay. Joystick + look areas are invisible (just touch regions).
-  showTouchUi = false;
-
   private cdr = inject(ChangeDetectorRef);
 
   private _sizes: number[] | null = null;
@@ -496,53 +492,35 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const SPEED_IN_AIR = 8;
     const STEPS_PER_FRAME = 10;
     const playerVelocity = new THREE.Vector3();
-    // Reused per-frame Ray for the see-through-wall safety net (see
-    // updatePlayer). Foot -> head; if the octree finds geometry on that
-    // axis, we pull the camera back to just before the hit.
-    const eyeSafetyRay = new THREE.Ray();
-    const eyeSafetyDir = new THREE.Vector3();
-    // Reused Rays for ground detection + step-up probe.
-    const groundedRay = new THREE.Ray();
-    const stepUpRay = new THREE.Ray();
+    // Scratch vectors reused per-frame to avoid hot-path allocations.
+    const moveDelta = new THREE.Vector3();      // velocity * dt for translate()
+    const probeRay = new THREE.Ray();           // shared by ground / step-up / eye-safety; calls don't overlap in a frame
+    const probeDir = new THREE.Vector3();
     const stepUpForward = new THREE.Vector3();
     const stepUpLift = new THREE.Vector3();
     const playerDirection = new THREE.Vector3();
-    // ---- Player state machine ----------------------------------------
-    // Five states, derived from physics each frame and routed through a
-    // single transition function (transitionPlayerState) so enter/exit
-    // hooks have a place to live. Today the only hooks are no-ops; the
-    // shape is there so HUD readouts, footstep audio, jump-sound, and
-    // future animation triggers can drop in without rewiring the
-    // animate loop.
+    const moveInput = new THREE.Vector2();      // diagonal-magnitude clamp via Vector2.clampLength
+
     type PlayerState = 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
     let playerState: PlayerState = 'idle';
+    let playerOnFloor = false;
+    // Squared compare avoids per-frame sqrt on the horizontal speed.
+    const SPEED_RUN_SQ = 1.5 * 1.5;
+    const SPEED_WALK_SQ = 0.5 * 0.5;
     const derivePlayerState = (): PlayerState => {
-      const hSpeed = Math.hypot(playerVelocity.x, playerVelocity.z);
       if (!playerOnFloor) return playerVelocity.y > 0 ? 'jumping' : 'falling';
-      if (sprinting && hSpeed > 1.5) return 'running';
-      if (hSpeed > 0.5) return 'walking';
+      const hSpeedSq = playerVelocity.x * playerVelocity.x + playerVelocity.z * playerVelocity.z;
+      if (sprinting && hSpeedSq > SPEED_RUN_SQ) return 'running';
+      if (hSpeedSq > SPEED_WALK_SQ) return 'walking';
       return 'idle';
     };
-    const onPlayerStateExit = (s: PlayerState) => {
-      // exit hooks (no-ops today; document the slot)
-      // case 'running': stop sprint-loop audio
-      // case 'jumping': nothing
-      void s;
+    // Octree.rayIntersect ships as `(ray) => { distance, normal, position } | false`
+    // but its TS def is missing in three's examples. Cast once; only `.distance`
+    // is consumed by our probes.
+    type OctreeHit = { distance: number } | false;
+    const worldOctreeR = worldOctree as typeof worldOctree & {
+      rayIntersect(ray: InstanceType<typeof THREE.Ray>): OctreeHit;
     };
-    const onPlayerStateEnter = (s: PlayerState) => {
-      // enter hooks (no-ops today; document the slot)
-      // case 'jumping': play jump grunt
-      // case 'falling': start fall-whoosh
-      // case 'running': start sprint-loop audio
-      void s;
-    };
-    const transitionPlayerState = (next: PlayerState) => {
-      if (next === playerState) return;
-      onPlayerStateExit(playerState);
-      playerState = next;
-      onPlayerStateEnter(next);
-    };
-    let playerOnFloor = false;
 
     // ---- Input-scheme tracking ------------------------------------------
     // Strategy: show touch UI by default in PFP. Hide on first keyboard
@@ -554,7 +532,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const setTouchClass = (on: boolean) => {
       // Direct DOM, no Angular binding -- can't be lost to a missed CD.
       hostEl.classList.toggle('touch-on', on);
-      this.showTouchUi = on;
     };
     const setPfpClass = (on: boolean) => {
       hostEl.classList.toggle('pfp-on', on);
@@ -589,7 +566,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // Don't request pointer lock when the touch UI is visible -- iOS
       // Safari rejects pointer lock and we don't want to steal a tap from
       // the touch-look gesture.
-      if (this.showTouchUi) return;
+      if (hostEl.classList.contains('touch-on')) return;
       if (document.pointerLockElement !== renderer.domElement) {
         renderer.domElement.requestPointerLock?.();
       }
@@ -599,7 +576,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (document.pointerLockElement !== renderer.domElement) return;
       camera.rotation.y -= e.movementX / 500;
       camera.rotation.x -= e.movementY / 500;
-      camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
+      camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
     };
     // Pointer-based "re-show touch UI" path. Asymmetric on purpose: we only
     // ever flip TOWARDS touch from here. Some Android browsers/webviews
@@ -731,7 +708,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       camera.rotation.y -= lx * YAW_SPEED * dt;
       // nipplejs y is positive UP. Stick up -> look up (positive pitch).
       camera.rotation.x += (INVERT_LOOK_Y ? -ly : ly) * PITCH_SPEED * dt;
-      camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
+      camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
     };
 
     // Jump button -- plain HTML button, visibility gated by host classes.
@@ -767,28 +744,32 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       playerDirection.cross(camera.up);
       return playerDirection;
     };
-    // Exposed so the animate loop can read it for FOV ease + playerState.
+    // Per-frame input snapshot (computed once in readInput; substep loop
+    // reads from these closures). Hoisting saves the magnitude clamp +
+    // Shift check from running 10x per frame.
     let sprinting = false;
-    const applyControls = (dt: number) => {
-      // Sprint = Shift held on either side (needle-engine FirstPersonCharacter
-      // pattern). Air speed is its own thing; sprint only applies on floor.
+    let inputFwd = 0;
+    let inputSide = 0;
+    const readInput = () => {
       sprinting = !!(keyStates['ShiftLeft'] || keyStates['ShiftRight']);
+      const fwdRaw = ((keyStates['KeyW'] ? 1 : 0) - (keyStates['KeyS'] ? 1 : 0)) + joy.fwd;
+      const sideRaw = ((keyStates['KeyD'] ? 1 : 0) - (keyStates['KeyA'] ? 1 : 0)) + joy.right;
+      // Diagonal-magnitude clamp via Vector2 (needle:401-403 idiom). W+A
+      // doesn't move √2 faster than W alone.
+      moveInput.set(fwdRaw, sideRaw).clampLength(0, 1);
+      inputFwd = moveInput.x;
+      inputSide = moveInput.y;
+    };
+    const applyControls = (dt: number) => {
+      // playerOnFloor can flip mid-substep-loop, so the speed branch stays
+      // here. Sprint only applies on floor.
       const speedDelta = dt * (
         !playerOnFloor ? SPEED_IN_AIR
         : sprinting    ? SPEED_SPRINT
         :                SPEED_ON_FLOOR
       );
-      // Combined axis: keyboard contributes ±1 per direction; joystick adds
-      // its analog [-1, 1]. Clamp the COMBINED magnitude (not per-axis) so
-      // W+A doesn't move √2 faster than W alone (needle:401-403 idiom).
-      const fwdRaw = ((keyStates['KeyW'] ? 1 : 0) - (keyStates['KeyS'] ? 1 : 0)) + joy.fwd;
-      const sideRaw = ((keyStates['KeyD'] ? 1 : 0) - (keyStates['KeyA'] ? 1 : 0)) + joy.right;
-      const mag = Math.hypot(fwdRaw, sideRaw);
-      const scale = mag > 1 ? 1 / mag : 1;
-      const fwd = fwdRaw * scale;
-      const side = sideRaw * scale;
-      if (fwd !== 0) playerVelocity.add(getForwardVector().multiplyScalar(speedDelta * fwd));
-      if (side !== 0) playerVelocity.add(getSideVector().multiplyScalar(speedDelta * side));
+      if (inputFwd !== 0) playerVelocity.add(getForwardVector().multiplyScalar(speedDelta * inputFwd));
+      if (inputSide !== 0) playerVelocity.add(getSideVector().multiplyScalar(speedDelta * inputSide));
       if (playerOnFloor && (keyStates['Space'] || jumpPulse)) {
         playerVelocity.y = JUMP_VELOCITY;
       }
@@ -810,35 +791,32 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         }
       }
     };
-    // Ray-based ground check (ecctrl :1224-1230). More reliable than the
-    // capsule contact-normal at sharp cube edges where the normal can be
-    // ambiguous. Forgiveness 0.1 prevents a 1-frame "ungrounded" flicker
-    // on bumpy meshes. Called after collidePlayer in updatePlayer.
+    // Down-ray ground check (ecctrl :1224-1230). More reliable than the
+    // capsule contact-normal at sharp cube edges. Forgiveness 0.1 prevents
+    // a 1-frame "ungrounded" flicker on bumpy meshes. Pulled out of the
+    // substep loop -- called once per frame after the substep is done.
     const isGroundedByRay = (): boolean => {
-      groundedRay.origin.copy(playerCollider.start);
-      groundedRay.direction.set(0, -1, 0);
-      const hit: any = (worldOctree as any).rayIntersect?.(groundedRay);
+      probeRay.origin.copy(playerCollider.start);
+      probeRay.direction.set(0, -1, 0);
+      const hit = worldOctreeR.rayIntersect(probeRay);
       return !!hit && hit.distance <= PLAYER_RADIUS + 0.1;
     };
 
-    // Step-up probe: when player is grounded and moving horizontally, try
-    // to detect a small ledge in front and lift the capsule onto it. Lets
-    // the player walk over half-height edges without jumping. Combined
-    // ecctrl ground-detection + sketches/voxels step-decomposition idiom.
+    // Step-up: cast forward+up+down; if a sub-STEP_HEIGHT ledge is in
+    // front, lift the capsule onto it (auto-climb small cubes). ecctrl
+    // ground-detect + sketches/voxels step-decomposition idiom.
     const tryStepUp = () => {
       if (!playerOnFloor) return;
       const hVelMagSq = playerVelocity.x * playerVelocity.x + playerVelocity.z * playerVelocity.z;
       if (hVelMagSq < 0.01) return;
-      // Probe direction = horizontal velocity direction.
       stepUpForward.set(playerVelocity.x, 0, playerVelocity.z).normalize();
-      // Origin: capsule start + forward * (radius + small) + STEP_HEIGHT up.
-      stepUpRay.origin.copy(playerCollider.start);
-      stepUpRay.origin.addScaledVector(stepUpForward, PLAYER_RADIUS + 0.05);
-      stepUpRay.origin.y += STEP_HEIGHT;
-      stepUpRay.direction.set(0, -1, 0);
-      const hit: any = (worldOctree as any).rayIntersect?.(stepUpRay);
+      probeRay.origin.copy(playerCollider.start)
+        .addScaledVector(stepUpForward, PLAYER_RADIUS + 0.05);
+      probeRay.origin.y += STEP_HEIGHT;
+      probeRay.direction.set(0, -1, 0);
+      const hit = worldOctreeR.rayIntersect(probeRay);
       if (!hit) return;
-      const stepTopY = stepUpRay.origin.y - hit.distance;
+      const stepTopY = probeRay.origin.y - hit.distance;
       const currentFootY = playerCollider.start.y - PLAYER_RADIUS;
       const lift = stepTopY - currentFootY;
       if (lift < 0.02 || lift > STEP_HEIGHT) return;
@@ -847,48 +825,42 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       camera.position.y += lift;
     };
 
+    // Eye-safety raycast. Defends against rare corner-wedge clip per
+    // three.js#21921: capsuleIntersect's push-out can fail at sharp
+    // edges, leaving the eye inside a cube body where back-faces are
+    // culled and the player sees through the world. Cast foot->head;
+    // pull the camera back if anything is closer than the full segment.
+    // Once-per-frame is enough (geometry doesn't change between substeps).
+    const applyEyeSafety = () => {
+      probeDir.copy(playerCollider.end).sub(playerCollider.start);
+      const segLen = probeDir.length();
+      if (segLen <= 1e-6) return;
+      probeDir.divideScalar(segLen);
+      probeRay.origin.copy(playerCollider.start);
+      probeRay.direction.copy(probeDir);
+      const hit = worldOctreeR.rayIntersect(probeRay);
+      if (hit && hit.distance < segLen) {
+        camera.position.copy(probeRay.origin)
+          .addScaledVector(probeDir, Math.max(PLAYER_RADIUS, hit.distance - 0.02));
+      }
+    };
+
     const updatePlayer = (dt: number) => {
-      // Damping exponent controls how quickly the player decelerates when
-      // input keys are released. Demo uses -4; with our tiny cubes that
-      // reads as "slippery" -- you slide a noticeable distance after a
-      // jump. Crank to -10 for snappier ground control. Air drag stays
-      // small (×0.1) so jumps keep horizontal momentum.
+      // Damping exp(-10*dt) ground / ×0.1 air. Demo's -4 reads as slippery
+      // at our scale; -10 brakes within ~100ms while air drag stays small
+      // so jumps keep horizontal momentum.
       let damping = Math.exp(-10 * dt) - 1;
       if (!playerOnFloor) {
-        // Falling-gravity multiplier (ecctrl :1428-1442) -- snappier
-        // descent, classic platformer trick.
+        // Snappier descent (ecctrl :1428-1442). Apex stays floaty; landing
+        // feels controlled.
         const g = playerVelocity.y < 0 ? GRAVITY * FALL_GRAVITY_MULT : GRAVITY;
         playerVelocity.y -= g * dt;
         damping *= 0.1;
       }
       playerVelocity.addScaledVector(playerVelocity, damping);
-      const delta = playerVelocity.clone().multiplyScalar(dt);
-      playerCollider.translate(delta);
+      moveDelta.copy(playerVelocity).multiplyScalar(dt);
+      playerCollider.translate(moveDelta);
       collidePlayer();
-      // Augment collision-derived ground flag with a downward raycast.
-      // Capsule normal can be ambiguous at sharp cube edges; the ray is
-      // unambiguous (something below the foot or not).
-      if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
-      camera.position.copy(playerCollider.end);
-
-      // Eye-safety raycast (defends against rare corner-wedge clip per
-      // three.js#21921: capsuleIntersect's push-out can fail at sharp
-      // edges, leaving the eye end of the capsule inside a cube body
-      // where back-faces are culled and the player sees through the
-      // world. Cast foot->head; if anything is closer than the full
-      // segment, pull the camera back along the ray to just before it.
-      eyeSafetyDir.copy(playerCollider.end).sub(playerCollider.start);
-      const segLen = eyeSafetyDir.length();
-      if (segLen > 1e-6) {
-        eyeSafetyDir.divideScalar(segLen);
-        eyeSafetyRay.origin.copy(playerCollider.start);
-        eyeSafetyRay.direction.copy(eyeSafetyDir);
-        const hit: any = (worldOctree as any).rayIntersect?.(eyeSafetyRay);
-        if (hit && hit.distance < segLen) {
-          // Pull eye back to just before the wall (2cm clearance).
-          camera.position.copy(eyeSafetyRay.origin).addScaledVector(eyeSafetyDir, Math.max(PLAYER_RADIUS, hit.distance - 0.02));
-        }
-      }
     };
     const teleportIfOob = () => {
       if (camera.position.y < -10) {
@@ -1137,6 +1109,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           }
           case 'pfp': {
             applyLookStick();
+            readInput();
             const frameDt = physicsClock.getDelta();
             const dt = Math.min(0.05, frameDt) / STEPS_PER_FRAME;
             for (let i = 0; i < STEPS_PER_FRAME; i++) {
@@ -1144,8 +1117,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               updatePlayer(dt);
               teleportIfOob();
             }
-            // Per-frame (not per-substep) step-up probe: lift the player
-            // onto a small ledge if forward motion was blocked.
+            // Per-frame post-substep work: sync the camera to the final
+            // capsule pose, augment ground state with a downward ray
+            // (capsule normals miss sharp edges), defend the eye against
+            // corner-clip, then lift onto small ledges.
+            camera.position.copy(playerCollider.end);
+            if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
+            applyEyeSafety();
             tryStepUp();
             // FOV ease on sprint (sketches/rapier KCC :191-195). 10*dt
             // lerp factor gives ~100ms settle.
@@ -1154,10 +1132,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, Math.min(1, 10 * Math.min(0.05, frameDt)));
               camera.updateProjectionMatrix();
             }
-            // Player state machine -- derive + transition. Enter/exit
-            // hooks live in transitionPlayerState; no-ops today, ready
-            // for HUD / audio / animation wires.
-            transitionPlayerState(derivePlayerState());
+            playerState = derivePlayerState();
             break;
           }
           case 'exit-done': {
