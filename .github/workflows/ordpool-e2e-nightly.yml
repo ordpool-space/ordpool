@@ -1,0 +1,102 @@
+name: Ordpool E2E (Playwright)
+
+on:
+  workflow_dispatch:  # manual trigger
+  schedule:
+    # 03:17 UTC daily. Off-the-hour to avoid the 03:00 thundering herd of
+    # everyone else's cron jobs on shared GHA runners.
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+# Don't pile up nightly runs if one is still in flight. Manual triggers
+# cancel any queued nightly so the operator sees their run fast.
+concurrency:
+  group: ordpool-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ordpool-e2e:
+    name: Playwright E2E
+    # ubuntu-latest, not mempool-ci: the upstream self-hosted runner is
+    # inaccessible to ordpool, so jobs would queue forever. Same reason as
+    # backend-integration.yml.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        node: ["24.13.0"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: "https://registry.npmjs.org"
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install npm deps
+        run: npm ci
+        working-directory: frontend
+
+      # The vendored Chromium build is ~150MB and not in package-lock, so we
+      # cache it explicitly by Playwright version to avoid re-downloading
+      # every run.
+      - name: Resolve Playwright version
+        id: pw-version
+        run: |
+          v=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$v" >> $GITHUB_OUTPUT
+        working-directory: frontend
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Playwright Chromium (with system deps)
+        # `--with-deps` pulls in the Linux libs (libnss, libgtk, etc.) that
+        # ubuntu-latest doesn't ship by default.
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Generate ordpool config + themes
+        # Mirrors what `start:ordpool-e2e` does before `ng serve`. Done as
+        # explicit steps here so failures show up cleanly in CI logs
+        # rather than buried in webServer stdout.
+        run: |
+          npm run generate-themes
+          npm run generate-config
+          npm run sync-assets-dev
+        working-directory: frontend
+
+      - name: Run Playwright suite
+        # CI=true keeps reuseExistingServer false (always spin up our own),
+        # adds 1 retry per spec, switches to the GitHub reporter.
+        run: npm run ordpool-e2e
+        working-directory: frontend
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results (videos / traces on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: frontend/test-results/
+          retention-days: 14
