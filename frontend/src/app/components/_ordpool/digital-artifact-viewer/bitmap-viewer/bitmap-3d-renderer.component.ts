@@ -504,9 +504,41 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const stepUpForward = new THREE.Vector3();
     const stepUpLift = new THREE.Vector3();
     const playerDirection = new THREE.Vector3();
-    // playerState exposed for future HUD / audio / animation hooks
-    // (ecctrl pattern). Updated each frame in the 'pfp' state branch.
-    let playerState: 'idle' | 'walking' | 'running' | 'jumping' | 'falling' = 'idle';
+    // ---- Player state machine ----------------------------------------
+    // Five states, derived from physics each frame and routed through a
+    // single transition function (transitionPlayerState) so enter/exit
+    // hooks have a place to live. Today the only hooks are no-ops; the
+    // shape is there so HUD readouts, footstep audio, jump-sound, and
+    // future animation triggers can drop in without rewiring the
+    // animate loop.
+    type PlayerState = 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
+    let playerState: PlayerState = 'idle';
+    const derivePlayerState = (): PlayerState => {
+      const hSpeed = Math.hypot(playerVelocity.x, playerVelocity.z);
+      if (!playerOnFloor) return playerVelocity.y > 0 ? 'jumping' : 'falling';
+      if (sprinting && hSpeed > 1.5) return 'running';
+      if (hSpeed > 0.5) return 'walking';
+      return 'idle';
+    };
+    const onPlayerStateExit = (s: PlayerState) => {
+      // exit hooks (no-ops today; document the slot)
+      // case 'running': stop sprint-loop audio
+      // case 'jumping': nothing
+      void s;
+    };
+    const onPlayerStateEnter = (s: PlayerState) => {
+      // enter hooks (no-ops today; document the slot)
+      // case 'jumping': play jump grunt
+      // case 'falling': start fall-whoosh
+      // case 'running': start sprint-loop audio
+      void s;
+    };
+    const transitionPlayerState = (next: PlayerState) => {
+      if (next === playerState) return;
+      onPlayerStateExit(playerState);
+      playerState = next;
+      onPlayerStateEnter(next);
+    };
     let playerOnFloor = false;
 
     // ---- Input-scheme tracking ------------------------------------------
@@ -1119,17 +1151,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, Math.min(1, 10 * Math.min(0.05, frameDt)));
               camera.updateProjectionMatrix();
             }
-            // Derive playerState for HUD / future-anim hooks (ecctrl :1481).
-            const hSpeed = Math.hypot(playerVelocity.x, playerVelocity.z);
-            if (!playerOnFloor) {
-              playerState = playerVelocity.y > 0 ? 'jumping' : 'falling';
-            } else if (hSpeed > 1.5 && sprinting) {
-              playerState = 'running';
-            } else if (hSpeed > 0.5) {
-              playerState = 'walking';
-            } else {
-              playerState = 'idle';
-            }
+            // Player state machine -- derive + transition. Enter/exit
+            // hooks live in transitionPlayerState; no-ops today, ready
+            // for HUD / audio / animation wires.
+            transitionPlayerState(derivePlayerState());
             break;
           }
           case 'exit-done': {
