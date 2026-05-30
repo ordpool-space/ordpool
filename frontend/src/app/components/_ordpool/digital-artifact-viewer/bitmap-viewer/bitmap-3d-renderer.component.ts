@@ -483,11 +483,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const MIN_JUMP_VELOCITY = 4;
     // Falling-gravity multiplier per ecctrl :1428-1442 -- snappier descent.
     const FALL_GRAVITY_MULT = 1.5;
-    // Step-up: max ledge to auto-climb in one frame. 0.6 = above size-1
-    // cube top (which is 1.0 high), so we DON'T auto-climb cubes -- only
-    // small edges/lips. Tunable; bump to 1.05 if you want cubes free-
-    // climbed too. Pattern from ecctrl ground-detect + sketches/voxels.
-    const STEP_HEIGHT = 0.6;
+    // Step-up: max ledge to auto-climb in one frame. 1.05 sits between
+    // Mondrian size-1 (1.0) and size-2 (2.0) -- auto-climbs the smallest
+    // cubes (which would otherwise force a stop-and-jump for every dust
+    // tx), still blocks size-2+ so jumping retains purpose for the bigger
+    // transactions. Mondrian sizes are integer-quantised, so 1.05 cleanly
+    // divides the two classes. Pattern: ecctrl ground-detect + sketches/
+    // voxels step-decomposition.
+    const STEP_HEIGHT = 1.05;
     const SPEED_ON_FLOOR = 25;
     const SPEED_SPRINT = 45;        // Shift-held; from needle-engine-samples FirstPersonCharacter
     const SPEED_IN_AIR = 8;
