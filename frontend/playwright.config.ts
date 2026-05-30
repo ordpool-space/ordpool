@@ -44,7 +44,26 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          // Headless Chromium throttles setInterval and rAF aggressively
+          // when the page has no visible viewport — empirically, setInterval
+          // at 100ms gets clamped to ~1Hz. That eats every wait the bitmap
+          // renderer's physics-grounded transitions need (waitForFunction
+          // itself polls via setInterval inside the page). These three
+          // flags keep the rendering pipeline running at full rate.
+          args: [
+            '--disable-renderer-backgrounding',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            // Intensive throttling is Chromium's behaviour past ~5min of
+            // page lifetime where timers under 1s get clamped to 1Hz.
+            // It also fires earlier in headless. Disable it.
+            '--disable-features=IntensiveWakeUpThrottling,CalculateNativeWinOcclusion',
+          ],
+        },
+      },
     },
   ],
   webServer: {

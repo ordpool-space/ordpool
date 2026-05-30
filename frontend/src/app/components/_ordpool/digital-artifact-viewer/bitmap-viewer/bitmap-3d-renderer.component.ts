@@ -871,6 +871,42 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     const physicsClock = new THREE.Clock();
 
+    // One PFP physics+visual frame. Extracted from the animate loop so the
+    // E2E debug hook can drive it deterministically — headless Chromium
+    // throttles rAF to 1-5 Hz when there's no compositor, which makes any
+    // wall-clock-bound test of the physics layer flaky. Tests call
+    // window.__bitmap3d.tick(frames, dt) to advance the simulation
+    // synchronously without depending on rAF firing.
+    const pfpFrame = (frameDt: number) => {
+      applyLookStick();
+      readInput();
+      const dt = Math.min(0.05, frameDt) / STEPS_PER_FRAME;
+      for (let i = 0; i < STEPS_PER_FRAME; i++) {
+        applyControls(dt);
+        updatePlayer(dt);
+        teleportIfOob();
+      }
+      // Per-frame post-substep work: sync the camera to the final capsule
+      // pose, augment ground state with a downward ray (capsule normals
+      // miss sharp edges), defend the eye against corner-clip, then lift
+      // onto small ledges.
+      camera.position.copy(playerCollider.end);
+      if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
+      applyEyeSafety();
+      tryStepUp();
+      // FOV ease on sprint (sketches/rapier KCC :191-195). rate=10 gives
+      // ~100ms settle.
+      const targetFov = fovTarget(sprinting, playerOnFloor, FOV_PFP, FOV_SPRINT);
+      if (Math.abs(camera.fov - targetFov) > 0.01) {
+        camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, easeAlpha(Math.min(0.05, frameDt), 10));
+        camera.updateProjectionMatrix();
+      }
+      playerState = derivePlayerState(
+        playerVelocity.x, playerVelocity.y, playerVelocity.z,
+        playerOnFloor, sprinting, SPEED_RUN_SQ, SPEED_WALK_SQ,
+      );
+    };
+
     // ---- STATE MACHINE ----------------------------------------------------
     // intro      -> orbit            (first 3.3s after mount, plays once)
     // orbit      -> fly-to-pfp       (when _pfp set true)
@@ -1108,34 +1144,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
             break;
           }
           case 'pfp': {
-            applyLookStick();
-            readInput();
-            const frameDt = physicsClock.getDelta();
-            const dt = Math.min(0.05, frameDt) / STEPS_PER_FRAME;
-            for (let i = 0; i < STEPS_PER_FRAME; i++) {
-              applyControls(dt);
-              updatePlayer(dt);
-              teleportIfOob();
-            }
-            // Per-frame post-substep work: sync the camera to the final
-            // capsule pose, augment ground state with a downward ray
-            // (capsule normals miss sharp edges), defend the eye against
-            // corner-clip, then lift onto small ledges.
-            camera.position.copy(playerCollider.end);
-            if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
-            applyEyeSafety();
-            tryStepUp();
-            // FOV ease on sprint (sketches/rapier KCC :191-195). rate=10
-            // gives ~100ms settle.
-            const targetFov = fovTarget(sprinting, playerOnFloor, FOV_PFP, FOV_SPRINT);
-            if (Math.abs(camera.fov - targetFov) > 0.01) {
-              camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, easeAlpha(Math.min(0.05, frameDt), 10));
-              camera.updateProjectionMatrix();
-            }
-            playerState = derivePlayerState(
-              playerVelocity.x, playerVelocity.y, playerVelocity.z,
-              playerOnFloor, sprinting, SPEED_RUN_SQ, SPEED_WALK_SQ,
-            );
+            pfpFrame(physicsClock.getDelta());
             break;
           }
           case 'exit-done': {
@@ -1161,6 +1170,19 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           get fov() { return camera.fov; },
           get onFloor() { return playerOnFloor; },
           get vel() { return [playerVelocity.x, playerVelocity.y, playerVelocity.z]; },
+          // Deterministic substitute for rAF — runs the PFP frame body N
+          // times at a fixed dt (default 60Hz). Lets Playwright tests
+          // advance simulation without depending on the throttled rAF.
+          tick(frames: number = 1, dt: number = 1 / 60) {
+            if (state !== 'pfp') return;
+            for (let i = 0; i < frames; i++) pfpFrame(dt);
+          },
+          // Drive keyboard state without dispatching DOM events. Lets
+          // tests assert "while W is held, position advances" via tick()
+          // without keyboard-event focus / timing concerns.
+          setKey(code: string, down: boolean) { keyStates[code] = down; },
+          // Fire the one-shot jump (same path as the on-screen jump button).
+          jump() { jumpPulse = true; },
         };
       }
 
