@@ -234,6 +234,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // the camera sweep.
     const FOV_ISO = 15;
     const FOV_PFP = 75;
+    const FOV_SPRINT = 90;             // sketches/rapier KCC sketch.tsx:191-195
     const camera = new THREE.PerspectiveCamera(FOV_ISO, width / heightPx, 0.05, 1000);
     const controls = new OrbitControls(camera, renderer.domElement);
     // Polar = 0 is straight up, π/2 is at the horizon, π is straight down.
@@ -476,6 +477,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     const GRAVITY = 8;
     const JUMP_VELOCITY = 18;
+    // Variable jump: if user releases Space before apex, cut y-velocity to
+    // this value. minJumpHeight ≈ MIN_JUMP_VELOCITY^2 / (2*GRAVITY).
+    // sqrt(2*8*1) ≈ 4 → ~1-unit min jump. (sketches/rapier KCC sketch.tsx:149-153)
+    const MIN_JUMP_VELOCITY = 4;
+    // Falling-gravity multiplier per ecctrl :1428-1442 -- snappier descent.
+    const FALL_GRAVITY_MULT = 1.5;
+    // Step-up: max ledge to auto-climb in one frame. 0.6 = above size-1
+    // cube top (which is 1.0 high), so we DON'T auto-climb cubes -- only
+    // small edges/lips. Tunable; bump to 1.05 if you want cubes free-
+    // climbed too. Pattern from ecctrl ground-detect + sketches/voxels.
+    const STEP_HEIGHT = 0.6;
     const SPEED_ON_FLOOR = 25;
     const SPEED_SPRINT = 45;        // Shift-held; from needle-engine-samples FirstPersonCharacter
     const SPEED_IN_AIR = 8;
@@ -486,7 +498,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // axis, we pull the camera back to just before the hit.
     const eyeSafetyRay = new THREE.Ray();
     const eyeSafetyDir = new THREE.Vector3();
+    // Reused Rays for ground detection + step-up probe.
+    const groundedRay = new THREE.Ray();
+    const stepUpRay = new THREE.Ray();
+    const stepUpForward = new THREE.Vector3();
+    const stepUpLift = new THREE.Vector3();
     const playerDirection = new THREE.Vector3();
+    // playerState exposed for future HUD / audio / animation hooks
+    // (ecctrl pattern). Updated each frame in the 'pfp' state branch.
+    let playerState: 'idle' | 'walking' | 'running' | 'jumping' | 'falling' = 'idle';
     let playerOnFloor = false;
 
     // ---- Input-scheme tracking ------------------------------------------
@@ -523,6 +543,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const onKeyUp = (e: KeyboardEvent) => {
       const code = KEY_ALIASES[e.code] ?? e.code;
       keyStates[code] = false;
+      // Variable jump: releasing Space mid-ascent caps y-velocity to the
+      // min-jump value. Tap = small hop; hold = full arc.
+      if (code === 'Space' && playerVelocity.y > MIN_JUMP_VELOCITY) {
+        playerVelocity.y = MIN_JUMP_VELOCITY;
+      }
     };
     const onCanvasClick = () => {
       if (state !== 'pfp') return;
@@ -707,10 +732,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       playerDirection.cross(camera.up);
       return playerDirection;
     };
+    // Exposed so the animate loop can read it for FOV ease + playerState.
+    let sprinting = false;
     const applyControls = (dt: number) => {
       // Sprint = Shift held on either side (needle-engine FirstPersonCharacter
       // pattern). Air speed is its own thing; sprint only applies on floor.
-      const sprinting = !!(keyStates['ShiftLeft'] || keyStates['ShiftRight']);
+      sprinting = !!(keyStates['ShiftLeft'] || keyStates['ShiftRight']);
       const speedDelta = dt * (
         !playerOnFloor ? SPEED_IN_AIR
         : sprinting    ? SPEED_SPRINT
@@ -748,6 +775,43 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         }
       }
     };
+    // Ray-based ground check (ecctrl :1224-1230). More reliable than the
+    // capsule contact-normal at sharp cube edges where the normal can be
+    // ambiguous. Forgiveness 0.1 prevents a 1-frame "ungrounded" flicker
+    // on bumpy meshes. Called after collidePlayer in updatePlayer.
+    const isGroundedByRay = (): boolean => {
+      groundedRay.origin.copy(playerCollider.start);
+      groundedRay.direction.set(0, -1, 0);
+      const hit: any = (worldOctree as any).rayIntersect?.(groundedRay);
+      return !!hit && hit.distance <= PLAYER_RADIUS + 0.1;
+    };
+
+    // Step-up probe: when player is grounded and moving horizontally, try
+    // to detect a small ledge in front and lift the capsule onto it. Lets
+    // the player walk over half-height edges without jumping. Combined
+    // ecctrl ground-detection + sketches/voxels step-decomposition idiom.
+    const tryStepUp = () => {
+      if (!playerOnFloor) return;
+      const hVelMagSq = playerVelocity.x * playerVelocity.x + playerVelocity.z * playerVelocity.z;
+      if (hVelMagSq < 0.01) return;
+      // Probe direction = horizontal velocity direction.
+      stepUpForward.set(playerVelocity.x, 0, playerVelocity.z).normalize();
+      // Origin: capsule start + forward * (radius + small) + STEP_HEIGHT up.
+      stepUpRay.origin.copy(playerCollider.start);
+      stepUpRay.origin.addScaledVector(stepUpForward, PLAYER_RADIUS + 0.05);
+      stepUpRay.origin.y += STEP_HEIGHT;
+      stepUpRay.direction.set(0, -1, 0);
+      const hit: any = (worldOctree as any).rayIntersect?.(stepUpRay);
+      if (!hit) return;
+      const stepTopY = stepUpRay.origin.y - hit.distance;
+      const currentFootY = playerCollider.start.y - PLAYER_RADIUS;
+      const lift = stepTopY - currentFootY;
+      if (lift < 0.02 || lift > STEP_HEIGHT) return;
+      stepUpLift.set(0, lift, 0);
+      playerCollider.translate(stepUpLift);
+      camera.position.y += lift;
+    };
+
     const updatePlayer = (dt: number) => {
       // Damping exponent controls how quickly the player decelerates when
       // input keys are released. Demo uses -4; with our tiny cubes that
@@ -756,13 +820,20 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // small (×0.1) so jumps keep horizontal momentum.
       let damping = Math.exp(-10 * dt) - 1;
       if (!playerOnFloor) {
-        playerVelocity.y -= GRAVITY * dt;
+        // Falling-gravity multiplier (ecctrl :1428-1442) -- snappier
+        // descent, classic platformer trick.
+        const g = playerVelocity.y < 0 ? GRAVITY * FALL_GRAVITY_MULT : GRAVITY;
+        playerVelocity.y -= g * dt;
         damping *= 0.1;
       }
       playerVelocity.addScaledVector(playerVelocity, damping);
       const delta = playerVelocity.clone().multiplyScalar(dt);
       playerCollider.translate(delta);
       collidePlayer();
+      // Augment collision-derived ground flag with a downward raycast.
+      // Capsule normal can be ambiguous at sharp cube edges; the ray is
+      // unambiguous (something below the foot or not).
+      if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
       camera.position.copy(playerCollider.end);
 
       // Eye-safety raycast (defends against rare corner-wedge clip per
@@ -1031,11 +1102,33 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           }
           case 'pfp': {
             applyLookStick();
-            const dt = Math.min(0.05, physicsClock.getDelta()) / STEPS_PER_FRAME;
+            const frameDt = physicsClock.getDelta();
+            const dt = Math.min(0.05, frameDt) / STEPS_PER_FRAME;
             for (let i = 0; i < STEPS_PER_FRAME; i++) {
               applyControls(dt);
               updatePlayer(dt);
               teleportIfOob();
+            }
+            // Per-frame (not per-substep) step-up probe: lift the player
+            // onto a small ledge if forward motion was blocked.
+            tryStepUp();
+            // FOV ease on sprint (sketches/rapier KCC :191-195). 10*dt
+            // lerp factor gives ~100ms settle.
+            const targetFov = sprinting && playerOnFloor ? FOV_SPRINT : FOV_PFP;
+            if (Math.abs(camera.fov - targetFov) > 0.01) {
+              camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, Math.min(1, 10 * Math.min(0.05, frameDt)));
+              camera.updateProjectionMatrix();
+            }
+            // Derive playerState for HUD / future-anim hooks (ecctrl :1481).
+            const hSpeed = Math.hypot(playerVelocity.x, playerVelocity.z);
+            if (!playerOnFloor) {
+              playerState = playerVelocity.y > 0 ? 'jumping' : 'falling';
+            } else if (hSpeed > 1.5 && sprinting) {
+              playerState = 'running';
+            } else if (hSpeed > 0.5) {
+              playerState = 'walking';
+            } else {
+              playerState = 'idle';
             }
             break;
           }
