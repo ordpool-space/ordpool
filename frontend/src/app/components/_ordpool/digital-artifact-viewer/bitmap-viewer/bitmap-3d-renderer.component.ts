@@ -11,7 +11,27 @@ import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, E
   styles: [`
     :host { display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 600px; }
     .bitmap3d-host { position: relative; width: 100%; height: 100%; }
-    .bitmap3d-host > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+    .bitmap3d-host > canvas {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+      /* Kill iOS pull-to-refresh, double-tap-zoom, long-press select mid-PFP.
+         needle-engine FirstPersonCharacter:114-119 idiom: harden the
+         interactive surface, not just the joystick overlays. */
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Also harden the host so any margin/padding region around the canvas
+       can't catch a swipe. */
+    .bitmap3d-host {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
 
     /* Twin-stick zones. nipplejs renders its own canvas inside each zone
        (mode 'static' -- fixed origin, the way every shipped twin-stick
@@ -438,6 +458,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const GRAVITY = 8;
     const JUMP_VELOCITY = 18;
     const SPEED_ON_FLOOR = 25;
+    const SPEED_SPRINT = 45;        // Shift-held; from needle-engine-samples FirstPersonCharacter
     const SPEED_IN_AIR = 8;
     const STEPS_PER_FRAME = 10;
     const playerVelocity = new THREE.Vector3();
@@ -552,12 +573,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         position: { left: '50%', top: '50%' },
         color: '#FF9900',
         size: 120,
+        threshold: 10 / 60,           // 10px on a 120px stick (radius 60) -- rune/needle pixel-threshold idiom
       });
       stripNippleZIndex(moveStick);
       moveStick.on('move', (_e: unknown, d: any) => {
         // nipplejs vector y is positive UP (screen-inverted from CSS y).
-        joy.right = d.vector.x;
-        joy.fwd = d.vector.y;
+        // Quantise to 1/30 steps (rune pattern, joystick.ts:54) -- sub-pixel
+        // jitter would otherwise produce per-frame physics drift.
+        joy.right = Math.round(d.vector.x * 30) / 30;
+        joy.fwd = Math.round(d.vector.y * 30) / 30;
       });
       moveStick.on('end', () => { joy.fwd = 0; joy.right = 0; });
       nippleL = moveStick;
@@ -570,11 +594,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         mode: 'dynamic',
         color: '#FF9900',
         size: 120,
+        threshold: 10 / 60,
       });
       stripNippleZIndex(lookStick);
       lookStick.on('move', (_e: unknown, d: any) => {
-        look.x = d.vector.x;
-        look.y = d.vector.y;
+        look.x = Math.round(d.vector.x * 30) / 30;
+        look.y = Math.round(d.vector.y * 30) / 30;
       });
       lookStick.on('end', () => { look.x = 0; look.y = 0; });
       nippleR = lookStick;
@@ -659,16 +684,25 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       return playerDirection;
     };
     const applyControls = (dt: number) => {
-      const speedDelta = dt * (playerOnFloor ? SPEED_ON_FLOOR : SPEED_IN_AIR);
+      // Sprint = Shift held on either side (needle-engine FirstPersonCharacter
+      // pattern). Air speed is its own thing; sprint only applies on floor.
+      const sprinting = !!(keyStates['ShiftLeft'] || keyStates['ShiftRight']);
+      const speedDelta = dt * (
+        !playerOnFloor ? SPEED_IN_AIR
+        : sprinting    ? SPEED_SPRINT
+        :                SPEED_ON_FLOOR
+      );
       // Combined axis: keyboard contributes ±1 per direction; joystick adds
-      // its analog [-1, 1]. Clamp so simultaneous key+stick doesn't double-
-      // speed.
-      const fwd = ((keyStates['KeyW'] ? 1 : 0) - (keyStates['KeyS'] ? 1 : 0)) + joy.fwd;
-      const side = ((keyStates['KeyD'] ? 1 : 0) - (keyStates['KeyA'] ? 1 : 0)) + joy.right;
-      const fwdClamped = Math.max(-1, Math.min(1, fwd));
-      const sideClamped = Math.max(-1, Math.min(1, side));
-      if (fwdClamped !== 0) playerVelocity.add(getForwardVector().multiplyScalar(speedDelta * fwdClamped));
-      if (sideClamped !== 0) playerVelocity.add(getSideVector().multiplyScalar(speedDelta * sideClamped));
+      // its analog [-1, 1]. Clamp the COMBINED magnitude (not per-axis) so
+      // W+A doesn't move √2 faster than W alone (needle:401-403 idiom).
+      const fwdRaw = ((keyStates['KeyW'] ? 1 : 0) - (keyStates['KeyS'] ? 1 : 0)) + joy.fwd;
+      const sideRaw = ((keyStates['KeyD'] ? 1 : 0) - (keyStates['KeyA'] ? 1 : 0)) + joy.right;
+      const mag = Math.hypot(fwdRaw, sideRaw);
+      const scale = mag > 1 ? 1 / mag : 1;
+      const fwd = fwdRaw * scale;
+      const side = sideRaw * scale;
+      if (fwd !== 0) playerVelocity.add(getForwardVector().multiplyScalar(speedDelta * fwd));
+      if (side !== 0) playerVelocity.add(getSideVector().multiplyScalar(speedDelta * side));
       if (playerOnFloor && (keyStates['Space'] || jumpPulse)) {
         playerVelocity.y = JUMP_VELOCITY;
       }
