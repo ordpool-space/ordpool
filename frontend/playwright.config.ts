@@ -73,6 +73,23 @@ export default defineConfig({
         },
       },
     },
+    {
+      name: 'mobile',
+      // Pixel 7: hasTouch=true, isMobile=true, 412×915 viewport, dpr=2.625.
+      // Matches the "(pointer: coarse) OR maxTouchPoints>0" branch the
+      // renderer uses to switch into mobile-perf + touch-controls mode.
+      use: {
+        ...devices['Pixel 7'],
+        launchOptions: {
+          args: [
+            '--disable-renderer-backgrounding',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-features=IntensiveWakeUpThrottling,CalculateNativeWinOcclusion',
+          ],
+        },
+      },
+    },
   ],
   webServer: {
     command: 'npm run start:ordpool-e2e',
