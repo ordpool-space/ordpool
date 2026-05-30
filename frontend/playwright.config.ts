@@ -26,7 +26,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: process.env.CI ? 'github' : 'list',
+  // Two reporters: a console one (GitHub annotations in CI, list-style
+  // locally) plus HTML always. The HTML directory (`playwright-report/`)
+  // gets uploaded as a workflow artifact in CI; locally, `npx playwright
+  // show-report` opens it. `open: 'never'` keeps it from auto-launching
+  // a browser on a green run.
+  reporter: [
+    [process.env.CI ? 'github' : 'list'],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+  ],
   // Each test pays a one-time setup tax in headless: full Angular boot,
   // three.js dynamic import, octree build for 3721 cubes, intro tween
   // (~3.3s). 30-40s of that sits inside beforeEach before the test body
