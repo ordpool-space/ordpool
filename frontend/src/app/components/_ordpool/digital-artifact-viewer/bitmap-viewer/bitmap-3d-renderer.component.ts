@@ -1,5 +1,16 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, inject, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
 
+import {
+  capVariableJump,
+  clampPitch,
+  computeMoveInput,
+  derivePlayerState,
+  easeAlpha,
+  fovTarget,
+  gravityForStep,
+  PlayerState,
+} from './bitmap-3d-physics';
+
 @Component({
   selector: 'app-bitmap-3d-renderer',
   template: `
@@ -499,21 +510,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const stepUpForward = new THREE.Vector3();
     const stepUpLift = new THREE.Vector3();
     const playerDirection = new THREE.Vector3();
-    const moveInput = new THREE.Vector2();      // diagonal-magnitude clamp via Vector2.clampLength
 
-    type PlayerState = 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
     let playerState: PlayerState = 'idle';
     let playerOnFloor = false;
-    // Squared compare avoids per-frame sqrt on the horizontal speed.
+    // Squared thresholds — derivePlayerState compares against velocity² to
+    // avoid a per-frame sqrt on the horizontal speed.
     const SPEED_RUN_SQ = 1.5 * 1.5;
     const SPEED_WALK_SQ = 0.5 * 0.5;
-    const derivePlayerState = (): PlayerState => {
-      if (!playerOnFloor) return playerVelocity.y > 0 ? 'jumping' : 'falling';
-      const hSpeedSq = playerVelocity.x * playerVelocity.x + playerVelocity.z * playerVelocity.z;
-      if (sprinting && hSpeedSq > SPEED_RUN_SQ) return 'running';
-      if (hSpeedSq > SPEED_WALK_SQ) return 'walking';
-      return 'idle';
-    };
     // Octree.rayIntersect ships as `(ray) => { distance, normal, position } | false`
     // but its TS def is missing in three's examples. Cast once; only `.distance`
     // is consumed by our probes.
@@ -557,8 +560,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       keyStates[code] = false;
       // Variable jump: releasing Space mid-ascent caps y-velocity to the
       // min-jump value. Tap = small hop; hold = full arc.
-      if (code === 'Space' && playerVelocity.y > MIN_JUMP_VELOCITY) {
-        playerVelocity.y = MIN_JUMP_VELOCITY;
+      if (code === 'Space') {
+        playerVelocity.y = capVariableJump(playerVelocity.y, MIN_JUMP_VELOCITY);
       }
     };
     const onCanvasClick = () => {
@@ -576,7 +579,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (document.pointerLockElement !== renderer.domElement) return;
       camera.rotation.y -= e.movementX / 500;
       camera.rotation.x -= e.movementY / 500;
-      camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+      camera.rotation.x = clampPitch(camera.rotation.x);
     };
     // Pointer-based "re-show touch UI" path. Asymmetric on purpose: we only
     // ever flip TOWARDS touch from here. Some Android browsers/webviews
@@ -708,7 +711,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       camera.rotation.y -= lx * YAW_SPEED * dt;
       // nipplejs y is positive UP. Stick up -> look up (positive pitch).
       camera.rotation.x += (INVERT_LOOK_Y ? -ly : ly) * PITCH_SPEED * dt;
-      camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+      camera.rotation.x = clampPitch(camera.rotation.x);
     };
 
     // Jump button -- plain HTML button, visibility gated by host classes.
@@ -752,13 +755,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     let inputSide = 0;
     const readInput = () => {
       sprinting = !!(keyStates['ShiftLeft'] || keyStates['ShiftRight']);
-      const fwdRaw = ((keyStates['KeyW'] ? 1 : 0) - (keyStates['KeyS'] ? 1 : 0)) + joy.fwd;
-      const sideRaw = ((keyStates['KeyD'] ? 1 : 0) - (keyStates['KeyA'] ? 1 : 0)) + joy.right;
-      // Diagonal-magnitude clamp via Vector2 (needle:401-403 idiom). W+A
-      // doesn't move √2 faster than W alone.
-      moveInput.set(fwdRaw, sideRaw).clampLength(0, 1);
-      inputFwd = moveInput.x;
-      inputSide = moveInput.y;
+      const m = computeMoveInput(
+        !!keyStates['KeyW'], !!keyStates['KeyS'], !!keyStates['KeyA'], !!keyStates['KeyD'],
+        joy.fwd, joy.right,
+      );
+      inputFwd = m.fwd;
+      inputSide = m.side;
     };
     const applyControls = (dt: number) => {
       // playerOnFloor can flip mid-substep-loop, so the speed branch stays
@@ -851,10 +853,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // so jumps keep horizontal momentum.
       let damping = Math.exp(-10 * dt) - 1;
       if (!playerOnFloor) {
-        // Snappier descent (ecctrl :1428-1442). Apex stays floaty; landing
-        // feels controlled.
-        const g = playerVelocity.y < 0 ? GRAVITY * FALL_GRAVITY_MULT : GRAVITY;
-        playerVelocity.y -= g * dt;
+        playerVelocity.y -= gravityForStep(playerVelocity.y, GRAVITY, FALL_GRAVITY_MULT) * dt;
         damping *= 0.1;
       }
       playerVelocity.addScaledVector(playerVelocity, damping);
@@ -1125,14 +1124,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
             if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
             applyEyeSafety();
             tryStepUp();
-            // FOV ease on sprint (sketches/rapier KCC :191-195). 10*dt
-            // lerp factor gives ~100ms settle.
-            const targetFov = sprinting && playerOnFloor ? FOV_SPRINT : FOV_PFP;
+            // FOV ease on sprint (sketches/rapier KCC :191-195). rate=10
+            // gives ~100ms settle.
+            const targetFov = fovTarget(sprinting, playerOnFloor, FOV_PFP, FOV_SPRINT);
             if (Math.abs(camera.fov - targetFov) > 0.01) {
-              camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, Math.min(1, 10 * Math.min(0.05, frameDt)));
+              camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, easeAlpha(Math.min(0.05, frameDt), 10));
               camera.updateProjectionMatrix();
             }
-            playerState = derivePlayerState();
+            playerState = derivePlayerState(
+              playerVelocity.x, playerVelocity.y, playerVelocity.z,
+              playerOnFloor, sprinting, SPEED_RUN_SQ, SPEED_WALK_SQ,
+            );
             break;
           }
           case 'exit-done': {
