@@ -1,7 +1,10 @@
 module.exports = {
   preset: 'jest-preset-angular',
   // testMatch: ['**/*.jest.ts'],
-  testPathIgnorePatterns: ['<rootDir>/cypress/'],
+  // playwright/ is excluded so Jest doesn't try to run our browser specs
+  // (they import @playwright/test which can't load in the jsdom env and
+  // explodes with "Class extends value undefined" out of playwright-core).
+  testPathIgnorePatterns: ['<rootDir>/cypress/', '<rootDir>/playwright/'],
   setupFilesAfterEnv: ['<rootDir>/setup-jest.ts'],
   maxWorkers: 1,
   // Path aliases from tsconfig.app.json -- Jest doesn't read them automatically.
