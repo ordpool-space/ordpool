@@ -3,8 +3,10 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright config for ordpool E2E.
  *
- * - testDir: playwright/specs (kept out of src/ so jest doesn't pick up
- *   .spec.ts files meant for the browser).
+ * - Specs are split per project by directory:
+ *     playwright/specs/desktop  -> only the chromium project runs these
+ *     playwright/specs/mobile   -> only the mobile (Pixel 7) project
+ *   Files dropped in subfolders are picked up automatically.
  * - Port 4242, not 4200: ordpool's normal dev server and other Angular
  *   dev sessions on this machine collide on 4200. Playwright owns a
  *   dedicated port so the two stacks can run side by side.
@@ -19,8 +21,20 @@ import { defineConfig, devices } from '@playwright/test';
  * First-run setup: `npx playwright install chromium` (vendored browsers
  * are ~150MB and skipped by `npm install`).
  */
+
+// Headless Chromium throttles setInterval and rAF to ~1Hz when there's
+// no compositor — empirically that eats every wait the bitmap renderer's
+// physics-grounded transitions need (waitForFunction itself polls via
+// setInterval inside the page). These flags keep the rendering pipeline
+// running at full rate.
+const KEEP_ALIVE_FLAGS = [
+  '--disable-renderer-backgrounding',
+  '--disable-background-timer-throttling',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-features=IntensiveWakeUpThrottling,CalculateNativeWinOcclusion',
+];
+
 export default defineConfig({
-  testDir: './playwright/specs',
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -52,42 +66,21 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testDir: './playwright/specs/desktop',
       use: {
         ...devices['Desktop Chrome'],
-        launchOptions: {
-          // Headless Chromium throttles setInterval and rAF aggressively
-          // when the page has no visible viewport — empirically, setInterval
-          // at 100ms gets clamped to ~1Hz. That eats every wait the bitmap
-          // renderer's physics-grounded transitions need (waitForFunction
-          // itself polls via setInterval inside the page). These three
-          // flags keep the rendering pipeline running at full rate.
-          args: [
-            '--disable-renderer-backgrounding',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            // Intensive throttling is Chromium's behaviour past ~5min of
-            // page lifetime where timers under 1s get clamped to 1Hz.
-            // It also fires earlier in headless. Disable it.
-            '--disable-features=IntensiveWakeUpThrottling,CalculateNativeWinOcclusion',
-          ],
-        },
+        launchOptions: { args: KEEP_ALIVE_FLAGS },
       },
     },
     {
       name: 'mobile',
+      testDir: './playwright/specs/mobile',
       // Pixel 7: hasTouch=true, isMobile=true, 412×915 viewport, dpr=2.625.
       // Matches the "(pointer: coarse) OR maxTouchPoints>0" branch the
       // renderer uses to switch into mobile-perf + touch-controls mode.
       use: {
         ...devices['Pixel 7'],
-        launchOptions: {
-          args: [
-            '--disable-renderer-backgrounding',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-features=IntensiveWakeUpThrottling,CalculateNativeWinOcclusion',
-          ],
-        },
+        launchOptions: { args: KEEP_ALIVE_FLAGS },
       },
     },
   ],
