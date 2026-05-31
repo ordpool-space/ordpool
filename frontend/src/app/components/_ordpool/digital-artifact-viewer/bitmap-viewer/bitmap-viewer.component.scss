@@ -25,6 +25,12 @@
   bottom: 10px;
   display: flex;
   gap: 8px;
+  // Sit above the renderer's touch UI. The renderer's right joystick
+  // zone (z-index 2) covers the bottom-right quadrant and the jump
+  // button (z-index 3) sits on top of that; without an explicit
+  // z-index here the toolbar's fullscreen / PFP / exit toggles would
+  // be hidden under both on mobile.
+  z-index: 10;
 }
 
 .bitmap-toggle {
