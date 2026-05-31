@@ -6,7 +6,7 @@ import * as path from 'path';
 // cube sizes (1-6) so step-up (size-1 auto-climb) and jump (size-2+) both
 // get exercised, immutable on-chain, lives forever in playwright/fixtures/.
 const fixture = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, '../fixtures/bitmap-800000.json'), 'utf8'),
+  fs.readFileSync(path.resolve(__dirname, '../../fixtures/bitmap-800000.json'), 'utf8'),
 );
 
 interface Bitmap3dDebug {

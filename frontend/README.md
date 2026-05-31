@@ -135,12 +135,32 @@ npm run ordpool-e2e:install     # downloads the vendored Chromium (~150MB)
 # laptop (most of it is per-test Angular boot + three.js dynamic import).
 npm run ordpool-e2e
 
+# Project-scoped runs (specs split by device class, see "Spec layout"
+# below). The desktop suite is much faster — pick it when iterating on
+# state-machine / physics specs.
+npm run ordpool-e2e -- --project=chromium
+npm run ordpool-e2e -- --project=mobile
+
 # Visible browser — useful when iterating on a spec.
 npm run ordpool-e2e:headed
 
 # Playwright Inspector — pause / step / inspect locators.
 npm run ordpool-e2e:debug
 ```
+
+### Spec layout
+
+Specs live in two project-scoped subdirectories. Each project only runs
+its own folder, so adding a desktop test doesn't double-run on mobile
+(and vice versa).
+
+| Path | Project | Device | What's covered |
+|---|---|---|---|
+| `playwright/specs/desktop/` | `chromium` | Desktop Chrome | state machine, physics-via-`tick()`, keyboard input (driven by `setKey` debug hook) |
+| `playwright/specs/mobile/` | `mobile` | Pixel 7 (`hasTouch:true`) | touch UI visibility, joystick zone presence, nipplejs init, jump button tap, joystick drag |
+
+Drop a new spec into the matching folder — Playwright picks it up via
+the project's `testDir`. No config changes needed.
 
 If you have a long-running dev server already on `:4242`, Playwright will reuse it (in dev — `reuseExistingServer: !process.env.CI`). To start that server by hand:
 

@@ -4,7 +4,7 @@ import * as path from 'path';
 
 // Same canonical fixture as the desktop spec.
 const fixture = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, '../fixtures/bitmap-800000.json'), 'utf8'),
+  fs.readFileSync(path.resolve(__dirname, '../../fixtures/bitmap-800000.json'), 'utf8'),
 );
 
 interface Bitmap3dDebug {
