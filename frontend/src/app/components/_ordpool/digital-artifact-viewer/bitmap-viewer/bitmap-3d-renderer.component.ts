@@ -610,8 +610,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // event handler -- the latter pattern is event-rate-dependent and
     // produces jittery rotation.
     const joy = { fwd: 0, right: 0 };
-    let joyMoves = 0;  // testHooks-only diagnostic counter
-    let joyInit: 'pending' | 'done' | string = 'pending';  // 'done' or error message
     const look = { x: 0, y: 0 };
     let jumpPulse = false;
     let nippleL: { destroy: () => void } | null = null;
@@ -638,15 +636,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     const initJoysticks = async () => {
       if (nippleL && nippleR) return;
-      try {
-        await initJoysticksInner();
-        if (environment.testHooks) joyInit = 'done';
-      } catch (e) {
-        if (environment.testHooks) joyInit = String((e as Error)?.message ?? e);
-        throw e;
-      }
-    };
-    const initJoysticksInner = async () => {
       const { default: nipplejs } = await import('nipplejs');
       // Left stick: movement, STATIC -- fixed origin, muscle memory.
       const moveStick: any = (nipplejs as any).create({
@@ -658,13 +647,20 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         threshold: 10 / 60,           // 10px on a 120px stick (radius 60) -- rune/needle pixel-threshold idiom
       });
       stripNippleZIndex(moveStick);
-      moveStick.on('move', (_e: unknown, d: any) => {
+      // nipplejs 1.x listener signature: one arg, the InternalEvent
+      // { type, target, data }. data.vector is the analog stick position.
+      // The old (evt, data) two-arg shape used during the initial port
+      // crashed silently inside nipplejs's trigger loop, leaving joy at
+      // (0,0). On desktop the symptom was invisible (no touch UI shown);
+      // on mobile the user saw the touch UI but the player wouldn't move.
+      moveStick.on('move', (evt: any) => {
+        const v = evt?.data?.vector;
+        if (!v) return;
         // nipplejs vector y is positive UP (screen-inverted from CSS y).
         // Quantise to 1/30 steps (rune pattern, joystick.ts:54) -- sub-pixel
         // jitter would otherwise produce per-frame physics drift.
-        joy.right = Math.round(d.vector.x * 30) / 30;
-        joy.fwd = Math.round(d.vector.y * 30) / 30;
-        if (environment.testHooks) joyMoves++;
+        joy.right = Math.round(v.x * 30) / 30;
+        joy.fwd = Math.round(v.y * 30) / 30;
       });
       moveStick.on('end', () => { joy.fwd = 0; joy.right = 0; });
       nippleL = moveStick;
@@ -680,9 +676,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         threshold: 10 / 60,
       });
       stripNippleZIndex(lookStick);
-      lookStick.on('move', (_e: unknown, d: any) => {
-        look.x = Math.round(d.vector.x * 30) / 30;
-        look.y = Math.round(d.vector.y * 30) / 30;
+      lookStick.on('move', (evt: any) => {
+        const v = evt?.data?.vector;
+        if (!v) return;
+        look.x = Math.round(v.x * 30) / 30;
+        look.y = Math.round(v.y * 30) / 30;
       });
       lookStick.on('end', () => { look.x = 0; look.y = 0; });
       nippleR = lookStick;
@@ -1192,8 +1190,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           // classes. Lets mobile tests assert what nipplejs is reporting
           // to the renderer without scraping the DOM.
           get joy() { return { fwd: joy.fwd, right: joy.right }; },
-          get joyMoves() { return joyMoves; },
-          get joyInit() { return joyInit; },
           get look() { return { x: look.x, y: look.y }; },
           get jumpPulse() { return jumpPulse; },
           get touchOn() { return hostEl.classList.contains('touch-on'); },
