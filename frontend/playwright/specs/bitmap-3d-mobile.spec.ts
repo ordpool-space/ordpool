@@ -15,7 +15,6 @@ interface Bitmap3dDebug {
   onFloor: boolean;
   joy: { fwd: number; right: number };
   look: { x: number; y: number };
-  jumpPulse: boolean;
   touchOn: boolean;
   pfpOn: boolean;
   tick(frames?: number, dt?: number): void;
@@ -110,131 +109,68 @@ test.describe('bitmap-3d renderer (mobile)', () => {
     expect((await readDebug(page)).playerState).toBe('jumping');
   });
 
-  test('nipplejs joystick initialised cleanly + UI rendered into zone', async ({ page }) => {
+  test('nipplejs renders its joystick UI inside the zone after PFP entry', async ({ page }) => {
     await waitForState(page, 'orbit');
     await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
     await waitForState(page, 'pfp');
 
-    // initJoysticks resolves to 'done' (or an error message) — gives the
-    // test a clean signal that nipplejs's dynamic-import + create chain
-    // succeeded, which is the closest thing to "the joystick works" we
-    // can pin without driving the joystick itself.
-    await page.waitForFunction(
-      () => (window as any).__bitmap3d?.joyInit === 'done',
-      undefined,
-      { timeout: 10_000, polling: 100 },
-    );
-
-    // After init, nipplejs appends its joystick UI (back + front circles)
-    // into the zone. childElementCount > 0 confirms the UI is rendered.
-    const zoneChildren = await page.evaluate(
-      () => document.querySelector('app-bitmap-3d-renderer .touch-joy-zone-left')?.childElementCount ?? 0,
-    );
-    expect(zoneChildren).toBeGreaterThan(0);
+    // nipplejs appends its back + front circles to the zone via addToDom.
+    // Polled because the dynamic import + create is async after PFP entry.
+    await page.waitForFunction(() => {
+      const z = document.querySelector('app-bitmap-3d-renderer .touch-joy-zone-left');
+      return !!(z && z.childElementCount > 0);
+    }, undefined, { timeout: 10_000, polling: 100 });
   });
 
-  // The drag-deflects-the-stick assertion is parked. This is a known,
-  // unresolved Playwright limitation, not specific to our renderer.
-  //
-  // What we observed (with diagnostics): every dispatch route reached
-  // the right element at the right coordinates (capture-phase listeners
-  // confirmed), nipplejs initialised cleanly (joyInit==='done'), the
-  // stick UI rendered into the zone — but nipplejs's bubble-phase
-  // pointerdown handler never invoked processOnStart. joyMoves stayed
-  // 0 across:
-  //   - Playwright `locator.tap()` (CDP Input.dispatchTouchEvent)
-  //   - Raw CDP Input.dispatchTouchEvent (touchStart + touchMove*N + touchEnd)
-  //   - In-page `new PointerEvent('pointerdown' | 'pointermove' | ...)`
-  //     dispatched on zone + document
-  //
-  // Root cause: nipplejs binds pointerdown when `window.PointerEvent`
-  // exists (always in modern Chromium), not touchstart. CDP's touch
-  // injection doesn't synthesize the pointer-event chain that a real
-  // OS touch produces. Dispatched PointerEvents have isTrusted=false
-  // and Playwright's official docs don't claim PointerEvent support.
-  //
-  // Community evidence (all unresolved):
-  //   - microsoft/playwright #35774 — "Dispatching Touch events doesn't
-  //     do anything". Same symptom (synthetic touch + pointer have no
-  //     effect on the target library). Closed as not-planned, no fix.
-  //   - microsoft/playwright #19823 — "Is there a way to trigger the
-  //     `onPointerDown` event of an element using Playwright?" Open
-  //     since Jan 2023, no maintainer response.
-  //   - microsoft/playwright #16381 — "Re-creating touch based actions
-  //     with dispatchEvent/evaluate". Same symptom. P3-collecting-feedback.
-  //   - Official docs (`playwright.dev/docs/touch-events`) only cover
-  //     TouchEvent dispatch and explicitly note isTrusted=false.
-  //     `Touchscreen` class is documented as "limited to tap gestures".
-  //   - Martin Grandrath's "Testing touch gestures with Playwright"
-  //     (2024) covers native pinch-to-zoom (a Chromium-internal handler
-  //     that consumes touch events directly). Does NOT cover libraries
-  //     that listen for PointerEvent.
-  //
-  // The user-reported bug — "no controls visible on Android, stuck in
-  // PFP mode" — was a DOM-mount regression fixed in the renderer's
-  // setup + cleanup paths. The mobile specs above prove the touch UI
-  // is now visible (touch-on/pfp-on classes, display:flex jump button,
-  // display:block joystick zones, jump tap → playerState='jumping',
-  // nipplejs UI rendered inside the zone). The stick's deflection
-  // works on real touch hardware; only the headless CDP pipeline can't
-  // fake the pointer events nipplejs binds for.
-  test.fixme('dragging the left joystick zone moves joy.fwd off zero', async ({ page }) => {
+  test('dragging the left joystick zone moves joy.fwd off zero', async ({ page }) => {
     await waitForState(page, 'orbit');
     await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
     await waitForState(page, 'pfp');
     await tick(page, 1);
-
-    // Wait for nipplejs to have rendered its stick UI inside the zone
-    // (dynamic import + create is async after PFP entry).
+    // nipplejs init is async (dynamic import after PFP entry). Wait
+    // until its UI is appended to the zone, which is a clean signal
+    // that pointerdown/pointermove listeners are bound.
     await page.waitForFunction(() => {
       const z = document.querySelector('app-bitmap-3d-renderer .touch-joy-zone-left');
       return !!(z && z.childElementCount > 0);
     }, undefined, { timeout: 10_000, polling: 100 });
 
-    const diag = await page.evaluate(() => {
-      const w = window as any;
+    // Dispatch synthetic PointerEvents from inside the page — nipplejs
+    // binds pointerdown on the zone and pointermove/pointerup on the
+    // document (it prefers PointerEvent over TouchEvent when both are
+    // available, which is always in modern Chromium). Sample joy.fwd
+    // BEFORE pointerup so the renderer's 'end' callback doesn't zero
+    // it before we read.
+    const fwdDuringDrag = await page.evaluate(() => {
       const zone = document.querySelector('app-bitmap-3d-renderer .touch-joy-zone-left') as HTMLElement;
       const rect = zone.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-
-      const log: string[] = [];
-      // Tap-listener that runs BEFORE nipplejs so we can confirm the
-      // event reaches the right targets at all.
-      const tap = (label: string, target: EventTarget, type: string) => {
-        target.addEventListener(type, (e: Event) => {
-          const pe = e as PointerEvent;
-          log.push(`${label}.${type} client=(${Math.round(pe.clientX)},${Math.round(pe.clientY)}) page=(${Math.round(pe.pageX)},${Math.round(pe.pageY)}) ptype=${pe.pointerType}`);
-        }, true);  // capture-phase so nipplejs's preventDefault on move can't hide it
-      };
-      tap('zone', zone, 'pointerdown');
-      tap('doc', document, 'pointermove');
-      tap('doc', document, 'pointerup');
 
       const fire = (
         target: EventTarget,
         type: 'pointerdown' | 'pointermove' | 'pointerup',
         x: number, y: number,
       ) => {
-        const ev = new PointerEvent(type, {
+        target.dispatchEvent(new PointerEvent(type, {
           bubbles: true, cancelable: true, view: window,
           pointerId: 1, pointerType: 'touch', isPrimary: true,
           clientX: x, clientY: y, screenX: x, screenY: y,
-          buttons: type === 'pointerup' ? 0 : 1, pressure: type === 'pointerup' ? 0 : 0.5,
-        });
-        target.dispatchEvent(ev);
+          buttons: type === 'pointerup' ? 0 : 1,
+          pressure: type === 'pointerup' ? 0 : 0.5,
+        }));
       };
 
-      const beforeMoves = w.__bitmap3d.joyMoves;
+      // pointerdown on zone, then 8 pointermoves dragging 60px upward
+      // on the document. nipplejs y is screen-inverted, so dragging up
+      // is positive joy.fwd.
       fire(zone, 'pointerdown', cx, cy);
       for (let i = 1; i <= 8; i++) fire(document, 'pointermove', cx, cy - (60 * i) / 8);
-      const captured = w.__bitmap3d.joy.fwd;
-      const afterMoves = w.__bitmap3d.joyMoves;
+      const captured = (window as any).__bitmap3d.joy.fwd;
       fire(document, 'pointerup', cx, cy - 60);
-
-      return { captured, beforeMoves, afterMoves, rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, cx, cy };
+      return captured;
     });
-    console.log('DIAG:', JSON.stringify(diag, null, 2));
-    expect(diag.captured).toBeGreaterThan(0);
+
+    expect(fwdDuringDrag).toBeGreaterThan(0);
   });
 });
