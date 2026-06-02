@@ -57,6 +57,18 @@ test.describe('bitmap-3d renderer', () => {
     await waitForState(page, 'orbit');
   });
 
+  test('exactly one canvas in the host after mount (no duplicate scene)', async ({ page }) => {
+    // Regression: two rebuild() calls used to race on mount (sizes Input
+    // setter + ngAfterViewInit) and append two WebGL canvases into the
+    // same host. User-reported as "I see the whole scene twice" on the tx
+    // page after Switch-to-3D. Pin canvas count post-mount.
+    await waitForState(page, 'orbit');
+    const canvasCount = await page.evaluate(
+      () => document.querySelectorAll('app-bitmap-3d-renderer canvas').length,
+    );
+    expect(canvasCount).toBe(1);
+  });
+
   test('PFP entry: orbit -> fly-to-pfp -> pfp', async ({ page }) => {
     await waitForState(page, 'orbit');
     // dispatchEvent skips Playwright's actionability check, which considers

@@ -233,13 +233,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // passes = ~9× the pixel work of DPR=1. Clamp to 1.5 on mobile, 2 on
     // desktop -- both give "retina-feel" without paying for it twice.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileLike ? 1.5 : 2));
-    // Append the WebGL canvas WITHOUT clearing the template children. The
-    // template renders touch-joy-zone-{left,right} and the jump button as
-    // siblings of the canvas, and they need to stay in the DOM for nipplejs
-    // to attach + the CSS to flip them visible under .pfp-on.touch-on.
-    // The old clear-then-append pattern silently nuked the entire mobile
-    // touch UI — desktop never noticed because the canvas alone fills the
-    // host visually.
+    // Targeted cleanup: remove any stale <canvas> siblings before appending
+    // ours. Two rebuild() calls race on mode='2d' → '3d': the sizes Input
+    // setter triggers rebuild during view-creation, and ngAfterViewInit
+    // triggers it again. Both pass through to renderCubes asynchronously
+    // (dynamic three.js import), so each appends its own canvas; the
+    // cleanup closure stored on `this.cleanup` only knows about the
+    // most-recently-built renderer, orphaning the first canvas. Sweeping
+    // direct-child <canvas> elements here keeps the host clean. We leave
+    // the template-rendered touch UI (.touch-joy-zone-*, .touch-jump)
+    // intact — those are mounted from the component template, not by us.
+    Array.from(hostEl.querySelectorAll(':scope > canvas')).forEach(c => c.remove());
     hostEl.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
