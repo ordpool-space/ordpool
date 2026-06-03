@@ -946,8 +946,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       applyEyeSafety();
       tryStepUp();
       // FOV ease on sprint (sketches/rapier KCC :191-195). rate=10 gives
-      // ~100ms settle.
-      const targetFov = fovTarget(sprinting, playerOnFloor, FOV_PFP, FOV_SPRINT);
+      // ~100ms settle. Gate on actual horizontal motion above the run
+      // threshold — pressing Shift while stationary shouldn't widen the
+      // FOV. SPEED_RUN_SQ is the same threshold derivePlayerState uses
+      // for the 'running' player state, so the visual stays in sync
+      // with the state machine.
+      const hSpeedSq = playerVelocity.x * playerVelocity.x + playerVelocity.z * playerVelocity.z;
+      const actuallyRunning = sprinting && hSpeedSq > SPEED_RUN_SQ;
+      const targetFov = fovTarget(actuallyRunning, playerOnFloor, FOV_PFP, FOV_SPRINT);
       if (Math.abs(camera.fov - targetFov) > 0.01) {
         camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, easeAlpha(Math.min(0.05, frameDt), 10));
         camera.updateProjectionMatrix();
