@@ -269,9 +269,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // phase. FrontSide rendering -- DoubleSide caused fine vertical
     // banding at glancing angles (gl_FrontFacing flips per-fragment along
     // the edges, normals flip with it, lighting bands appear).
-    // See-through (camera inside a cube during PFP collisions) is handled
-    // via the camera near-plane raise + collision-iteration count below,
-    // not by rendering both sides.
+    // PFP-mode see-through (wedge-shaped chunks of nearby cube surfaces
+    // missing) is the camera near-plane clipping into the cube. Solved
+    // by lowering camera.near to 0.05 on PFP entry / restoring on exit
+    // (see the fly-to-pfp + fly-to-iso completion blocks). Capsule
+    // collision iterations defend the eye against actually ending up
+    // inside cube geometry.
     const material = new THREE.MeshLambertMaterial();
     const instances = new THREE.InstancedMesh(cubeGeometry, material, sizes.length);
     instances.frustumCulled = false;
@@ -537,12 +540,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
 
     // ---- Input-scheme tracking ------------------------------------------
-    // Strategy: show touch UI by default in PFP. Hide on first keyboard
-    // input (user has a keyboard; jump button just clutters). Show again
-    // on first touch event (user switched back). Simpler and more
-    // reliable than upfront device classification, which had too many
-    // false-negatives on devices that DO have touch (iPad with
-    // Pencil/Magic Keyboard, Android with desktop-mode toggles, etc.).
+    // Strategy: start with touch UI VISIBLE only on devices that report a
+    // coarse pointer or any touch points. Pure desktops (precision mouse,
+    // no touch screen) start hidden — no flash of joysticks the user has
+    // to dismiss. Hybrid devices (iPad with Magic Keyboard, Android in
+    // desktop mode) start showing — they CAN touch, even if they also
+    // have a keyboard. From then on, setLastInput flips based on actual
+    // input: first key press hides, first pointerdown(touch|pen) shows
+    // again.
+    const startWithTouchUi =
+      (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) ||
+      ((navigator as any)?.maxTouchPoints ?? 0) > 0;
     const setTouchClass = (on: boolean) => {
       // Direct DOM, no Angular binding -- can't be lost to a missed CD.
       hostEl.classList.toggle('touch-on', on);
@@ -553,21 +561,29 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const setLastInput = (t: 'kbm' | 'touch') => {
       if (state !== 'pfp') return;
       setTouchClass(t === 'touch');
+      // Hybrid device that started kbm and then touched the screen — lazily
+      // bring up nipplejs so the now-visible joystick zones actually work.
+      if (t === 'touch') void initJoysticks();
     };
 
     const keyStates: Record<string, boolean> = {};
-    const KEY_ALIASES: Record<string, string> = {
-      ArrowUp: 'KeyW', ArrowDown: 'KeyS', ArrowLeft: 'KeyA', ArrowRight: 'KeyD',
-    };
+    // Arrow keys are kept as their own codes (NOT aliased to WASD) and
+    // drive the camera look. Gamer instinct: WASD moves, arrows look.
+    // The look integration happens in applyArrowLook() each frame so
+    // rotation rate is dt-based, not event-rate-based.
     const onKeyDown = (e: KeyboardEvent) => {
       if (state !== 'pfp') return;
-      const code = KEY_ALIASES[e.code] ?? e.code;
-      keyStates[code] = true;
-      if (code === 'Space') e.preventDefault();
+      keyStates[e.code] = true;
+      if (e.code === 'Space') e.preventDefault();
+      // Arrow keys would otherwise scroll the document. Eat them in PFP.
+      if (e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
+          e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        e.preventDefault();
+      }
       setLastInput('kbm');
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      const code = KEY_ALIASES[e.code] ?? e.code;
+      const code = e.code;
       keyStates[code] = false;
       // Variable jump: releasing Space mid-ascent caps y-velocity to the
       // min-jump value. Tap = small hop; hold = full arc.
@@ -726,12 +742,27 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const lookClock = new THREE.Clock();
     const applyLookStick = () => {
       const dt = lookClock.getDelta();
+
+      // Right-stick (mobile) yaw + pitch with deadzone.
       const lx = Math.abs(look.x) > LOOK_DEADZONE ? look.x : 0;
       const ly = Math.abs(look.y) > LOOK_DEADZONE ? look.y : 0;
-      if (lx === 0 && ly === 0) return;
-      camera.rotation.y -= lx * YAW_SPEED * dt;
-      // nipplejs y is positive UP. Stick up -> look up (positive pitch).
-      camera.rotation.x += (INVERT_LOOK_Y ? -ly : ly) * PITCH_SPEED * dt;
+      if (lx !== 0 || ly !== 0) {
+        camera.rotation.y -= lx * YAW_SPEED * dt;
+        // nipplejs y is positive UP. Stick up -> look up (positive pitch).
+        camera.rotation.x += (INVERT_LOOK_Y ? -ly : ly) * PITCH_SPEED * dt;
+      }
+
+      // Arrow-key look. Same dt as the stick so rotation rate is
+      // consistent regardless of input source. Yaw: left/right; pitch:
+      // up/down (no Y-invert for arrows -- they map to screen direction
+      // directly, which is the gamer instinct).
+      const ax = (keyStates['ArrowRight'] ? 1 : 0) - (keyStates['ArrowLeft'] ? 1 : 0);
+      const ay = (keyStates['ArrowUp'] ? 1 : 0) - (keyStates['ArrowDown'] ? 1 : 0);
+      if (ax !== 0 || ay !== 0) {
+        camera.rotation.y -= ax * YAW_SPEED * dt;
+        camera.rotation.x += ay * PITCH_SPEED * dt;
+      }
+
       camera.rotation.x = clampPitch(camera.rotation.x);
     };
 
@@ -1144,15 +1175,27 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 // nipplejs instance is created lazily (its 6KB ships in
                 // the same chunk as three.js).
                 setPfpClass(true);
-                setTouchClass(true);
-                void initJoysticks();
+                setTouchClass(startWithTouchUi);
+                if (startWithTouchUi) void initJoysticks();
                 lookClock.getDelta();   // discard the pre-PFP idle delta
+                // Tighten the near-plane for PFP. The iso default is
+                // cameraDistance / 100 (~0.5 unit) which is fine when
+                // orbiting far above the cubes but clips chunks out of
+                // any surface within ~0.5 of the eye — including the
+                // top of the cube the player is standing on. 0.05 is
+                // small enough to keep all visible cube faces inside
+                // the frustum.
+                camera.near = 0.05;
+                camera.updateProjectionMatrix();
               } else if (flyAfterIso === 'orbit') {
                 controls.enabled = true;
                 state = 'orbit';
                 setPfpClass(false);
                 setTouchClass(false);
                 destroyJoysticks();
+                // Restore the iso-mode near-plane (see PFP-entry comment).
+                camera.near = cameraDistance / 100;
+                camera.updateProjectionMatrix();
               } else {
                 state = 'exit-done';
                 setPfpClass(false);
