@@ -155,6 +155,41 @@ test.describe('bitmap-3d renderer', () => {
     await setKey(page, 'ShiftLeft', false);
   });
 
+  test('bunny-hopping (held Space + KeyW) covers more ground than walking alone', async ({ page }) => {
+    // Bhop preserves horizontal momentum across chained jumps. Held Space
+    // means applyControls re-jumps every time playerOnFloor flips true,
+    // and updatePlayer's air-physics branch fires whenever vy>0.1 (just
+    // jumped) so ground friction doesn't bite on the landing substep.
+    // Net effect: holding Space + W noticeably outpaces holding W alone.
+    await waitForState(page, 'orbit');
+    await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
+    await waitForState(page, 'pfp');
+    await tick(page, 1);
+
+    // Baseline: walk for 60 frames (1 simulated second).
+    const walkStart = (await readDebug(page)).pos;
+    await setKey(page, 'KeyW', true);
+    await tick(page, 60);
+    await setKey(page, 'KeyW', false);
+    const walkEnd = (await readDebug(page)).pos;
+    const walkDist = Math.hypot(walkEnd[0] - walkStart[0], walkEnd[2] - walkStart[2]);
+
+    // Settle to rest before the bhop run.
+    await tick(page, 30);
+
+    // Bhop: hold W AND Space for the same 60 frames.
+    const hopStart = (await readDebug(page)).pos;
+    await setKey(page, 'KeyW', true);
+    await setKey(page, 'Space', true);
+    await tick(page, 60);
+    await setKey(page, 'Space', false);
+    await setKey(page, 'KeyW', false);
+    const hopEnd = (await readDebug(page)).pos;
+    const hopDist = Math.hypot(hopEnd[0] - hopStart[0], hopEnd[2] - hopStart[2]);
+
+    expect(hopDist).toBeGreaterThan(walkDist * 1.2);
+  });
+
   test('walking forward translates the player position', async ({ page }) => {
     await waitForState(page, 'orbit');
     await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
