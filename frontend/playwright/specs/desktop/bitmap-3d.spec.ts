@@ -113,6 +113,27 @@ test.describe('bitmap-3d renderer', () => {
     expect((await readDebug(page)).playerState).toBe('idle');
   });
 
+  test('Shift alone (no movement) does NOT widen the FOV', async ({ page }) => {
+    // Regression: pressing Shift while stationary used to widen FOV
+    // because the gate was just `sprinting && onFloor`. User-reported
+    // as "what is shift doing, it zooms out a bit". Gate now requires
+    // actual horizontal motion above the run threshold.
+    await waitForState(page, 'orbit');
+    await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
+    await waitForState(page, 'pfp');
+    await tick(page, 1);
+
+    const restingFov = (await readDebug(page)).fov;
+    expect(restingFov).toBeCloseTo(75, 0);
+
+    await setKey(page, 'ShiftLeft', true);
+    await tick(page, 30);   // hold Shift for 0.5s simulated, no WASD
+
+    // FOV must stay at the resting value (within easing slack).
+    expect((await readDebug(page)).fov).toBeLessThan(80);
+    await setKey(page, 'ShiftLeft', false);
+  });
+
   test('sprint widens the FOV', async ({ page }) => {
     await waitForState(page, 'orbit');
     await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
