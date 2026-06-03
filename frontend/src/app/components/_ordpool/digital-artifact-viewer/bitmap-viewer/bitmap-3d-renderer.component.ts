@@ -512,9 +512,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // divides the two classes. Pattern: ecctrl ground-detect + sketches/
     // voxels step-decomposition.
     const STEP_HEIGHT = 1.05;
-    const SPEED_ON_FLOOR = 25;
-    const SPEED_SPRINT = 45;        // Shift-held; from needle-engine-samples FirstPersonCharacter
-    const SPEED_IN_AIR = 8;
+    const SPEED_ON_FLOOR = 32;
+    const SPEED_SPRINT = 58;        // Shift-held; from needle-engine-samples FirstPersonCharacter
+    const SPEED_IN_AIR = 12;
     const STEPS_PER_FRAME = 10;
     const playerVelocity = new THREE.Vector3();
     // Scratch vectors reused per-frame to avoid hot-path allocations.
@@ -904,7 +904,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // at our scale; -10 brakes within ~100ms while air drag stays small
       // so jumps keep horizontal momentum.
       let damping = Math.exp(-10 * dt) - 1;
-      if (!playerOnFloor) {
+      // Air physics when actually airborne OR when we just took off in
+      // this substep (applyControls set vy = JUMP_VELOCITY a few lines
+      // earlier and playerOnFloor hasn't been recomputed yet). The vy>0.1
+      // check lets bunny-hop chains keep their horizontal momentum: on
+      // the substep of a held-Space re-jump, playerOnFloor is still true
+      // from the landing collide, but the player is already rising — so
+      // applying ground friction here would kill the chain.
+      if (!playerOnFloor || playerVelocity.y > 0.1) {
         playerVelocity.y -= gravityForStep(playerVelocity.y, GRAVITY, FALL_GRAVITY_MULT) * dt;
         damping *= 0.1;
       }
