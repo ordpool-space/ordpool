@@ -1,6 +1,10 @@
-# Ordpool
+<div align="center">
 
-![Preview](frontend/src/resources/mempool-space-preview.png)
+[![ordpool.space v2](ordpool_v2.png)](https://ordpool.space)
+
+### [ordpool.space](https://ordpool.space): A Bitcoin MEMEpool explorer.
+
+</div>
 
 A Bitcoin MEMEpool explorer.  
 Inscriptions, Runes (including Alkanes), BRC-20, SRC-20 (Stamps), and 😺 CAT-21 Ordinals?  
