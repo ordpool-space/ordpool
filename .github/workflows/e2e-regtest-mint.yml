@@ -32,7 +32,12 @@ permissions:
 
 concurrency:
   group: ordpool-e2e-regtest-mint-${{ github.ref }}
-  cancel-in-progress: true
+  # Don't cancel an in-flight run when a newer push / dispatch
+  # arrives. Cancelled runs show up on the commit page as gray X
+  # marks that read as "CI broken" even though they just got
+  # superseded by a newer dispatch. Letting them complete keeps the
+  # commit's check history clean.
+  cancel-in-progress: false
 
 jobs:
   regtest-mint:
