@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { map } from 'rxjs';
+import { map, of, switchMap } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { Cat21Service } from 'ordpool-sdk';
@@ -39,8 +39,23 @@ export class WalletConnectComponent {
   lastAccelerations$ = this.inscriptionAcceleratorApiService.allAccelerations$.pipe(
     map(x => limitArray(x.reverse(), 100))
   );
-  lastCat21Mints$ = this.cat21Service.allMints$.pipe(
-    map(x => limitArray(x.reverse(), 100))
+
+  // Live feed of CAT-21 mints in the mempool addressed to the connected
+  // wallet. Replaces the old localStorage-backed lastCat21Mints$:
+  //   - cross-device aware (a mint started from phone surfaces here on
+  //     the next 30s poll)
+  //   - only shows what's actually pending; once mined, the tx drops
+  //     out of the mempool feed and the user finds it on cat21.space
+  //
+  // The switchMap stops the previous polling chain whenever the wallet
+  // changes and starts a fresh one for the new addresses — exactly
+  // what we want when the user disconnects + reconnects with a
+  // different wallet.
+  pendingCats$ = this.connectedWallet$.pipe(
+    switchMap(w => w
+      ? this.cat21Service.pendingMints$([w.ordinalsAddress, w.paymentAddress])
+      : of([])
+    )
   );
 
   knownOrdinalWallets = KnownOrdinalWallets;
