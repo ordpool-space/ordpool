@@ -21,7 +21,6 @@ export class WalletConnectComponent {
 
   // just for debugging
   showFakeWallet = false;
-  enableCat21Mint = environment.enableCat21Mint;
 
   connectButtonDisabled = false;
 

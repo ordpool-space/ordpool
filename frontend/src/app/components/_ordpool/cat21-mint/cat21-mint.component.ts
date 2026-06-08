@@ -24,7 +24,6 @@ import { SeoService } from '../../../services/seo.service';
 })
 export class Cat21MintComponent implements OnInit {
 
-  enableCat21Mint = environment.enableCat21Mint;
 
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);

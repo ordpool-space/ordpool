@@ -115,8 +115,8 @@
       </li>
       -->
 
-      <!-- HACK: CAT-21 nav link (conditional on enableCat21Mint) -->
-      <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint" *ngIf="enableCat21Mint">
+      <!-- HACK: CAT-21 nav link -->
+      <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint">
         <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()">
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21</a>
       </li>

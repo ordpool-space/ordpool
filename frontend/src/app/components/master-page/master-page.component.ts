@@ -25,7 +25,6 @@ export class MasterPageComponent implements OnInit, OnDestroy {
   connectionState$: Observable<number>;
   navCollapsed = false;
   isMobile = window.innerWidth <= 767.98;
-  enableCat21Mint = environment.enableCat21Mint;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
   officialMempoolSpaceBuild = this.stateService.isMempoolSpaceBuild;
   urlLanguage: string;

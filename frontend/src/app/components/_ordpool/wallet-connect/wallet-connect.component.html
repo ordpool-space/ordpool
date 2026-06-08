@@ -85,48 +85,46 @@
         Disconnect
       </button>
 
-      <ng-container *ngIf="enableCat21Mint">
-        <hr>
+      <hr>
 
-        <strong style="color: orange">Your pending cats:</strong><br>
-        <small style="color: orange">CAT-21 mints in the mempool, addressed to this wallet</small>
-        <div style="border: 1px solid orange; height: 200px; overflow: scroll">
-        <table class="table table-borderless table-striped" *ngIf="(pendingCats$ | async)?.length">
-          <tbody>
-            <tr *ngFor="let pendingMint of pendingCats$ | async">
+      <strong style="color: orange">Your pending cats:</strong><br>
+      <small style="color: orange">CAT-21 mints in the mempool, addressed to this wallet</small>
+      <div style="border: 1px solid orange; height: 200px; overflow: scroll">
+      <table class="table table-borderless table-striped" *ngIf="(pendingCats$ | async)?.length">
+        <tbody>
+          <tr *ngFor="let pendingMint of pendingCats$ | async">
 
-              <td>
-                {{ pendingMint.seenAt | date:'HH:mm' }}
-              </td>
+            <td>
+              {{ pendingMint.seenAt | date:'HH:mm' }}
+            </td>
 
-              <td>
+            <td>
 
-                <span class="tx-link">
-                  <span class="txid">
-                    <app-truncate
-                      [text]="pendingMint.txid"
-                      [lastChars]="5"
-                      [link]="['/tx/' | relativeUrl, pendingMint.txid]"
-                      [maxWidth]="220"
-                      ><app-clipboard [text]="pendingMint.txid" />
-                    </app-truncate>
-                  </span>
+              <span class="tx-link">
+                <span class="txid">
+                  <app-truncate
+                    [text]="pendingMint.txid"
+                    [lastChars]="5"
+                    [link]="['/tx/' | relativeUrl, pendingMint.txid]"
+                    [maxWidth]="220"
+                    ><app-clipboard [text]="pendingMint.txid" />
+                  </app-truncate>
                 </span>
-              </td>
+              </span>
+            </td>
 
-            </tr>
-          </tbody>
-        </table>
-        </div>
-        <div>
-          <small class="text-muted" *ngIf="!(pendingCats$ | async)?.length">
-            No pending CAT-21 mints right now. Once you broadcast a mint
-            it appears here until it lands in a block; after that, find
-            it on <a href="https://cat21.space" target="_blank" rel="noopener">cat21.space</a>.
-            Visit the <a [routerLink]="['/cat21-mint' | relativeUrl]" (click)="myPopover.close()">minting page</a> to collect a cat! 😻
-          </small>
-        </div>
-      </ng-container>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <div>
+        <small class="text-muted" *ngIf="!(pendingCats$ | async)?.length">
+          No pending CAT-21 mints right now. Once you broadcast a mint
+          it appears here until it lands in a block; after that, find
+          it on <a href="https://cat21.space" target="_blank" rel="noopener">cat21.space</a>.
+          Visit the <a [routerLink]="['/cat21-mint' | relativeUrl]" (click)="myPopover.close()">minting page</a> to collect a cat! 😻
+        </small>
+      </div>
 
       <hr>
 

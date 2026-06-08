@@ -35,7 +35,6 @@ import { environment } from 'src/environments/environment';
 })
 export class Cat21ViewerComponent {
 
-  enableCat21Mint = environment.enableCat21Mint;
 
   private _parsedCat21: ParsedCat21 | undefined;
   svg: string | undefined = undefined;
