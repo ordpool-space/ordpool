@@ -62,6 +62,11 @@ jobs:
 
       - name: Bring up consumer-environment + ordpool-backend
         run: |
+          # ORDPOOL_REGTEST_CONFIG is referenced from
+          # e2e/docker-compose.ordpool-backend.yml's bind-mount; absolute
+          # so docker compose doesn't try to resolve it relative to the
+          # SDK's e2e/ dir (the first -f file's parent).
+          export ORDPOOL_REGTEST_CONFIG="$(pwd)/e2e/mempool-config.regtest.json"
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
             --extra-file "$(pwd)/e2e/docker-compose.ordpool-backend.yml" \
             > stack.json

@@ -29,7 +29,14 @@ services:
       mariadb:
         condition: service_healthy
     volumes:
-      - ./e2e/mempool-config.regtest.json:/backend/mempool-config.json:ro
+      # ORDPOOL_REGTEST_CONFIG is an absolute host path set by the
+      # workflow before bringing the stack up. Can't use a relative
+      # path here because docker compose resolves relative volume
+      # bind-mounts against the *first* -f file's directory, not the
+      # file the volume is declared in — when this compose layers on
+      # top of the SDK's consumer-environment, relative paths land in
+      # node_modules/ordpool-sdk/e2e/... instead of this repo's e2e/.
+      - ${ORDPOOL_REGTEST_CONFIG}:/backend/mempool-config.json:ro
     ports:
       - "8999:8999"
     healthcheck:
