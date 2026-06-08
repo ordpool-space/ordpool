@@ -80,7 +80,7 @@
             </div>
           </div>
 
-          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading">
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading()">
             We are sorry, but we could not find find enough funds in your payment address! 😿<br>
             No UTXO has enough value to execute a transaction at the current fees.
             We recommend sending at least
@@ -102,7 +102,7 @@
             This should be enough to mint <strong class="bitcoin">multiple</strong> CAT-21 ordinals. 😻😻😻
           </div>
 
-          <div *ngIf="!utxoLoading && !utxoError && (paymentOutputs$ | async)?.length">
+          <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
 
             <details>
               <summary>Show Expert Settings</summary>
@@ -123,7 +123,7 @@
                 [ngClass]="{ selected: x === this.selectedPaymentOutput }">
 
                 <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-end text-white mt-2"
-                  (click)="selectedPaymentOutput = x" type="button">
+                  (click)="selectPaymentOutput(x)" type="button">
                   Use this UTXO
                 </button>
 
@@ -166,26 +166,26 @@
           </div>
           <div class="text-center mt-4">
 
-            <button type="submit" *ngIf="!utxoLoading && !mintCat21Success" [disabled]="form.invalid || !selectedPaymentOutput"
+            <button type="submit" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !selectedPaymentOutput"
               class="btn btn-primary mt-4 mb-4 text-white">
 
-              <ng-container  *ngIf="!mintCat21Loading">
+              <ng-container  *ngIf="!mintCat21Loading()">
                 <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
                   title="Mint a CAT-21 ordinal" height="30"> Mint my cat
               </ng-container>
 
-              <ng-container  *ngIf="mintCat21Loading">
+              <ng-container  *ngIf="mintCat21Loading()">
                 <i class="spinner-border spinner-border-sm text-light"></i> Minting your cat
               </ng-container>
 
 
             </button>
 
-            <a href="javascript:location.reload()" *ngIf="mintCat21Success" class="btn btn-primary mt-4 mb-4 text-white">
+            <a href="javascript:location.reload()" *ngIf="mintCat21Success()" class="btn btn-primary mt-4 mb-4 text-white">
               <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint another cat!
             </a>
 
-          <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading">
+          <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
             <i class="spinner-border spinner-border-sm text-light"></i>
             Scanning your payments address
           </button>
@@ -193,21 +193,21 @@
           </div>
         </form>
 
-        <div class="alert alert-success" *ngIf="mintCat21Success">
+        <div class="alert alert-success" *ngIf="mintCat21Success() as success">
           ✅&nbsp; Your CAT-21 transaction has now been submitted to the mempool.<br>
-          <ng-container *ngIf="mintCat21Success?.txId">
+          <ng-container *ngIf="success.txId">
             You can track the progress
             <a class="alert-link text-decoration-underline"
-              [routerLink]="['/tx/' | relativeUrl, mintCat21Success.txId]">here</a>.
+              [routerLink]="['/tx/' | relativeUrl, success.txId]">here</a>.
           </ng-container>
         </div>
 
-        <div class="alert alert-danger" *ngIf="mintCat21Error">
-          ❌&nbsp; {{ mintCat21Error }}
+        <div class="alert alert-danger" *ngIf="mintCat21Error() as err">
+          ❌&nbsp; {{ err }}
         </div>
 
-        <div class="alert alert-danger" *ngIf="utxoError">
-          ❌&nbsp; {{ utxoError }}
+        <div class="alert alert-danger" *ngIf="utxoError() as err">
+          ❌&nbsp; {{ err }}
         </div>
 
         <div class="alert alert-danger" *ngIf="checkerError">

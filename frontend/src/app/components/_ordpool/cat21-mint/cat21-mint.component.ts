@@ -1,19 +1,23 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { hex } from '@scure/base';
-import { BehaviorSubject, catchError, combineLatest, map, of, shareReplay, startWith, switchMap, take, tap } from 'rxjs';
+import { catchError, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { environment } from '../../../../environments/environment';
-import { Cat21ApiService } from 'ordpool-sdk';
-import { Cat21Service } from 'ordpool-sdk';
-import { SimulateTransactionResult, TxnOutput } from 'ordpool-sdk';
-import { WalletService } from 'ordpool-sdk';
-import { KnownOrdinalWalletType, WalletInfo } from 'ordpool-sdk';
+import {
+  Cat21ApiService,
+  Cat21MintOrchestrator,
+  KnownOrdinalWalletType,
+  SimulateTransactionResult,
+  TxnOutput,
+  WalletInfo,
+  WalletService,
+} from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
-import { fullNumberValidator } from '../full-number.validator';
-import { extractErrorMessage } from '../inscription-accelerator/extract-error-message';
 import { SeoService } from '../../../services/seo.service';
 
+interface ViableSimulation {
+  simulation: SimulateTransactionResult;
+  paymentOutput: TxnOutput;
+}
 
 @Component({
   selector: 'app-cat21-mint',
@@ -24,197 +28,137 @@ import { SeoService } from '../../../services/seo.service';
 })
 export class Cat21MintComponent implements OnInit {
 
-
   walletService = inject(WalletService);
-  cat21Service = inject(Cat21Service);
   cat21ApiService = inject(Cat21ApiService);
+  private orchestrator = inject(Cat21MintOrchestrator);
   cd = inject(ChangeDetectorRef);
-
   seoService = inject(SeoService);
 
+  // ordpool's framework StateService streams recommended fees via the
+  // websocket the mempool UI already runs. Cat21MintOrchestrator also
+  // exposes a polled recommendedFees$ derived from the REST endpoint,
+  // but we stay with the live websocket source here because it's
+  // already wired and matches the rest of ordpool's freshness.
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
-  selectedFeeRate$ = new BehaviorSubject<number>(0);
 
-  mintStatus$ = this.cat21ApiService.getStatus().pipe(
-    catchError(() => of(null))
-  );
+  // Indexer status + latest cats for the hero panel + thumbnail grid.
+  mintStatus$ = this.cat21ApiService.getStatus().pipe(catchError(() => of(null)));
   latestCatNumbers$ = this.cat21ApiService.getLatestCatNumbers(12).pipe(
-    map(r => r.catNumbers),
-    catchError(() => of([] as number[]))
+    map((r) => r.catNumbers),
+    catchError(() => of([] as number[])),
   );
   catImageUrl = (n: number) => this.cat21ApiService.getCatImageUrl(n);
 
-  selectedPaymentOutput: {
-    simulation: SimulateTransactionResult;
-    paymentOutput: TxnOutput;
-  } | undefined = undefined;
-  utxosScanned = false;
+  // Viable UTXO list — orchestrator returns ALL rows including
+  // insufficient ones; the template only wants the rows the user can
+  // actually mint with. Sort largest-first + cap at 10 so the expert
+  // panel never renders hundreds of rows.
+  paymentOutputs$ = this.orchestrator.simulations$.pipe(
+    map((rows): ViableSimulation[] =>
+      rows
+        .filter((r): r is { utxo: TxnOutput; simulation: SimulateTransactionResult; insufficient: false } =>
+          !r.insufficient && r.simulation !== null,
+        )
+        .sort((a, b) => b.utxo.value - a.utxo.value)
+        .slice(0, 10)
+        .map((r) => ({ simulation: r.simulation, paymentOutput: r.utxo })),
+    ),
+    tap((rows) => {
+      // Auto-select the largest viable entry whenever the list
+      // refreshes, unless the user has already picked one that's
+      // still viable. Sync to the orchestrator so mint() reads the
+      // same value.
+      if (!rows.length) {
+        this.selectedPaymentOutput = undefined;
+        this.orchestrator.setSelectedUtxo(null);
+        return;
+      }
+      const current = this.selectedPaymentOutput;
+      const stillThere = current && rows.find(
+        (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
+      );
+      const next = stillThere ?? rows[0];
+      this.selectedPaymentOutput = next;
+      this.orchestrator.setSelectedUtxo(next.paymentOutput);
+      this.cd.detectChanges();
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
 
+  // Template-bound field (matches the previous component's shape).
+  // Mutated in two paths:
+  //   - the `tap` above auto-syncs on every fresh UTXO list
+  //   - selectPaymentOutput(row) when the user clicks "Use this UTXO"
+  selectedPaymentOutput: ViableSimulation | undefined;
+
+  // State-machine projections — read-only views of orchestrator.state()
+  // shaped to match the existing template bindings so the HTML stays
+  // unchanged.
+  private state = this.orchestrator.state;
+  readonly utxoLoading = computed(() => this.state() === 'loading-utxos');
+  readonly utxoError = computed(() =>
+    this.state() === 'error' && !this.orchestrator.successTxId() && !this.isMintingFlow()
+      ? this.orchestrator.errorMessage() ?? ''
+      : '',
+  );
+  readonly mintCat21Loading = computed(() => this.state() === 'minting');
+  readonly mintCat21Success = computed(() =>
+    this.state() === 'success' && this.orchestrator.successTxId()
+      ? { txId: this.orchestrator.successTxId()! }
+      : undefined,
+  );
+  readonly mintCat21Error = computed(() =>
+    this.state() === 'error' && this.isMintingFlow()
+      ? this.orchestrator.errorMessage() ?? ''
+      : '',
+  );
+
+  // We've-already-tried-to-mint marker so the error gets attributed to
+  // the right alert (utxo loading error vs mint error). Flipped on
+  // mint() click; never reset (a successful mint route resets state
+  // wholesale via orchestrator.reset() if the user mints again).
+  private mintAttempted = false;
+  private isMintingFlow(): boolean { return this.mintAttempted; }
+
+  checkerError = '';
   unisatShowWarningThreshold = 10 * 1000;
 
   form = new FormGroup({
-    // TODO
-    // catRecipient: new FormControl(0, {
-    //   validators: [Validators.required],
-    //   nonNullable: true
-    // }),
     feeRate: new FormControl(1, {
       validators: [Validators.required, Validators.min(1)],
-      nonNullable: true
-    })
+      nonNullable: true,
+    }),
   });
-
   cfeeRate = this.form.controls.feeRate;
-
-  paymentOutputsForCurrentWallet$ = this.connectedWallet$.pipe(
-    tap(() => {
-      this.utxoLoading = true;
-      this.utxoError = '';
-      this.cd.detectChanges();
-    }),
-    switchMap(wallet => this.cat21Service.getUtxos(wallet?.paymentAddress).pipe(
-      // retry({ count: 3, delay: 500 }), // Ordpool has a global interceptor for this, otherwise add this line
-      map(paymentOutputs => ({
-        paymentOutputs,
-        wallet,
-        error: undefined as Error
-      })),
-      catchError(error => of({
-        paymentOutputs: [] as TxnOutput[],
-        wallet: undefined as WalletInfo,
-        error: error as Error
-      })),
-      tap(({ error }) => {
-        this.utxoLoading = false;
-        this.utxoError = error ? extractErrorMessage(error) : '';
-        this.cd.detectChanges();
-      })
-    ))
-  );
-
-  checkerLoading = false;
-  checkerError = '';
-
-  paymentOutputs$ = combineLatest([
-    this.paymentOutputsForCurrentWallet$,
-    this.selectedFeeRate$
-  ]).pipe(
-
-    map(([{ paymentOutputs, wallet, error }, feeRate]) => {
-
-      if (error) {
-        return [];
-      }
-
-      // feeRate is not yet available, or user removed the input
-      if (!feeRate) {
-        return [];
-      }
-
-      // Sort UTXOs by value in descending order
-      return (paymentOutputs || [])
-        .sort((a, b) => b.value - a.value)
-        .map((paymentOutput: TxnOutput) => {
-
-          try {
-            // simulate the transaction with 0 miner fee
-            const simulation1 = this.cat21Service.simulateTransaction(
-              wallet.type,
-              wallet.ordinalsAddress,
-
-              paymentOutput,
-              wallet.paymentAddress,
-              hex.decode(wallet.paymentPublicKey),
-              BigInt(0)
-            );
-
-            // feeRate can be fractional (e.g. 0.5 sat/vB), so we ceil to avoid BigInt crash
-            const transactionFee = BigInt(Math.ceil(simulation1.vsize * feeRate));
-
-            // simulate the transaction again, with exact transactionFee
-            const simulation2 = this.cat21Service.simulateTransaction(
-              wallet.type,
-              wallet.ordinalsAddress,
-
-              paymentOutput,
-              wallet.paymentAddress,
-              hex.decode(wallet.paymentPublicKey),
-              transactionFee
-            );
-
-            return {
-              simulation: simulation2,
-              paymentOutput
-            };
-
-          } catch(error) {
-            // Throws an Error if paymentOutput has not enough funds!
-            // - 'Insufficient funds for transaction' via the createTransaction
-            // - 'Outputs spends more than inputs amount' when we finalize (second safety net)
-            // .. or if we made something wrong during our simulation :-/
-            return undefined;
-          }
-        })
-        .filter(x => x) // removes payments with not enough funds
-        .slice(0, 10); // limit to max 10 elements
-    }),
-    // sets it to the largest available UTXO or to undefined
-    tap(simulateTransactions => {
-      this.selectedPaymentOutput = simulateTransactions[0];
-      this.cd.detectChanges();
-    }),
-    shareReplay({
-      bufferSize: 1,
-      refCount: true
-    })
-  );
-
-  minRequiredFee: number = 0;
-
-  mintCat21Loading = false;
-  mintCat21Success?: { txId: string } = undefined;
-  mintCat21Error = '';
-
-  utxoLoading = false;
-  utxoError = '';
+  minRequiredFee = 0;
 
   KnownOrdinalWalletType = KnownOrdinalWalletType;
 
-
   ngOnInit(): void {
-    this.recommendedFees$.pipe(take(1))
-      .subscribe(({ fastestFee, hourFee }) => {
+    this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee, hourFee }) => {
+      this.updateMinRequiredFee(hourFee);
+      if (fastestFee > this.minRequiredFee) {
+        this.cfeeRate.setValue(fastestFee);
+      }
+      this.orchestrator.setFeeRate(this.cfeeRate.value);
+      this.cd.detectChanges();
+    });
 
-        this.updateMinRequiredFee(hourFee);
-
-        if (fastestFee > this.minRequiredFee) {
-          this.cfeeRate.setValue(fastestFee);
-        }
-
-        // always tigger event manually here, otherwise we will miss it in some constellations
-        this.selectedFeeRate$.next(this.cfeeRate.value);
-        this.cd.detectChanges();
-      });
-
-    // triggers an update to for every form change
-    this.cfeeRate.valueChanges.subscribe(this.selectedFeeRate$);
+    this.cfeeRate.valueChanges.subscribe((rate) => {
+      if (rate) this.orchestrator.setFeeRate(rate);
+    });
   }
 
-  public updateMinRequiredFee(hourFee: number) {
-
+  updateMinRequiredFee(hourFee: number): void {
     this.minRequiredFee = hourFee;
-
     this.cfeeRate.setValidators([
       Validators.required,
       Validators.min(this.minRequiredFee),
-      // fullNumberValidator() -- removed: sub-sat fee rates (e.g. 0.5 sat/vB) are valid now
     ]);
-
     if (this.cfeeRate.value < this.minRequiredFee) {
       this.cfeeRate.setValue(this.minRequiredFee);
     }
-
     this.cfeeRate.updateValueAndValidity();
   }
 
@@ -222,43 +166,22 @@ export class Cat21MintComponent implements OnInit {
     this.form.patchValue({ feeRate });
   }
 
-  mintCat21(wallet: WalletInfo): void {
+  /** Template handler: user clicked "Use this UTXO" on an expert-mode row. */
+  selectPaymentOutput(row: ViableSimulation): void {
+    this.selectedPaymentOutput = row;
+    this.orchestrator.setSelectedUtxo(row.paymentOutput);
+  }
 
-    if (!this.selectedPaymentOutput) {
-      throw new Error('No UTXO selected!');
-    }
-
-    const paymentOutput = this.selectedPaymentOutput.paymentOutput;
-    const transactionFee = this.selectedPaymentOutput.simulation.finalTransactionFee;
-
-    this.mintCat21Loading = true;
-    this.mintCat21Success = undefined;
-    this.mintCat21Error = '';
-
-
-    this.cat21Service.createCat21Transaction(
-      wallet.type,
-      wallet.ordinalsAddress,
-
-      paymentOutput,
-      wallet.paymentAddress,
-      hex.decode(wallet.paymentPublicKey),
-      transactionFee
-    ).subscribe({
-      next: (result) => {
-        this.mintCat21Loading = false;
-        this.mintCat21Success = result;
-        this.cd.detectChanges();
-      },
-      error: (err: Error) => {
-        this.mintCat21Loading = false;
-        this.mintCat21Error = extractErrorMessage(err);
-        this.cd.detectChanges();
-      }
+  /** Template handler: form submit / mint button. */
+  mintCat21(_wallet: WalletInfo): void {
+    this.mintAttempted = true;
+    this.orchestrator.mint().subscribe({
+      next: () => this.cd.detectChanges(),
+      error: () => this.cd.detectChanges(),
     });
   }
 
-  toNumber(number: bigint): number {
-    return Number(number);
+  toNumber(n: bigint): number {
+    return Number(n);
   }
 }
