@@ -21,7 +21,6 @@ import { environment } from '../../../../environments/environment';
 })
 export class GlobalFooterComponent implements OnInit, OnDestroy {
   // HACK -- Ordpool: CAT-21 mint flag
-  enableCat21Mint = environment.enableCat21Mint;
 
   private destroy$: Subject<any> = new Subject<any>();
   env: Env;
