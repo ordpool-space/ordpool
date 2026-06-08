@@ -1,0 +1,114 @@
+name: E2E (regtest mint)
+
+# Full-stack mint round-trip on Bitcoin regtest:
+#   bitcoind + electrs + mariadb (from ordpool-sdk's consumer-environment)
+#   + ordpool-backend (this repo) + ordpool/frontend serving locally
+#   + Xverse extension headed in xvfb
+#   + Playwright drives /cat21-mint end-to-end through to a real mint
+#
+# Iteration ladder (matches PLAN-cat21-mint-port.md):
+#   1. bring the backend stack up, confirm /api/v1/fees/recommended +
+#      /api/v1/blocks/tip/height answer       <-- THIS IS WHERE WE ARE
+#   2. add frontend serve + Playwright smoke (page loads, wallet picker
+#      visible)
+#   3. add Xverse extension + full mint click-through + 1-block mine +
+#      pending feed transition assertion
+#
+# Subsequent iterations extend the same workflow file rather than
+# creating new ones — keeps the CI surface stable.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'   # nightly at 03:17 UTC
+  push:
+    paths:
+      - 'e2e/docker-compose.ordpool-backend.yml'
+      - 'e2e/mempool-config.regtest.json'
+      - '.github/workflows/e2e-regtest-mint.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ordpool-e2e-regtest-mint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regtest-mint:
+    name: Bring up stack + smoke-test backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout ordpool
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install frontend npm deps (brings ordpool-sdk into node_modules)
+        run: npm ci
+        working-directory: frontend
+
+      - name: Make SDK consumer-environment scripts executable
+        # Git on Linux preserves the bit, but defensive against any
+        # cross-platform clone that lost it.
+        run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
+        working-directory: frontend
+
+      - name: Bring up consumer-environment + ordpool-backend
+        run: |
+          frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
+            --extra-file "$(pwd)/e2e/docker-compose.ordpool-backend.yml" \
+            > stack.json
+          cat stack.json
+
+      - name: Wait for ordpool-backend health
+        # The backend takes a moment after mariadb is ready before it
+        # opens the HTTP port. Poll until /api/v1/backend-info responds.
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8999/api/v1/backend-info >/dev/null 2>&1; then
+              echo "ordpool-backend up"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "ordpool-backend never came up"
+              docker logs ordpool-e2e-backend || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Smoke-test backend endpoints
+        run: |
+          echo "--- backend-info"
+          curl -fsS http://localhost:8999/api/v1/backend-info | head -c 400
+          echo
+          echo "--- blocks/tip/height"
+          curl -fsS http://localhost:8999/api/v1/blocks/tip/height
+          echo
+          echo "--- fees/recommended"
+          curl -fsS http://localhost:8999/api/v1/fees/recommended | head -c 400
+          echo
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          for c in ordpool-e2e-consumer-bitcoind ordpool-e2e-consumer-electrs \
+                   ordpool-e2e-consumer-mariadb ordpool-e2e-backend; do
+            echo "=== $c ==="
+            docker logs "$c" 2>&1 | tail -200 || true
+          done
+
+      - name: Tear down stack
+        if: always()
+        run: |
+          docker compose \
+            -f frontend/node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
+            -f e2e/docker-compose.ordpool-backend.yml \
+            down -v || true

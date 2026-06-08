@@ -1,0 +1,44 @@
+# ordpool-backend service for the E2E regtest mint workflow.
+#
+# Layered on top of ordpool-sdk's consumer-environment compose file
+# (which provides bitcoind + electrs + mariadb). Uses the official
+# mempool/backend image with a mounted regtest config pointing at the
+# SDK's containers via the docker network the consumer-environment
+# creates.
+#
+# Brought up together with the base via:
+#   docker compose \
+#     -f node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
+#     -f e2e/docker-compose.ordpool-backend.yml \
+#     up -d
+#
+# The bind-mount path for mempool-config.json is relative to wherever
+# docker-compose is invoked from. The workflow invokes from the repo
+# root, so the path is `e2e/mempool-config.regtest.json`.
+
+services:
+
+  ordpool-backend:
+    image: mempool/backend:latest
+    container_name: ordpool-e2e-backend
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+      electrs:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+    volumes:
+      - ./e2e/mempool-config.regtest.json:/backend/mempool-config.json:ro
+    ports:
+      - "8999:8999"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8999/api/v1/backend-info | grep -q . || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    # Wait for mariadb to fully accept connections before the backend
+    # tries its first query — the healthcheck on mariadb fires earlier
+    # than connection-ready in some versions.
+    command: ["./wait-for-it.sh", "mariadb:3306", "--timeout=120", "--strict", "--", "./start.sh"]
