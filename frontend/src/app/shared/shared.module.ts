@@ -172,9 +172,6 @@ import { MetadataViewerComponent } from '@components/_ordpool/digital-artifact-v
 import { InscriptionAcceleratorComponent } from '@components/_ordpool/inscription-accelerator/inscription-accelerator.component';
 import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wallet-connect.component';
 import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
-import { CountdownTimerComponent } from '@components/_ordpool/cat21-mint/countdown-timer-component';
-import { Cat21CollabComponent } from '@components/_ordpool/cat21-collab/cat21-collab.component';
-import { Cat21WhitelistCheckerComponent } from '@components/_ordpool/cat21-whitelist-checker/cat21-whitelist-checker.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
 import { AtomicalViewerComponent } from '@components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
 import { CounterpartyViewerComponent } from '@components/_ordpool/digital-artifact-viewer/counterparty-viewer/counterparty-viewer.component';
@@ -339,9 +336,6 @@ import { HighlightModule } from 'ngx-highlightjs';
     InscriptionAcceleratorComponent,
     WalletConnectComponent,
     Cat21MintComponent,
-    CountdownTimerComponent,
-    Cat21CollabComponent,
-    Cat21WhitelistCheckerComponent,
     CounterpartyViewerComponent,
     StampViewerComponent,
     Src721ViewerComponent,

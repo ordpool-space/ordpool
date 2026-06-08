@@ -88,15 +88,15 @@
       <ng-container *ngIf="enableCat21Mint">
         <hr>
 
-        <strong style="color: orange">Your last CAT-21 Mints:</strong><br>
-        <small style="color: orange">(scroll down in this orange box for more)</small>
-        <div  style="border: 1px solid orange; height: 200px; overflow: scroll">
-        <table class="table table-borderless table-striped" *ngIf="(lastCat21Mints$ | async)?.length">
+        <strong style="color: orange">Your pending cats:</strong><br>
+        <small style="color: orange">CAT-21 mints in the mempool, addressed to this wallet</small>
+        <div style="border: 1px solid orange; height: 200px; overflow: scroll">
+        <table class="table table-borderless table-striped" *ngIf="(pendingCats$ | async)?.length">
           <tbody>
-            <tr *ngFor="let cat21Mint of lastCat21Mints$ | async">
+            <tr *ngFor="let pendingMint of pendingCats$ | async">
 
               <td>
-                {{ cat21Mint.createdAt | date:'yyyy-MM-dd' }}
+                {{ pendingMint.seenAt | date:'HH:mm' }}
               </td>
 
               <td>
@@ -104,11 +104,11 @@
                 <span class="tx-link">
                   <span class="txid">
                     <app-truncate
-                      [text]="cat21Mint.txId"
+                      [text]="pendingMint.txid"
                       [lastChars]="5"
-                      [link]="['/tx/' | relativeUrl, cat21Mint.txId]"
+                      [link]="['/tx/' | relativeUrl, pendingMint.txid]"
                       [maxWidth]="220"
-                      ><app-clipboard [text]="cat21Mint.txId" />
+                      ><app-clipboard [text]="pendingMint.txid" />
                     </app-truncate>
                   </span>
                 </span>
@@ -119,9 +119,11 @@
         </table>
         </div>
         <div>
-          <small class="text-muted" *ngIf="!(lastCat21Mints$ | async)?.length">
-            No CAT-21 mints have been started on this computer yet.
-            Visit the <a [routerLink]="['/cat21-mint' | relativeUrl]" (click)="myPopover.close()">minting page</a> to collect your first cat! 😻
+          <small class="text-muted" *ngIf="!(pendingCats$ | async)?.length">
+            No pending CAT-21 mints right now. Once you broadcast a mint
+            it appears here until it lands in a block; after that, find
+            it on <a href="https://cat21.space" target="_blank" rel="noopener">cat21.space</a>.
+            Visit the <a [routerLink]="['/cat21-mint' | relativeUrl]" (click)="myPopover.close()">minting page</a> to collect a cat! 😻
           </small>
         </div>
       </ng-container>
