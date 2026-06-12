@@ -47,7 +47,7 @@
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
         <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>.
-        We support Xverse, Leather and Unisat.
+        We support Xverse, Leather, Unisat, OKX, Phantom, and Magic Eden Wallet.
       </p>
 
       <ng-container *ngIf="x.connectedWallet">
@@ -217,7 +217,7 @@
               </ng-container>
 
               <ng-container  *ngIf="mintCat21Loading()">
-                <i class="spinner-border spinner-border-sm text-light"></i> Minting your cat
+                <i class="spinner-border spinner-border-sm text-light"></i> Minting… please confirm in your wallet
               </ng-container>
 
 
@@ -240,7 +240,11 @@
           <ng-container *ngIf="success.txId">
             You can track the progress
             <a class="alert-link text-decoration-underline"
-              [routerLink]="['/tx/' | relativeUrl, success.txId]">here</a>.
+              [routerLink]="['/tx/' | relativeUrl, success.txId]">here</a>,
+            or open your gallery at
+            <a class="alert-link text-decoration-underline"
+              href="https://cat21.space/dashboard/cats" target="_blank" rel="noopener">cat21.space</a>
+            once the block confirms.
           </ng-container>
         </div>
 
@@ -259,7 +263,7 @@
 
         <ng-container *ngIf="isSingleAddressWallet(x.connectedWallet)">
 
-          <p class="alert alert-warning mt-4" *ngIf="!selectedPaymentOutput || (selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold)">
+          <p class="alert alert-warning mt-4" *ngIf="!selectedPaymentOutput || (selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold && selectedPaymentOutput.bucket !== 'clean' && selectedPaymentOutput.bucket !== 'assets')">
             Your wallet uses a single address for both payments and the storage of ordinals.
             UTXOs at or below {{ smallUtxoWarningThreshold | number }} sats may hold inscriptions,
             runes, rare sats, or CAT-21 cats — spending one of those as a mint input would send
