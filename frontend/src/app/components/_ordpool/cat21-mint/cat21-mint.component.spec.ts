@@ -35,31 +35,13 @@ import {
   KnownOrdinalWalletType,
   UtxoContentScanner,
   WalletService,
+  type RecommendedFees,
+  type SimulateTransactionResult,
+  type TxnOutput,
+  type UtxoScanState,
+  type UtxoSimulation,
+  type WalletInfo,
 } from 'ordpool-sdk';
-
-// Type-only shims for the mocked types we use in fixtures. Real shapes
-// live in ordpool-sdk but the mock above doesn't carry them; we keep
-// them minimal here.
-type WalletInfo = {
-  type: string;
-  label: string;
-  ordinalsAddress: string;
-  paymentAddress: string;
-  paymentPublicKey: string;
-  ordinalsPublicKey: string;
-  signingSupported?: boolean;
-  onChainOrdinals?: boolean;
-};
-type TxnOutput = { txid: string; vout: number; value: number; status: { confirmed: boolean; block_height: number; block_hash: string; block_time: number } };
-type SimulateTransactionResult = { finalTransactionFee: bigint; amountToRecipient: bigint; changeAmount: bigint; vsize: number; tx: object };
-type UtxoSimulation = { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean };
-type RecommendedFees = { fastestFee: number; halfHourFee: number; hourFee: number; economyFee: number; minimumFee: number };
-type UtxoScanState =
-  | { kind: 'not-scanned' }
-  | { kind: 'scanning' }
-  | { kind: 'scanned-clean' }
-  | { kind: 'scanned-with-assets'; content: { outpoint: string; inscriptionIds: string[]; runes: object | null; catIds: string[] } }
-  | { kind: 'scan-failed'; message: string };
 
 import { Cat21MintComponent } from './cat21-mint.component';
 import { SeoService } from '../../../services/seo.service';
@@ -76,35 +58,34 @@ function utxo(over: Partial<TxnOutput> = {}): TxnOutput {
     value: 50_000,
     status: { confirmed: true, block_height: 800_000, block_hash: 'b'.repeat(64), block_time: 1_700_000_000 },
     ...over,
-  } as TxnOutput;
+  };
 }
 
 function simulation(over: Partial<SimulateTransactionResult> = {}): SimulateTransactionResult {
   return {
     finalTransactionFee: 200n,
     amountToRecipient: 546n,
+    singleInputAmount: 50_000n,
     changeAmount: 49_254n,
     vsize: 150,
-    tx: {} as unknown as SimulateTransactionResult['tx'],
+    // The component never reads the `tx` field; fixtures keep it as an
+    // empty object cast to the real btc.Transaction type to satisfy
+    // structural checks without dragging in @scure/btc-signer.
+    tx: {} as SimulateTransactionResult['tx'],
     ...over,
-  } as SimulateTransactionResult;
+  };
 }
 
 function wallet(over: Partial<WalletInfo> = {}): WalletInfo {
-  // Cast to `any` because the real WalletInfo from node_modules carries
-  // ~10 fields we don't need to mirror in fixtures (signingSupported,
-  // onChainOrdinals, etc.). The component only reads address fields +
-  // type.
   return {
     type: KnownOrdinalWalletType.xverse,
-    label: 'Xverse',
     ordinalsAddress: 'bc1p-ordinals-addr',
     paymentAddress: '3-payment-addr',
     paymentPublicKey: '02' + 'aa'.repeat(32),
     ordinalsPublicKey: '02' + 'bb'.repeat(32),
+    signingSupported: true,
     ...over,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
+  };
 }
 
 function fees(over: Partial<RecommendedFees> = {}): RecommendedFees {
@@ -115,7 +96,7 @@ function fees(over: Partial<RecommendedFees> = {}): RecommendedFees {
     economyFee: 1,
     minimumFee: 1,
     ...over,
-  } as RecommendedFees;
+  };
 }
 
 class OrchestratorStub {
@@ -310,7 +291,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       orch.feeRate.set(5);
       pushRows([{ u: utxo(), scan: { kind: 'scanned-clean' } }]);
       orch.mintImpl = () => throwError(() => new Error('user cancelled'));
-      component.mintCat21(wallet() as any);
+      component.mintCat21(wallet());
       orch.state.set('error');
       orch.errorMessage.set('user cancelled');
       fixture.detectChanges();
@@ -417,7 +398,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' } as any);
+      component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
@@ -431,7 +412,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: gone, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' } as any);
+      component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(80_000);
     });
@@ -473,7 +454,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     it('F2: scanRow(row) delegates to scanner.scan with the outpoint', () => {
       const u = utxo({ txid: 'c'.repeat(64), vout: 7 });
       pushRows([{ u, scan: { kind: 'not-scanned' } }]);
-      component.scanRow({ paymentOutput: u, simulation: simulation(), scan: { kind: 'not-scanned' }, bucket: 'unscanned' } as any);
+      component.scanRow({ paymentOutput: u, simulation: simulation(), scan: { kind: 'not-scanned' }, bucket: 'unscanned' });
       expect(scanner.scan).toHaveBeenCalledWith(`${'c'.repeat(64)}:7`);
     });
   });
@@ -507,14 +488,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const scan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['x'], runes: null, catIds: [] } };
       pushRows([{ u, scan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: 'assets' } as any);
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: 'assets' });
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
 
     it('G3: scanning row never auto-picks but is selectable', () => {
       pushRows([{ u, scan: { kind: 'scanning' } }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan: { kind: 'scanning' }, bucket: 'scanning' } as any);
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan: { kind: 'scanning' }, bucket: 'scanning' });
       expect(component.selectedPaymentOutput!.bucket).toBe('scanning');
     });
   });
@@ -525,11 +506,11 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   describe('H. isSingleAddressWallet', () => {
     it('H1: same addresses → true', () => {
-      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: 'x', paymentAddress: 'x' }) as any)).toBe(true);
+      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: "x", paymentAddress: "x" }))).toBe(true);
     });
 
     it('H2: different addresses → false', () => {
-      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: 'a', paymentAddress: 'b' }) as any)).toBe(false);
+      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: "a", paymentAddress: "b" }))).toBe(false);
     });
 
     it('H3: null / undefined → false', () => {
@@ -596,17 +577,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('K1: mintCat21() invokes orchestrator.mint', () => {
-      component.mintCat21(wallet() as any);
+      component.mintCat21(wallet());
       expect(orch.mint).toHaveBeenCalledTimes(1);
     });
 
     it('K2: mintCat21() error is swallowed (no throw)', () => {
       orch.mintImpl = () => throwError(() => new Error('user cancelled'));
-      expect(() => component.mintCat21(wallet() as any)).not.toThrow();
+      expect(() => component.mintCat21(wallet())).not.toThrow();
     });
 
     it('K3: error after mintCat21 attributes to mintCat21Error not utxoError', () => {
-      component.mintCat21(wallet() as any);
+      component.mintCat21(wallet());
       orch.state.set('error');
       orch.errorMessage.set('cancelled');
       fixture.detectChanges();
