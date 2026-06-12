@@ -124,6 +124,20 @@ export class Cat21MintComponent implements OnInit {
   checkerError = '';
   unisatShowWarningThreshold = 10 * 1000;
 
+  /**
+   * Funding floor shown in the "we couldn't find enough funds" hint.
+   * Derived from the user's currently-picked fee rate using a ~200 vB
+   * reference vsize (real CAT-21 mints are ~150–170 vB depending on
+   * wallet type), rounded up to the next 100 sat. At 1 sat/vB that's
+   * ~800 sat; at 100 sat/vB it's ~20,600 sat. The original hint hard-
+   * coded 200,000 sat sized for the launch-era fee spike, which is
+   * ~263× too high at current mainnet rates.
+   */
+  get recommendedFundingSats(): number {
+    const rate = this.cfeeRate.value || 1;
+    return Math.ceil((546 + 200 * rate) / 100) * 100;
+  }
+
   form = new FormGroup({
     feeRate: new FormControl(1, {
       validators: [Validators.required, Validators.min(1)],

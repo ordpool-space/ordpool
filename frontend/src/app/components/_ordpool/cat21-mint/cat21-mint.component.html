@@ -81,14 +81,15 @@
           </div>
 
           <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading()">
-            We are sorry, but we could not find find enough funds in your payment address! 😿<br>
-            No UTXO has enough value to execute a transaction at the current fees.
-            We recommend sending at least
+            We are sorry, but we could not find enough funds in your payment address! 😿<br>
+            No UTXO has enough value to cover the miner fee plus the 546 sat output at
+            <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>.
+            Fund your payment address with at least
 
             <ul class="m-0">
               <li>
-                <code class="bitcoin">{{ 200000 | number }}</code>&nbsp;<span class="symbol" i18n="shared.sat|sat">sat</span> (<app-fiat
-                  [value]="200000"></app-fiat>)&nbsp;<app-clipboard [button]="true" [text]="'200000'"
+                <code class="bitcoin">{{ recommendedFundingSats | number }}</code>&nbsp;<span class="symbol" i18n="shared.sat|sat">sat</span> (<app-fiat
+                  [value]="recommendedFundingSats"></app-fiat>)&nbsp;<app-clipboard [button]="true" [text]="recommendedFundingSats.toString()"
                   [class]="'btn btn-sm p-0'"></app-clipboard>
 
               </li>
@@ -99,7 +100,7 @@
               </li>
             </ul>
 
-            This should be enough to mint <strong class="bitcoin">multiple</strong> CAT-21 ordinals. 😻😻😻
+            Or pick a lower fee rate above. 😻
           </div>
 
           <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
