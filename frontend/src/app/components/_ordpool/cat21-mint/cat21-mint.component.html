@@ -121,11 +121,15 @@
               <span *ngIf="minRequiredFee == 0">⚠️ Required fee rate check disabled. You can enter any value!</span>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
-                [ngClass]="{ selected: x === this.selectedPaymentOutput }">
+                [ngClass]="{ selected: x === this.selectedPaymentOutput, 'utxo-row-assets': x.bucket === 'assets', 'utxo-row-clean': x.bucket === 'clean' }">
 
-                <button *ngIf="x !== this.selectedPaymentOutput" class="btn btn-primary float-end text-white mt-2"
+                <button *ngIf="x !== this.selectedPaymentOutput && x.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
                   (click)="selectPaymentOutput(x)" type="button">
                   Use this UTXO
+                </button>
+                <button *ngIf="x !== this.selectedPaymentOutput && x.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
+                  (click)="selectPaymentOutput(x)" type="button">
+                  Use anyway
                 </button>
 
                 UTXO {{ x.paymentOutput.txid }}:{{ x.paymentOutput.vout }}
@@ -134,6 +138,43 @@
                   class="btn btn-outline-success no-cursor pe-1 ps-1">Confirmed</span>
                 <span *ngIf="!x.paymentOutput.status.confirmed" type="button"
                   class="btn btn-outline-danger no-cursor pe-1 ps-1">Unconfirmed</span>
+
+                <span [ngSwitch]="x.bucket" class="utxo-bucket-badge ms-2">
+                  <span *ngSwitchCase="'clean'" class="badge bg-success">&#10003; safe</span>
+                  <span *ngSwitchCase="'assets'" class="badge bg-danger">&#9888; asset found</span>
+                  <span *ngSwitchCase="'unscanned'" class="badge bg-secondary">not scanned</span>
+                  <span *ngSwitchCase="'scanning'" class="badge bg-info">scanning…</span>
+                  <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
+                </span>
+
+                <a *ngIf="x.bucket === 'unscanned'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(x)">Scan</a>
+                <a *ngIf="x.bucket === 'failed'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(x)">Retry scan</a>
+
+                <div *ngIf="x.bucket === 'assets' && x.scan.kind === 'scanned-with-assets'" class="mt-2 ps-2 pe-2 pt-1 pb-1 utxo-assets-detail">
+                  <strong>Assets on this UTXO:</strong><br>
+                  <ng-container *ngIf="x.scan.content.inscriptionIds.length > 0">
+                    Inscription{{ x.scan.content.inscriptionIds.length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let id of x.scan.content.inscriptionIds; let last = last">
+                      <a [href]="ordReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                    </ng-container>
+                    <br>
+                  </ng-container>
+                  <ng-container *ngIf="runeNames(x.scan.content).length > 0">
+                    Rune{{ runeNames(x.scan.content).length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let name of runeNames(x.scan.content); let last = last">
+                      <a [href]="ordReviewBase + '/rune/' + name" target="_blank" rel="noopener">{{ name }}</a><ng-container *ngIf="!last">, </ng-container>
+                    </ng-container>
+                    <br>
+                  </ng-container>
+                  <ng-container *ngIf="x.scan.content.catIds.length > 0">
+                    CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let id of x.scan.content.catIds; let last = last">
+                      <a [href]="cat21OrdReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                    </ng-container>
+                    <br>
+                  </ng-container>
+                </div>
+
                 <br>
 
                 {{ x.paymentOutput.value | number }}

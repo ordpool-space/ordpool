@@ -10,6 +10,31 @@
 
 }
 
+.shape-border.utxo-row-assets {
+  border: 1px solid rgba(220, 53, 69, 0.6);
+}
+
+.shape-border.utxo-row-clean {
+  border: 1px solid rgba(40, 167, 69, 0.4);
+}
+
+.utxo-bucket-badge .badge {
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+.utxo-assets-detail {
+  background: rgba(220, 53, 69, 0.08);
+  border-left: 3px solid rgba(220, 53, 69, 0.6);
+  font-size: 0.85rem;
+  word-break: break-all;
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+  }
+}
+
 // Always exactly 2 rows of cat thumbnails.
 // Column count adapts to breakpoint; we fetch 12 cats and clip the rest with
 // overflow:hidden so the row count stays at 2 regardless of viewport width.
