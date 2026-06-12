@@ -1,12 +1,17 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { catchError, map, of, shareReplay, take, tap } from 'rxjs';
 
 import {
+  AUTO_SCAN_MAX_VALUE_SAT,
   Cat21ApiService,
   Cat21MintOrchestrator,
   SimulateTransactionResult,
   TxnOutput,
+  UtxoContent,
+  UtxoContentScanner,
+  UtxoScanState,
   WalletInfo,
   WalletService,
 } from 'ordpool-sdk';
@@ -16,6 +21,8 @@ import { SeoService } from '../../../services/seo.service';
 interface ViableSimulation {
   simulation: SimulateTransactionResult;
   paymentOutput: TxnOutput;
+  scan: UtxoScanState;
+  bucket: 'clean' | 'unscanned' | 'assets' | 'scanning' | 'failed';
 }
 
 @Component({
@@ -30,8 +37,21 @@ export class Cat21MintComponent implements OnInit {
   walletService = inject(WalletService);
   cat21ApiService = inject(Cat21ApiService);
   private orchestrator = inject(Cat21MintOrchestrator);
+  private scanner = inject(UtxoContentScanner);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
+
+  /** Asset-detail links for the "asset found" UI. */
+  readonly ordReviewBase = 'https://ord.ordpool.space';
+  readonly cat21OrdReviewBase = 'https://ord.cat21.space';
+
+  /** Auto-scan threshold echoed into the template for the "Scan anyway" hint. */
+  readonly autoScanThreshold = AUTO_SCAN_MAX_VALUE_SAT;
+
+  /** Per-outpoint scan state — read in the `paymentOutputs$` pipeline. */
+  private readonly scanStates = toSignal(this.scanner.states$, {
+    initialValue: new Map<string, UtxoScanState>() as ReadonlyMap<string, UtxoScanState>,
+  });
 
   // ordpool's framework StateService streams recommended fees via the
   // websocket the mempool UI already runs. Cat21MintOrchestrator also
@@ -54,20 +74,34 @@ export class Cat21MintComponent implements OnInit {
   // actually mint with. Sort largest-first + cap at 10 so the expert
   // panel never renders hundreds of rows.
   paymentOutputs$ = this.orchestrator.simulations$.pipe(
-    map((rows): ViableSimulation[] =>
-      rows
+    map((rows): ViableSimulation[] => {
+      const scanMap = this.scanStates();
+      return rows
         .filter((r): r is { utxo: TxnOutput; simulation: SimulateTransactionResult; insufficient: false } =>
           !r.insufficient && r.simulation !== null,
         )
         .sort((a, b) => b.utxo.value - a.utxo.value)
         .slice(0, 10)
-        .map((r) => ({ simulation: r.simulation, paymentOutput: r.utxo })),
-    ),
+        .map((r): ViableSimulation => {
+          const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
+          const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
+          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan) };
+        });
+    }),
     tap((rows) => {
-      // Auto-select the largest viable entry whenever the list
-      // refreshes, unless the user has already picked one that's
-      // still viable. Sync to the orchestrator so mint() reads the
-      // same value.
+      // Eager-scan small UTXOs. The scanner dedupes by outpoint so
+      // repeat triggers from re-emissions are free.
+      this.scanner.autoScan(rows.map((r) => ({
+        txid: r.paymentOutput.txid,
+        vout: r.paymentOutput.vout,
+        value: r.paymentOutput.value,
+      })));
+
+      // Auto-select the largest "safe-enough" entry whenever the list
+      // refreshes, unless the user has already picked one that's still
+      // present. Priority: scanned-clean → unscanned (probably-safe
+      // large UTXO) → scan-failed. NEVER auto-pick scanned-with-assets
+      // — that row requires an explicit "Use anyway" click.
       if (!rows.length) {
         this.selectedPaymentOutput = undefined;
         this.orchestrator.setSelectedUtxo(null);
@@ -77,9 +111,21 @@ export class Cat21MintComponent implements OnInit {
       const stillThere = current && rows.find(
         (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
-      const next = stillThere ?? rows[0];
+      if (stillThere) {
+        // Keep the existing pick but refresh the row reference so its
+        // scan state mirrors the current snapshot.
+        this.selectedPaymentOutput = stillThere;
+        this.orchestrator.setSelectedUtxo(stillThere.paymentOutput);
+        this.cd.detectChanges();
+        return;
+      }
+      const next =
+        rows.find((r) => r.bucket === 'clean')
+        ?? rows.find((r) => r.bucket === 'unscanned')
+        ?? rows.find((r) => r.bucket === 'failed')
+        ?? undefined;
       this.selectedPaymentOutput = next;
-      this.orchestrator.setSelectedUtxo(next.paymentOutput);
+      this.orchestrator.setSelectedUtxo(next ? next.paymentOutput : null);
       this.cd.detectChanges();
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -205,6 +251,11 @@ export class Cat21MintComponent implements OnInit {
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
 
+  /** Template handler: per-row "Scan anyway" / "Retry scan" button. */
+  scanRow(row: ViableSimulation): void {
+    this.scanner.scan(`${row.paymentOutput.txid}:${row.paymentOutput.vout}`).subscribe();
+  }
+
   /** Template handler: form submit / mint button. */
   mintCat21(_wallet: WalletInfo): void {
     this.mintAttempted = true;
@@ -214,7 +265,26 @@ export class Cat21MintComponent implements OnInit {
     });
   }
 
+  /** Extract the rune names from a UtxoContent for the asset-found UI. */
+  runeNames(content: UtxoContent): string[] {
+    return content.runes ? Object.keys(content.runes) : [];
+  }
+
   toNumber(n: bigint): number {
     return Number(n);
+  }
+}
+
+/**
+ * Map a raw UtxoScanState to the picker's display bucket. The bucket
+ * is what drives badges, button labels, and auto-pick priority.
+ */
+function bucketOf(s: UtxoScanState): ViableSimulation['bucket'] {
+  switch (s.kind) {
+    case 'not-scanned': return 'unscanned';
+    case 'scanning': return 'scanning';
+    case 'scanned-clean': return 'clean';
+    case 'scanned-with-assets': return 'assets';
+    case 'scan-failed': return 'failed';
   }
 }
