@@ -8,12 +8,19 @@ import {
   Cat21ApiService,
   Cat21MintOrchestrator,
   SimulateTransactionResult,
+  SMALL_UTXO_WARNING_THRESHOLD_SAT,
   TxnOutput,
   UtxoContent,
   UtxoContentScanner,
+  UtxoScanBucket,
   UtxoScanState,
   WalletInfo,
   WalletService,
+  bucketOf,
+  calculateRecommendedFundingSats,
+  cat21Config,
+  findAutoPickCandidate,
+  runeNamesFromContent,
 } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -22,7 +29,7 @@ interface ViableSimulation {
   simulation: SimulateTransactionResult;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
-  bucket: 'clean' | 'unscanned' | 'assets' | 'scanning' | 'failed';
+  bucket: UtxoScanBucket;
 }
 
 @Component({
@@ -38,12 +45,13 @@ export class Cat21MintComponent implements OnInit {
   cat21ApiService = inject(Cat21ApiService);
   private orchestrator = inject(Cat21MintOrchestrator);
   private scanner = inject(UtxoContentScanner);
+  private config = inject(cat21Config);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
 
-  /** Asset-detail links for the "asset found" UI. */
-  readonly ordReviewBase = 'https://ord.ordpool.space';
-  readonly cat21OrdReviewBase = 'https://ord.cat21.space';
+  /** Asset-detail link bases sourced from cat21Config so dev / regtest / prod stay aligned with the scanner's own endpoints. */
+  readonly ordReviewBase = this.config.ordApiUrl;
+  readonly cat21OrdReviewBase = this.config.cat21OrdApiUrl;
 
   /** Auto-scan threshold echoed into the template for the "Scan anyway" hint. */
   readonly autoScanThreshold = AUTO_SCAN_MAX_VALUE_SAT;
@@ -119,11 +127,7 @@ export class Cat21MintComponent implements OnInit {
         this.cd.detectChanges();
         return;
       }
-      const next =
-        rows.find((r) => r.bucket === 'clean')
-        ?? rows.find((r) => r.bucket === 'unscanned')
-        ?? rows.find((r) => r.bucket === 'failed')
-        ?? undefined;
+      const next = findAutoPickCandidate(rows) ?? undefined;
       this.selectedPaymentOutput = next;
       this.orchestrator.setSelectedUtxo(next ? next.paymentOutput : null);
       this.cd.detectChanges();
@@ -168,14 +172,8 @@ export class Cat21MintComponent implements OnInit {
 
   checkerError = '';
 
-  /**
-   * UTXOs at or below this value, on a single-address wallet, are
-   * flagged as potentially holding an ordinal-bound asset (inscription,
-   * rune, rare sat, CAT-21 cat). 10k sat is the de-facto industry
-   * cut-off: most ordinal-bearing UTXOs are 546 sat or slightly above;
-   * almost none exceed 10k. Content-safety heuristics, not fee math.
-   */
-  smallUtxoWarningThreshold = 10 * 1000;
+  /** Re-exported into the template for the warning copy that displays the literal number. */
+  smallUtxoWarningThreshold = SMALL_UTXO_WARNING_THRESHOLD_SAT;
 
   /**
    * Whether the connected wallet uses one address for both payments and
@@ -191,18 +189,8 @@ export class Cat21MintComponent implements OnInit {
     return wallet.ordinalsAddress === wallet.paymentAddress;
   }
 
-  /**
-   * Funding floor shown in the "we couldn't find enough funds" hint.
-   * Derived from the user's currently-picked fee rate using a ~200 vB
-   * reference vsize (real CAT-21 mints are ~150–170 vB depending on
-   * wallet type), rounded up to the next 100 sat. At 1 sat/vB that's
-   * ~800 sat; at 100 sat/vB it's ~20,600 sat. The original hint hard-
-   * coded 200,000 sat sized for the launch-era fee spike, which is
-   * ~263× too high at current mainnet rates.
-   */
   get recommendedFundingSats(): number {
-    const rate = this.cfeeRate.value || 1;
-    return Math.ceil((546 + 200 * rate) / 100) * 100;
+    return calculateRecommendedFundingSats(this.cfeeRate.value || 1);
   }
 
   form = new FormGroup({
@@ -226,6 +214,20 @@ export class Cat21MintComponent implements OnInit {
 
     this.cfeeRate.valueChanges.subscribe((rate) => {
       if (rate) this.orchestrator.setFeeRate(rate);
+    });
+
+    // Wipe the scanner cache when one wallet swaps out for another —
+    // the previous wallet's UTXO outpoints aren't relevant to the new
+    // one and would otherwise accumulate forever. Initial null →
+    // wallet is excluded: the scanner is already empty and a reset
+    // would clobber any scan state the pipeline pushed mid-connect.
+    let lastWalletAddress: string | null = null;
+    this.connectedWallet$.subscribe((w) => {
+      const addr = w?.ordinalsAddress ?? null;
+      if (lastWalletAddress !== null && addr !== lastWalletAddress) {
+        this.scanner.reset();
+      }
+      lastWalletAddress = addr;
     });
   }
 
@@ -265,26 +267,10 @@ export class Cat21MintComponent implements OnInit {
     });
   }
 
-  /** Extract the rune names from a UtxoContent for the asset-found UI. */
-  runeNames(content: UtxoContent): string[] {
-    return content.runes ? Object.keys(content.runes) : [];
-  }
+  /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */
+  runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
 
   toNumber(n: bigint): number {
     return Number(n);
-  }
-}
-
-/**
- * Map a raw UtxoScanState to the picker's display bucket. The bucket
- * is what drives badges, button labels, and auto-pick priority.
- */
-function bucketOf(s: UtxoScanState): ViableSimulation['bucket'] {
-  switch (s.kind) {
-    case 'not-scanned': return 'unscanned';
-    case 'scanning': return 'scanning';
-    case 'scanned-clean': return 'clean';
-    case 'scanned-with-assets': return 'assets';
-    case 'scan-failed': return 'failed';
   }
 }

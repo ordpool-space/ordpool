@@ -8,8 +8,10 @@
  * wiring stays intact.
  */
 jest.mock('ordpool-sdk', () => {
+  const { InjectionToken } = jest.requireActual('@angular/core');
   return {
     AUTO_SCAN_MAX_VALUE_SAT: 50_000,
+    SMALL_UTXO_WARNING_THRESHOLD_SAT: 10_000,
     KnownOrdinalWalletType: {
       xverse: 'xverse' as const,
       leather: 'leather' as const,
@@ -21,6 +23,31 @@ jest.mock('ordpool-sdk', () => {
     Cat21MintOrchestrator: class Cat21MintOrchestrator {},
     UtxoContentScanner: class UtxoContentScanner {},
     WalletService: class WalletService {},
+    // SDK config injection token; the spec provides a stub value via
+    // TestBed.
+    cat21Config: new InjectionToken('cat21Config'),
+    // Helpers used directly by the component. We re-implement them
+    // locally instead of jest.requireActual'ing the SDK (which would
+    // re-trigger the sats-connect ESM chain that this mock exists
+    // to dodge in the first place).
+    bucketOf: (s: { kind: string }) => {
+      switch (s.kind) {
+        case 'not-scanned': return 'unscanned';
+        case 'scanning': return 'scanning';
+        case 'scanned-clean': return 'clean';
+        case 'scanned-with-assets': return 'assets';
+        case 'scan-failed': return 'failed';
+        default: return 'unscanned';
+      }
+    },
+    findAutoPickCandidate: <T extends { bucket: string }>(rows: T[]): T | null =>
+      rows.find((r) => r.bucket === 'clean')
+      ?? rows.find((r) => r.bucket === 'unscanned')
+      ?? rows.find((r) => r.bucket === 'failed')
+      ?? null,
+    calculateRecommendedFundingSats: (rate: number) => Math.ceil((546 + 200 * rate) / 100) * 100,
+    runeNamesFromContent: (content: { runes: object | null }) =>
+      content.runes ? Object.keys(content.runes) : [],
   };
 });
 
@@ -35,6 +62,7 @@ import {
   KnownOrdinalWalletType,
   UtxoContentScanner,
   WalletService,
+  cat21Config,
   type RecommendedFees,
   type SimulateTransactionResult,
   type TxnOutput,
@@ -127,6 +155,9 @@ class ScannerStub {
   readonly states$ = this.statesSubject.asObservable();
   scan = jest.fn((_: string) => of<UtxoScanState>({ kind: 'scanned-clean' }));
   autoScan = jest.fn((_: unknown[]) => undefined);
+  reset = jest.fn(() => {
+    this.statesSubject.next(new Map());
+  });
   getState = jest.fn((outpoint: string): UtxoScanState => this.statesSubject.value.get(outpoint) ?? { kind: 'not-scanned' });
 
   setStates(states: Iterable<[string, UtxoScanState]>): void {
@@ -211,6 +242,15 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { provide: StateService, useValue: stateSvc },
         { provide: Cat21ApiService, useValue: cat21 },
         { provide: SeoService, useValue: new SeoServiceStub() },
+        {
+          provide: cat21Config,
+          useValue: {
+            mempoolApiUrl: 'http://test-mempool',
+            cat21ApiUrl: 'http://test-cat21',
+            ordApiUrl: 'http://test-ord',
+            cat21OrdApiUrl: 'http://test-cat21-ord',
+          },
+        },
       ],
     })
       .overrideComponent(Cat21MintComponent, { set: { template: TEST_TEMPLATE } })
@@ -642,9 +682,9 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(component.smallUtxoWarningThreshold).toBe(10_000);
     });
 
-    it('M5: ordReviewBase / cat21OrdReviewBase point at our ord instances', () => {
-      expect(component.ordReviewBase).toBe('https://ord.ordpool.space');
-      expect(component.cat21OrdReviewBase).toBe('https://ord.cat21.space');
+    it('M5: ordReviewBase / cat21OrdReviewBase mirror the injected cat21Config URLs', () => {
+      expect(component.ordReviewBase).toBe('http://test-ord');
+      expect(component.cat21OrdReviewBase).toBe('http://test-cat21-ord');
     });
   });
 });
