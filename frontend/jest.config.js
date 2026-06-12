@@ -22,6 +22,11 @@ module.exports = {
   // *.mjs and @angular/common/locales transforming) with an exception
   // for @noble packages so their .js files get transformed too.
   transformIgnorePatterns: [
-    'node_modules/(?!(.*\\.mjs$|@angular/common/locales/.*\\.js$|@noble/.*))',
+    // Extend jest-preset-angular's default (*.mjs + @angular locales)
+    // with packages that ship as raw ESM so their bare `import`/
+    // `export` syntax goes through ts-jest's transformer instead of
+    // hitting Node's CJS require() and exploding with "Cannot use
+    // import statement outside a module".
+    'node_modules/(?!(.*\\.mjs$|@angular/common/locales/.*\\.js$|@noble/.*|@scure/.*|sats-connect|@sats-connect/.*|bitcoin-address-validation|base58-js|ordpool-sdk))',
   ],
 };
