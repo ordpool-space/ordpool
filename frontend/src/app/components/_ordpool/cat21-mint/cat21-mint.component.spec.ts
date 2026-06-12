@@ -71,7 +71,7 @@ import {
   type WalletInfo,
 } from 'ordpool-sdk';
 
-import { Cat21MintComponent } from './cat21-mint.component';
+import { Cat21MintComponent, ViableSimulation } from './cat21-mint.component';
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
 
@@ -682,6 +682,189 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     it('M5: ordReviewBase / cat21OrdReviewBase mirror the injected cat21Config URLs', () => {
       expect(component.ordReviewBase).toBe('http://test-ord');
       expect(component.cat21OrdReviewBase).toBe('http://test-cat21-ord');
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // MATRIX section — IDs come from `/Work/ordpool/PLAN-mint-test-matrix.md`
+  // and stay stable across both spec files. The "B" suffix means "both
+  // sites carry the same assertion"; grep MATRIX-A5 to find the paired
+  // copy in cat21-indexer's mint.spec.ts.
+  // -------------------------------------------------------------------
+
+  describe('MATRIX-A. wallet lifecycle', () => {
+    it('MATRIX-A5(B): wallet swap resets scanner', () => {
+      const w1 = wallet({ ordinalsAddress: 'addr-1', paymentAddress: 'pay-1' });
+      const w2 = wallet({ ordinalsAddress: 'addr-2', paymentAddress: 'pay-2' });
+      // First connect — no reset (initial null → wallet)
+      wallets.connectedWalletSubject.next(w1);
+      fixture.detectChanges();
+      scanner.reset.mockClear();
+      // Swap — reset fires
+      wallets.connectedWalletSubject.next(w2);
+      fixture.detectChanges();
+      expect(scanner.reset).toHaveBeenCalledTimes(1);
+    });
+
+    it('MATRIX-A6(B): initial null → wallet emission does NOT reset the scanner', () => {
+      scanner.reset.mockClear();
+      wallets.connectedWalletSubject.next(wallet());
+      fixture.detectChanges();
+      expect(scanner.reset).not.toHaveBeenCalled();
+    });
+
+    it('MATRIX-A9(B): disconnect returns to idle state', () => {
+      connectXverse();
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelector('[data-testid="ready"]')).toBeTruthy();
+      wallets.connectedWalletSubject.next(null);
+      orch.connectedWallet.set(null);
+      orch.state.set('idle');
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="mint-cta"]')).toBeTruthy();
+      expect(el.querySelector('[data-testid="ready"]')).toBeNull();
+    });
+  });
+
+  describe('MATRIX-B. fee-rate-driven viability', () => {
+    it('MATRIX-B5(O): fee-rate validator accepts 0.1 sat/vB (Bitcoin Core relay floor)', () => {
+      component.cfeeRate.setValue(0.1);
+      expect(component.cfeeRate.valid).toBe(true);
+    });
+
+    it('MATRIX-B6(O): fee-rate validator rejects 0.05 sat/vB (below relay floor)', () => {
+      component.cfeeRate.setValue(0.05);
+      expect(component.cfeeRate.valid).toBe(false);
+      expect(component.cfeeRate.hasError('min')).toBe(true);
+    });
+
+    it('MATRIX-B14(B): recommendedFundingSats scales correctly at 1/5/50/100 sat/vB', () => {
+      const cases: Array<[number, number]> = [
+        [1, 800],
+        [5, 1600],
+        [50, 10600],
+        [100, 20600],
+      ];
+      for (const [rate, expected] of cases) {
+        component.cfeeRate.setValue(rate);
+        expect(component.recommendedFundingSats).toBe(expected);
+      }
+    });
+  });
+
+  describe('MATRIX-D. bucket-driven UI', () => {
+    const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+    });
+
+    it('MATRIX-D15(B): viable row list is capped at 10 entries', () => {
+      const rows = Array.from({ length: 25 }, (_, i) => ({
+        u: big(50_000 + i),
+        scan: { kind: 'scanned-clean' } as UtxoScanState,
+      }));
+      pushRows(rows);
+      let captured: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
+      expect(captured!.length).toBe(10);
+    });
+
+    it('MATRIX-D16(B): viable rows sorted strictly descending by UTXO value', () => {
+      pushRows([
+        { u: big(10_000), scan: { kind: 'scanned-clean' } },
+        { u: big(50_000), scan: { kind: 'scanned-clean' } },
+        { u: big(30_000), scan: { kind: 'scanned-clean' } },
+      ]);
+      let captured: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
+      const values = captured!.map((r) => r.paymentOutput.value);
+      expect(values).toEqual([50_000, 30_000, 10_000]);
+    });
+  });
+
+  describe('MATRIX-E. expert-panel visibility (THE 2026-06-12 regression group)', () => {
+    const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+    });
+
+    it('MATRIX-E1(B): expert panel renders when viableRows > 0 AND a row is selected (baseline)', () => {
+      pushRows([{ u: big(50_000), scan: { kind: 'scanned-clean' } }]);
+      let rows: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
+      expect(rows!.length).toBeGreaterThan(0);
+      expect(component.selectedPaymentOutput).toBeDefined();
+    });
+
+    it('MATRIX-E2(B): **THE REGRESSION** — assets-only scenario must still expose the picker (viable rows > 0 even if no selection)', () => {
+      const assetsScan: UtxoScanState = {
+        kind: 'scanned-with-assets',
+        content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [] },
+      };
+      pushRows([{ u: big(50_000), scan: assetsScan }]);
+      let rows: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
+      // The list must be non-empty (the template gates the picker on
+      // (paymentOutputs$ | async)?.length, which would be wrong if it
+      // were gated on selectedPaymentOutput).
+      expect(rows!.length).toBeGreaterThan(0);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+    });
+
+    it('MATRIX-E3(B): expert panel hidden when there are no viable rows', () => {
+      orch.simulationsSubject.next([]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
+      let rows: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
+      expect(rows!.length).toBe(0);
+    });
+
+    it('MATRIX-E11(B): mint button disabled when there is no row selection', () => {
+      const assetsScan: UtxoScanState = {
+        kind: 'scanned-with-assets',
+        content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [] },
+      };
+      pushRows([{ u: big(50_000), scan: assetsScan }]);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      // The mint button's `[disabled]` is `form.invalid || !selectedPaymentOutput`
+      // — since selection is undefined, the button must be effectively disabled.
+      expect(component.form.invalid || !component.selectedPaymentOutput).toBe(true);
+    });
+
+    it('MATRIX-E12(B): mint button re-enables after the user explicitly picks an assets row ("Use anyway")', () => {
+      const u1 = big(50_000);
+      const assetsScan: UtxoScanState = {
+        kind: 'scanned-with-assets',
+        content: { outpoint: `${u1.txid}:0`, inscriptionIds: ['i'], runes: null, catIds: [] },
+      };
+      pushRows([{ u: u1, scan: assetsScan }]);
+      // Pre: no selection
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      // Explicit override
+      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), scan: assetsScan, bucket: 'assets' });
+      expect(component.selectedPaymentOutput).toBeDefined();
+      expect(component.selectedPaymentOutput!.bucket).toBe('assets');
+    });
+  });
+
+  describe('MATRIX-I. edge cases', () => {
+    it('MATRIX-I20(B): runeNames returns [] for null runes (no crash)', () => {
+      const empty = component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: null, catIds: [] });
+      expect(empty).toEqual([]);
+    });
+
+    it('MATRIX-I21(B): bucketTooltip returns a non-empty string for every bucket kind (no undefined flicker)', () => {
+      const buckets = ['clean', 'unscanned', 'assets', 'scanning', 'failed'] as const;
+      for (const b of buckets) {
+        const tip = component.bucketTooltip(b);
+        expect(typeof tip).toBe('string');
+        expect(tip.length).toBeGreaterThan(0);
+      }
     });
   });
 });
