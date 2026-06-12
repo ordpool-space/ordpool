@@ -221,8 +221,8 @@
           <p class="alert alert-warning mt-4" *ngIf="!selectedPaymentOutput || (selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold)">
             Your wallet uses a single address for both payments and the storage of ordinals.
             UTXOs at or below {{ smallUtxoWarningThreshold | number }} sats may hold inscriptions,
-            runes, rare sats, or CAT-21 cats — spending one of those as a mint input would burn the
-            asset.
+            runes, rare sats, or CAT-21 cats — spending one of those as a mint input would send
+            the asset away to the miner as fee.
             We recommend starting with a fresh account to prevent accidentally spending valuable ordinals.
             If starting new is not an option, please carefully review the UTXO you intend to use through the expert mode.<br>
             <br>
