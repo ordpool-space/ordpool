@@ -5,7 +5,6 @@ import { catchError, map, of, shareReplay, take, tap } from 'rxjs';
 import {
   Cat21ApiService,
   Cat21MintOrchestrator,
-  KnownOrdinalWalletType,
   SimulateTransactionResult,
   TxnOutput,
   WalletInfo,
@@ -122,7 +121,29 @@ export class Cat21MintComponent implements OnInit {
   private isMintingFlow(): boolean { return this.mintAttempted; }
 
   checkerError = '';
-  unisatShowWarningThreshold = 10 * 1000;
+
+  /**
+   * UTXOs at or below this value, on a single-address wallet, are
+   * flagged as potentially holding an ordinal-bound asset (inscription,
+   * rune, rare sat, CAT-21 cat). 10k sat is the de-facto industry
+   * cut-off: most ordinal-bearing UTXOs are 546 sat or slightly above;
+   * almost none exceed 10k. Content-safety heuristics, not fee math.
+   */
+  smallUtxoWarningThreshold = 10 * 1000;
+
+  /**
+   * Whether the connected wallet uses one address for both payments and
+   * ordinals. Detected purely via address equality — no SDK flag for
+   * this. Unisat: same. Xverse / Leather / OKX / Phantom / Magic Eden:
+   * different. The single-address case is the one where every payment
+   * UTXO is also potentially an ordinals-bearing UTXO, so the picker
+   * has to warn before the user accidentally spends an inscription /
+   * rune / cat as transaction change.
+   */
+  isSingleAddressWallet(wallet: WalletInfo | null | undefined): boolean {
+    if (!wallet) return false;
+    return wallet.ordinalsAddress === wallet.paymentAddress;
+  }
 
   /**
    * Funding floor shown in the "we couldn't find enough funds" hint.
@@ -146,8 +167,6 @@ export class Cat21MintComponent implements OnInit {
   });
   cfeeRate = this.form.controls.feeRate;
   minRequiredFee = 0;
-
-  KnownOrdinalWalletType = KnownOrdinalWalletType;
 
   ngOnInit(): void {
     this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee, hourFee }) => {
