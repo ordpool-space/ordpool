@@ -205,7 +205,10 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.blockWidth && this.blockWidth) {
-      this.blockPadding = 0.24 * this.blockWidth;
+      // HACK -- Ordpool: cube spacing 0.24 → 0.12. Iso cubes read
+      // better visually packed close together (matches the bitmap-3d
+      // viewer's grid density).
+      this.blockPadding = 0.12 * this.blockWidth;
       this.blockOffset = this.blockWidth + this.blockPadding;
       this.dividerBlockOffset = this.blockOffset + (0.4 * this.blockWidth);
       this.blockStyles = [];

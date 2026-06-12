@@ -270,6 +270,22 @@ export class Cat21MintComponent implements OnInit {
   /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
 
+  /** Hover-tooltip text for each bucket badge. */
+  bucketTooltip(bucket: UtxoScanBucket): string {
+    switch (bucket) {
+      case 'clean':
+        return 'We checked this UTXO against ord and cat21-ord. No inscriptions, runes, or cats — safe to use as a mint input.';
+      case 'assets':
+        return 'This UTXO holds at least one inscription, rune, or CAT-21 cat. Spending it as a mint input would send the asset away to the miner as fee. Use "Use anyway" only if you really mean to.';
+      case 'unscanned':
+        return `Above the auto-scan threshold (${AUTO_SCAN_MAX_VALUE_SAT.toLocaleString()} sat) and very likely a plain payment. Click "Scan" to verify against ord and cat21-ord.`;
+      case 'scanning':
+        return 'Checking ord and cat21-ord for inscriptions, runes, and cats at this UTXO.';
+      case 'failed':
+        return 'One of the asset-detection endpoints (ord.ordpool.space or ord.cat21.space) didn\'t respond. Click "Retry scan" to try again.';
+    }
+  }
+
   toNumber(n: bigint): number {
     return Number(n);
   }

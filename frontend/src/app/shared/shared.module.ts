@@ -180,7 +180,7 @@ import { Src721ViewerComponent } from '@components/_ordpool/digital-artifact-vie
 import { Src101ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/src101-viewer/src101-viewer.component';
 import { LabitbuViewerComponent } from '@components/_ordpool/digital-artifact-viewer/labitbu-viewer/labitbu-viewer.component';
 import { MiniInscriptionViewerComponent } from '@components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
-import { FeesBoxClickableComponent } from '@components/fees-box-clickable/fees-box-clickable.component';
+import { OrdpoolFeesBoxClickableComponent } from '@components/_ordpool/ordpool-fees-box-clickable/ordpool-fees-box-clickable.component';
 import { HighlightModule } from 'ngx-highlightjs';
 
 @NgModule({
@@ -309,7 +309,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     GithubLogin,
     BitcoinInvoiceComponent,
     // HACK -- ordpool non-standalone components (declared here, inherit SharedModule context)
-    FeesBoxClickableComponent,
+    OrdpoolFeesBoxClickableComponent,
     DigitalArtifactViewerComponent,
     InscriptionViewerComponent,
     Src20ViewerComponent,
@@ -515,7 +515,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     OtsVerifyComponent,
     OtsDiagramComponent,
     OtsPendingQueueComponent,
-    FeesBoxClickableComponent,
+    OrdpoolFeesBoxClickableComponent,
     Bitmap3dRendererComponent,
   ]
 })

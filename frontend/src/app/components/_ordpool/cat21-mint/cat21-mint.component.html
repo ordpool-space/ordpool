@@ -59,8 +59,8 @@
             <!-- Content for the second column (appears first on mobile) -->
             <div class="col-md-6 order-md-2">
               <small class="text-muted">Select your preferred fee rate:</small><br>
-              <app-fees-box-clickable (feeClicked)="setFeeRate($event)"
-                class="d-block pt-2"></app-fees-box-clickable>
+              <app-ordpool-fees-box-clickable (feeClicked)="setFeeRate($event)"
+                class="d-block pt-2"></app-ordpool-fees-box-clickable>
             </div>
 
             <!-- Content for the first column (appears second on mobile) -->
@@ -74,7 +74,7 @@
 
               <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
-                <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB! If you are really sure that you want a fee rate that is lower than the recommended rate, scroll down and deactivate the check.</div>
+                <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB! If you are really sure that you want a fee rate that is lower than the recommended rate, scroll down, open <strong>Show Expert Settings</strong>, and click the link to deactivate the check.</div>
               </div>
 
             </div>
@@ -139,7 +139,7 @@
                 <span *ngIf="!x.paymentOutput.status.confirmed" type="button"
                   class="btn btn-outline-danger no-cursor pe-1 ps-1">Unconfirmed</span>
 
-                <span [ngSwitch]="x.bucket" class="utxo-bucket-badge ms-2">
+                <span [ngSwitch]="x.bucket" class="utxo-bucket-badge ms-2" [title]="bucketTooltip(x.bucket)">
                   <span *ngSwitchCase="'clean'" class="badge bg-success">&#10003; safe</span>
                   <span *ngSwitchCase="'assets'" class="badge bg-danger">&#9888; asset found</span>
                   <span *ngSwitchCase="'unscanned'" class="badge bg-secondary">not scanned</span>

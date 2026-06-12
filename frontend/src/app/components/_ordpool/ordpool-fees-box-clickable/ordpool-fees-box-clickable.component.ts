@@ -1,19 +1,19 @@
 import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef, Output, EventEmitter } from '@angular/core';
-import { StateService } from '../../services/state.service';
+import { StateService } from '../../../services/state.service';
 import { Observable, combineLatest, Subscription } from 'rxjs';
-import { Recommendedfees } from '../../interfaces/websocket.interface';
-import { feeLevels } from '../../app.constants';
+import { Recommendedfees } from '../../../interfaces/websocket.interface';
+import { feeLevels } from '../../../app.constants';
 import { map, startWith, tap } from 'rxjs/operators';
-import { ThemeService } from '../../services/theme.service';
+import { ThemeService } from '../../../services/theme.service';
 
 @Component({
-  selector: 'app-fees-box-clickable',
-  templateUrl: './fees-box-clickable.component.html',
-  styleUrls: ['./fees-box-clickable.component.scss'],
+  selector: 'app-ordpool-fees-box-clickable',
+  templateUrl: './ordpool-fees-box-clickable.component.html',
+  styleUrls: ['./ordpool-fees-box-clickable.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class FeesBoxClickableComponent implements OnInit, OnDestroy {
+export class OrdpoolFeesBoxClickableComponent implements OnInit, OnDestroy {
   isLoading$: Observable<boolean>;
   recommendedFees$: Observable<Recommendedfees>;
   themeSubscription: Subscription;
@@ -51,6 +51,13 @@ export class FeesBoxClickableComponent implements OnInit, OnDestroy {
   }
 
   setFeeGradient() {
+    // themeState$ is a BehaviorSubject and emits synchronously on
+    // subscribe, which happens in ngOnInit BEFORE recommendedFees$
+    // has delivered its first value. At that point `this.fees` is
+    // still undefined and reading `.minimumFee` throws. Bail out;
+    // the first recommendedFees$ emission re-runs this with the
+    // right data.
+    if (!this.fees) { return; }
     let feeLevelIndex = feeLevels.slice().reverse().findIndex((feeLvl) => this.fees.minimumFee >= feeLvl);
     feeLevelIndex = feeLevelIndex >= 0 ? feeLevels.length - feeLevelIndex : feeLevelIndex;
     const startColor = '#' + (this.themeService.mempoolFeeColors[feeLevelIndex - 1] || this.themeService.mempoolFeeColors[this.themeService.mempoolFeeColors.length - 1]);
