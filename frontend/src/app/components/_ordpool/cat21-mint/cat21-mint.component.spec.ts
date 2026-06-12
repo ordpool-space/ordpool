@@ -570,12 +570,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(orch.setFeeRate).toHaveBeenCalledWith(7);
     });
 
-    it('I2: minRequiredFee is set to hourFee', () => {
-      stateSvc.recommendedFeesSubject.next(fees({ hourFee: 4 }));
-      expect(component.minRequiredFee).toBe(4);
-    });
-
-    it('I3: typing a new fee rate forwards to the orchestrator', () => {
+    it('I2: typing a new fee rate forwards to the orchestrator', () => {
       stateSvc.recommendedFeesSubject.next(fees({ fastestFee: 5, hourFee: 1 }));
       orch.setFeeRate.mockClear();
       component.cfeeRate.setValue(2);
@@ -584,23 +579,25 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
-  // J. updateMinRequiredFee gate
+  // J. fee-rate validator (0.1 sat/vB floor matching Bitcoin Core)
   // -------------------------------------------------------------------
 
-  describe('J. updateMinRequiredFee', () => {
-    it('J1: raises validator floor; below-floor fee is bumped up to it', () => {
-      component.cfeeRate.setValue(2);
-      component.updateMinRequiredFee(10);
-      expect(component.minRequiredFee).toBe(10);
-      expect(component.cfeeRate.value).toBe(10);
+  describe('J. fee-rate validator', () => {
+    it('J1: accepts 0.1 sat/vB (Bitcoin Core relay floor since v27.0)', () => {
+      component.cfeeRate.setValue(0.1);
+      expect(component.cfeeRate.valid).toBe(true);
     });
 
-    it('J2: 0 disables the floor entirely', () => {
+    it('J2: rejects values below 0.1 sat/vB (would not relay)', () => {
+      component.cfeeRate.setValue(0.05);
+      expect(component.cfeeRate.valid).toBe(false);
+      expect(component.cfeeRate.hasError('min')).toBe(true);
+    });
+
+    it('J3: accepts arbitrary rates the user types without an upper safeguard', () => {
       component.cfeeRate.setValue(0.5);
-      component.updateMinRequiredFee(0);
-      expect(component.minRequiredFee).toBe(0);
-      // 0.5 stays — the validator no longer rejects it
-      expect(component.cfeeRate.value).toBe(0.5);
+      expect(component.cfeeRate.valid).toBe(true);
+      component.cfeeRate.setValue(1000);
       expect(component.cfeeRate.valid).toBe(true);
     });
   });

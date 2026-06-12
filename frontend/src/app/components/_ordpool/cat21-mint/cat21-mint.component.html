@@ -74,7 +74,7 @@
 
               <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
-                <div *ngIf="cfeeRate.hasError('min')">Enter at least a value of {{ minRequiredFee }} sat/vB! If you are really sure that you want a fee rate that is lower than the recommended rate, scroll down, open <strong>Show Expert Settings</strong>, and click the link to deactivate the check.</div>
+                <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB — anything lower won't relay on a default-config Bitcoin Core node.</div>
               </div>
 
             </div>
@@ -106,19 +106,20 @@
           <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
 
             <details>
-              <summary>Show Expert Settings</summary>
+              <summary>Choose a different funding source</summary>
 
               <p class="mt-2">
-                For each UTXO, our algorithm crafts a Bitcoin transaction with two goals.
-                The first output mints the CAT-21 ordinal.
-                A second output is created for the change that goes back to your payment address, but only if it's
-                above the dust limit.
-                If the change is too small and falls below the dust limit, we add it to the miner's fee instead.
-                We automatically select your largest UTXO, but feel free to select a different one if you like:
+                We auto-pick the safest large source we can find. If you'd
+                rather pick a specific one, choose it from the list below.
+                Each transaction has two outputs: the first holds the
+                CAT-21 ordinal (a 546-sat dust output sent to your ordinals
+                address), the second returns change to your payment
+                address. If the change would fall below the dust limit, we
+                fold it into the miner fee instead of creating a useless
+                tiny output. Sources flagged <em>asset found</em> carry
+                an inscription, rune, rare sat, or cat — minting with one
+                sends that asset to the miner as fee.
               </p>
-
-              <a *ngIf="minRequiredFee != 0" href="javascript:void(0)" (click)="updateMinRequiredFee(0)">⚠️ Click here to disable the required fee rate check.</a>
-              <span *ngIf="minRequiredFee == 0">⚠️ Required fee rate check disabled. You can enter any value!</span>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
                 [ngClass]="{ selected: x === this.selectedPaymentOutput, 'utxo-row-assets': x.bucket === 'assets', 'utxo-row-clean': x.bucket === 'clean' }">
