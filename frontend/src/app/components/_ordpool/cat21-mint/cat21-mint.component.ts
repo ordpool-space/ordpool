@@ -194,20 +194,19 @@ export class Cat21MintComponent implements OnInit {
   }
 
   form = new FormGroup({
+    // Floor matches Bitcoin Core's default `-minrelaytxfee` since v27.0
+    // (April 2024). Below 0.1 sat/vB won't relay on a default-config
+    // node; above it the wallet itself surfaces any broadcast issue.
     feeRate: new FormControl(1, {
-      validators: [Validators.required, Validators.min(1)],
+      validators: [Validators.required, Validators.min(0.1)],
       nonNullable: true,
     }),
   });
   cfeeRate = this.form.controls.feeRate;
-  minRequiredFee = 0;
 
   ngOnInit(): void {
-    this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee, hourFee }) => {
-      this.updateMinRequiredFee(hourFee);
-      if (fastestFee > this.minRequiredFee) {
-        this.cfeeRate.setValue(fastestFee);
-      }
+    this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee }) => {
+      this.cfeeRate.setValue(fastestFee);
       this.orchestrator.setFeeRate(this.cfeeRate.value);
       this.cd.detectChanges();
     });
@@ -229,18 +228,6 @@ export class Cat21MintComponent implements OnInit {
       }
       lastWalletAddress = addr;
     });
-  }
-
-  updateMinRequiredFee(hourFee: number): void {
-    this.minRequiredFee = hourFee;
-    this.cfeeRate.setValidators([
-      Validators.required,
-      Validators.min(this.minRequiredFee),
-    ]);
-    if (this.cfeeRate.value < this.minRequiredFee) {
-      this.cfeeRate.setValue(this.minRequiredFee);
-    }
-    this.cfeeRate.updateValueAndValidity();
   }
 
   setFeeRate(feeRate: number): void {
