@@ -205,7 +205,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   // Same minimal sentinel template as the cat21.space spec uses. The
   // production template depends on a stack of upstream mempool
-  // components (app-fees-box-clickable, app-clipboard, app-fiat, …)
+  // components (app-ordpool-fees-box-clickable, app-clipboard, app-fiat, …)
   // we don't want to drag into a unit test; the component logic is
   // exercised through its public surface either way.
   const TEST_TEMPLATE = `

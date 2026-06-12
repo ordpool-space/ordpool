@@ -76,9 +76,10 @@ const providers = [
   { provide: cat21Config, useValue: {
     mempoolApiUrl: environment.apiBaseUrl,
     cat21ApiUrl: environment.cat21BaseUrl,
-    // ord-proxy first entry (our own) for the UtxoContentScanner. We
-    // don't walk the array here — the scanner needs a single base, not
-    // a fallback chain; ordinalsbot's /output/ endpoint shape differs.
+    // Our ord instance (first entry, ord.ordpool.space) for the
+    // UtxoContentScanner. We don't walk the array here — the scanner
+    // needs a single base, not a fallback chain; ordinalsbot's
+    // /output/ endpoint shape differs.
     ordApiUrl: environment.ordBaseUrls[0],
     cat21OrdApiUrl: 'https://ord.cat21.space',
   } },

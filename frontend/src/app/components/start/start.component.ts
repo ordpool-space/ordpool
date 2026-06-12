@@ -38,7 +38,12 @@ export class StartComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   isMobile: boolean = false;
   isiOS: boolean = false;
-  blockWidth = 155;
+  // HACK -- Ordpool: bumped from upstream 155 → 230 so the iso
+  // corner-on cubes have presence. blockPadding multiplier (0.12)
+  // and iso-cube overflow (inset -15%) stay constant, so spacing
+  // proportion and edge-of-touching look stay the same; absolute
+  // cube size scales up.
+  blockWidth = 230;
   dynamicBlocksAmount: number = 8;
   blockCount: number = 0;
   blocksPerPage: number = 1;

@@ -33,6 +33,59 @@
             ></div>
           </ng-container>
         }
+        <!-- HACK -- Ordpool: hardcore iso cube overlay. Renders the cube as
+             three rhombus faces (iso corner-on, matching the brand logo +
+             bitmap-3d viewer). Content slots: TOP = sat/vB rate,
+             LEFT = artifact preview, RIGHT = inscription/rune/cat counts.
+             The original `.block-body` below stays in the DOM but is
+             visually hidden via styles-ordpool-overrides2.scss; tooltips,
+             tests and click handlers keep working against the same bindings. -->
+        <div class="ordpool-iso-cube" *ngIf="!minimal">
+          <svg class="iso-shape" viewBox="0 0 160 160">
+            <polygon points="80,80 149.28,40 80,0 10.72,40" fill="#FF9900"/>
+            <polygon points="80,80 10.72,40 10.72,120 80,160" fill="#C07300"/>
+            <polygon points="80,80 149.28,40 149.28,120 80,160" fill="#7E4B00"/>
+          </svg>
+
+          <div class="iso-face iso-top">
+            <ng-container *ngIf="block?.extras">
+              ~<app-fee-rate [fee]="block.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
+            </ng-container>
+          </div>
+
+          <div class="iso-face iso-left">
+            @if (block.height < firstInscriptionHeight) {
+              <!-- pre-ordinals era: no preview slot -->
+            }
+            @else if (block.extras?.ordpoolStats) {
+              @if (block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint &&
+                   block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
+                <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
+              }
+              @else if (block.extras.ordpoolStats.runes.mostActiveMint) {
+                <app-runestone-id-to-text [runeId]="block.extras.ordpoolStats.runes.mostActiveMint" />
+              }
+            }
+          </div>
+
+          <div class="iso-face iso-right">
+            @if (block.extras?.ordpoolStats) {
+              <div class="row-stat">
+                <span class="num">{{ block.extras.ordpoolStats.amounts.inscriptionMint | number }}</span>
+                <span class="lbl" i18n="shared.inscriptions">inscriptions</span>
+              </div>
+              <div class="row-stat">
+                <span class="num">{{ block.extras.ordpoolStats.amounts.runeMint | number }}</span>
+                <span class="lbl" i18n="shared.runes">runes</span>
+              </div>
+              <div class="row-stat">
+                <span class="num">{{ block.extras.ordpoolStats.amounts.cat21Mint | number }}</span>
+                <span class="lbl" i18n="shared.cats">cats</span>
+              </div>
+            }
+          </div>
+        </div>
+
         <div class="block-body">
           <ng-container *ngIf="!minimal">
             <div *ngIf="block?.extras; else emptyfees" [attr.data-cy]="'bitcoin-block-offset=' + offset + '-index-' + i + '-fees'" class="fees">

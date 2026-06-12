@@ -127,6 +127,152 @@ body .bitcoin-block .block-height {
   left: 16px;
 }
 
+// ─── Hardcore iso cube overlay ───────────────────────────────────
+// When .ordpool-iso-cube is present inside a .bitcoin-block, replace
+// the Necker-flat-front rendering with the iso corner-on view: three
+// rhombus faces (top / left / right), matching the brand logo + the
+// bitmap-3d viewer cubes. Content is overlaid on each face as a
+// content slot. Upstream's depth pseudo-elements and the flat front
+// background get hidden so the iso shape stands alone.
+body .bitcoin-block:has(.ordpool-iso-cube) {
+  // Front face background was a per-block gradient; iso shape covers
+  // its own area, the rest of the bitcoin-block bounding box stays
+  // transparent so the cube reads as the hexagon silhouette.
+  background: transparent !important;
+}
+body .bitcoin-block:has(.ordpool-iso-cube)::after,
+body .bitcoin-block:has(.ordpool-iso-cube)::before {
+  // Necker depth pseudo-elements off — replaced by the SVG iso shape.
+  display: none !important;
+}
+body .bitcoin-block:has(.ordpool-iso-cube) .block-body {
+  // Original block-body bindings stay in the DOM for tooltips / tests /
+  // future fallback, but they're invisible while iso-cube is on.
+  visibility: hidden;
+}
+
+// SVG geometry is the same square 160×160 viewBox as the brand
+// logo, so the hexagonal cube fills 100% of the block's height with
+// ~7% horizontal padding when fitted into a 125px square block
+// (default block-size). All face-overlay positions below are in
+// percent of the block's own dimensions; the rhombi centroids in
+// that frame are:
+//   TOP   = (50%, 25%)
+//   LEFT  = (28.4%, 62.5%)
+//   RIGHT = (71.6%, 62.5%)
+.ordpool-iso-cube {
+  // Extend the iso-cube container 15% beyond the .bitcoin-block
+  // bounds in all directions. The wrapper stays at its layout-
+  // assigned size (so click areas, hover targets, label positioning
+  // all stay correct), but the cube renders bigger than the slot it
+  // sits in. Adjacent cubes nearly touch at this overflow plus the
+  // 0.12 blockPadding multiplier; raising overflow further starts
+  // overlapping neighbours.
+  position: absolute;
+  inset: -15%;
+  pointer-events: none;
+  z-index: 2;
+}
+.ordpool-iso-cube .iso-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  // preserveAspectRatio default ("meet") + matching aspect ratio
+  // (160:160 square, 125:125 block) keeps the cube undistorted.
+}
+.ordpool-iso-cube .iso-face {
+  position: absolute;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #fff;
+}
+
+// TOP face content — centred over (50%, 25%). Text horizontal: top
+// face's edges are mirror-symmetric, skew would read as tilted.
+.ordpool-iso-cube .iso-top {
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+// LEFT face content — centred over (28.4%, 62.5%). Preview slot
+// widened to 44% so longer rune labels (UNCOMMON•GOODS) don't get
+// clipped. Skewed onto the +30° slope. Background stays black --
+// upstream's `.rune-ticker` and the inscription iframe both
+// intentionally render on black; we keep that convention by giving
+// the iso-left container its own black backdrop so the rune-text
+// case matches the iframe case visually.
+.ordpool-iso-cube .iso-left {
+  top: 62.5%;
+  left: 28.4%;
+  transform: translate(-50%, -50%) skewY(30deg);
+  transform-origin: center;
+  width: 44%;
+  height: 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: black;
+}
+.ordpool-iso-cube .iso-left :is(app-mini-inscription-viewer, app-runestone-id-to-text) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  line-height: 1.1;
+  font-size: 9px;
+  text-align: center;
+}
+.ordpool-iso-cube .iso-left :is(app-mini-inscription-viewer, app-runestone-id-to-text) iframe {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  // Keep the iframe's hardcoded black background -- it's the
+  // intentional backdrop for transparent / dark-themed inscriptions,
+  // not a loading fallback. The black box inside the rhombus reads
+  // as the inscription's "viewing window".
+}
+
+// RIGHT face content — centred over (71.6%, 62.5%). Now uses 12%
+// right offset so stats don't kiss the rhombus edge; bigger fonts
+// for legibility on the larger cubes.
+.ordpool-iso-cube .iso-right {
+  top: 62.5%;
+  right: 12%;
+  width: 36%;
+  height: 60%;
+  transform: translateY(-50%) skewY(-30deg);
+  transform-origin: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  font-size: 9px;
+  line-height: 1.05;
+  text-align: right;
+}
+.ordpool-iso-cube .iso-right .row-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+.ordpool-iso-cube .iso-right .num {
+  font-size: 11px;
+  font-weight: 600;
+}
+.ordpool-iso-cube .iso-right .lbl {
+  font-size: 8px;
+  opacity: 0.85;
+  text-transform: lowercase;
+}
+
 // Neutralize the .time-ltr toggle path so it can't double-flip our
 // overrides. mempool ships a hidden user preference ("Switch to
 // displaying newest blocks on the right") that adds `.time-ltr` to
