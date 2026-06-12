@@ -25,7 +25,7 @@ import {
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 
-interface ViableSimulation {
+export interface ViableSimulation {
   simulation: SimulateTransactionResult;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
