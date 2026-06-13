@@ -49,20 +49,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        # Match the working build-frontend.yml exactly — setup-node@v6
+        # + plain `npm ci`. Earlier runs of this workflow used
+        # `--legacy-peer-deps` which drops the optional peer deps
+        # (@popperjs/core, sats-connect) that the build needs; v6 +
+        # plain ci sidesteps that.
+        uses: actions/setup-node@v6
         with:
-          node-version: '24.13.0'
+          node-version: 24
           cache: 'npm'
           cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Install frontend npm deps (brings ordpool-sdk into node_modules)
-        # `npm install --include=optional --legacy-peer-deps` is what
-        # local builds use. `npm ci` drops the optional peer deps
-        # (@popperjs/core, sats-connect) which the SDK + ng-bootstrap
-        # need at compile time, and the legacy flag is needed because
-        # @angular/localize's strict peer-pin on compiler@21.2.17
-        # trips against the pinned @angular/compiler@21.2.4.
-        run: npm install --include=optional --legacy-peer-deps
+        run: npm ci
         working-directory: frontend
 
       - name: Make SDK consumer-environment scripts executable
