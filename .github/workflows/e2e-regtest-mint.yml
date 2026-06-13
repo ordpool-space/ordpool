@@ -76,7 +76,7 @@ jobs:
             > stack.json
           cat stack.json
 
-      - name: Start fees + electrs HTTP shim on :8999
+      - name: Start fees + electrs HTTP+WS shim on :8999
         # We bring up just the SDK consumer-environment (bitcoind +
         # electrs + mariadb). For the mempool-style API surface the
         # frontend needs (/api/v1/fees/recommended + Esplora-shaped
@@ -85,11 +85,24 @@ jobs:
         # upstream mempool/backend Docker image only serves /api/v1/*
         # — it lacks ordpool's custom Express middleware that proxies
         # /api/* to electrs, so the SDK's getUtxos 404s against it.
-        # The shim is a thinner, more reliable substitute on regtest.
+        #
+        # Run with cwd=frontend so the stub's dynamic `import('ws')`
+        # resolves against frontend/node_modules/ws (a transitive dep
+        # of the mempool fork). ordpool's StateService.recommendedFees$
+        # is fed from a WebSocket — without one, the cat21-mint empty
+        # state never renders because the `(recommendedFees$ | async)`
+        # gate is null. The stub responds to the WS upgrade on
+        # /api/v1/ws with a single snapshot frame containing `fees`,
+        # `mempool-blocks`, `da`, `backendInfo` so the state-service
+        # marks itself "connected" (drops the "Reconnecting…" badge
+        # the trace showed pinned on a failed run) and the fee
+        # signal fires.
         run: |
-          ELECTRS_URL=http://localhost:3000 PORT=8999 \
-            nohup node e2e/fees-electrs-stub.mjs > fees-stub.log 2>&1 &
-          echo $! > fees-stub.pid
+          cd frontend
+          ELECTRS_URL=http://localhost:3000 PORT=8999 WS_ENABLED=1 \
+            nohup node ../e2e/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
+          echo $! > ../fees-stub.pid
+          cd ..
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8999/healthz >/dev/null 2>&1; then
               echo "fees-stub up"; break
