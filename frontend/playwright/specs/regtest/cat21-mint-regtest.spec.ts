@@ -238,8 +238,14 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // dev/regtest the orchestrator re-fetches whenever the wallet emits
   // a new connection event, so the new UTXO should show up shortly
   // after the connect dance above.
-  await page.locator('input[formControlName="feeRate"]').first().fill('1');
-  await page.locator('input[formControlName="feeRate"]').first().press('Tab');
+  // The mint form's fee-rate input uses `[formControl]="cfeeRate"`
+  // (FormControl reference), which doesn't emit a `formControlName`
+  // attribute. Pin it by the surrounding input-group label instead.
+  const feeRateInput = page.locator(
+    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+  ).first();
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
   await shot(page, '05-fee-set');
 
   const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
