@@ -56,7 +56,11 @@ jobs:
           cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Install frontend npm deps (brings ordpool-sdk into node_modules)
-        run: npm ci
+        # --legacy-peer-deps mirrors what local builds use: @angular/
+        # localize's strict peer-pin on compiler@21.2.17 trips against
+        # the pinned @angular/compiler@21.2.4, and the same flag is
+        # baked into the regular build workflows.
+        run: npm ci --legacy-peer-deps
         working-directory: frontend
 
       - name: Make SDK consumer-environment scripts executable
