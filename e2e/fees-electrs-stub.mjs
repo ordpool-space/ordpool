@@ -221,6 +221,15 @@ if (WS_ENABLED) {
       expectedBlocks: 0,
     },
     backendInfo: { hostname: 'regtest-stub', version: 'e2e', gitCommit: 'e2e' },
+    // The fees-box-clickable component's `isLoading$` is a
+    // combineLatest of `isLoadingWebSocket$` and
+    // `loadingIndicators$.pipe(startWith({mempool:0}))` — it stays
+    // true (and the picker stays in its skeleton-tile state) until
+    // `loadingIndicators.mempool` reaches 100. Without this key the
+    // fee picker never exits skeleton and a Playwright spec waiting
+    // for `.fee-estimation-container .item a` to count 4 times out
+    // (observed on run 27482094562).
+    loadingIndicators: { mempool: 100 },
   });
   wss.on('connection', (ws) => {
     console.log('[ws] client connected');
