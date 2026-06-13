@@ -175,11 +175,19 @@ const server = http.createServer((req, res) => {
 });
 
 if (WS_ENABLED) {
-  // Resolve `ws` against the cwd's node_modules. The ordpool workflow
-  // runs this stub from `frontend/` so node_modules/ws (already a
-  // transitive dep of the mempool fork) resolves without a fresh
-  // install.
-  const { WebSocketServer } = await import('ws');
+  // ESM resolves bare imports against the script's directory, not cwd,
+  // so a plain `import 'ws'` from this file fails even when invoked
+  // from frontend/. Resolve the path explicitly against process.cwd()
+  // and feed the resulting file:// URL to `import()`. The ordpool
+  // workflow runs this stub from `frontend/` where `ws` is a transitive
+  // dep of the mempool fork. WS_PACKAGE_DIR lets a caller override the
+  // lookup (e.g. when bundling the stub elsewhere).
+  const { default: nodePath } = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const wsDir = process.env.WS_PACKAGE_DIR
+    ?? nodePath.resolve(process.cwd(), 'node_modules/ws');
+  const wsEntry = pathToFileURL(nodePath.join(wsDir, 'wrapper.mjs')).href;
+  const { WebSocketServer } = await import(wsEntry);
   const wss = new WebSocketServer({ server, path: '/api/v1/ws' });
   // Mempool's frontend sends a JSON command to subscribe to channels
   // (`{"action":"want","data":[...]}`). The state-service consumes
