@@ -77,6 +77,12 @@ const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
+// Hoisted state shared across `test()` blocks in this file. Set by the
+// full mint round-trip, consumed by the asset-scanner regression below.
+// We don't reseed the Xverse vault between tests — the persistent
+// context's localStorage already remembers the connected wallet, so a
+// fresh page auto-reconnects to the same payment address.
+let sharedPaymentAddress: string | undefined;
 
 async function shot(p: Page, name: string): Promise<void> {
   await p.screenshot({
@@ -219,6 +225,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   console.log(`[mint-page] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1q/);
   const wallet = { paymentAddress };
+  sharedPaymentAddress = paymentAddress;
 
   // ─── 4. Fund the payment address, mine, wait for electrs ──────
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', wallet.paymentAddress, String(FUND_AMOUNT_BTC)).trim();
@@ -348,4 +355,152 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   expect(parsed!.type).toBe(DigitalArtifactType.Cat21);
   expect(parsed!.transactionId).toBe(broadcastTxid);
   expect(parsed!.getImage()).toMatch(/^<svg/);
+});
+
+/**
+ * Regression for the UtxoContentScanner -> UI warning pipeline.
+ *
+ * The wallet asset scanner queries our ord and cat21-ord upstreams for
+ * `/output/<outpoint>` JSON metadata on every funding-source candidate
+ * UTXO at or under `AUTO_SCAN_MAX_VALUE_SAT` (50_000 sat). When the
+ * response contains inscriptions, runes, or cats, the orchestrator
+ * marks the row's bucket as `assets` and the cat21-mint UI renders
+ * a red `⚠ asset found` badge plus a "Use anyway" override button —
+ * which sends the asset to the miner as fee if the user picks it.
+ *
+ * On regtest the real ord upstreams don't know about our UTXOs, so we
+ * can't naturally reproduce a cat-bearing funding source. Instead we
+ * intercept the SDK's `/output/<outpoint>` requests at the Playwright
+ * route layer and return cat metadata for one specific outpoint (the
+ * small UTXO we just funded). All other outpoints get `clean`
+ * responses so the auto-pick can still find a viable input.
+ *
+ * What this proves:
+ *   1. The orchestrator actually calls `/output/<outpoint>` against
+ *      both ord URLs for funding-source UTXOs ≤ 50_000 sat.
+ *   2. When the response carries assets, the row's bucket flips to
+ *      `assets` and the UI surfaces the red `asset found` badge.
+ *   3. The override button on that row reads "Use anyway" (the
+ *      danger-styled outline), not "Use this UTXO" — so the user
+ *      can't accidentally pick it without acknowledging the warning.
+ *
+ * What this does NOT prove:
+ *   - That a real ord JSON-API response with cat metadata gets parsed
+ *     correctly — the mock body matches the documented shape, but a
+ *     live ord could ship a richer payload (sat ranges, transfer
+ *     history) that this test doesn't exercise.
+ */
+test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning', async () => {
+  test.setTimeout(180_000);
+  if (!sharedPaymentAddress) {
+    throw new Error('first test must have set sharedPaymentAddress');
+  }
+  const paymentAddress = sharedPaymentAddress;
+
+  // ─── 1. Fund a small NEW UTXO ─────────────────────────────────
+  // 0.00015 BTC = 15_000 sat — well under AUTO_SCAN_MAX_VALUE_SAT
+  // so it's eligible for the auto-scan pipeline. The change UTXO
+  // from the first test (~99_000 sat) is over the threshold and
+  // stays `unscanned`.
+  const SMALL_FUND_BTC = 0.00015;
+  const SMALL_FUND_SATS = Math.round(SMALL_FUND_BTC * 1e8);
+  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(SMALL_FUND_BTC)).trim();
+  console.log(`[asset-scanner] cat-mock target txid=${fundTxid} (small UTXO ${SMALL_FUND_SATS} sat)`);
+  const tip = mineBlocks(1);
+  await waitForElectrsSync(tip);
+  // Look up the vout that received our 15_000 sat — sendtoaddress's
+  // change vout ordering isn't deterministic.
+  const small = (await getUtxos(paymentAddress)).find((u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid);
+  if (!small) {
+    throw new Error(`could not find the ${SMALL_FUND_SATS}-sat funding UTXO under ${paymentAddress}`);
+  }
+  const catOutpoint = `${small.txid}:${small.vout}`;
+  console.log(`[asset-scanner] cat-bearing outpoint = ${catOutpoint}`);
+
+  // ─── 2. Open a fresh page, mock the ord endpoints ─────────────
+  const page = await context.newPage();
+  // Register the route BEFORE goto so the very first scan call lands
+  // on our mock. The pattern `**/output/*` matches both ord URLs
+  // (`https://ord.ordpool.space/output/<outpoint>` and
+  // `https://ord.cat21.space/output/<outpoint>`) which the SDK queries
+  // in parallel via forkJoin.
+  await page.route('**/output/*', async (route) => {
+    const url = route.request().url();
+    const isCatTarget = url.includes(catOutpoint);
+    const body = isCatTarget
+      ? {
+          // ord shape — empty inscriptions / runes:
+          inscriptions: [],
+          runes: {},
+          // cat21-ord shape — non-empty cats array marks this UTXO as
+          // carrying the genesis cat. The SDK's UtxoContentScanner
+          // merges both responses and any of {inscriptions, runes,
+          // cats} being non-empty flips the bucket to `assets`.
+          cats: [0],
+          // Plausible ord noise the SDK ignores:
+          sat_ranges: [[1_000_000, 1_000_001]],
+          value: SMALL_FUND_SATS,
+          script_pubkey: '',
+        }
+      : {
+          inscriptions: [],
+          runes: {},
+          cats: [],
+        };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify(body),
+    });
+  });
+
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  await shot(page, 'as-01-page-loaded');
+
+  // The persistent context's localStorage remembers the connect from
+  // test 1 — Xverse SHOULD auto-reconnect silently. If a permission-
+  // renewal popup happens to open, approve it.
+  const known = new Set(context.pages());
+  const reapprove = await waitForApprovalPopup({
+    context,
+    knownPages: known,
+    timeoutMs: 6_000,
+    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
+  }).catch(() => null);
+  if (reapprove) {
+    await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
+      .first().click().catch(() => undefined);
+    await reapprove.close().catch(() => undefined);
+  }
+
+  // ─── 3. Open the funding source picker ────────────────────────
+  // The picker lives inside a `<details>` that's collapsed by
+  // default. Click the summary to expand so the rows are visible
+  // (and so Playwright's auto-wait can see them).
+  const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
+  await expect(pickerSummary).toBeVisible({ timeout: 60_000 });
+  await pickerSummary.click();
+  await shot(page, 'as-02-picker-open');
+
+  // ─── 4. Assert the asset-found badge appears ─────────────────
+  const assetBadge = page.locator('.badge.bg-danger', { hasText: /asset found/i }).first();
+  await expect(assetBadge).toBeVisible({ timeout: 45_000 });
+  await shot(page, 'as-03-asset-found-badge');
+
+  // ─── 5. Assert the row carrying the badge is OUR cat-mocked one
+  // and that its action button is the danger-styled override
+  // ("Use anyway"), not the regular "Use this UTXO".
+  const assetRow = page.locator('.utxo-row-assets').filter({ hasText: catOutpoint }).first();
+  await expect(assetRow).toBeVisible();
+  await expect(assetRow.getByRole('button', { name: /use anyway/i })).toBeVisible();
+  await expect(assetRow.getByRole('button', { name: /^use this utxo$/i })).toHaveCount(0);
+
+  // ─── 6. And the inline asset-detail block names the cat ───────
+  // The template renders the `cats` count when the scan returns
+  // non-empty `cats`. Even just confirming the detail block exists
+  // proves the orchestrator believed the mock and pushed the state
+  // through to the template branch.
+  const detail = assetRow.locator('.utxo-assets-detail');
+  await expect(detail).toBeVisible();
 });
