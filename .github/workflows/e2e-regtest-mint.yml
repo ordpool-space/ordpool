@@ -208,6 +208,19 @@ jobs:
           echo "--- patched environment.ts ---"
           head -32 src/environments/environment.ts
 
+      - name: Patch bitcoinNetwork to Regtest (matches the seeded Xverse vault)
+        working-directory: frontend
+        # Frontend ships hardcoded Network.Mainnet in app.module.ts; the
+        # SDK's globalSetup seeded Xverse on Bitcoin Regtest. Without
+        # this swap Xverse refuses to connect (network mismatch) so the
+        # approval popup never opens and the spec times out at 60s on
+        # waitForApprovalPopup.
+        run: |
+          sed -i \
+            -e 's|useValue: Network\.Mainnet|useValue: Network.Regtest|' \
+            src/app/app.module.ts
+          grep -n bitcoinNetwork src/app/app.module.ts | head -2
+
       - name: Build static frontend bundle
         # Using `ng build` (default = base options, not the production
         # config) over `ng serve` because ng-serve in CI emits HTTP 200
