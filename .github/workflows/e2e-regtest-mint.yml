@@ -207,35 +207,51 @@ jobs:
           echo "--- patched environment.ts ---"
           head -32 src/environments/environment.ts
 
-      - name: Start ng-serve in the background on :4200
+      - name: Build static frontend bundle
+        # Using `ng build` (default = base options, not the production
+        # config) over `ng serve` because ng-serve in CI emits HTTP 200
+        # for / before compile finishes — the spec then hits an empty
+        # shell. Static build + `npx serve` removes the compile race.
         working-directory: frontend
-        run: |
-          # `nohup` + `&` keeps the server alive across the next steps
-          # without holding this step open. Logs land at frontend/ng.log
-          # so the failure-dump step can attach them. Plain `ng serve`
-          # with no -c flag picks the default `serve` configuration in
-          # angular.json which has no proxyConfig — same shape as the
-          # cat21-indexer regtest workflow.
-          nohup npm run ng -- serve --port 4200 --host 0.0.0.0 > ng.log 2>&1 &
-          echo $! > ng.pid
+        run: npm run ng -- build --output-path ../dist-regtest > ../build.log 2>&1
 
-      - name: Wait for ng-serve ready on :4200
+      - name: Locate the built browser output
         run: |
-          # 200 *or* a SPA route 404 both prove the dev server is up
-          # and serving compiled bundles — accept anything that's not
-          # a TCP refusal.
-          for i in $(seq 1 120); do
+          # Angular CLI 21 writes to dist-regtest/browser/ (or
+          # dist-regtest/<project>/browser/ depending on workspace
+          # shape). Discover at runtime so we don't bake a path.
+          BROWSER_DIR=$(find dist-regtest -maxdepth 3 -type d -name browser | head -1)
+          if [ -z "$BROWSER_DIR" ] || [ ! -f "$BROWSER_DIR/index.html" ]; then
+            echo "could not find browser/ output under dist-regtest"
+            ls -la dist-regtest || true
+            tail -200 build.log || true
+            exit 1
+          fi
+          echo "BROWSER_DIR=$BROWSER_DIR" >> "$GITHUB_ENV"
+          ls "$BROWSER_DIR" | head -5
+
+      - name: Serve the static bundle on :4200
+        run: |
+          # `serve -s` enables SPA fallback so /cat21-mint resolves
+          # to index.html (no real /cat21-mint file exists in the
+          # build, the Angular router owns that path).
+          nohup npx -y serve@14 -s "$BROWSER_DIR" -l 4200 --no-clipboard > serve.log 2>&1 &
+          echo $! > serve.pid
+
+      - name: Wait for static server ready on :4200
+        run: |
+          for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/ 2>/dev/null || echo 000)
-            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
-              echo "ng-serve up (HTTP $code)"
+            if [ "$code" = "200" ]; then
+              echo "static server up"
               break
             fi
-            if [ "$i" = "120" ]; then
-              echo "ng-serve never came up (last HTTP $code)"
-              tail -200 frontend/ng.log || true
+            if [ "$i" = "30" ]; then
+              echo "static server never came up (last HTTP $code)"
+              tail -200 serve.log || true
               exit 1
             fi
-            sleep 2
+            sleep 1
           done
 
       - name: Install Playwright in the frontend tree
@@ -270,7 +286,8 @@ jobs:
           path: |
             frontend/test-results
             frontend/playwright-report-regtest
-            frontend/ng.log
+            build.log
+            serve.log
           retention-days: 14
           if-no-files-found: warn
 
