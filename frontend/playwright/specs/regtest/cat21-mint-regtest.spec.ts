@@ -9,14 +9,17 @@ import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 // SDK's package.json `files` allowlist. They're reused verbatim so the
 // regtest helpers + the Xverse approval-popup machinery are single-
 // sourced.
+// The SDK ships these helpers as raw .ts under e2e/. Node 24's built-in
+// type-stripping refuses to compile .ts under node_modules, so the
+// workflow copies them out to ./sdk-lib/ before the spec runs.
 import {
   getUtxos,
   waitForElectrsSync,
   rpc,
   mineBlocks,
   getTx,
-} from 'ordpool-sdk/e2e/regtest/regtest-helpers';
-import { waitForApprovalPopup } from 'ordpool-sdk/e2e/playwright/approval-popup';
+} from './sdk-lib/regtest-helpers';
+import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint
