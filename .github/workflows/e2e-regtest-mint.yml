@@ -70,45 +70,43 @@ jobs:
         run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
         working-directory: frontend
 
-      - name: Bring up consumer-environment + ordpool-backend
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
         run: |
-          # ORDPOOL_REGTEST_CONFIG is referenced from
-          # e2e/docker-compose.ordpool-backend.yml's bind-mount; absolute
-          # so docker compose doesn't try to resolve it relative to the
-          # SDK's e2e/ dir (the first -f file's parent).
-          export ORDPOOL_REGTEST_CONFIG="$(pwd)/e2e/mempool-config.regtest.json"
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
-            --extra-file "$(pwd)/e2e/docker-compose.ordpool-backend.yml" \
             > stack.json
           cat stack.json
 
-      - name: Wait for ordpool-backend health
-        # The backend takes a moment after mariadb is ready before it
-        # opens the HTTP port. Poll until /api/v1/backend-info responds.
+      - name: Start fees + electrs HTTP shim on :8999
+        # We bring up just the SDK consumer-environment (bitcoind +
+        # electrs + mariadb). For the mempool-style API surface the
+        # frontend needs (/api/v1/fees/recommended + Esplora-shaped
+        # /api/address/.../utxo + /api/tx/...) we use the tiny zero-
+        # dep Node shim cat21-indexer uses for the same purpose. The
+        # upstream mempool/backend Docker image only serves /api/v1/*
+        # — it lacks ordpool's custom Express middleware that proxies
+        # /api/* to electrs, so the SDK's getUtxos 404s against it.
+        # The shim is a thinner, more reliable substitute on regtest.
         run: |
-          for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8999/api/v1/backend-info >/dev/null 2>&1; then
-              echo "ordpool-backend up"
-              break
+          ELECTRS_URL=http://localhost:3000 PORT=8999 \
+            nohup node e2e/fees-electrs-stub.mjs > fees-stub.log 2>&1 &
+          echo $! > fees-stub.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8999/healthz >/dev/null 2>&1; then
+              echo "fees-stub up"; break
             fi
-            if [ "$i" = "60" ]; then
-              echo "ordpool-backend never came up"
-              docker logs ordpool-e2e-backend || true
-              exit 1
+            if [ "$i" = "30" ]; then
+              echo "fees-stub never came up"; cat fees-stub.log || true; exit 1
             fi
-            sleep 2
+            sleep 1
           done
 
-      - name: Smoke-test backend endpoints
+      - name: Smoke-test stub endpoints
         run: |
-          echo "--- backend-info"
-          curl -fsS http://localhost:8999/api/v1/backend-info | head -c 400
-          echo
-          echo "--- blocks/tip/height"
-          curl -fsS http://localhost:8999/api/v1/blocks/tip/height
-          echo
           echo "--- fees/recommended"
-          curl -fsS http://localhost:8999/api/v1/fees/recommended | head -c 400
+          curl -fsS http://localhost:8999/api/v1/fees/recommended
+          echo
+          echo "--- blocks/tip/height (electrs)"
+          curl -fsS http://localhost:8999/api/blocks/tip/height
           echo
 
       # ── Iter 2 + 3 — Playwright + Xverse + the page-driven mint ─────
@@ -316,6 +314,7 @@ jobs:
             frontend/playwright-report-regtest
             build.log
             serve.log
+            fees-stub.log
           retention-days: 14
           if-no-files-found: warn
 
@@ -323,7 +322,7 @@ jobs:
         if: failure()
         run: |
           for c in ordpool-e2e-consumer-bitcoind ordpool-e2e-consumer-electrs \
-                   ordpool-e2e-consumer-mariadb ordpool-e2e-backend; do
+                   ordpool-e2e-consumer-mariadb; do
             echo "=== $c ==="
             docker logs "$c" 2>&1 | tail -200 || true
           done
@@ -333,5 +332,10 @@ jobs:
         run: |
           docker compose \
             -f frontend/node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
-            -f e2e/docker-compose.ordpool-backend.yml \
             down -v || true
+          if [ -f fees-stub.pid ]; then
+            kill "$(cat fees-stub.pid)" 2>/dev/null || true
+          fi
+          if [ -f frontend/serve.pid ]; then
+            kill "$(cat frontend/serve.pid)" 2>/dev/null || true
+          fi
