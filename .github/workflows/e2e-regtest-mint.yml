@@ -222,18 +222,28 @@ jobs:
 
       - name: Locate the built browser output
         run: |
-          # Angular CLI 21 writes to dist-regtest/browser/ (or
-          # dist-regtest/<project>/browser/ depending on workspace
-          # shape). Discover at runtime so we don't bake a path.
-          BROWSER_DIR=$(find dist-regtest -maxdepth 3 -type d -name browser | head -1)
-          if [ -z "$BROWSER_DIR" ] || [ ! -f "$BROWSER_DIR/index.html" ]; then
-            echo "could not find browser/ output under dist-regtest"
+          # Angular CLI's output layout depends on builder + configuration:
+          # could be dist-regtest/index.html (mempool's classic webpack
+          # builder), dist-regtest/browser/index.html (esbuild/application
+          # builder), or dist-regtest/<project>/browser/index.html
+          # (workspace-shape variants). Try each.
+          for candidate in \
+              dist-regtest \
+              dist-regtest/browser \
+              $(find dist-regtest -maxdepth 3 -type d -name browser); do
+            if [ -f "$candidate/index.html" ]; then
+              BROWSER_DIR="$candidate"
+              break
+            fi
+          done
+          if [ -z "${BROWSER_DIR:-}" ]; then
+            echo "could not find any index.html under dist-regtest"
             ls -la dist-regtest || true
             tail -200 build.log || true
             exit 1
           fi
           echo "BROWSER_DIR=$BROWSER_DIR" >> "$GITHUB_ENV"
-          ls "$BROWSER_DIR" | head -5
+          ls "$BROWSER_DIR" | head -8
 
       - name: Serve the static bundle on :4200
         run: |
