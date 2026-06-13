@@ -181,35 +181,57 @@ jobs:
           test -d sdk/test-results/xverse-seed-user-data-dir/Default \
             || { echo "no seed user-data-dir at expected path"; ls sdk/test-results/; exit 1; }
 
-      # ── Build + serve the ordpool frontend pointing at the local stack ──
+      # ── Patch environment.ts + serve the frontend ──────────────────
       #
-      # `start:local-esplora` uses proxy.conf.local-esplora.js which
-      # forwards /api/* to localhost:3000 (electrs) and /api/v1/* to
-      # localhost:8999 (ordpool-backend) — exactly what the regtest
-      # stack exposes. Default port is 4200.
+      # The local-esplora proxy config is bound to upstream mempool's
+      # webpack-dev-server + http-proxy-middleware contract that's
+      # diverged in newer Angular CLI versions ("Invalid context"
+      # errors fire on every request even with valid globs). Skip the
+      # proxy entirely: patch environment.ts so apiBaseUrl +
+      # websocketBaseUrl are absolute localhost URLs, then run plain
+      # `ng serve` with no -c flag (the default has no proxyConfig).
+      # The frontend talks directly to ordpool-backend on :8999, which
+      # in turn proxies /api/* to electrs.
 
       - name: Generate frontend config (Ordpool defaults)
         working-directory: frontend
         run: npm run config:defaults:ordpool
 
-      - name: Start ng-serve in the background
+      - name: Patch environment.ts to localhost absolute URLs
+        working-directory: frontend
+        run: |
+          sed -i \
+            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
+            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
+            src/environments/environment.ts
+          echo "--- patched environment.ts ---"
+          head -32 src/environments/environment.ts
+
+      - name: Start ng-serve in the background on :4200
         working-directory: frontend
         run: |
           # `nohup` + `&` keeps the server alive across the next steps
           # without holding this step open. Logs land at frontend/ng.log
-          # so the failure-dump step can attach them.
-          nohup npm run start:local-esplora > ng.log 2>&1 &
+          # so the failure-dump step can attach them. Plain `ng serve`
+          # with no -c flag picks the default `serve` configuration in
+          # angular.json which has no proxyConfig — same shape as the
+          # cat21-indexer regtest workflow.
+          nohup npm run ng -- serve --port 4200 --host 0.0.0.0 > ng.log 2>&1 &
           echo $! > ng.pid
 
       - name: Wait for ng-serve ready on :4200
         run: |
-          for i in $(seq 1 90); do
-            if curl -fsS http://localhost:4200/ >/dev/null 2>&1; then
-              echo "ng-serve up"
+          # 200 *or* a SPA route 404 both prove the dev server is up
+          # and serving compiled bundles — accept anything that's not
+          # a TCP refusal.
+          for i in $(seq 1 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/ 2>/dev/null || echo 000)
+            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
+              echo "ng-serve up (HTTP $code)"
               break
             fi
-            if [ "$i" = "90" ]; then
-              echo "ng-serve never came up"
+            if [ "$i" = "120" ]; then
+              echo "ng-serve never came up (last HTTP $code)"
               tail -200 frontend/ng.log || true
               exit 1
             fi
