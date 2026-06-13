@@ -212,8 +212,12 @@ jobs:
         # config) over `ng serve` because ng-serve in CI emits HTTP 200
         # for / before compile finishes — the spec then hits an empty
         # shell. Static build + `npx serve` removes the compile race.
+        # Pipe through tee so the error surfaces in the workflow log
+        # AND lands in build.log for the artifact upload.
         working-directory: frontend
-        run: npm run ng -- build --output-path ../dist-regtest > ../build.log 2>&1
+        run: |
+          set -o pipefail
+          npm run ng -- build --output-path ../dist-regtest 2>&1 | tee ../build.log
 
       - name: Locate the built browser output
         run: |
