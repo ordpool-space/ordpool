@@ -8,11 +8,11 @@ name: E2E (regtest mint)
 #
 # Iteration ladder (matches PLAN-cat21-mint-port.md):
 #   1. bring the backend stack up, confirm /api/v1/fees/recommended +
-#      /api/v1/blocks/tip/height answer       <-- THIS IS WHERE WE ARE
+#      /api/v1/blocks/tip/height answer                              [done]
 #   2. add frontend serve + Playwright smoke (page loads, wallet picker
-#      visible)
+#      visible)                                                      [done]
 #   3. add Xverse extension + full mint click-through + 1-block mine +
-#      pending feed transition assertion
+#      pending feed transition assertion                             [done]
 #
 # Subsequent iterations extend the same workflow file rather than
 # creating new ones — keeps the CI surface stable.
@@ -105,6 +105,140 @@ jobs:
           echo "--- fees/recommended"
           curl -fsS http://localhost:8999/api/v1/fees/recommended | head -c 400
           echo
+
+      # ── Iter 2 + 3 — Playwright + Xverse + the page-driven mint ─────
+      #
+      # We checkout the SDK as a sibling repo because its Xverse
+      # globalSetup (onboards the vault on Regtest, dumps the seeded
+      # user-data-dir) needs the SDK's own dev deps + harness bundle.
+      # The SDK's package install in node_modules ships only the
+      # runtime; running its playwright config requires the full repo.
+
+      - name: Checkout ordpool-sdk (for Xverse extension + seeded vault)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/ordpool-sdk
+          path: sdk
+          ref: main
+
+      - name: Setup Node (sdk)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+          cache-dependency-path: 'sdk/package-lock.json'
+
+      - name: Install SDK deps + build (harness needs the dist/ output)
+        working-directory: sdk
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright system deps + Chromium
+        working-directory: sdk
+        run: npx playwright install --with-deps chromium
+
+      # Cache the unpacked Xverse extension keyed by the version pinned
+      # in the SDK's playwright-bootstrap.sh. First run downloads .crx
+      # from the SDK repo's release mirror; subsequent runs are a hit.
+      - name: Cache unpacked Xverse extension
+        id: xverse-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/xverse
+          key: xverse-extension-v2.3.2
+
+      - name: Download + unpack Xverse from SDK release mirror
+        if: steps.xverse-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh xverse
+
+      - name: Bootstrap regtest funds (101 blocks, dump WIF)
+        working-directory: sdk
+        run: |
+          chmod +x e2e/regtest-bootstrap.sh
+          ./e2e/regtest-bootstrap.sh > regtest-bootstrap.json
+          cat regtest-bootstrap.json
+
+      - name: Run SDK's Xverse onboarding (produces seeded user-data-dir)
+        working-directory: sdk
+        run: |
+          # globalSetup.ts is the side-effect target — running any
+          # xverse spec triggers it. `xverse-loads.spec.ts` is the
+          # cheapest one and exits in ~10s once the vault is seeded.
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test e2e/playwright/specs/xverse-loads.spec.ts \
+            --config=e2e/playwright/playwright.config.ts
+
+      - name: Verify seed user-data-dir landed
+        run: |
+          test -d sdk/test-results/xverse-seed-user-data-dir/Default \
+            || { echo "no seed user-data-dir at expected path"; ls sdk/test-results/; exit 1; }
+
+      # ── Build + serve the ordpool frontend pointing at the local stack ──
+      #
+      # `start:local-esplora` uses proxy.conf.local-esplora.js which
+      # forwards /api/* to localhost:3000 (electrs) and /api/v1/* to
+      # localhost:8999 (ordpool-backend) — exactly what the regtest
+      # stack exposes. Default port is 4200.
+
+      - name: Generate frontend config (Ordpool defaults)
+        working-directory: frontend
+        run: npm run config:defaults:ordpool
+
+      - name: Start ng-serve in the background
+        working-directory: frontend
+        run: |
+          # `nohup` + `&` keeps the server alive across the next steps
+          # without holding this step open. Logs land at frontend/ng.log
+          # so the failure-dump step can attach them.
+          nohup npm run start:local-esplora > ng.log 2>&1 &
+          echo $! > ng.pid
+
+      - name: Wait for ng-serve ready on :4200
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:4200/ >/dev/null 2>&1; then
+              echo "ng-serve up"
+              break
+            fi
+            if [ "$i" = "90" ]; then
+              echo "ng-serve never came up"
+              tail -200 frontend/ng.log || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Install Playwright in the frontend tree
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the page-driven cat21-mint regtest spec
+        working-directory: frontend
+        env:
+          # Point the spec at the SDK's seeded vault + unpacked .crx
+          # (the workflow's cache populated these one level up).
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test --config=playwright.regtest.config.ts
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regtest-mint-playwright-${{ github.run_id }}
+          path: |
+            frontend/test-results
+            frontend/playwright-report-regtest
+            frontend/ng.log
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Dump container logs on failure
         if: failure()
