@@ -198,10 +198,21 @@ jobs:
 
       - name: Patch environment.ts to localhost absolute URLs
         working-directory: frontend
+        # Three URL knobs that have to be rewritten in-place to land on
+        # the regtest stub:
+        #   apiBaseUrl         '' → http://localhost:8999  (mempool API + electrs proxy)
+        #   websocketBaseUrl   '' → ws://localhost:8999    (mempool WS)
+        #   cat21BaseUrl       http://localhost:3333 → http://localhost:8999
+        #     (the wallet asset-scanner calls /api/status + /api/cats/numbers/...
+        #     to identify cat sats among UTXOs; without redirecting these the
+        #     scanner blocks on ECONNREFUSED and the page never reaches a
+        #     connected state — observed as a "Reconnecting…" banner that
+        #     never clears in trace logs of failed runs)
         run: |
           sed -i \
             -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
             -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
+            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
             src/environments/environment.ts
           echo "--- patched environment.ts ---"
           head -32 src/environments/environment.ts
