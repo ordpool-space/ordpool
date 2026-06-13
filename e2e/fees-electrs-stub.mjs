@@ -33,6 +33,13 @@ import { URL } from 'node:url';
 
 const PORT = Number(process.env.PORT ?? 8999);
 const ELECTRS_URL = process.env.ELECTRS_URL ?? 'http://localhost:3000';
+// Optional. Set in the ordpool workflow because that frontend's
+// StateService.recommendedFees$ is fed by mempool's WebSocket
+// pipeline, not by the SDK's REST poll. The cat21-indexer workflow
+// leaves WS_ENABLED unset — its fee picker reads
+// SDK.recommendedFees$ which polls /api/v1/fees/recommended directly,
+// so it doesn't need a fake WS at all.
+const WS_ENABLED = process.env.WS_ENABLED === '1';
 
 const FEES_BODY = JSON.stringify({
   fastestFee: 5,
@@ -167,8 +174,61 @@ const server = http.createServer((req, res) => {
   proxyToElectrs(req, res);
 });
 
+if (WS_ENABLED) {
+  // Resolve `ws` against the cwd's node_modules. The ordpool workflow
+  // runs this stub from `frontend/` so node_modules/ws (already a
+  // transitive dep of the mempool fork) resolves without a fresh
+  // install.
+  const { WebSocketServer } = await import('ws');
+  const wss = new WebSocketServer({ server, path: '/api/v1/ws' });
+  // Mempool's frontend sends a JSON command to subscribe to channels
+  // (`{"action":"want","data":[...]}`). The state-service consumes
+  // top-level keys on every incoming server message. We only need to
+  // push `fees` once so `recommendedFees$` emits and the cat21-mint
+  // empty-state stops gating on `!utxoLoading()`-after-`recommendedFees$`.
+  // Anything we don't recognise we silently drop.
+  const FEES_FRAME = JSON.stringify({
+    fees: {
+      fastestFee: 5,
+      halfHourFee: 3,
+      hourFee: 1,
+      economyFee: 1,
+      minimumFee: 1,
+    },
+    'mempool-blocks': [
+      { blockSize: 1_500_000, blockVSize: 750_000, nTx: 1, totalFees: 5_000, medianFee: 1, feeRange: [1, 5] },
+    ],
+    da: {
+      progressPercent: 0,
+      difficultyChange: 0,
+      estimatedRetargetDate: Date.now() + 1209600000,
+      remainingBlocks: 2016,
+      remainingTime: 1209600000,
+      previousRetarget: 0,
+      previousTime: Math.floor(Date.now() / 1000),
+      nextRetargetHeight: 2016,
+      timeAvg: 600,
+      adjustedTimeAvg: 600,
+      timeOffset: 0,
+      expectedBlocks: 0,
+    },
+    backendInfo: { hostname: 'regtest-stub', version: 'e2e', gitCommit: 'e2e' },
+  });
+  wss.on('connection', (ws) => {
+    console.log('[ws] client connected');
+    ws.send(FEES_FRAME);
+    ws.on('message', (raw) => {
+      // mempool's client kicks off `{"action":"init"}` then `want` —
+      // re-send the snapshot on every command so any state pivot lands.
+      console.log(`[ws] ← ${raw.toString().slice(0, 200)}`);
+      ws.send(FEES_FRAME);
+    });
+    ws.on('close', () => console.log('[ws] client disconnected'));
+  });
+}
+
 server.listen(PORT, () => {
-  console.log(`fees-electrs-stub listening on :${PORT} → ${ELECTRS_URL}`);
+  console.log(`fees-electrs-stub listening on :${PORT} → ${ELECTRS_URL}${WS_ENABLED ? ' (WS enabled)' : ''}`);
 });
 
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
