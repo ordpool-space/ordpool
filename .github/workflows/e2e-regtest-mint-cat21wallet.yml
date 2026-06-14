@@ -1,0 +1,255 @@
+name: E2E (regtest mint — cat21-wallet)
+
+# Cat21 Wallet variant of the regtest mint suite. Runs as a separate
+# workflow so the two wallets can iterate independently and CI signal
+# stays cleanly attributed.
+#
+# Pipeline differs from the Xverse workflow in two material ways:
+#   - No SDK globalSetup needed. Cat21 Wallet onboards inline in the
+#     spec's `beforeAll` (BIP-39 mnemonic restore), so we skip the
+#     "Run SDK's Xverse onboarding" + "Verify seed user-data-dir
+#     landed" steps.
+#   - We stage cat21wallet.crx instead of xverse.crx via the SDK
+#     bootstrap (`playwright-bootstrap.sh cat21wallet`).
+#
+# The frontend stack-up + serve sequence is identical; the spec runs
+# under the same playwright.regtest.config.ts but `--grep`-ed to the
+# cat21wallet spec file so it doesn't co-execute with the Xverse spec.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '47 3 * * *'   # nightly at 03:47 UTC (30 min after Xverse run)
+  push:
+    paths:
+      - 'frontend/playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts'
+      - '.github/workflows/e2e-regtest-mint-cat21wallet.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ordpool-e2e-regtest-mint-cat21wallet-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regtest-mint-cat21wallet:
+    name: Bring up stack + cat21-wallet round-trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout ordpool
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install frontend npm deps (brings ordpool-sdk into node_modules)
+        run: npm ci
+        working-directory: frontend
+
+      - name: Make SDK consumer-environment scripts executable
+        run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
+        working-directory: frontend
+
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
+        run: |
+          frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
+            > stack.json
+          cat stack.json
+
+      - name: Start fees + electrs HTTP+WS shim on :8999
+        run: |
+          cd frontend
+          ELECTRS_URL=http://localhost:3000 PORT=8999 WS_ENABLED=1 \
+            nohup node ../e2e/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
+          echo $! > ../fees-stub.pid
+          cd ..
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8999/healthz >/dev/null 2>&1; then
+              echo "fees-stub up"; break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "fees-stub never came up"; cat fees-stub.log || true; exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Smoke-test stub endpoints
+        run: |
+          echo "--- fees/recommended"
+          curl -fsS http://localhost:8999/api/v1/fees/recommended
+          echo
+          echo "--- blocks/tip/height (electrs)"
+          curl -fsS http://localhost:8999/api/blocks/tip/height
+          echo
+
+      - name: Checkout ordpool-sdk (for the cat21-wallet extension + bootstrap script)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/ordpool-sdk
+          path: sdk
+          ref: main
+
+      - name: Setup Node (sdk)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+          cache-dependency-path: 'sdk/package-lock.json'
+
+      - name: Install SDK deps + build
+        working-directory: sdk
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright system deps + Chromium
+        working-directory: sdk
+        run: npx playwright install --with-deps chromium
+
+      - name: Cache unpacked Cat21 Wallet extension
+        id: cat21wallet-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/cat21wallet
+          key: cat21wallet-extension-v6.103.0.675
+
+      - name: Download + unpack Cat21 Wallet from SDK release mirror
+        if: steps.cat21wallet-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh cat21wallet
+
+      - name: Bootstrap regtest funds (101 blocks, dump WIF)
+        working-directory: sdk
+        run: |
+          chmod +x e2e/regtest-bootstrap.sh
+          ./e2e/regtest-bootstrap.sh > regtest-bootstrap.json
+          cat regtest-bootstrap.json
+
+      - name: Generate frontend config (Ordpool defaults)
+        working-directory: frontend
+        run: npm run config:defaults:ordpool
+
+      - name: Patch environment.ts to localhost absolute URLs
+        working-directory: frontend
+        run: |
+          sed -i \
+            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
+            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
+            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
+            src/environments/environment.ts
+
+      - name: Patch bitcoinNetwork to Regtest
+        working-directory: frontend
+        run: |
+          sed -i \
+            -e 's|useValue: Network\.Mainnet|useValue: Network.Regtest|' \
+            src/app/app.module.ts
+          grep -n bitcoinNetwork src/app/app.module.ts | head -2
+
+      - name: Build static frontend bundle
+        working-directory: frontend
+        run: |
+          set -o pipefail
+          npm run ng -- build --output-path ../dist-regtest 2>&1 | tee ../build.log
+
+      - name: Locate the built browser output
+        run: |
+          for candidate in \
+              dist-regtest \
+              dist-regtest/browser \
+              $(find dist-regtest -maxdepth 3 -type d -name browser); do
+            if [ -f "$candidate/index.html" ]; then
+              BROWSER_DIR="$candidate"
+              break
+            fi
+          done
+          if [ -z "${BROWSER_DIR:-}" ]; then
+            echo "could not find any index.html under dist-regtest"
+            ls -la dist-regtest || true
+            tail -200 build.log || true
+            exit 1
+          fi
+          echo "BROWSER_DIR=$BROWSER_DIR" >> "$GITHUB_ENV"
+
+      - name: Serve the static bundle on :4200
+        run: |
+          nohup npx -y serve@14 -s "$BROWSER_DIR" -l 4200 --no-clipboard > serve.log 2>&1 &
+          echo $! > serve.pid
+
+      - name: Wait for static server ready on :4200
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/ 2>/dev/null || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "static server up"; break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "static server never came up (last HTTP $code)"; tail -200 serve.log || true; exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Install Playwright in the frontend tree
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Lift SDK e2e helpers out of node_modules (Node 24 strip-types refuses .ts there)
+        working-directory: frontend
+        run: |
+          mkdir -p playwright/specs/regtest/sdk-lib
+          cp node_modules/ordpool-sdk/e2e/regtest/regtest-helpers.ts playwright/specs/regtest/sdk-lib/
+          cp node_modules/ordpool-sdk/e2e/playwright/approval-popup.ts playwright/specs/regtest/sdk-lib/
+          ls -la playwright/specs/regtest/sdk-lib/
+
+      - name: Run the cat21-wallet regtest spec
+        working-directory: frontend
+        env:
+          CAT21WALLET_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/cat21wallet
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regtest-mint-cat21wallet-playwright-${{ github.run_id }}
+          path: |
+            frontend/test-results
+            frontend/playwright-report-regtest
+            build.log
+            serve.log
+            fees-stub.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          for c in ordpool-e2e-consumer-bitcoind ordpool-e2e-consumer-electrs ordpool-e2e-consumer-mariadb; do
+            echo "=== $c ==="
+            docker logs "$c" 2>&1 | tail -200 || true
+          done
+
+      - name: Tear down stack
+        if: always()
+        run: |
+          docker compose \
+            -f frontend/node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
+            down -v || true
+          if [ -f fees-stub.pid ]; then
+            kill "$(cat fees-stub.pid)" 2>/dev/null || true
+          fi
+          if [ -f serve.pid ]; then
+            kill "$(cat serve.pid)" 2>/dev/null || true
+          fi
