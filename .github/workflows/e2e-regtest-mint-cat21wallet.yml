@@ -1,11 +1,11 @@
 name: E2E (regtest mint — cat21-wallet)
 
-# Cat21 Wallet variant of the regtest mint suite. Runs as a separate
+# CAT-21 wallet variant of the regtest mint suite. Runs as a separate
 # workflow so the two wallets can iterate independently and CI signal
 # stays cleanly attributed.
 #
 # Pipeline differs from the Xverse workflow in two material ways:
-#   - No SDK globalSetup needed. Cat21 Wallet onboards inline in the
+#   - No SDK globalSetup needed. CAT-21 wallet onboards inline in the
 #     spec's `beforeAll` (BIP-39 mnemonic restore), so we skip the
 #     "Run SDK's Xverse onboarding" + "Verify seed user-data-dir
 #     landed" steps.
@@ -112,7 +112,7 @@ jobs:
         working-directory: sdk
         run: npx playwright install --with-deps chromium
 
-      # Cat21 Wallet doesn't ship a published .crx yet — its
+      # CAT-21 wallet doesn't ship a published .crx yet — its
       # `cat21:trusted-build` workflow is the canonical publisher but
       # hasn't produced a release on the `ordpool-space/cat21-wallet`
       # repo. So we build the extension from source in CI. cat21-wallet

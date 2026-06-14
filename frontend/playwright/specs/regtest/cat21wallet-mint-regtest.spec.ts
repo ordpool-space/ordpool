@@ -6,14 +6,14 @@ import * as fs from 'node:fs';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
- * E2E (regtest mint) — ordpool /cat21-mint via Cat21 Wallet
+ * E2E (regtest mint) — ordpool /cat21-mint via CAT-21 wallet
  *
- * Mirrors the Xverse mint-regtest spec for the new Cat21 Wallet
- * connector that landed in the SDK at commit 59aa430. Cat21 Wallet
+ * Mirrors the Xverse mint-regtest spec for the new CAT-21 wallet
+ * connector that landed in the SDK at commit 59aa430. CAT-21 wallet
  * is OUR own Leather fork; its CAT-21 mint flow differs from Xverse's
  * in two material ways the test pins:
  *
- *   1. RBF policy: Cat21 Wallet IS allowed to signal RBF
+ *   1. RBF policy: CAT-21 wallet IS allowed to signal RBF
  *      (`sequence === 0xfffffffd`). Xverse and every other third-
  *      party wallet pin `sequence >= 0xfffffffe`. The rule lives in
  *      `ordpool-sdk/src/cat21-mint/cat21.service.helper.ts`; the wallet
@@ -46,7 +46,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4200';
 const MINT_PATH = '/cat21-mint';
 
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-// Cat21 Wallet's password-strength meter (zxcvbn) rates the shared
+// CAT-21 wallet's password-strength meter (zxcvbn) rates the shared
 // `TestPassword123!` as "Poor" and refuses to enable Continue. Use a
 // longer high-entropy passphrase per the SDK onboard spec.
 const TEST_PASSWORD = 'correct-horse-battery-staple-Tr0ub4dor-9876';
@@ -99,7 +99,7 @@ async function onboardCat21Wallet(page: Page): Promise<void> {
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(
-      `Cat21 Wallet extension not unpacked at ${EXT_PATH}. The workflow should ` +
+      `CAT-21 wallet extension not unpacked at ${EXT_PATH}. The workflow should ` +
       'have run the SDK\'s playwright-bootstrap.sh cat21wallet step.',
     );
   }
@@ -141,7 +141,7 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
 
   // CRITICAL ordering — snapshot existing pages BEFORE the connect
   // click. The Xverse spec hit this race three times before the fix
-  // (workspace CLAUDE.md note on commit 49c9285). Cat21 Wallet's
+  // (workspace CLAUDE.md note on commit 49c9285). CAT-21 wallet's
   // approval popup likewise spawns synchronously from
   // sats-connect/getAddresses, so the same precaution applies.
   const knownPagesBeforeConnect = new Set(context.pages());
@@ -152,17 +152,17 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
   await connectLink.click();
 
-  // Picker modal — Cat21 Wallet sits in the "installed" section at
+  // Picker modal — CAT-21 wallet sits in the "installed" section at
   // the top of the modal. The wallet card isn't a `<button>` — it's
   // a clickable container — so `getByRole('button', …)` doesn't find
   // it (the cat21-indexer cat21wallet artifact at run 27501072445
   // confirmed this). Match the visible label text instead; the
   // label wraps across two lines in the modal layout, so use `\s+`.
   // The ordpool picker renders the wallet name inline with its
-  // description on a single line ("Cat21 Wallet Our own — hot wallet
+  // description on a single line ("CAT-21 wallet Our own — hot wallet
   // for active cat trading…"), so the `$`-anchored regex misses
   // (run 27501318048 screenshot confirmed). Match by substring.
-  const cat21Picker = page.getByText(/Cat21\s+Wallet/i).first();
+  const cat21Picker = page.getByText(/CAT-21\s+wallet/i).first();
   await expect(cat21Picker).toBeVisible({ timeout: 20_000 });
   await cat21Picker.click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
@@ -206,7 +206,7 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   await shot(page, '04-connected');
 
   // Note: full mint round-trip is intentionally deferred to a
-  // follow-up iteration. Cat21 Wallet returns mainnet bc1q from
+  // follow-up iteration. CAT-21 wallet returns mainnet bc1q from
   // `getAddresses` regardless of the dapp's Network.Regtest request,
   // so the orchestrator-built bcrt1q PSBT can't sign cleanly against
   // it. See the file-level docstring for the workaround the SDK's
