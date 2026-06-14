@@ -631,9 +631,14 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   });
   // Click Deny/Cancel/Reject — CAT-21 wallet's Leather-fork sign
   // popup ships a "Deny"-labelled outline button next to the
-  // primary Confirm. Match permissively.
+  // primary Confirm. Match permissively. Catch any "page closed"
+  // race — the popup may self-close from the click before
+  // Playwright's click action completes (observed on
+  // run 27509961259), which throws but doesn't actually mean the
+  // click was ineffective. What matters is the post-condition:
+  // success alert must NOT appear.
   await sign.getByRole('button', { name: /^(deny|cancel|reject)$/i }).first()
-    .click({ timeout: 10_000 });
+    .click({ timeout: 10_000 }).catch(() => undefined);
   await sign.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
 
   await page.waitForTimeout(2_000);
