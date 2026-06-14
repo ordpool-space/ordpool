@@ -182,7 +182,17 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   });
   await shot(approvalConnect, '03-connect-approval');
   await approvalConnect.getByTestId('get-addresses-approve-button').click();
-  await approvalConnect.close().catch(() => undefined);
+  // DO NOT explicitly `.close()` the popup. cat21-wallet's
+  // `userApprovesGetAddresses` runs a multi-step animation
+  // (contentDisappears 400 ms + originLogoAnimation) BEFORE
+  // actually `chrome.tabs.sendMessage`-ing the addresses back to
+  // the dapp. Closing the page mid-animation kills the message
+  // dispatch and the connectedWallet$ signal never fires — the
+  // page stays at "please connect your wallet" forever (observed
+  // on run 27502017653 trace.zip: click at 20039 ms, manual close
+  // at 20083 ms = 44 ms gap, far inside the 400 ms animation).
+  // Wait for the popup to close itself.
+  await approvalConnect.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
 
   // Mint form renders only when `x.connectedWallet` is non-null —
   // pinning the form's presence pins that the connect callback
