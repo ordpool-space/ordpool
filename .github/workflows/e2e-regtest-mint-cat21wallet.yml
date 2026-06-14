@@ -112,17 +112,53 @@ jobs:
         working-directory: sdk
         run: npx playwright install --with-deps chromium
 
-      - name: Cache unpacked Cat21 Wallet extension
-        id: cat21wallet-cache
+      # Cat21 Wallet doesn't ship a published .crx yet — its
+      # `cat21:trusted-build` workflow is the canonical publisher but
+      # hasn't produced a release on the `ordpool-space/cat21-wallet`
+      # repo. So we build the extension from source in CI. cat21-wallet
+      # is a public repo; checkout works without auth.
+      - name: Checkout cat21-wallet (extension source)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-wallet
+          path: cat21-wallet-src
+          ref: dev
+
+      - name: Setup pnpm for cat21-wallet build
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Cache cat21-wallet pnpm store
         uses: actions/cache@v4
         with:
-          path: sdk/e2e/extensions/cat21wallet
-          key: cat21wallet-extension-v6.103.0.675
+          path: ~/.local/share/pnpm/store
+          key: cat21wallet-pnpm-${{ hashFiles('cat21-wallet-src/pnpm-lock.yaml') }}
+          restore-keys: |
+            cat21wallet-pnpm-
 
-      - name: Download + unpack Cat21 Wallet from SDK release mirror
-        if: steps.cat21wallet-cache.outputs.cache-hit != 'true'
+      - name: Cache cat21-wallet extension dist
+        id: cat21wallet-dist-cache
+        uses: actions/cache@v4
+        with:
+          path: cat21-wallet-src/apps/extension/dist
+          key: cat21wallet-dist-${{ hashFiles('cat21-wallet-src/pnpm-lock.yaml', 'cat21-wallet-src/apps/extension/**/*.ts', 'cat21-wallet-src/apps/extension/**/*.tsx', 'cat21-wallet-src/packages/**/*.ts') }}
+
+      - name: Install cat21-wallet dependencies
+        if: steps.cat21wallet-dist-cache.outputs.cache-hit != 'true'
+        working-directory: cat21-wallet-src
+        run: pnpm install --frozen-lockfile
+
+      - name: Build cat21-wallet extension
+        if: steps.cat21wallet-dist-cache.outputs.cache-hit != 'true'
+        working-directory: cat21-wallet-src
+        run: pnpm build:extension
+
+      - name: Stage cat21-wallet extension via SDK bootstrap (LOCAL_DIST mode)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CAT21_WALLET_LOCAL_DIST: ${{ github.workspace }}/cat21-wallet-src/apps/extension/dist
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh cat21wallet
 
