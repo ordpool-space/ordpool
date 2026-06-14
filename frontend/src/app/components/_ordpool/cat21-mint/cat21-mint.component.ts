@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { catchError, map, of, shareReplay, take, tap } from 'rxjs';
+import { catchError, combineLatest, map, of, shareReplay, take, tap } from 'rxjs';
 
 import {
   AUTO_SCAN_MAX_VALUE_SAT,
@@ -56,11 +55,6 @@ export class Cat21MintComponent implements OnInit {
   /** Auto-scan threshold echoed into the template for the "Scan anyway" hint. */
   readonly autoScanThreshold = AUTO_SCAN_MAX_VALUE_SAT;
 
-  /** Per-outpoint scan state — read in the `paymentOutputs$` pipeline. */
-  private readonly scanStates = toSignal(this.scanner.states$, {
-    initialValue: new Map<string, UtxoScanState>() as ReadonlyMap<string, UtxoScanState>,
-  });
-
   // ordpool's framework StateService streams recommended fees via the
   // websocket the mempool UI already runs. Cat21MintOrchestrator also
   // exposes a polled recommendedFees$ derived from the REST endpoint,
@@ -81,9 +75,23 @@ export class Cat21MintComponent implements OnInit {
   // insufficient ones; the template only wants the rows the user can
   // actually mint with. Sort largest-first + cap at 10 so the expert
   // panel never renders hundreds of rows.
-  paymentOutputs$ = this.orchestrator.simulations$.pipe(
-    map((rows): ViableSimulation[] => {
-      const scanMap = this.scanStates();
+  //
+  // We `combineLatest` over `simulations$` and the scanner's
+  // `states$` so the row's `bucket` field updates whenever either
+  // source changes. Previously this read the scanner state via a
+  // signal snapshot inside `map(...)`, which meant the bucket stayed
+  // at whatever it was when the simulation last emitted — so the red
+  // `⚠ asset found` badge never surfaced for a user who funded their
+  // wallet, opened the mint page, and clicked Mint without touching
+  // the fee-rate input. `scanner.states$` is a BehaviorSubject so the
+  // initial empty-Map value emits immediately on subscribe; the
+  // combineLatest pair fires the first emission as soon as
+  // `simulations$` produces its first value.
+  paymentOutputs$ = combineLatest([
+    this.orchestrator.simulations$,
+    this.scanner.states$,
+  ]).pipe(
+    map(([rows, scanMap]): ViableSimulation[] => {
       return rows
         .filter((r): r is { utxo: TxnOutput; simulation: SimulateTransactionResult; insufficient: false } =>
           !r.insufficient && r.simulation !== null,

@@ -41,13 +41,18 @@ const ELECTRS_URL = process.env.ELECTRS_URL ?? 'http://localhost:3000';
 // so it doesn't need a fake WS at all.
 const WS_ENABLED = process.env.WS_ENABLED === '1';
 
-const FEES_BODY = JSON.stringify({
+const DEFAULT_FEES = {
   fastestFee: 5,
   halfHourFee: 3,
   hourFee: 1,
   economyFee: 1,
   minimumFee: 1,
-});
+};
+
+// Live state — mutable so a test can POST /admin/fees with a "hot
+// mempool" preset before opening the page. Both the REST poll AND
+// the next WS broadcast read off this object.
+let currentFees = { ...DEFAULT_FEES };
 
 const EMPTY_STATUS_BODY = JSON.stringify({
   totalCats: 0,
@@ -153,7 +158,37 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.method === 'GET' && req.url === '/api/v1/fees/recommended') {
-    jsonResponse(res, FEES_BODY);
+    jsonResponse(res, JSON.stringify(currentFees));
+    return;
+  }
+  // Admin: swap the active fee preset + re-broadcast to every WS
+  // client so the picker reflects the change without a reload.
+  //   POST /admin/fees      body: a (partial) RecommendedFees JSON
+  //   POST /admin/fees/reset    no body — restores DEFAULT_FEES
+  if (req.method === 'POST' && req.url === '/admin/fees') {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const incoming = JSON.parse(Buffer.concat(chunks).toString() || '{}');
+        currentFees = { ...DEFAULT_FEES, ...incoming };
+        broadcastSnapshot();
+        console.log(`[admin] fees → ${JSON.stringify(currentFees)}`);
+        res.writeHead(204, CORS_BASE);
+        res.end();
+      } catch (err) {
+        res.writeHead(400, { 'content-type': 'text/plain', ...CORS_BASE });
+        res.end(`bad json: ${err.message}`);
+      }
+    });
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/admin/fees/reset') {
+    currentFees = { ...DEFAULT_FEES };
+    broadcastSnapshot();
+    console.log(`[admin] fees → reset to default`);
+    res.writeHead(204, CORS_BASE);
+    res.end();
     return;
   }
   if (req.method === 'GET' && req.url === '/api/status') {
@@ -173,6 +208,11 @@ const server = http.createServer((req, res) => {
   // Everything else falls through to electrs.
   proxyToElectrs(req, res);
 });
+
+// `broadcastSnapshot` is hoisted into the outer scope but only does
+// real work when the WS path is wired up below. Default no-op so the
+// admin endpoints can call it unconditionally.
+let broadcastSnapshot = () => {};
 
 if (WS_ENABLED) {
   // ESM resolves bare imports against the script's directory, not cwd,
@@ -195,50 +235,56 @@ if (WS_ENABLED) {
   // push `fees` once so `recommendedFees$` emits and the cat21-mint
   // empty-state stops gating on `!utxoLoading()`-after-`recommendedFees$`.
   // Anything we don't recognise we silently drop.
-  const FEES_FRAME = JSON.stringify({
-    fees: {
-      fastestFee: 5,
-      halfHourFee: 3,
-      hourFee: 1,
-      economyFee: 1,
-      minimumFee: 1,
-    },
-    'mempool-blocks': [
-      { blockSize: 1_500_000, blockVSize: 750_000, nTx: 1, totalFees: 5_000, medianFee: 1, feeRange: [1, 5] },
-    ],
-    da: {
-      progressPercent: 0,
-      difficultyChange: 0,
-      estimatedRetargetDate: Date.now() + 1209600000,
-      remainingBlocks: 2016,
-      remainingTime: 1209600000,
-      previousRetarget: 0,
-      previousTime: Math.floor(Date.now() / 1000),
-      nextRetargetHeight: 2016,
-      timeAvg: 600,
-      adjustedTimeAvg: 600,
-      timeOffset: 0,
-      expectedBlocks: 0,
-    },
-    backendInfo: { hostname: 'regtest-stub', version: 'e2e', gitCommit: 'e2e' },
-    // The fees-box-clickable component's `isLoading$` is a
-    // combineLatest of `isLoadingWebSocket$` and
-    // `loadingIndicators$.pipe(startWith({mempool:0}))` — it stays
-    // true (and the picker stays in its skeleton-tile state) until
-    // `loadingIndicators.mempool` reaches 100. Without this key the
-    // fee picker never exits skeleton and a Playwright spec waiting
-    // for `.fee-estimation-container .item a` to count 4 times out
-    // (observed on run 27482094562).
-    loadingIndicators: { mempool: 100 },
-  });
+  // `buildFrame()` is recomputed every send so a mid-test
+  // POST /admin/fees flips the picker tier values on the next
+  // broadcast (or the next client's first `init`).
+  function buildFrame() {
+    const feeRange = [currentFees.minimumFee, currentFees.fastestFee];
+    return JSON.stringify({
+      fees: currentFees,
+      'mempool-blocks': [
+        { blockSize: 1_500_000, blockVSize: 750_000, nTx: 1, totalFees: 5_000, medianFee: currentFees.halfHourFee, feeRange },
+      ],
+      da: {
+        progressPercent: 0,
+        difficultyChange: 0,
+        estimatedRetargetDate: Date.now() + 1209600000,
+        remainingBlocks: 2016,
+        remainingTime: 1209600000,
+        previousRetarget: 0,
+        previousTime: Math.floor(Date.now() / 1000),
+        nextRetargetHeight: 2016,
+        timeAvg: 600,
+        adjustedTimeAvg: 600,
+        timeOffset: 0,
+        expectedBlocks: 0,
+      },
+      backendInfo: { hostname: 'regtest-stub', version: 'e2e', gitCommit: 'e2e' },
+      // The fees-box-clickable component's `isLoading$` is a
+      // combineLatest of `isLoadingWebSocket$` and
+      // `loadingIndicators$.pipe(startWith({mempool:0}))` — it stays
+      // true (and the picker stays in its skeleton-tile state) until
+      // `loadingIndicators.mempool` reaches 100. Without this key the
+      // fee picker never exits skeleton and a Playwright spec waiting
+      // for `.fee-estimation-container .item a` to count 4 times out
+      // (observed on run 27482094562).
+      loadingIndicators: { mempool: 100 },
+    });
+  }
+  broadcastSnapshot = () => {
+    const frame = buildFrame();
+    for (const client of wss.clients) {
+      if (client.readyState === 1 /* OPEN */) client.send(frame);
+    }
+  };
   wss.on('connection', (ws) => {
     console.log('[ws] client connected');
-    ws.send(FEES_FRAME);
+    ws.send(buildFrame());
     ws.on('message', (raw) => {
       // mempool's client kicks off `{"action":"init"}` then `want` —
       // re-send the snapshot on every command so any state pivot lands.
       console.log(`[ws] ← ${raw.toString().slice(0, 200)}`);
-      ws.send(FEES_FRAME);
+      ws.send(buildFrame());
     });
     ws.on('close', () => console.log('[ws] client disconnected'));
   });

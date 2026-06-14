@@ -516,39 +516,18 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   await pickerSummary.click();
   await shot(page, 'as-02-picker-open');
 
-  // ─── 4. Nudge `paymentOutputs$` to re-emit ────────────────────
-  // ordpool's cat21-mint component reads the scanner state as a
-  // signal from inside an Observable `map(...)` (see
-  // `cat21-mint.component.ts:84-98`). Reading a signal inside an
-  // Observable is a one-shot snapshot — the map doesn't re-run
-  // when the signal updates. That means the row's `bucket` field
-  // stays at whatever it was when `paymentOutputs$` last emitted,
-  // which is `not-scanned` (the auto-scan request hadn't completed
-  // yet by the time the wallet's UTXO list landed).
-  //
-  // The orchestrator's `simulations$` re-emits whenever the fee
-  // rate changes, so we tweak the fee-rate input to force a fresh
-  // emission. After re-emit, the map re-reads the scanner state —
-  // which by then has `scanned-with-assets` from our mock — and
-  // the picker row's bucket flips to `assets`. The trace from a
-  // failing run (asset-s-c6454…/trace.zip) confirmed both
-  // `/output/<outpoint>` calls returned the cat body (200, 107 B);
-  // the bug was purely UI-side reactivity-staleness.
-  //
-  // Small enough delay that the auto-scan has time to complete
-  // (~one round-trip to the page-route mock = <100 ms). Belt-and-
-  // braces: tweak twice with a tiny pause between.
-  await page.waitForTimeout(500);
-  const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
-  ).first();
-  await feeRateInput.fill('2');
-  await feeRateInput.press('Tab');
-  await page.waitForTimeout(300);
-  await feeRateInput.fill('1');
-  await feeRateInput.press('Tab');
-
-  // ─── 5. Assert the asset-found badge appears ─────────────────
+  // ─── 4. Assert the asset-found badge appears ─────────────────
+  // No fee-rate nudge needed any more. Earlier runs needed one
+  // because `paymentOutputs$` was an RxJS Observable that read
+  // `scanStates()` as a snapshot inside `map(...)` — the map
+  // didn't re-run when the scanner signal updated, so the row's
+  // `bucket` stayed at `not-scanned` indefinitely. Fixed in
+  // cat21-mint.component.ts by switching to
+  // `combineLatest([simulations$, scanner.states$])` so the map
+  // fires whenever EITHER source emits. The scanner's `states$`
+  // is a BehaviorSubject so the initial empty-Map value emits
+  // immediately on subscribe; the cat-mocked outpoint flips its
+  // bucket to `assets` the moment its scan completes.
   const assetBadge = page.locator('.badge.bg-danger', { hasText: /asset found/i }).first();
   await expect(assetBadge).toBeVisible({ timeout: 30_000 });
   await shot(page, 'as-03-asset-found-badge');
@@ -577,3 +556,188 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
 // which was much harder to reproduce reliably than the inline
 // assertion. Keeping all picker-mechanic asserts inside the already-
 // connected test 1 sidesteps that flake entirely.
+
+/**
+ * Manual-override end-to-end: the user's typed rate must be EXACTLY
+ * the rate that lands on-chain, regardless of what the picker is
+ * suggesting at the moment.
+ *
+ * Mirror of cat21-indexer's mintAtRateAndVerify scenarios. Two real-
+ * world cases:
+ *
+ *   A. "Mempool quiet, user wants a purple cat" (CAT-21 colour
+ *      buckets are fee-rate driven — high fees unlock fire at
+ *      69 sat/vB, saturated at 420). Default low stub fees stand.
+ *      User types 100. Resulting tx fee/vsize ≈ 100 ±1 sat/vB.
+ *
+ *   B. "Mempool hot, user still wants low." Test POSTs an
+ *      "high preset" to the stub's /admin/fees endpoint, which
+ *      broadcasts a fresh `fees` snapshot to the WS. The picker
+ *      tiles flip to the new values; the user types 1 anyway.
+ *      Resulting tx fee/vsize ≈ 1 ±1 sat/vB.
+ *
+ * Both verify rate flow: input → cfeeRate FormControl →
+ * orchestrator.setFeeRate → simulations$ → PSBT → Xverse signing
+ * → broadcast → confirmed tx. A regression at any layer surfaces
+ * as a mismatch in the on-chain fee_rate.
+ */
+
+const HIGH_FEES_PRESET = {
+  fastestFee: 100,
+  halfHourFee: 60,
+  hourFee: 30,
+  economyFee: 20,
+  minimumFee: 10,
+};
+
+async function ordpoolMintAtRate(opts: {
+  rate: number;
+  scenarioLabel: string;
+  /** When true, POST the high preset to the stub before opening the
+   *  page so the picker tiles render with values that visibly
+   *  disagree with the user's typed rate. Reset on teardown. */
+  mockFeesAsHigh?: boolean;
+}): Promise<{ broadcastTxid: string; fee: number; vsize: number; rate: number }> {
+  if (!sharedPaymentAddress) throw new Error('first test must have set sharedPaymentAddress');
+
+  if (opts.mockFeesAsHigh) {
+    const res = await fetch('http://localhost:8999/admin/fees', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(HIGH_FEES_PRESET),
+    });
+    if (!res.ok) {
+      throw new Error(`stub /admin/fees rejected: ${res.status} ${await res.text()}`);
+    }
+  }
+
+  try {
+    // ─── Fund a fresh UTXO at the shared payment address ─────────
+    const FUND_BTC = 0.001;
+    const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC)).trim();
+    console.log(`[${opts.scenarioLabel}] funded ${sharedPaymentAddress} +${FUND_BTC} BTC tx=${fundTxid}`);
+    const tip = mineBlocks(1);
+    await waitForElectrsSync(tip);
+
+    // ─── Open page, auto-reconnect ───────────────────────────────
+    const page = await context.newPage();
+    await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+    const known = new Set(context.pages());
+    const reapprove = await waitForApprovalPopup({
+      context,
+      knownPages: known,
+      timeoutMs: 6_000,
+      isApproval: async (p) => p.url().startsWith('chrome-extension://'),
+    }).catch(() => null);
+    if (reapprove) {
+      await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
+        .first().click().catch(() => undefined);
+      await reapprove.close().catch(() => undefined);
+    }
+    await shot(page, `mr-${opts.scenarioLabel}-01-loaded`);
+
+    // ─── Wait for the fee picker tiles to render, sanity-check that
+    // the WS frame actually carried the expected scenario values. ─
+    const tiles = page.locator('.fee-estimation-container .item a');
+    await expect(tiles).toHaveCount(4, { timeout: 30_000 });
+    if (opts.mockFeesAsHigh) {
+      // tile index 3 is the fastest tier — should show 100 from the
+      // high preset we POSTed.
+      await expect(tiles.nth(3)).toContainText('100', { timeout: 10_000 });
+    }
+
+    // ─── User-typed override ─────────────────────────────────────
+    const feeRateInput = page.locator(
+      '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    ).first();
+    await feeRateInput.fill(String(opts.rate));
+    await feeRateInput.press('Tab');
+    await shot(page, `mr-${opts.scenarioLabel}-02-rate-typed`);
+
+    const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+    await expect(mintButton).toBeEnabled({ timeout: 60_000 });
+
+    // ─── Click Mint, approve Xverse sign popup ───────────────────
+    const knownBeforeSign = new Set(context.pages());
+    await mintButton.click();
+    const approvalSign = await waitForApprovalPopup({
+      context,
+      knownPages: knownBeforeSign,
+      timeoutMs: 120_000,
+      isApproval: async (p) => {
+        if (!p.url().startsWith('chrome-extension://')) return false;
+        await p.getByText(/review transaction/i).first()
+          .waitFor({ state: 'visible', timeout: 120_000 });
+        return true;
+      },
+    });
+    await shot(approvalSign, `mr-${opts.scenarioLabel}-03-sign-popup`);
+
+    await approvalSign.waitForFunction(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      return buttons.some((b) => {
+        if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
+        if (b.hasAttribute('disabled')) return false;
+        const style = getComputedStyle(b);
+        return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
+      });
+    }, undefined, { timeout: 30_000, polling: 250 });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (approvalSign.isClosed()) break;
+      await approvalSign.getByRole('button', { name: /^confirm$/i }).first()
+        .click({ force: true })
+        .catch(() => undefined);
+      const closed = new Promise<void>((res) => approvalSign.once('close', () => res()));
+      await Promise.race([
+        closed,
+        expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first())
+          .toBeHidden({ timeout: 30_000 }),
+      ]).catch(() => undefined);
+      if (approvalSign.isClosed()) break;
+    }
+
+    // ─── Wait for success alert + extract broadcast txid ─────────
+    const successAlert = page.locator('.alert.alert-success').first();
+    await expect(successAlert).toBeVisible({ timeout: 90_000 });
+    await shot(page, `mr-${opts.scenarioLabel}-04-success`);
+    const successHref = await successAlert.locator('a').first().getAttribute('href');
+    const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
+    expect(txidMatch).not.toBeNull();
+    const broadcastTxid = txidMatch![1];
+
+    // ─── Mine confirmation, parse, compute on-chain fee_rate ─────
+    const confTip = mineBlocks(1);
+    await waitForElectrsSync(confTip);
+    const tx = await getTx(broadcastTxid);
+    expect(tx.locktime).toBe(21);
+    expect(tx.status.block_hash).toBeTruthy();
+    const parsed = Cat21ParserService.parse(tx);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.type).toBe(DigitalArtifactType.Cat21);
+    const vsize = Math.ceil(tx.weight / 4);
+    const rate = tx.fee / vsize;
+    console.log(`[${opts.scenarioLabel}] fee=${tx.fee} sat, vsize=${vsize} vB, rate=${rate.toFixed(3)} sat/vB (target ${opts.rate})`);
+
+    await page.close().catch(() => undefined);
+    return { broadcastTxid, fee: tx.fee, vsize, rate };
+  } finally {
+    // Always restore the default low preset so the next test sees a
+    // predictable stub state.
+    if (opts.mockFeesAsHigh) {
+      await fetch('http://localhost:8999/admin/fees/reset', { method: 'POST' })
+        .catch(() => undefined);
+    }
+  }
+}
+
+test('manual override: typing 100 mints a "purple cat" — high rate ends up on-chain', async () => {
+  test.setTimeout(420_000);
+  const { rate } = await ordpoolMintAtRate({ rate: 100, scenarioLabel: 'purple' });
+  expect(Math.abs(rate - 100)).toBeLessThan(1);
+});
+
+test('manual override: typing 1 while the picker suggests 100 (mempool hot) — low rate ends up on-chain', async () => {
+  test.setTimeout(420_000);
+  const { rate } = await ordpoolMintAtRate({ rate: 1, scenarioLabel: 'hot-mempool', mockFeesAsHigh: true });
+  expect(Math.abs(rate - 1)).toBeLessThan(1);
+});
