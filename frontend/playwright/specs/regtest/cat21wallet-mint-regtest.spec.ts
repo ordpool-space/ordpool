@@ -152,9 +152,13 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
   await connectLink.click();
 
-  // Picker modal — pick Cat21 Wallet by exact label per
-  // KnownOrdinalWallets entry (`label: 'Cat21 Wallet'`).
-  const cat21Picker = page.getByRole('button', { name: /^cat21\s+wallet$/i }).first();
+  // Picker modal — Cat21 Wallet sits in the "installed" section at
+  // the top of the modal. The wallet card isn't a `<button>` — it's
+  // a clickable container — so `getByRole('button', …)` doesn't find
+  // it (the cat21-indexer cat21wallet artifact at run 27501072445
+  // confirmed this). Match the visible label text instead; the
+  // label wraps across two lines in the modal layout, so use `\s+`.
+  const cat21Picker = page.getByText(/^Cat21\s+Wallet$/i).first();
   await expect(cat21Picker).toBeVisible({ timeout: 20_000 });
   await cat21Picker.click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
