@@ -483,7 +483,17 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   await waitForElectrsSync(tip);
   // Look up the vout that received our 15_000 sat — sendtoaddress's
   // change vout ordering isn't deterministic.
-  const small = (await getUtxos(paymentAddress)).find((u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid);
+  // electrs's address index can lag the chain tip — poll with a
+  // deadline so the test tolerates the per-address indexing delay.
+  let small: { txid: string; vout: number; value: number } | undefined;
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    small = (await getUtxos(paymentAddress)).find(
+      (u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid,
+    );
+    if (small) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
   if (!small) {
     throw new Error(`could not find the ${SMALL_FUND_SATS}-sat funding UTXO under ${paymentAddress}`);
   }
