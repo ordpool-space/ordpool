@@ -3,6 +3,15 @@ import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
+import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
+
+import {
+  getUtxos,
+  waitForElectrsSync,
+  rpc,
+  mineBlocks,
+  getTx,
+} from './sdk-lib/regtest-helpers';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
@@ -221,12 +230,101 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   console.log(`[cat21wallet] regtest payment address = ${paymentAddr}`);
   expect(paymentAddr).toMatch(/^bcrt1q/);
 
-  // Note: full mint round-trip is intentionally deferred to a
-  // follow-up iteration. CAT-21 wallet returns mainnet bc1q from
-  // `getAddresses` regardless of the dapp's Network.Regtest request,
-  // so the orchestrator-built bcrt1q PSBT can't sign cleanly against
-  // it. See the file-level docstring for the workaround the SDK's
-  // own mint-roundtrip spec uses (`deriveRegtestAddresses`); wiring
-  // that into the consumer-driven mint flow needs SDK-level
-  // enhancement and is tracked separately.
+  // ─── Full mint round-trip ─────────────────────────────────────
+  // Now that the wallet hands us a regtest bcrt1q address, the
+  // funding + orchestrator + sign + broadcast path works the same
+  // way as the Xverse flow. The wallet-side differences vs Xverse:
+  //   - sign popup matches by role+name on Confirm/Sign/Approve
+  //     (no stable testid yet, per the SDK's own mint-roundtrip
+  //     spec)
+  //   - input sequence is exactly 0xfffffffd (CAT-21 wallet RBF
+  //     policy — the ONE wallet that signals RBF safely because
+  //     its mempool-acceleration UI contract preserves
+  //     nLockTime=21 on replacement)
+  const FUND_AMOUNT_BTC = 0.001;
+  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddr, String(FUND_AMOUNT_BTC)).trim();
+  console.log(`[cat21wallet] funded ${paymentAddr} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
+  const fundedTip = mineBlocks(1);
+  await waitForElectrsSync(fundedTip);
+  const fundUtxos = await getUtxos(paymentAddr);
+  expect(fundUtxos.length).toBeGreaterThan(0);
+
+  // Reload so the orchestrator picks up the new UTXO.
+  const knownBeforeReload = new Set(context.pages());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const reapprove = await waitForApprovalPopup({
+    context,
+    knownPages: knownBeforeReload,
+    timeoutMs: 6_000,
+    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
+  }).catch(() => null);
+  if (reapprove) {
+    await reapprove.getByTestId('get-addresses-approve-button')
+      .click({ timeout: 10_000 }).catch(() => undefined);
+    await reapprove.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+  }
+  await shot(page, '05-after-fund-reload');
+
+  // Set fee rate, wait for Mint button enabled.
+  const feeRateInput = page.locator(
+    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+  ).first();
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
+  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  await expect(mintButton).toBeEnabled({ timeout: 60_000 });
+  await shot(page, '06-ready-to-mint');
+
+  // Click Mint, approve sign popup.
+  const knownBeforeSign = new Set(context.pages());
+  await mintButton.click();
+  const approvalSign = await waitForApprovalPopup({
+    context,
+    knownPages: knownBeforeSign,
+    timeoutMs: 120_000,
+    isApproval: async (p) => {
+      if (!p.url().startsWith('chrome-extension://')) return false;
+      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+        .waitFor({ state: 'visible', timeout: 120_000 });
+      return true;
+    },
+  });
+  await shot(approvalSign, '07-sign-approval');
+  await approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+    .click({ timeout: 30_000 });
+  await approvalSign.waitForEvent('close', { timeout: 60_000 }).catch(() => undefined);
+
+  // Wait for success alert, extract broadcast txid.
+  const successAlert = page.locator('.alert.alert-success').first();
+  await expect(successAlert).toBeVisible({ timeout: 90_000 });
+  await shot(page, '08-success');
+  const successHref = await successAlert.locator('a').first().getAttribute('href');
+  const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
+  expect(txidMatch).not.toBeNull();
+  const broadcastTxid = txidMatch![1];
+  console.log(`[cat21wallet] mint txid = ${broadcastTxid}`);
+
+  // Mine confirmation block, verify on-chain.
+  const confirmedTip = mineBlocks(1);
+  await waitForElectrsSync(confirmedTip);
+  const esploraTx = await getTx(broadcastTxid);
+  expect(esploraTx.locktime).toBe(21);
+  expect(esploraTx.status.block_hash).toBeTruthy();
+  // Output 0 = cat sat at exactly 546.
+  expect(esploraTx.vout.length).toBeGreaterThanOrEqual(1);
+  expect(esploraTx.vout[0].value).toBe(546);
+  // CAT-21 wallet RBF policy: input sequence == 0xfffffffd.
+  // ONE exception to the Xverse spec's ≥0xfffffffe rule. See
+  // `ordpool-sdk/src/cat21-mint/cat21.service.helper.ts` and HARD
+  // RULE #1 in `cat21-wallet/CLAUDE.md` for the rationale.
+  expect(esploraTx.vin.length).toBeGreaterThan(0);
+  for (const vin of esploraTx.vin) {
+    expect(vin.sequence).toBe(0xfffffffd);
+  }
+  // Parser confirms well-formed CAT-21.
+  const parsed = Cat21ParserService.parse(esploraTx);
+  expect(parsed).not.toBeNull();
+  expect(parsed!.type).toBe(DigitalArtifactType.Cat21);
+  expect(parsed!.transactionId).toBe(broadcastTxid);
+  expect(parsed!.getImage()).toMatch(/^<svg/);
 });
