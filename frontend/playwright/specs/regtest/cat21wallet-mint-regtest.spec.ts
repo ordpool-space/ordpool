@@ -158,7 +158,11 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   // it (the cat21-indexer cat21wallet artifact at run 27501072445
   // confirmed this). Match the visible label text instead; the
   // label wraps across two lines in the modal layout, so use `\s+`.
-  const cat21Picker = page.getByText(/^Cat21\s+Wallet$/i).first();
+  // The ordpool picker renders the wallet name inline with its
+  // description on a single line ("Cat21 Wallet Our own — hot wallet
+  // for active cat trading…"), so the `$`-anchored regex misses
+  // (run 27501318048 screenshot confirmed). Match by substring.
+  const cat21Picker = page.getByText(/Cat21\s+Wallet/i).first();
   await expect(cat21Picker).toBeVisible({ timeout: 20_000 });
   await cat21Picker.click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
