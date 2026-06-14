@@ -205,6 +205,22 @@ test('cat21-wallet appears in the picker and the connect approval round-trips', 
   );
   await shot(page, '04-connected');
 
+  // ─── Path-1 proof: payment address is REGTEST bcrt1q ──────────
+  // CAT-21 wallet's `getAddresses` now honors the `network` param
+  // (SDK connector change at commit 8d91a5c: Network.Regtest →
+  // 'devnet', forwarded as RPC param). The mint page's empty-state
+  // hint renders the connected payment address inside
+  // `<code class="bitcoin">…</code>`. Before this change it was a
+  // `bc1q…` mainnet address (incompatible with the regtest electrs
+  // funding path); now it must start with `bcrt1q…`. Pinning this
+  // surfaces a connector regression immediately rather than
+  // waiting for a downstream mint to mysteriously fail.
+  const paymentCode = page.locator('code.bitcoin', { hasText: /^bcrt1q/ }).first();
+  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
+  const paymentAddr = (await paymentCode.textContent())!.trim();
+  console.log(`[cat21wallet] regtest payment address = ${paymentAddr}`);
+  expect(paymentAddr).toMatch(/^bcrt1q/);
+
   // Note: full mint round-trip is intentionally deferred to a
   // follow-up iteration. CAT-21 wallet returns mainnet bc1q from
   // `getAddresses` regardless of the dapp's Network.Regtest request,
