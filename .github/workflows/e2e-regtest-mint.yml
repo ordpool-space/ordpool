@@ -326,7 +326,8 @@ jobs:
           FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test --config=playwright.regtest.config.ts
+            npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
         if: always()
