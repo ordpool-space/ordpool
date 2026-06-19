@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 /**
  * Playwright E2E mount point for the bitmap 3D renderer.
@@ -47,14 +47,14 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@
   standalone: false,
 })
 export class Bitmap3dE2EComponent {
-  private cdr = inject(ChangeDetectorRef);
-
+  // OnPush + (click) bindings — Angular runs CD on the bound event, so
+  // these setters don't need an explicit markForCheck.
   sizes: number[] | null = ((window as unknown as { __bitmap3dFixture?: { sizes: number[] } })
     .__bitmap3dFixture?.sizes) ?? null;
   pfp = false;
   exit = false;
 
-  enterPfp(): void { this.pfp = true; this.exit = false; this.cdr.markForCheck(); }
-  exitPfp(): void { this.exit = true; this.cdr.markForCheck(); }
-  onExitDone(): void { this.pfp = false; this.exit = false; this.cdr.markForCheck(); }
+  enterPfp(): void { this.pfp = true; this.exit = false; }
+  exitPfp(): void { this.exit = true; }
+  onExitDone(): void { this.pfp = false; this.exit = false; }
 }

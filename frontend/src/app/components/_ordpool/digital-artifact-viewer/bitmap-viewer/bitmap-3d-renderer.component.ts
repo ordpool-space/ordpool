@@ -10,6 +10,8 @@ import {
   fovTarget,
   gravityForStep,
   PlayerState,
+  SPEED_RUN_SQ,
+  SPEED_WALK_SQ,
 } from './bitmap-3d-physics';
 
 @Component({
@@ -392,10 +394,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     scene.add(directional.target);
     scene.add(new THREE.AmbientLight(new THREE.Color('white'), 1.2));
 
-    // fitDist = perpendicular distance needed to make the bitmap fit the
-    // viewport exactly (apparent width = maxSize). The previous formula
-    // used Math.atan instead of Math.tan -- at fov=15° the two are numerically
-    // close, but it's the wrong identity. Fix while we're here.
+    // fitDist = perpendicular distance for apparent width = maxSize.
     const fitHeightDist = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDist = fitHeightDist / camera.aspect;
     const fitDist = Math.max(fitHeightDist, fitWidthDist);
@@ -413,9 +412,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     // Both start and final cameras sit at MAGNITUDE = cameraDistance from
     // target, so the apparent grid size stays constant through the tween.
-    // Previously the iso corner was at magnitude sqrt(3/2)*distance ≈
-    // 1.22*distance -- farther than the perpendicular fit distance, which
-    // is the second reason the bitmap looked too small.
     const finalCamera = new THREE.Vector3(
       cameraDistance / Math.sqrt(3),
       cameraDistance / Math.sqrt(3),
@@ -480,12 +476,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     groundColliderGeom.dispose();
 
     const PLAYER_HEIGHT = 0.8;          // user-tuned, don't change
-    // Radius bumped from 0.12 -> 0.22 to fix the wall-clip / see-through
-    // bug. At 0.12 the capsule could tunnel a sharp cube edge in one
-    // substep (radius < per-substep velocity at sprint), leaving the eye
-    // inside the cube body where back-faces are culled. 0.22 keeps the
-    // safe-step-per-substep ratio above sprint-velocity-per-substep AND
-    // still slips through the 0.5-unit street gaps (diameter 0.44).
+    // 0.22 keeps safe-step-per-substep above sprint velocity per substep
+    // (defends against tunnelling a sharp cube edge -> eye inside cube)
+    // AND slips through the 0.5-unit street gaps (diameter 0.44).
     const PLAYER_RADIUS = 0.22;
     const SPAWN_X = 0;
     const SPAWN_Z = layoutSize.height / 2 + 2;
@@ -523,14 +516,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const probeDir = new THREE.Vector3();
     const stepUpForward = new THREE.Vector3();
     const stepUpLift = new THREE.Vector3();
-    const playerDirection = new THREE.Vector3();
-
     let playerState: PlayerState = 'idle';
     let playerOnFloor = false;
-    // Squared thresholds — derivePlayerState compares against velocity² to
-    // avoid a per-frame sqrt on the horizontal speed.
-    const SPEED_RUN_SQ = 1.5 * 1.5;
-    const SPEED_WALK_SQ = 0.5 * 0.5;
     // Octree.rayIntersect ships as `(ray) => { distance, normal, position } | false`
     // but its TS def is missing in three's examples. Cast once; only `.distance`
     // is consumed by our probes.
@@ -550,7 +537,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // again.
     const startWithTouchUi =
       (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) ||
-      ((navigator as any)?.maxTouchPoints ?? 0) > 0;
+      (navigator.maxTouchPoints || 0) > 0;
     const setTouchClass = (on: boolean) => {
       // Direct DOM, no Angular binding -- can't be lost to a missed CD.
       hostEl.classList.toggle('touch-on', on);
@@ -669,10 +656,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       stripNippleZIndex(moveStick);
       // nipplejs 1.x listener signature: one arg, the InternalEvent
       // { type, target, data }. data.vector is the analog stick position.
-      // The old (evt, data) two-arg shape used during the initial port
-      // crashed silently inside nipplejs's trigger loop, leaving joy at
-      // (0,0). On desktop the symptom was invisible (no touch UI shown);
-      // on mobile the user saw the touch UI but the player wouldn't move.
+      // Two-arg (evt, data) throws on every move inside nipplejs's trigger
+      // loop -- silent on desktop, breaks mobile movement.
       moveStick.on('move', (evt: any) => {
         const v = evt?.data?.vector;
         if (!v) return;
@@ -786,22 +771,23 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
     };
 
-    const getForwardVector = () => {
-      camera.getWorldDirection(playerDirection);
-      playerDirection.y = 0;
-      playerDirection.normalize();
-      return playerDirection;
+    // Frame-cached forward + side vectors. Camera rotation only changes
+    // in applyLookStick (once per frame), so deriving these 10x per
+    // substep is wasted matrix-decompose work. cacheFrameVectors is
+    // called once after applyLookStick; applyControls reads from the
+    // closures.
+    const frameForward = new THREE.Vector3();
+    const frameSide = new THREE.Vector3();
+    const cacheFrameVectors = () => {
+      camera.getWorldDirection(frameForward);
+      frameForward.y = 0;
+      frameForward.normalize();
+      frameSide.copy(frameForward).cross(camera.up);
     };
-    const getSideVector = () => {
-      camera.getWorldDirection(playerDirection);
-      playerDirection.y = 0;
-      playerDirection.normalize();
-      playerDirection.cross(camera.up);
-      return playerDirection;
-    };
-    // Per-frame input snapshot (computed once in readInput; substep loop
-    // reads from these closures). Hoisting saves the magnitude clamp +
-    // Shift check from running 10x per frame.
+
+    // Per-frame input snapshot. readInput runs once before the substep
+    // loop; the substep reads the closures so the magnitude clamp +
+    // Shift check don't fire 10x.
     let sprinting = false;
     let inputFwd = 0;
     let inputSide = 0;
@@ -814,6 +800,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       inputFwd = m.fwd;
       inputSide = m.side;
     };
+    // Scratch for the forward/side scaled adds — avoids a per-substep
+    // .clone() that would otherwise be needed to keep frameForward/Side
+    // unmodified across two substep adds in the same frame.
+    const moveAddScratch = new THREE.Vector3();
     const applyControls = (dt: number) => {
       // playerOnFloor can flip mid-substep-loop, so the speed branch stays
       // here. Sprint only applies on floor.
@@ -822,8 +812,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         : sprinting    ? SPEED_SPRINT
         :                SPEED_ON_FLOOR
       );
-      if (inputFwd !== 0) playerVelocity.add(getForwardVector().multiplyScalar(speedDelta * inputFwd));
-      if (inputSide !== 0) playerVelocity.add(getSideVector().multiplyScalar(speedDelta * inputSide));
+      if (inputFwd !== 0) {
+        playerVelocity.add(moveAddScratch.copy(frameForward).multiplyScalar(speedDelta * inputFwd));
+      }
+      if (inputSide !== 0) {
+        playerVelocity.add(moveAddScratch.copy(frameSide).multiplyScalar(speedDelta * inputSide));
+      }
       if (playerOnFloor && (keyStates['Space'] || jumpPulse)) {
         playerVelocity.y = JUMP_VELOCITY;
       }
@@ -938,6 +932,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const pfpFrame = (frameDt: number) => {
       applyLookStick();
       readInput();
+      cacheFrameVectors();   // forward/side reused by 10 applyControls calls
       const dt = Math.min(0.05, frameDt) / STEPS_PER_FRAME;
       for (let i = 0; i < STEPS_PER_FRAME; i++) {
         applyControls(dt);
@@ -950,7 +945,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // onto small ledges.
       camera.position.copy(playerCollider.end);
       if (!playerOnFloor && isGroundedByRay()) playerOnFloor = true;
-      applyEyeSafety();
+      // Eye-safety only matters while moving; if the capsule is at rest
+      // the previous frame's check still holds. Saves one octree raycast
+      // per idle frame.
+      if (playerVelocity.lengthSq() > 1e-4) applyEyeSafety();
       tryStepUp();
       // FOV ease on sprint (sketches/rapier KCC :191-195). rate=10 gives
       // ~100ms settle. Gate on actual horizontal motion above the run
@@ -998,27 +996,39 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
     };
 
+    // Compute the quaternion the camera would have if it were placed at
+    // `pos`, with `up`, looking at `lookAt`. Camera state is mutated then
+    // restored — three.js has no pure quaternion-from-look-at helper.
+    // (THREE is a runtime namespace from dynamic import; type position
+    // uses InstanceType<typeof X>.)
+    type Vec3 = InstanceType<typeof THREE.Vector3>;
+    type Quat = InstanceType<typeof THREE.Quaternion>;
+    const savedPos = new THREE.Vector3();
+    const savedQuat = new THREE.Quaternion();
+    const captureLookAtQuat = (pos: Vec3, up: Vec3, lookAt: Vec3, out: Quat) => {
+      savedPos.copy(camera.position);
+      savedQuat.copy(camera.quaternion);
+      camera.position.copy(pos);
+      camera.up.copy(up);
+      camera.lookAt(lookAt);
+      out.copy(camera.quaternion);
+      camera.position.copy(savedPos);
+      camera.quaternion.copy(savedQuat);
+    };
+
+    const flyLookAtSpawn = new THREE.Vector3();
     const beginFlyToPfp = () => {
       flyStartPos.copy(camera.position);
       flyStartQuat.copy(camera.quaternion);
       flyStartFov = camera.fov;
-      // Compute end quat: place camera at spawn looking at centre, capture,
-      // restore. Same trick as before.
-      const savedPos = camera.position.clone();
-      const savedQuat = camera.quaternion.clone();
-      camera.position.copy(spawnEye);
-      camera.up.copy(finalUp);
-      camera.lookAt(0, spawnEye.y, 0);
-      flyEndQuat.copy(camera.quaternion);
-      camera.position.copy(savedPos);
-      camera.quaternion.copy(savedQuat);
+      flyLookAtSpawn.set(0, spawnEye.y, 0);
+      captureLookAtQuat(spawnEye, finalUp, flyLookAtSpawn, flyEndQuat);
       flyEndPos.copy(spawnEye);
       flyEndFov = FOV_PFP;
       flyStartedAt = performance.now();
       controls.enabled = false;
-      // Cubes must be at full height for PFP (they are during orbit;
-      // during intro they're growing -- if we leave the intro before the
-      // grow phase ends, force-finish the scale).
+      // Cubes must be at full height for PFP (they are during orbit; mid-
+      // intro they're growing -- force-finish the scale if we leave early).
       container.scale.y = 1;
       state = 'fly-to-pfp';
     };
@@ -1027,30 +1037,19 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       flyStartPos.copy(camera.position);
       flyStartQuat.copy(camera.quaternion);
       flyStartFov = camera.fov;
-      // exit -> fly all the way back to the top-down/intro-start frame,
-      //         so the user sees the camera tilt back and the SVG flip in.
-      //         (Going only to iso is a near-no-op when the user hasn't
-      //         orbited away from iso, and 'nothing happens then SVG' was
-      //         exactly the broken-feeling case.)
-      // orbit -> we're returning from PFP; land at iso so OrbitControls
-      //          has a sensible pose to take over.
+      // exit -> intro-start frame so the user sees the camera tilt back
+      //         and the SVG flip in. Going only to iso reads as a no-op.
+      // orbit -> from PFP; land at iso so OrbitControls has a sensible pose.
       const targetPos = afterFly === 'exit' ? startCamera : finalCamera;
       const targetUp = afterFly === 'exit' ? startUp : finalUp;
-      const savedPos = camera.position.clone();
-      const savedQuat = camera.quaternion.clone();
-      camera.position.copy(targetPos);
-      camera.up.copy(targetUp);
-      camera.lookAt(controls.target);
-      flyEndQuat.copy(camera.quaternion);
-      camera.position.copy(savedPos);
-      camera.quaternion.copy(savedQuat);
+      captureLookAtQuat(targetPos, targetUp, controls.target, flyEndQuat);
       flyEndPos.copy(targetPos);
       flyEndFov = FOV_ISO;
       flyAfterIso = afterFly;
       flyStartedAt = performance.now();
       controls.enabled = false;
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
-      // Clear keyStates so a held-down key doesn't carry over.
+      // Drop held keys so they don't carry into the iso/orbit phase.
       Object.keys(keyStates).forEach(k => keyStates[k] = false);
       playerVelocity.set(0, 0, 0);
       state = 'fly-to-iso';

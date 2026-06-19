@@ -1,55 +1,18 @@
-import { test, expect, Page } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
+import { test, expect } from '@playwright/test';
+import {
+  loadBitmapFixture,
+  mountFixture,
+  readDebug,
+  setKey,
+  tick,
+  waitForState,
+} from '../_shared/bitmap-3d-debug';
 
-// Block 800,000 — picked as the canonical E2E bitmap. Healthy variety of
-// cube sizes (1-6) so step-up (size-1 auto-climb) and jump (size-2+) both
-// get exercised, immutable on-chain, lives forever in playwright/fixtures/.
-const fixture = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, '../../fixtures/bitmap-800000.json'), 'utf8'),
-);
-
-interface Bitmap3dDebug {
-  state: 'intro' | 'orbit' | 'fly-to-pfp' | 'pfp' | 'fly-to-iso' | 'exit-done';
-  playerState: 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
-  pos: [number, number, number];
-  fov: number;
-  onFloor: boolean;
-  vel: [number, number, number];
-  tick(frames?: number, dt?: number): void;
-  setKey(code: string, down: boolean): void;
-  jump(): void;
-}
-
-const readDebug = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __bitmap3d?: Bitmap3dDebug }).__bitmap3d!);
-
-// In-browser polling for a state value: avoids the Node<->CDP roundtrip
-// per probe, and unlike expect.poll catches transient values reliably.
-const waitForState = (page: Page, target: Bitmap3dDebug['state'], timeout = 30_000) =>
-  page.waitForFunction(
-    s => (window as unknown as { __bitmap3d?: { state: string } }).__bitmap3d?.state === s,
-    target,
-    { timeout, polling: 100 },
-  );
-
-// Run N PFP physics frames at a fixed dt in-browser. Replaces real-time
-// rAF (which headless Chromium throttles to ~1Hz) with a deterministic
-// loop the test can wait on. 60 frames @ 1/60 dt = 1 simulated second.
-const tick = (page: Page, frames: number) =>
-  page.evaluate(n => (window as unknown as { __bitmap3d?: Bitmap3dDebug }).__bitmap3d?.tick(n), frames);
-
-const setKey = (page: Page, code: string, down: boolean) =>
-  page.evaluate(
-    args => (window as unknown as { __bitmap3d?: Bitmap3dDebug }).__bitmap3d?.setKey(args.code, args.down),
-    { code, down },
-  );
+const fixture = loadBitmapFixture();
 
 test.describe('bitmap-3d renderer', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(`window.__bitmap3dFixture = ${JSON.stringify({ sizes: fixture.sizes })};`);
-    await page.goto('/e2e/bitmap-3d');
-    await expect(page.getByTestId('bitmap-3d-renderer')).toBeAttached();
+    await mountFixture(page, fixture.sizes);
   });
 
   test('mounts the renderer and reaches the orbit state', async ({ page }) => {

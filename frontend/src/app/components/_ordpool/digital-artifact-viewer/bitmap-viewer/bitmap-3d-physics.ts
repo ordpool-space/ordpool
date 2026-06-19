@@ -9,6 +9,14 @@
 export type PlayerState = 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
 
 /**
+ * Horizontal-speed thresholds (squared, so the hot path skips sqrt).
+ * Shared with the renderer's derivePlayerState call AND the jest spec,
+ * so threshold changes are a single edit.
+ */
+export const SPEED_RUN_SQ = 1.5 * 1.5;
+export const SPEED_WALK_SQ = 0.5 * 0.5;
+
+/**
  * Player state derivation.
  *
  * On floor: 'running' (sprinting AND moving fast), 'walking' (moving), 'idle'.
