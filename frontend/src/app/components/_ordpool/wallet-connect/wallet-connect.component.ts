@@ -34,6 +34,11 @@ export class WalletConnectComponent {
   connectedWallet$ = this.walletService.connectedWallet$;
   walletConnectRequested$ = this.walletService.walletConnectRequested$;
   isMainnet$ = this.walletService.isMainnet$;
+  // HACK -- Ordpool: connected wallet's network mismatch + expected group.
+  // Drives the wrong-network red banner in the popover. Backed by the
+  // SDK's getAddressNetwork / isAddressCompatibleWithNetwork helpers.
+  networkMismatch$ = this.walletService.networkMismatch$;
+  expectedNetworkGroup = this.walletService.expectedNetworkGroup;
 
   lastAccelerations$ = this.inscriptionAcceleratorApiService.allAccelerations$.pipe(
     map(x => limitArray(x.reverse(), 100))
