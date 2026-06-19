@@ -49,15 +49,20 @@
 
   <ng-container *ngIf="x.connectedWallet">
 
-    <button 
-      #myPopover="ngbPopover" 
+    <!-- HACK -- Ordpool: wrong-network indicator on the wallet button -->
+    <button
+      #myPopover="ngbPopover"
       [popoverTitle]="popTitle"
       [ngbPopover]="popContent"
       [autoClose]="'outside'"
-      popoverClass="walletConnectPopover" 
-      class="btn btn-secondary"
-      title="Your connected {{ knownOrdinalWallets[x.connectedWallet.type].label }} Wallet">
+      popoverClass="walletConnectPopover"
+      class="btn"
+      [ngClass]="(networkMismatch$ | async) ? 'btn-danger' : 'btn-secondary'"
+      [title]="(networkMismatch$ | async)
+        ? 'Wallet is on the wrong network — expected ' + expectedNetworkGroup
+        : 'Your connected ' + knownOrdinalWallets[x.connectedWallet.type].label + ' Wallet'">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
+      <span *ngIf="networkMismatch$ | async" aria-hidden="true" class="ms-1">&#9888;</span>
     </button>
 
     <ng-template #popTitle>
@@ -65,6 +70,14 @@
     </ng-template>
 
     <ng-template #popContent>
+
+      <!-- HACK -- Ordpool: wrong-network red banner -->
+      <div *ngIf="networkMismatch$ | async" class="alert alert-danger mb-2" role="alert">
+        <strong>Wrong network.</strong> This site expects
+        <code>{{ expectedNetworkGroup }}</code>, but your wallet returned
+        an address on a different network. Switch the network in your
+        wallet, then reconnect.
+      </div>
 
       <ul class="list-unstyled my-flex-container">
         <li title="{{ x.connectedWallet.ordinalsAddress || 'None'}}">
