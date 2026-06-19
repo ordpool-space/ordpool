@@ -1,45 +1,17 @@
-import { test, expect, Page } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
+import { test, expect } from '@playwright/test';
+import {
+  loadBitmapFixture,
+  mountFixture,
+  readDebug,
+  tick,
+  waitForState,
+} from '../_shared/bitmap-3d-debug';
 
-// Same canonical fixture as the desktop spec.
-const fixture = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, '../../fixtures/bitmap-800000.json'), 'utf8'),
-);
-
-interface Bitmap3dDebug {
-  state: string;
-  playerState: string;
-  pos: [number, number, number];
-  fov: number;
-  onFloor: boolean;
-  joy: { fwd: number; right: number };
-  look: { x: number; y: number };
-  touchOn: boolean;
-  pfpOn: boolean;
-  tick(frames?: number, dt?: number): void;
-  setKey(code: string, down: boolean): void;
-  jump(): void;
-}
-
-const readDebug = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __bitmap3d?: Bitmap3dDebug }).__bitmap3d!);
-
-const waitForState = (page: Page, target: string, timeout = 30_000) =>
-  page.waitForFunction(
-    s => (window as unknown as { __bitmap3d?: { state: string } }).__bitmap3d?.state === s,
-    target,
-    { timeout, polling: 100 },
-  );
-
-const tick = (page: Page, frames: number) =>
-  page.evaluate(n => (window as unknown as { __bitmap3d?: Bitmap3dDebug }).__bitmap3d?.tick(n), frames);
+const fixture = loadBitmapFixture();
 
 test.describe('bitmap-3d renderer (mobile)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(`window.__bitmap3dFixture = ${JSON.stringify({ sizes: fixture.sizes })};`);
-    await page.goto('/e2e/bitmap-3d');
-    await expect(page.getByTestId('bitmap-3d-renderer')).toBeAttached();
+    await mountFixture(page, fixture.sizes);
   });
 
   test('renderer mounts on a touch device + reports a touch viewport', async ({ page }) => {

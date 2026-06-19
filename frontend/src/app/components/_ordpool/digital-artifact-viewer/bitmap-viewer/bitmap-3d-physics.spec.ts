@@ -6,12 +6,11 @@ import {
   easeAlpha,
   fovTarget,
   gravityForStep,
+  SPEED_RUN_SQ as RUN_SQ,
+  SPEED_WALK_SQ as WALK_SQ,
 } from './bitmap-3d-physics';
 
 describe('derivePlayerState', () => {
-  // Match the renderer's tuned thresholds so callers see the same boundary.
-  const RUN_SQ = 1.5 * 1.5;
-  const WALK_SQ = 0.5 * 0.5;
 
   it('rising velocity in air -> jumping', () => {
     expect(derivePlayerState(0, 5, 0, false, false, RUN_SQ, WALK_SQ)).toBe('jumping');
