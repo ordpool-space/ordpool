@@ -32,6 +32,7 @@ import { ServicesApiServices } from '@app/services/services-api.service';
 import { DatePipe } from '@angular/common';
 import { HttpRetryInterceptor } from '@app/services/http-retry.interceptor';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
+import { BlockchainApiService } from '@app/services/ordinals/blockchain-api.service';
 import { Cat21ApiService, Cat21Service, storage, cat21Config, WalletService, Network, bitcoinNetwork } from 'ordpool-sdk';
 import { environment } from '@environments/environment';
 import { BlockstreamApiService } from '@app/services/ordinals/blockstream-api.service';
@@ -64,6 +65,7 @@ const providers = [
   { provide: HTTP_INTERCEPTORS, useClass: HttpCacheInterceptor, multi: true },
   { provide: ZONE_SERVICE, useClass: ZoneService },
   DigitalArtifactsFetcherService,
+  BlockchainApiService,
   // HACK -- Ordpool: bridge the SDK's framework-agnostic tokens to
   // the frontend's mempool-flavoured StorageService and to the Angular
   // environment. The Cat21Service / WalletService / Cat21ApiService
