@@ -1,13 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { map, of, switchMap } from 'rxjs';
+import { of, switchMap } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { Cat21Service } from 'ordpool-sdk';
-import { InscriptionAcceleratorApiService } from '../../../services/ordinals/inscription-accelerator-api.service';
 import { WalletService } from 'ordpool-sdk';
 import { KnownOrdinalWallets, KnownOrdinalWalletType, WalletInfo } from 'ordpool-sdk';
-import { limitArray } from './limit-array';
 
 
 @Component({
@@ -26,7 +24,6 @@ export class WalletConnectComponent {
 
   modalService = inject(NgbModal);
   walletService = inject(WalletService);
-  inscriptionAcceleratorApiService = inject(InscriptionAcceleratorApiService);
   cat21Service = inject(Cat21Service);
 
 
@@ -39,10 +36,6 @@ export class WalletConnectComponent {
   // SDK's getAddressNetwork / isAddressCompatibleWithNetwork helpers.
   networkMismatch$ = this.walletService.networkMismatch$;
   expectedNetworkGroup = this.walletService.expectedNetworkGroup;
-
-  lastAccelerations$ = this.inscriptionAcceleratorApiService.allAccelerations$.pipe(
-    map(x => limitArray(x.reverse(), 100))
-  );
 
   // Live feed of CAT-21 mints in the mempool addressed to the connected
   // wallet. Replaces the old localStorage-backed lastCat21Mints$:

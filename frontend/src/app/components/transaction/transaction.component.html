@@ -187,19 +187,24 @@
 
       <br>
 
-      <!-- HACK -->
-      <!--
-        Our own Inscription Accelerator
-        (which is not the same like the Transaction Accelerator)
-      -->
-      <ng-container *ngIf="tx">
-        <app-inscription-accelerator
-          [tx]="tx"
-          [hasEffectiveFeeRate]="hasEffectiveFeeRate"
-          [digitalArtifacts]="digitalArtifacts" />
-      </ng-container>
+      <!-- HACK -- Ordpool: inscription accelerator removed.
+           Rationale: (a) the CPFP child-tx code outsourced PSBT
+           construction to api.ordinalsbot.com — third-party origin in
+           the wallet path, untenable per the 2026-06-21 audit;
+           (b) the child-tx blindly spent the parent's vout 0, which is
+           exactly where CAT-21 cats and other inscriptions live,
+           burning them as miner fee when run against the wrong tx
+           shape (see the component's own "my big assumption" comment
+           in the deleted file). The flag enableInscriptionAccelerator
+           was off in prod since launch; we delete rather than fix
+           because re-using the feature would require an in-house PSBT
+           build path (signSingleFundingInput shape from the SDK) plus
+           a cat21/inscription guard — that's a project, not a fix.
 
-      <br>
+           If acceleration ever returns, restore via a new component
+           that uses the SDK's signSingleFundingInput signer method
+           and refuses to act on a tx whose vout 0 carries a parsed
+           digital artifact. Until then this block stays empty. -->
 
     </ng-container>
 
