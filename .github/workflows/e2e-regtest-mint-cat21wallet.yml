@@ -122,7 +122,7 @@ jobs:
         with:
           repository: ordpool-space/cat21-wallet
           path: cat21-wallet-src
-          ref: dev
+          ref: main
 
       - name: Setup pnpm for cat21-wallet build
         uses: pnpm/action-setup@v4
