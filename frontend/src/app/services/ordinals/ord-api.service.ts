@@ -69,14 +69,33 @@ export class OrdApiService {
   /**
    * GET against the configured ord upstreams in order. First 2xx wins;
    * any failure (5xx, network, CORS, etc.) falls through to the next.
+   *
+   * Pass `{ trusted: true }` for security-critical reads (anything that
+   * feeds into a PSBT, a signing decision, or wallet-shown ground-
+   * truth values like ownership / scriptPubKey). The fallback walk
+   * is then disabled — the first upstream MUST succeed or the call
+   * errors out. This enforces the workspace rule that signing-path
+   * data only comes from oracles we operate (ord.ordpool.space /
+   * ord.cat21.space), never silent third-party fallback.
+   *
+   * Display calls (block info, rune metadata, inscription content)
+   * may safely omit the option; the fallback to ordinalsbot is
+   * acceptable there since the worst-case is a misrendered widget.
+   *
+   * See audit findings M7 + companion rule in workspace CLAUDE.md.
    */
-  private getOrdJson<T>(path: string): Observable<T> {
+  private getOrdJson<T>(path: string, options: { trusted?: boolean } = {}): Observable<T> {
     const headers = new HttpHeaders().set('Accept', 'application/json');
     const [first, ...rest] = this.upstreams;
     if (!first) {
       return throwError(() => new Error('No ord upstreams configured'));
     }
+    const trusted = options.trusted === true;
     let chain: Observable<T> = this.http.get<T>(`${first}${path}`, { headers });
+    if (trusted) {
+      // Hard-fail on primary; no fallback walk.
+      return chain;
+    }
     for (const base of rest) {
       chain = chain.pipe(catchError(() => this.http.get<T>(`${base}${path}`, { headers })));
     }

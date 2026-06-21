@@ -141,43 +141,8 @@
 
       <hr>
 
-      <!--
-      Your last Inscription Accelerations:
-      <table class="table table-borderless table-striped" *ngIf="(lastAccelerations$ | async)?.length"  style="height: 200px; overflow: hidden">
-        <tbody>
-          <tr *ngFor="let acceleration of lastAccelerations$ | async">
-
-            <td>
-              {{ acceleration.createdAt | date:'yyyy-MM-dd' }}
-            </td>
-
-            <td>
-
-              <span class="tx-link">
-                <span class="txid">
-                  <app-truncate
-                    [text]="acceleration.txId"
-                    [lastChars]="5"
-                    [link]="['/tx/' | relativeUrl, acceleration.txId]"
-                    [maxWidth]="220"
-                    (click)="myPopover.close()"
-                    ><app-clipboard [text]="acceleration.txId" />
-                  </app-truncate>
-                </span>
-              </span>
-            </td>
-
-          </tr>
-        </tbody>
-      </table>
-      <div>
-        <small class="text-muted" *ngIf="!(lastAccelerations$ | async)?.length">
-          No inscription accelerations have been started on this computer yet.
-          If you want to accelerate a pending inscription in the mempool,
-          first select the transaction and try out our new service!
-        </small>
-      </div>
-      -->
+      <!-- HACK -- Ordpool: inscription-acceleration history table removed
+           along with the accelerator itself. -->
 
     </ng-template>
   </ng-container>

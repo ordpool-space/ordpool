@@ -35,7 +35,6 @@ import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-a
 import { BlockchainApiService } from '@app/services/ordinals/blockchain-api.service';
 import { Cat21ApiService, Cat21Service, storage, cat21Config, WalletService, Network, bitcoinNetwork } from 'ordpool-sdk';
 import { environment } from '@environments/environment';
-import { InscriptionAcceleratorApiService } from '@app/services/ordinals/inscription-accelerator-api.service';
 import { BlockstreamApiService } from '@app/services/ordinals/blockstream-api.service';
 import { OrdpoolStatsComponent } from '@components/_ordpool/ordpool-stats/ordpool-stats.component';
 
@@ -84,7 +83,6 @@ const providers = [
     cat21OrdApiUrl: 'https://ord.cat21.space',
   } },
   Cat21ApiService,
-  InscriptionAcceleratorApiService,
   WalletService,
   BlockstreamApiService,
   Cat21Service,

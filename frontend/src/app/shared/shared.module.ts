@@ -169,7 +169,6 @@ import { CapitalizeFirstPipe } from '@components/_ordpool/digital-artifact-viewe
 import { JsonViewerComponent } from '@components/_ordpool/digital-artifact-viewer/json-viewer/json-viewer.component';
 import { CodeViewerComponent } from '@components/_ordpool/digital-artifact-viewer/code-viewer/code-viewer.component';
 import { MetadataViewerComponent } from '@components/_ordpool/digital-artifact-viewer/metadata-viewer/metadata-viewer.component';
-import { InscriptionAcceleratorComponent } from '@components/_ordpool/inscription-accelerator/inscription-accelerator.component';
 import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wallet-connect.component';
 import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
@@ -333,7 +332,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     JsonViewerComponent,
     CodeViewerComponent,
     MetadataViewerComponent,
-    InscriptionAcceleratorComponent,
+
     WalletConnectComponent,
     Cat21MintComponent,
     CounterpartyViewerComponent,
@@ -504,7 +503,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     OnlyWeightDirective,
     // HACK -- ordpool exports
     DigitalArtifactViewerComponent,
-    InscriptionAcceleratorComponent,
+
     RunestoneIdToLinkComponent,
     RunestoneIdToTextComponent,
     Cat21ViewerComponent,
