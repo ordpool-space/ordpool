@@ -3,7 +3,6 @@ import { DigitalArtifact, DigitalArtifactsParserService, DigitalArtifactType } f
 import { catchError, map, merge, Observable, of, Subject, tap, throwError, timeout } from 'rxjs';
 import { Transaction } from 'src/app/interfaces/electrs.interface';
 
-import { BlockchainApiService } from './blockchain-api.service';
 import { BlockstreamApiService } from './blockstream-api.service';
 import { WalletService } from 'ordpool-sdk';
 import { ElectrsApiService } from '../electrs-api.service';
@@ -22,7 +21,6 @@ export class DigitalArtifactsFetcherService {
   walletService = inject(WalletService);
   electrsApiService = inject(ElectrsApiService);
   blockstreamApiService = inject(BlockstreamApiService);
-  blockchainApiService = inject(BlockchainApiService);
 
   /**
    * Cache for the fetched inscriptions.
@@ -87,9 +85,13 @@ export class DigitalArtifactsFetcherService {
    * Fetches a single transaction by ID. Order:
    *
    * 1. Our own backend (api.ordpool.space → electrs → bitcoind on happysrv)
-   * 2. fallback: blockstream.info
-   * 3. fallback: blockchain.info (warning: has no testnet support)
-   * ... or gives up.
+   * 2. fallback: blockstream.info (kept — electrs gets slow under
+   *    high traffic; Blockstream's public Esplora is the one trusted
+   *    Bitcoin-infra fallback we accept on display paths).
+   *
+   * Trust narrowing per audit L5: blockchain.info (no testnet, less
+   * trusted) was removed. mempool.space was never reachable from this
+   * chain anyway (host-banned us during the v2 cutover).
    *
    * @param txid The transaction ID.
    * @returns Observable of the transaction data.
@@ -97,7 +99,6 @@ export class DigitalArtifactsFetcherService {
   fetchTransaction(txid: string): Observable<Transaction> {
     return this.electrsApiService.getTransaction$(txid).pipe(
       catchError(() => this.blockstreamApiService.getTransaction$(txid)),
-      catchError(() => this.blockchainApiService.fetchSingleTransaction(txid)),
       catchError(() => throwError(() => new Error(`Failed to fetch the transaction ${txid} from all possible services.`)))
     );
   }

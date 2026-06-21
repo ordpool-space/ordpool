@@ -1,17 +1,18 @@
 @if (previewInstructions$ | async; as previewInstructions) {
+  <!-- SECURITY LOCK: do not add allow-same-origin. See safe-html.pipe.ts. -->
   @if (previewInstructions.renderDirectly) {
     <iframe
       [src]="'/preview/' + previewInstructions.instructionsFor | safeResourceUrl"
-      sandbox="allow-scripts" 
-      scrolling="no" 
+      sandbox="allow-scripts"
+      scrolling="no"
       loading="lazy"
     ></iframe>
 
   } @else {
     <iframe
       [srcdoc]="previewInstructions.previewContent | safeHtml"
-      sandbox="allow-scripts" 
-      scrolling="no" 
+      sandbox="allow-scripts"
+      scrolling="no"
       loading="lazy"
     ></iframe>
   }
