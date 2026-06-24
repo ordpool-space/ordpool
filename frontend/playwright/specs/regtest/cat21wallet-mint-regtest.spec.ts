@@ -136,10 +136,25 @@ test.beforeAll(async () => {
   extensionId = worker.url().split('/')[2];
 
   // Onboard inline — no cloned seed user-data-dir.
+  //
+  // Keep the onboarded page open for the duration of the suite. The
+  // SDK's matching `cat21wallet-mint-roundtrip.spec.ts` (which passes
+  // in SDK CI) follows the same pattern. Closing the only extension
+  // page after onboarding lets the wallet's service worker suspend
+  // and lose the in-memory vault state; subsequent
+  // `Cat21Provider.request('getAddresses', …)` calls from the dapp
+  // then hang because the wallet's background never reaches
+  // `triggerRequestPopupWindowOpen` (the connect approval popup
+  // never spawns and the spec times out at 60 s waiting for the
+  // chrome-extension://… approval window). Run 28111780727 traced
+  // the click reaching `connectWallet`, the button becoming
+  // disabled, and zero new chrome-extension pages being created
+  // for the next 60 s — the wallet binary itself doesn't open the
+  // popup when there's no other extension page to anchor the SW
+  // session.
   const primer = await context.newPage();
   await onboardCat21Wallet(primer);
   await shot(primer, '00-onboarded');
-  await primer.close();
 });
 
 test.afterAll(async () => {
