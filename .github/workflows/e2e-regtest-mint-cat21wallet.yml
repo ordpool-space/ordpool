@@ -124,6 +124,20 @@ jobs:
           path: cat21-wallet-src
           ref: main
 
+      # Switch Node to whatever cat21-wallet's `.nvmrc` pins (currently
+      # Node 22) so we match the wallet's own CI exactly. The previous
+      # `Setup Node (sdk)` step left Node at 24.13.0 — below the
+      # `^24.15.0` engine floor that `@angular/common@22.x` (pulled in
+      # by the wallet's lockfile as a transitive peer of ordpool-sdk)
+      # enforces. `pnpm install --frozen-lockfile` then refused to
+      # proceed with `ERR_PNPM_UNSUPPORTED_ENGINE`. The wallet's own CI
+      # never hit this because it uses `.nvmrc` → Node 22, which
+      # satisfies Angular 22's `^22.22.3` floor.
+      - name: Setup Node (cat21-wallet — match wallet's own CI)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'cat21-wallet-src/.nvmrc'
+
       - name: Setup pnpm for cat21-wallet build
         uses: pnpm/action-setup@v4
         with:
