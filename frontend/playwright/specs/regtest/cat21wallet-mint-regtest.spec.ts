@@ -161,63 +161,6 @@ test.afterAll(async () => {
   await context?.close();
 });
 
-// HACK -- Ordpool / CAT-21 wallet: connect-popup-not-appearing.
-//
-// Skipping the whole file pending a wallet-side runtime fix. All tests
-// depend on the first one to set `sharedPaymentAddress`; that first
-// test times out at 60 s waiting for the wallet's connect approval
-// popup window to spawn. Traces from runs 28132755361 / 28111780727 /
-// 28104937258 all converge on:
-//
-//   - Dapp loads at localhost:4200/cat21-mint ✓
-//   - Wallet's content-script + inpage.js inject into the dapp ✓
-//     (the picker shows CAT-21 wallet under the "installed" header)
-//   - Click on the picker entry registers, the wallet-card button
-//     becomes `disabled` (`connectButtonDisabled = true` in
-//     wallet-connect.component.ts:96), confirming
-//     `walletService.connectWallet('cat21wallet')` ran
-//   - For the next 60 s: ZERO `BrowserContext.page` events,
-//     ZERO new chrome-extension:// pages, ZERO console errors on the
-//     dapp side. The `connect()` Observable hangs without resolving
-//     or rejecting. The "Connect Wallet" modal stays open and the
-//     button stays disabled.
-//
-// Hypotheses checked + ruled out so far:
-//   - PNPM engine error on Node 24.13.0 vs Angular's
-//     `^24.15.0`. Fixed in ordpool#70ca6ca04 by pinning the wallet
-//     build to its own .nvmrc (Node 22).
-//   - Wallet bundle boot crash from a missing `wrapCreate
-//     BrowserRouterV7` in the C1 telemetry stub. Fixed in
-//     cat21-wallet#3bcbf0f6f.
-//   - Onboarded page being closed before the test — the original
-//     spec called `await primer.close()` after onboarding. Removed
-//     in ordpool#9734e71c0; same failure persists, so the close
-//     wasn't the cause.
-//
-// Open hypotheses for the wallet-runtime debug session:
-//   - The wallet's background `triggerRequestPopupWindowOpen` →
-//     `chrome.windows.create({type:'popup'})` may be hanging
-//     because the SW's `chrome.windows.getCurrent` callback never
-//     fires under headless-xvfb when the only extension page is
-//     onboarded but not focused. Bypass by setting
-//     `process.env.TEST_ENV=true` at wallet build time so the
-//     handler routes to `openRequestInFullPage` (tabs.create)
-//     instead.
-//   - The wallet's chunk 246.js is emitting a flurry of redacted
-//     pageErrors right around the click time on the still-open
-//     onboarded page. Could be drowning the SW's message queue.
-//     Decompile + look at line 203217 of the bundle for context.
-//   - Network arg: SDK e2e (works) connects with Network.Mainnet;
-//     this spec connects with Network.Regtest because the frontend
-//     workflow patches `bitcoinNetwork`. Wallet's getAddresses
-//     handler may have a regtest-only popup-spawn issue.
-//
-// Once the wallet exposes the popup correctly under headless-xvfb,
-// remove the `test.beforeEach` skip below and re-run.
-test.beforeEach(() => {
-  test.skip(true, 'wallet-runtime: connect-popup-not-appearing; see HACK comment above');
-});
-
 test('cat21-wallet appears in the picker and the connect approval round-trips', async () => {
   test.setTimeout(180_000);
 
