@@ -39,8 +39,12 @@
              LEFT = artifact preview, RIGHT = inscription/rune/cat counts.
              The original `.block-body` below stays in the DOM but is
              visually hidden via styles-ordpool-overrides2.scss; tooltips,
-             tests and click handlers keep working against the same bindings. -->
-        <div class="ordpool-iso-cube" *ngIf="!minimal">
+             tests and click handlers keep working against the same bindings.
+             Disabled on prod until layout + content-slot tuning lands;
+             flip *ngIf back to !minimal to re-enable. mempool-blocks and
+             stale-list don't have the overlay yet, so leaving this on
+             produces a mixed look across the three block strips. -->
+        <div class="ordpool-iso-cube" *ngIf="false">
           <svg class="iso-shape" viewBox="0 0 160 160">
             <polygon points="80,80 149.28,40 80,0 10.72,40" fill="#FF9900"/>
             <polygon points="80,80 10.72,40 10.72,120 80,160" fill="#C07300"/>
