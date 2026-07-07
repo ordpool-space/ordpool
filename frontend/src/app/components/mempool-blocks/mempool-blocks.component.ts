@@ -294,10 +294,8 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.blockWidth && this.blockWidth) {
-      // HACK -- Ordpool: tighter cube spacing 0.24 → 0.12 (matches
-      // blockchain-blocks). containerOffset reduced proportionally.
-      this.blockPadding = 0.12 * this.blockWidth;
-      this.containerOffset = 0.16 * this.blockWidth;
+      this.blockPadding = 0.24 * this.blockWidth;
+      this.containerOffset = 0.32 * this.blockWidth;
       this.blockOffset = this.blockWidth + this.blockPadding;
       this.cd.markForCheck();
     }
