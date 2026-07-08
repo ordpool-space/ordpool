@@ -654,6 +654,13 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
           if (this.network === '' && this.txId) {
             this.duplicateTxBlocks = DUPLICATE_TX_BLOCKS[this.txId?.toLowerCase()];
           }
+          /* HACK -- Ordpool: mobile ?mode=details redirect disabled. Upstream
+             added mode=details so the mobile tracker guard would skip the
+             branded TrackerComponent and land on the full details view. We
+             disable that tracker guard entirely (route-guards.ts trackerGuard
+             returns false), so nothing consumes `mode` anymore -- this redirect
+             only tacked a dead query param onto mobile /tx URLs. Preserved for
+             future merges.
           if (window.innerWidth <= 767.98) {
             this.router.navigate([this.relativeUrlPipe.transform('/tx'), this.txId], {
               queryParamsHandling: 'merge',
@@ -662,6 +669,7 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
               replaceUrl: true,
             });
           }
+          */
           this.seoService.setTitle(
             $localize`:@@bisq.transaction.browser-title:Transaction: ${this.txId}:INTERPOLATION:`
           );
