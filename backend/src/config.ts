@@ -176,6 +176,11 @@ interface IConfig {
     ENABLED: boolean;
     API: string;
   }
+  // HACK -- Ordpool: inscription ids hidden from the /content and /preview routes.
+  // Populated only in the server's (gitignored) mempool-config.json; empty by default.
+  HIDDEN: {
+    INSCRIPTIONS: string[];
+  }
 }
 
 const defaults: IConfig = {
@@ -351,6 +356,10 @@ const defaults: IConfig = {
   'STRATUM': {
     'ENABLED': false,
     'API': 'http://localhost:1234',
+  },
+  // HACK -- Ordpool: hidden inscriptions (empty default; real list is server-only)
+  'HIDDEN': {
+    'INSCRIPTIONS': [],
   }
 };
 
@@ -375,6 +384,7 @@ class Config implements IConfig {
   FIAT_PRICE: IConfig['FIAT_PRICE'];
   WALLETS: IConfig['WALLETS'];
   STRATUM: IConfig['STRATUM'];
+  HIDDEN: IConfig['HIDDEN']; // HACK -- Ordpool: hidden inscriptions
 
   constructor() {
     const configs = this.merge(configFromFile, defaults);
@@ -398,6 +408,7 @@ class Config implements IConfig {
     this.FIAT_PRICE = configs.FIAT_PRICE;
     this.WALLETS = configs.WALLETS;
     this.STRATUM = configs.STRATUM;
+    this.HIDDEN = configs.HIDDEN; // HACK -- Ordpool: hidden inscriptions
   }
 
   merge = (...objects: object[]): IConfig => {

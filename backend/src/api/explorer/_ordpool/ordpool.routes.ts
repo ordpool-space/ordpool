@@ -11,6 +11,7 @@ import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksReposito
 import ordpoolOtsRepository from '../../../repositories/OrdpoolOtsRepository';
 import { OTS_OUTBOUND_USER_AGENT } from '../../ordpool-ots-user-agent';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
+import { isHidden } from './hidden-content';
 import ordpoolAtomicalsApi from './ordpool-atomicals.api';
 import ordpoolInscriptionsApi from './ordpool-inscriptions.api';
 import ordpoolStampsApi from './ordpool-stamps.api';
@@ -435,6 +436,12 @@ class GeneralOrdpoolRoutes {
       return;
     }
 
+    // HACK -- Ordpool: hidden inscriptions are refused before decoding the witness.
+    if (isHidden(inscriptionId)) {
+      res.status(451).send('This content is unavailable.');
+      return;
+    }
+
     try {
 
       // A bare 64-hex txid (no `iN` suffix) means: return the first image-bearing
@@ -473,6 +480,12 @@ class GeneralOrdpoolRoutes {
 
     if (!inscriptionId) {
       res.status(400).send('Inscription ID is required.');
+      return;
+    }
+
+    // HACK -- Ordpool: hidden inscriptions are refused before decoding the witness.
+    if (isHidden(inscriptionId)) {
+      res.status(451).send('This content is unavailable.');
       return;
     }
 
