@@ -1,19 +1,20 @@
-@if (previewInstructions$ | async; as previewInstructions) {
-  <!-- SECURITY LOCK: do not add allow-same-origin. See safe-html.pipe.ts. -->
-  @if (previewInstructions.renderDirectly) {
-    <iframe
-      [src]="'/preview/' + previewInstructions.instructionsFor | safeResourceUrl"
-      sandbox="allow-scripts"
-      scrolling="no"
-      loading="lazy"
-    ></iframe>
+<!-- SECURITY LOCK: do not add allow-same-origin. See safe-html.pipe.ts. -->
+@if (renderViaBackend) {
+  <!-- Media / rich content: served by the backend /preview/<id> route,
+       never rendered client-side from the parsed witness. -->
+  <iframe
+    [src]="'/preview/' + inscriptionId | safeResourceUrl"
+    sandbox="allow-scripts"
+    scrolling="no"
+    loading="lazy"
+  ></iframe>
 
-  } @else {
-    <iframe
-      [srcdoc]="previewInstructions.previewContent | safeHtml"
-      sandbox="allow-scripts"
-      scrolling="no"
-      loading="lazy"
-    ></iframe>
-  }
+} @else if (previewInstructions$ | async; as previewInstructions) {
+  <!-- Inert content (text/json/code) or unknown placeholder: client-side. -->
+  <iframe
+    [srcdoc]="previewInstructions.previewContent | safeHtml"
+    sandbox="allow-scripts"
+    scrolling="no"
+    loading="lazy"
+  ></iframe>
 }
