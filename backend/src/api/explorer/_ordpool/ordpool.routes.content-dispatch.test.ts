@@ -27,7 +27,7 @@ jest.mock('./ordpool-atomicals.api', () => ({ __esModule: true, default: { $getF
 jest.mock('./ordpool-statistics.api', () => ({ __esModule: true, default: {} }));
 jest.mock('../../../config', () => ({
   __esModule: true,
-  default: { MEMPOOL: { NETWORK: 'mainnet', API_URL_PREFIX: '/api/v1/' } },
+  default: { MEMPOOL: { NETWORK: 'mainnet', API_URL_PREFIX: '/api/v1/' }, HIDDEN: { INSCRIPTIONS: [] } },
 }));
 
 const TXID = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799';
