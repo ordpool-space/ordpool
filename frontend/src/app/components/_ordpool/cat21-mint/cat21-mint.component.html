@@ -170,7 +170,7 @@
                   <ng-container *ngIf="x.scan.content.catIds.length > 0">
                     CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let id of x.scan.content.catIds; let last = last">
-                      <a [href]="cat21OrdReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                      <a [routerLink]="['/tx/' | relativeUrl, catTxId(id)]">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
                     </ng-container>
                     <br>
                   </ng-container>

@@ -80,7 +80,7 @@ const providers = [
     // needs a single base, not a fallback chain; ordinalsbot's
     // /output/ endpoint shape differs.
     ordApiUrl: environment.ordBaseUrls[0],
-    cat21OrdApiUrl: 'https://ord.cat21.space',
+    cat21OrdApiUrl: environment.cat21OrdBaseUrl,
   } },
   Cat21ApiService,
   WalletService,

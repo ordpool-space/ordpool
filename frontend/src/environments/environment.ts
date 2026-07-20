@@ -20,6 +20,9 @@ export const environment = {
     'https://testnet-explorer.ordinalsbot.com',
   ],
   cat21BaseUrl: 'http://localhost:3333',
+  // cat21-ord, the per-outpoint cat probe used by the SDK's UtxoContentScanner.
+  // Distinct from cat21BaseUrl above, which is the cat21-indexer REST backend.
+  cat21OrdBaseUrl: 'https://ord.cat21.space',
   // HACK -- Ordpool absolute URL: empty in dev so the Angular dev proxy
   // (proxy.conf.local-esplora.js) handles /api/* + /api/v1/ws routing.
   apiBaseUrl: '',

@@ -21,6 +21,9 @@ export const environment = {
     'https://testnet-explorer.ordinalsbot.com',
   ],
   cat21BaseUrl: 'https://backend2.cat21.space',
+  // cat21-ord, the per-outpoint cat probe used by the SDK's UtxoContentScanner.
+  // Distinct from cat21BaseUrl above, which is the cat21-indexer REST backend.
+  cat21OrdBaseUrl: 'https://ord.cat21.space',
   // HACK -- Ordpool absolute URL
   apiBaseUrl: 'https://api.ordpool.space',
   websocketBaseUrl: 'wss://api.ordpool.space',
