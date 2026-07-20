@@ -55,7 +55,12 @@
 
       <p *ngIf="officialMempoolSpace">If you use Mempool Accelerator&reg; your acceleration request will be sent to us and relayed to Mempool's mining pool partners. We will store the TXID of the transactions you accelerate with us. We share this information with our mining pool partners, and publicly display accelerated transaction details on our website and APIs. No personal information or account identifiers will be shared with any third party including mining pool partners.</p>
 
+      <!-- HACK -- Ordpool: hidden. This paragraph renders precisely when the
+           build is NOT official mempool.space, i.e. always on ordpool, and tells
+           our users that mempool.space's privacy policy governs them. Ordpool does
+           not offer Mempool Accelerator, so no such policy applies.
       <p *ngIf="!officialMempoolSpace">When using Mempool Accelerator&reg; the mempool.space privacy policy will apply: <a href="https://mempool.space/privacy-policy">https://mempool.space/privacy-policy</a>.</p>
+      -->
 
       <br>
 

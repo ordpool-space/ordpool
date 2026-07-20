@@ -27,7 +27,8 @@
               </tr>
               <tr *ngIf="!isNativeAsset && assetContract[0]">
                 <td i18n="asset.issuer|Liquid Asset issuer">Issuer</td>
-                <td><a target="_blank" href="{{ 'http://' + assetContract[0] }}">{{ assetContract[0] }}</a></td>
+                <!-- HACK -- Ordpool: rel="noopener" added. The host comes from asset metadata, so the opened page is untrusted and could reach window.opener. -->
+                <td><a target="_blank" rel="noopener noreferrer" href="{{ 'http://' + assetContract[0] }}">{{ assetContract[0] }}</a></td>
               </tr>
               <tr *ngIf="asset.issuance_txin">
                 <td i18n="asset.issuance-tx|Liquid Asset issuance TX">Issuance TX</td>
