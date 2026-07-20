@@ -53,12 +53,13 @@ export class Cat21MintComponent implements OnInit {
   readonly cat21OrdReviewBase = this.config.cat21OrdApiUrl;
 
   /**
-   * Mint txid of a cat, for the "you are about to spend this" warning. Links
-   * into ordpool's own transaction page: ord.cat21.space serves JSON only, so
-   * a browser link there is refused, and ordpool already decodes CAT-21.
+   * cat21.space sat-page link for the cats on a funding UTXO. All cats at an
+   * outpoint share offset 0, so one sat page lists every one and shows where
+   * each sits now. The mint tx would mislead here: it shows where a cat
+   * started, not where it is after a transfer.
    */
-  catTxId(catId: string): string {
-    return catId.replace(/i\d+$/, '');
+  catSatLink(catSat: number): string {
+    return `https://cat21.space/sat/${catSat}`;
   }
 
   /** Auto-scan threshold echoed into the template for the "Scan anyway" hint. */

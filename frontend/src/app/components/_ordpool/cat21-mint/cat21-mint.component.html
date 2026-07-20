@@ -168,9 +168,9 @@
                     <br>
                   </ng-container>
                   <ng-container *ngIf="x.scan.content.catIds.length > 0">
-                    CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}:
-                    <ng-container *ngFor="let id of x.scan.content.catIds; let last = last">
-                      <a [routerLink]="['/tx/' | relativeUrl, catTxId(id)]">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                    CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}: {{ x.scan.content.catIds.length }}
+                    <ng-container *ngIf="x.scan.content.catSat as catSat">
+                      — <a [href]="catSatLink(catSat)" target="_blank" rel="noopener">view on cat21.space</a>
                     </ng-container>
                     <br>
                   </ng-container>

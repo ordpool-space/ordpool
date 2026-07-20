@@ -384,7 +384,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('E2: assets is the biggest → clean below it wins', () => {
       pushRows([
-        { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [] } } },
+        { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
         { u: big(20_000), scan: { kind: 'scanned-clean' } },
       ]);
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
@@ -400,7 +400,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('E4: mixed clean+unscanned+assets → clean wins', () => {
       pushRows([
-        { u: big(90_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [] } } },
+        { u: big(90_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
         { u: big(70_000), scan: { kind: 'not-scanned' } },
         { u: big(5_000), scan: { kind: 'scanned-clean' } },
       ]);
@@ -409,8 +409,8 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('E5: all assets → no auto-pick (selectedPaymentOutput undefined)', () => {
       pushRows([
-        { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [] } } },
-        { u: big(20_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'b:0', inscriptionIds: [], runes: { RUNE: {} }, catIds: [] } } },
+        { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
+        { u: big(20_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'b:0', inscriptionIds: [], runes: { RUNE: {} }, catIds: [], catSat: null, rareSat: null } } },
       ]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       expect(orch.selectedUtxo()).toBeNull();
@@ -525,7 +525,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('G2: scanned-with-assets requires explicit user pick', () => {
-      const scan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['x'], runes: null, catIds: [] } };
+      const scan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['x'], runes: null, catIds: [], catSat: null, rareSat: null } };
       pushRows([{ u, scan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: 'assets' });
@@ -662,8 +662,8 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   describe('M. helpers', () => {
     it('M1: runeNames extracts keys; null runes → empty array', () => {
-      expect(component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: null, catIds: [] })).toEqual([]);
-      expect(component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: { ALPHA: {}, BETA: {} }, catIds: [] }).sort()).toEqual(['ALPHA', 'BETA']);
+      expect(component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: null, catIds: [], catSat: null, rareSat: null })).toEqual([]);
+      expect(component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: { ALPHA: {}, BETA: {} }, catIds: [], catSat: null, rareSat: null }).sort()).toEqual(['ALPHA', 'BETA']);
     });
 
     it('M2: autoScanThreshold matches the SDK constant', () => {
@@ -803,7 +803,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     it('MATRIX-E2(B): **THE REGRESSION** — assets-only scenario must still expose the picker (viable rows > 0 even if no selection)', () => {
       const assetsScan: UtxoScanState = {
         kind: 'scanned-with-assets',
-        content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [] },
+        content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null },
       };
       pushRows([{ u: big(50_000), scan: assetsScan }]);
       let rows: ViableSimulation[] | undefined;
@@ -827,7 +827,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     it('MATRIX-E11(B): mint button disabled when there is no row selection', () => {
       const assetsScan: UtxoScanState = {
         kind: 'scanned-with-assets',
-        content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [] },
+        content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null },
       };
       pushRows([{ u: big(50_000), scan: assetsScan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
@@ -840,7 +840,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const u1 = big(50_000);
       const assetsScan: UtxoScanState = {
         kind: 'scanned-with-assets',
-        content: { outpoint: `${u1.txid}:0`, inscriptionIds: ['i'], runes: null, catIds: [] },
+        content: { outpoint: `${u1.txid}:0`, inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null },
       };
       pushRows([{ u: u1, scan: assetsScan }]);
       // Pre: no selection
@@ -854,7 +854,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   describe('MATRIX-I. edge cases', () => {
     it('MATRIX-I20(B): runeNames returns [] for null runes (no crash)', () => {
-      const empty = component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: null, catIds: [] });
+      const empty = component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: null, catIds: [], catSat: null, rareSat: null });
       expect(empty).toEqual([]);
     });
 
