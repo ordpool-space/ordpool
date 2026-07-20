@@ -81,8 +81,20 @@ export interface PollResult {
   totalSeen: number;
 }
 
-/** Default poll cadence. Sub-RBF-interval keeps every replaced txid catchable. */
-const DEFAULT_INTERVAL_MS = 60 * 1000;
+/**
+ * Default poll cadence. Calendars aggregate and commit on a far slower rhythm
+ * than this, and they are unpaid third parties, so a tighter loop mostly buys
+ * request volume: four calendars at one minute is ~5.7k requests/day each.
+ *
+ * The cost of the slower cadence is bounded. Confirmed commitments stay in the
+ * calendar's confirmed batch and are picked up whenever we next look, so
+ * nothing durable is missed. What can slip past is an unconfirmed commitment
+ * that is RBF-replaced between two polls: the calendar exposes only the latest
+ * via `most_recent_tx`, so an intermediate version is flagged only if a poll
+ * lands while it is current. Those versions never confirm, so the loss is a
+ * transient mempool flag, not on-chain data.
+ */
+const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 12 * 1000;
 
 class OrdpoolOtsPoller {
@@ -125,6 +137,13 @@ class OrdpoolOtsPoller {
       for (const cal of KNOWN_CALENDARS) {
         out.push(await this.pollOne(cal));
       }
+      // One unreachable calendar is routine: they are independent operators
+      // and the set is redundant on purpose, so the others still hydrate the
+      // txid set. Losing every calendar in the same tick is ours to care
+      // about — no calendar means no new OTS commits observed at all.
+      if (out.length > 0 && out.every(r => !r.ok)) {
+        logger.warn(`OTS poll: no calendar responded (${out.length} tried)`, 'Ordpool');
+      }
       return out;
     } finally {
       this.inFlight = false;
@@ -137,7 +156,7 @@ class OrdpoolOtsPoller {
       body = await this.fetchCalendarJson(cal.url);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      logger.warn(`OTS poll ${cal.nickname}: fetch failed -- ${message}`, 'Ordpool');
+      logger.debug(`OTS poll ${cal.nickname}: unreachable -- ${message}`, 'Ordpool');
       return { calendar: cal.nickname, ok: false, errorMessage: message, newConfirmed: 0, newPending: 0, upgraded: 0, totalSeen: 0 };
     }
 
@@ -196,8 +215,9 @@ class OrdpoolOtsPoller {
     }
 
     // Mempool: the server only surfaces the LATEST unconfirmed via most_recent_tx
-    // (older RBF-replaced versions count via prior_versions, no txids exposed).
-    // Our short polling interval catches each version when it's the current most_recent_tx.
+    // (older RBF-replaced versions count via prior_versions, no txids exposed),
+    // so a version is caught only if a poll lands while it is current. See
+    // DEFAULT_INTERVAL_MS for why that is an accepted loss.
     const mr = body.most_recent_tx;
     if (mr && mr !== 'None' && !ordpoolOtsTxidSet.has(mr)) {
       const merkleRoot = tipHex ?? mr;
