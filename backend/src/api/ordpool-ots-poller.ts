@@ -232,9 +232,9 @@ class OrdpoolOtsPoller {
   private async fetchCalendarJson(url: string): Promise<CalendarResponse> {
     const res = await fetchWithTimeout(url, {
       headers: {
-        // Identify ourselves on every 60-second indexer poll so calendar
-        // operators recognise the traffic and have a path to contact us
-        // instead of rate-limiting an anonymous Node fetch UA.
+        // Identify ourselves on every poll so calendar operators recognise
+        // the traffic and have a path to contact us instead of rate-limiting
+        // an anonymous Node fetch UA.
         'Accept': 'application/json',
         'User-Agent': OTS_OUTBOUND_USER_AGENT,
       },
