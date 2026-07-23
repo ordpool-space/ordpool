@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**E2E work:** the workspace-level [`~/Work/ordpool/E2E_BEST_PRACTICES.md`](../../../E2E_BEST_PRACTICES.md) codifies data-testid-first, click-instead-of-`goto`, wait-on-states etc. Same principles apply to this repo's Cypress surface (translated to `cy.get('[data-testid=...]')`, `cy.contains()` etc.).
+**E2E work:** the workspace-level [`~/Work/ordpool/E2E_BEST_PRACTICES.md`](../../../E2E_BEST_PRACTICES.md) codifies our Playwright rules. **The `cypress/` suite here is legacy upstream mempool code and is explicitly out of scope for those rules** — do not audit or port; touch only when a bug fix genuinely lives there. An ordpool-owned Playwright surface (workspace-level `ordpool/e2e/`) will land later and will follow the doc from day one.
 
 ## Frontend: ordpool (Angular 20)
 
