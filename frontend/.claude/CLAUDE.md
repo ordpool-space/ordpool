@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**E2E work:** the workspace-level [`~/Work/ordpool/E2E_BEST_PRACTICES.md`](../../../E2E_BEST_PRACTICES.md) codifies data-testid-first, click-instead-of-`goto`, wait-on-states etc. Same principles apply to this repo's Cypress surface (translated to `cy.get('[data-testid=...]')`, `cy.contains()` etc.).
+
 ## Frontend: ordpool (Angular 20)
 
 Fork of mempool.space frontend with Ordinals customizations. After the upstream-merge in April 2026 the stack is Angular 20 + Bootstrap 5 + Node 24 (was Angular 17 / Bootstrap 4 / Node 20 in v1).
