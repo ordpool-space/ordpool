@@ -73,6 +73,22 @@ let extensionId: string;
 // payment address.
 let sharedPaymentAddress: string | undefined;
 
+// TS narrowing message for sharedPaymentAddress reads throughout the
+// suite. beforeAll structurally sets sharedPaymentAddress; every
+// `if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET)`
+// below is a type-checker gate, not an ordering guard. If it fires,
+// beforeAll itself would have failed and Playwright would have
+// reported that first. Serial mode (below) removes any remaining
+// "test N ran before test 1" concern.
+const SHARED_ADDR_UNSET = 'sharedPaymentAddress not initialized (beforeAll should have set it)';
+
+// File-scope serial mode: tests in this spec share a connected wallet
+// + funded UTXOs on regtest. Serial mode makes Playwright run tests
+// in file order and skip subsequent tests when one earlier in the
+// file fails, so a broken beforeAll or first test doesn't cascade
+// into misleading downstream errors.
+test.describe.configure({ mode: 'serial' });
+
 async function shot(p: Page, name: string): Promise<void> {
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21wallet-mint-regtest-${name}.png`),
@@ -368,7 +384,7 @@ async function cat21walletMintAtRate(opts: {
   scenarioLabel: string;
   mockFeesAsHigh?: boolean;
 }): Promise<{ broadcastTxid: string; fee: number; vsize: number; rate: number; tx: { vin: { sequence: number }[]; vout: { value: number }[]; locktime: number } }> {
-  if (!sharedPaymentAddress) throw new Error('first test must have set sharedPaymentAddress');
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
 
   if (opts.mockFeesAsHigh) {
     const res = await fetch('http://localhost:8999/admin/fees', {
@@ -483,7 +499,7 @@ async function cat21walletMintAtRate(opts: {
  */
 test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', async () => {
   test.setTimeout(420_000);
-  if (!sharedPaymentAddress) throw new Error('first test must have set sharedPaymentAddress');
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
 
   const SMALL_FUND_SATS = 15_000;
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.00015').trim();
@@ -623,7 +639,7 @@ test('manual override: typing 1 while the picker suggests 100 — low rate wins 
 
 test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   test.setTimeout(180_000);
-  if (!sharedPaymentAddress) throw new Error('first test must have set sharedPaymentAddress');
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
   rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.0003');
   await waitForElectrsSync(mineBlocks(1));
 
@@ -681,7 +697,7 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
 
 test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake success)', async () => {
   test.setTimeout(240_000);
-  if (!sharedPaymentAddress) throw new Error('first test must have set sharedPaymentAddress');
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
   rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.0003');
   await waitForElectrsSync(mineBlocks(1));
 
