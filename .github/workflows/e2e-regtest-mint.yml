@@ -4,7 +4,9 @@ name: E2E (regtest mint)
 #   bitcoind + electrs + mariadb (from ordpool-sdk's consumer-environment)
 #   + ordpool-backend (this repo) + ordpool/frontend serving locally
 #   + Xverse extension headed in xvfb
-#   + Playwright drives /cat21-mint end-to-end through to a real mint
+#   + Playwright drives /cat21-mint AND /inscribe end-to-end through to a
+#     real mint / a real single-file inscription (commit + reveal),
+#     reusing the one stack for both specs
 #
 # Iteration ladder (matches PLAN-cat21-mint-port.md):
 #   1. bring the backend stack up, confirm /api/v1/fees/recommended +
@@ -26,6 +28,9 @@ on:
       - 'e2e/docker-compose.ordpool-backend.yml'
       - 'e2e/mempool-config.regtest.json'
       - '.github/workflows/e2e-regtest-mint.yml'
+      - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
   contents: read
@@ -327,6 +332,23 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # Same stack, second spec: drive the /inscribe page through a full
+      # single-file inscription (commit + reveal). `if: always()` so a
+      # cat21-mint failure above still lets the inscribe signal through —
+      # the two specs share only the regtest chain + the Xverse seed, each
+      # funds its own UTXO in its own browser context.
+      - name: Run the page-driven inscribe regtest spec
+        if: always()
+        working-directory: frontend
+        env:
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
