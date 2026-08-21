@@ -11,7 +11,7 @@ import {
   waitForElectrsSync,
   rpc,
   mineBlocks,
-  getTx,
+  waitForTxConfirmed,
 } from './sdk-lib/regtest-helpers';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
@@ -348,7 +348,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   // Mine confirmation block, verify on-chain.
   const confirmedTip = mineBlocks(1);
   await waitForElectrsSync(confirmedTip);
-  const esploraTx = await getTx(broadcastTxid);
+  const esploraTx = await waitForTxConfirmed(broadcastTxid);
   expect(esploraTx.locktime).toBe(21);
   expect(esploraTx.status.block_hash).toBeTruthy();
   // Output 0 = cat sat at exactly 546.
@@ -469,7 +469,7 @@ async function cat21walletMintAtRate(opts: {
 
     const confTip = mineBlocks(1);
     await waitForElectrsSync(confTip);
-    const tx = await getTx(broadcastTxid);
+    const tx = await waitForTxConfirmed(broadcastTxid);
     expect(tx.locktime).toBe(21);
     expect(tx.vout.length).toBeGreaterThanOrEqual(1);
     expect(tx.vout[0].value).toBe(546);
@@ -610,7 +610,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const broadcastTxid = successHref!.match(/\/tx\/([0-9a-f]{64})/)![1];
   await waitForElectrsSync(mineBlocks(1));
-  const tx = await getTx(broadcastTxid);
+  const tx = await waitForTxConfirmed(broadcastTxid);
   expect(tx.locktime).toBe(21);
   expect(tx.vout[0].value).toBe(546);
   for (const vin of tx.vin) {

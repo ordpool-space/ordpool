@@ -18,7 +18,7 @@ import {
   waitForElectrsSync,
   rpc,
   mineBlocks,
-  getTx,
+  waitForTxConfirmed,
 } from './sdk-lib/regtest-helpers';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
@@ -407,7 +407,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // ─── 8. Mine the confirmation block, parse the cat21 ───────────
   const confirmedTip = mineBlocks(1);
   await waitForElectrsSync(confirmedTip);
-  const esploraTx = await getTx(broadcastTxid);
+  const esploraTx = await waitForTxConfirmed(broadcastTxid);
   console.log(`[mint-page] locktime=${esploraTx.locktime}  block_hash=${esploraTx.status.block_hash}`);
   expect(esploraTx.locktime).toBe(21);
   expect(esploraTx.status.block_hash).toBeTruthy();
@@ -683,7 +683,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
 
   const burnConfTip = mineBlocks(1);
   await waitForElectrsSync(burnConfTip);
-  const burnTx = await getTx(burnTxid);
+  const burnTx = await waitForTxConfirmed(burnTxid);
   expect(burnTx.locktime).toBe(21);
   expect(burnTx.vout[0].value).toBe(546);
   for (const vin of burnTx.vin) {
@@ -1018,7 +1018,7 @@ async function ordpoolMintAtRate(opts: {
     // ─── Mine confirmation, parse, compute on-chain fee_rate ─────
     const confTip = mineBlocks(1);
     await waitForElectrsSync(confTip);
-    const tx = await getTx(broadcastTxid);
+    const tx = await waitForTxConfirmed(broadcastTxid);
     expect(tx.locktime).toBe(21);
     expect(tx.status.block_hash).toBeTruthy();
     // RBF + output integrity, on every mint round-trip — see test 1's
