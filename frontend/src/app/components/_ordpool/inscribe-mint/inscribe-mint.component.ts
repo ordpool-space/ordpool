@@ -9,7 +9,6 @@ import {
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
   InscribeUtxoSimulation,
-  Network,
   SMALL_UTXO_WARNING_THRESHOLD_SAT,
   SimulateInscribeFeesResult,
   TxnOutput,
@@ -243,13 +242,13 @@ export class InscribeMintComponent implements OnInit {
     ev.preventDefault();
     this.isDragging = false;
     const file = ev.dataTransfer?.files?.[0];
-    if (file) this.handleFile(file);
+    if (file) {this.handleFile(file);}
   }
 
   onPick(ev: Event): void {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (file) this.handleFile(file);
+    if (file) {this.handleFile(file);}
     input.value = '';
   }
 
@@ -288,7 +287,7 @@ export class InscribeMintComponent implements OnInit {
       this.syncContent();
       this.recomputePreConnectCost();
       this.cd.markForCheck();
-    } catch (e) {
+    } catch {
       this.pickedFile = null;
       this.orchestrator.setContent(null);
       this.fileError = 'Could not read that file. Please try another.';
@@ -298,7 +297,7 @@ export class InscribeMintComponent implements OnInit {
 
   /** Push the current file into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
-    if (!this.pickedFile) return;
+    if (!this.pickedFile) {return;}
     this.orchestrator.setContent({
       body: this.pickedFile.bytes,
       contentType: this.pickedFile.contentType,
@@ -309,7 +308,7 @@ export class InscribeMintComponent implements OnInit {
     this.preConnectMintSats = null;
     const file = this.pickedFile;
     const feeRate = this.cfeeRate.value;
-    if (!file || !feeRate || feeRate <= 0) return;
+    if (!file || !feeRate || feeRate <= 0) {return;}
     try {
       const scureNet = toScureNetwork(this.network);
       const dummy = getDummyKeypair(scureNet);
@@ -341,9 +340,9 @@ export class InscribeMintComponent implements OnInit {
   /** Exact wallet debit for the selected UTXO, dust-aware. */
   totalSpendSats(wallet: WalletInfo | null | undefined): number | null {
     const row = this.selectedPaymentOutput;
-    if (!row) return null;
+    if (!row) {return null;}
     const funding = row.simulation.fundingRequirementSats;
-    if (!wallet) return funding;
+    if (!wallet) {return funding;}
     const changeMin = getMinimumUtxoSize(wallet.paymentAddress);
     const change = row.paymentOutput.value - funding;
     return change < changeMin ? row.paymentOutput.value : funding;
@@ -382,7 +381,7 @@ export class InscribeMintComponent implements OnInit {
   }
 
   isSingleAddressWallet(wallet: WalletInfo | null | undefined): boolean {
-    if (!wallet) return false;
+    if (!wallet) {return false;}
     return wallet.ordinalsAddress === wallet.paymentAddress;
   }
 
@@ -391,7 +390,7 @@ export class InscribeMintComponent implements OnInit {
   }
 
   inscribe(wallet: WalletInfo): void {
-    if (!this.pickedFile) return;
+    if (!this.pickedFile) {return;}
     this.mintGateError = '';
     this.mintAttempted = true;
 
