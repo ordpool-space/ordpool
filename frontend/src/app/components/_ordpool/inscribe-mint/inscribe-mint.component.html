@@ -5,7 +5,7 @@
 
     <div class="text-start">
       <p class="mx-auto" style="max-width: 800px;">
-        Upload any file — image, SVG, text, JSON, PDF — and inscribe it directly
+        Upload any file (image, SVG, text, JSON, PDF) and inscribe it directly
         onto Bitcoin from your own wallet. <strong>No service fee</strong> (you pay
         only the network miner fee), <strong>non-custodial</strong> (your wallet signs
         the transactions, we never touch your keys), and every inscription also mints
@@ -77,7 +77,7 @@
               </div>
               <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
-                <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB — anything lower won't relay on a default-config Bitcoin Core node.</div>
+                <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB. Anything lower won't relay on a default-config Bitcoin Core node.</div>
               </div>
             </div>
           </div>
@@ -88,7 +88,7 @@
             <strong>{{ totalSpendSats(x.connectedWallet) | number }}</strong>
             <span class="symbol" i18n="shared.sat|sat">sat</span>
             (<app-fiat [value]="totalSpendSats(x.connectedWallet) || 0"></app-fiat>)
-            — commit + reveal miner fees plus the {{ postageSats }} sat inscription output.
+            for commit + reveal miner fees plus the {{ postageSats }} sat inscription output.
           </div>
 
           <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading()">
@@ -109,8 +109,8 @@
                 an inscription output (a {{ postageSats }}-sat dust output sent to your
                 ordinals address) plus change back to your payment address. Change below
                 the dust limit is folded into the miner fee. Sources flagged
-                <em>asset found</em> carry an inscription, rune, rare sat, or cat —
-                inscribing with one sends that asset to the miner as fee.
+                <em>asset found</em> carry an inscription, rune, rare sat, or cat.
+                Inscribing with one sends that asset to the miner as fee.
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let row of paymentOutputs$ | async"
@@ -219,7 +219,7 @@
             (visible once the reveal confirms and ord indexes the block)
           </div>
           <div class="mt-2">
-            😺 This inscription also minted <strong>2 free CAT-21 cats</strong> — one on the commit,
+            😺 This inscription also minted <strong>2 free CAT-21 cats</strong>, one on the commit,
             one on the reveal. Find them at
             <a class="alert-link text-decoration-underline" href="https://cat21.space/" target="_blank" rel="noopener">cat21.space</a>.
           </div>
@@ -233,7 +233,7 @@
           <p class="alert alert-warning mt-4" *ngIf="!selectedPaymentOutput || (selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold && selectedPaymentOutput.bucket !== 'clean' && selectedPaymentOutput.bucket !== 'assets')">
             Your wallet uses a single address for both payments and ordinals.
             UTXOs at or below {{ smallUtxoWarningThreshold | number }} sats may hold inscriptions,
-            runes, rare sats, or cats — spending one as an input would send the asset to the miner as fee.
+            runes, rare sats, or cats. Spending one as an input would send the asset to the miner as fee.
             Review the UTXO you inscribe with in expert mode above.
           </p>
         </ng-container>

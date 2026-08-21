@@ -52,7 +52,7 @@ interface PickedFile {
 
 /**
  * On-chain body-size ceiling for a single inscription. Matches the SDK
- * gate's DEFAULT_MAX_CONTENT_BYTES — keeps the reveal under standard
+ * gate's DEFAULT_MAX_CONTENT_BYTES, which keeps the reveal under standard
  * relay. Enforced client-side here for instant feedback; the gate is
  * still the hard backstop.
  */
@@ -278,7 +278,7 @@ export class InscribeMintComponent implements OnInit {
       if (bytes.length > MAX_CONTENT_BYTES) {
         this.pickedFile = null;
         this.orchestrator.setContent(null);
-        this.fileError = `This file is ${Math.ceil(bytes.length / 1024)} KB. On-chain inscriptions are capped at ${MAX_CONTENT_BYTES / 1000} KB — compress it or pick a smaller file.`;
+        this.fileError = `This file is ${Math.ceil(bytes.length / 1024)} KB. On-chain inscriptions are capped at ${MAX_CONTENT_BYTES / 1000} KB. Compress it or pick a smaller file.`;
         this.cd.markForCheck();
         return;
       }
@@ -368,7 +368,7 @@ export class InscribeMintComponent implements OnInit {
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {
       case 'clean':
-        return 'We checked this UTXO against ord and cat21-ord. No inscriptions, runes, or cats — safe to use as a mint input.';
+        return 'We checked this UTXO against ord and cat21-ord. No inscriptions, runes, or cats. Safe to use as a mint input.';
       case 'assets':
         return 'This UTXO holds at least one inscription, rune, or CAT-21 cat. Spending it as a mint input would send the asset away to the miner as fee. Use "Use anyway" only if you really mean to.';
       case 'unscanned':
@@ -432,7 +432,7 @@ export class InscribeMintComponent implements OnInit {
     // failure arm explicitly.
     const failure = gate as Extract<InscribeOperationGateResult, { ok: false }>;
     const detail = failure.detail ? ': ' + failure.detail : '';
-    this.mintGateError = `Inscription refused (${failure.reason}${detail}). This is a safety check — please report if you were inscribing a normal file.`;
+    this.mintGateError = `Inscription refused (${failure.reason}${detail}). This is a safety check. Please report if you were inscribing a normal file.`;
     this.cd.detectChanges();
   }
 
