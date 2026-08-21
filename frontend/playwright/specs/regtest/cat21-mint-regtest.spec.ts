@@ -14,6 +14,7 @@ import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 // workflow copies them out to ./sdk-lib/ before the spec runs.
 import {
   getUtxos,
+  waitForUtxoAt,
   waitForElectrsSync,
   rpc,
   mineBlocks,
@@ -249,12 +250,11 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   const fundedTip = mineBlocks(1);
   await waitForElectrsSync(fundedTip);
 
-  const utxos = await getUtxos(wallet.paymentAddress);
-  expect(utxos.length).toBeGreaterThan(0);
-  const fundedUtxo = utxos.find((u) => u.value === FUND_AMOUNT_SATS);
-  if (!fundedUtxo) {
-    throw new Error(`could not find ${FUND_AMOUNT_SATS}-sat UTXO; got ${JSON.stringify(utxos)}`);
-  }
+  // Poll the address→utxo index until the funding UTXO is visible.
+  // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
+  // the address→utxo mapping a tick later, so an immediate getUtxos can
+  // miss the fresh output.
+  await waitForUtxoAt(wallet.paymentAddress, FUND_AMOUNT_SATS);
 
   // ─── 4b. Reload page to refresh UTXO state ─────────────────────
   // The orchestrator fires getUtxos once on connect — funding the

@@ -7,6 +7,7 @@ import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 
 import {
   getUtxos,
+  waitForUtxoAt,
   waitForElectrsSync,
   rpc,
   mineBlocks,
@@ -285,8 +286,9 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   console.log(`[cat21wallet] funded ${paymentAddr} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
   const fundedTip = mineBlocks(1);
   await waitForElectrsSync(fundedTip);
-  const fundUtxos = await getUtxos(paymentAddr);
-  expect(fundUtxos.length).toBeGreaterThan(0);
+  // Poll the address→utxo index until the funding UTXO is visible
+  // (waitForElectrsSync confirms block height, not per-address indexing).
+  await waitForUtxoAt(paymentAddr, Math.round(FUND_AMOUNT_BTC * 1e8));
 
   // Reload so the orchestrator picks up the new UTXO.
   const knownBeforeReload = new Set(context.pages());

@@ -9,7 +9,7 @@ import { InscriptionParserService } from 'ordpool-parser';
 // copies them into ./sdk-lib/ before this spec runs (Node 24's built-in
 // type-stripping refuses to compile .ts under node_modules).
 import {
-  getUtxos,
+  waitForUtxoAt,
   waitForElectrsSync,
   waitForTxConfirmed,
   rpc,
@@ -229,12 +229,11 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   console.log(`[inscribe-page] funded ${paymentAddress} with ${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
   await waitForElectrsSync(mineBlocks(1));
 
-  const utxos = await getUtxos(paymentAddress);
-  expect(utxos.length).toBeGreaterThan(0);
-  const fundedUtxo = utxos.find((u) => u.value === FUND_AMOUNT_SATS);
-  if (!fundedUtxo) {
-    throw new Error(`could not find ${FUND_AMOUNT_SATS}-sat UTXO; got ${JSON.stringify(utxos)}`);
-  }
+  // Poll the address→utxo index until the funding UTXO is visible.
+  // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
+  // the address→utxo mapping a tick later, so an immediate getUtxos can
+  // miss the fresh output.
+  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
 
   // ─── 4b. Reload so the orchestrator re-fetches UTXOs ───────────
   // getUtxos fires once on connect — funding AFTER connect doesn't

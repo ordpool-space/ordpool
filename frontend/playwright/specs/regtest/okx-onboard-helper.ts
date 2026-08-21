@@ -8,7 +8,9 @@ const TEST_PASSWORD = 'TestPassword123!';
  * Drive OKX v4.1.0 onboarding from welcome to dashboard. Multi-page,
  * multi-iframe flow (CI iterations 22-31, 2026-05-31):
  *   - Welcome: "Your portal to Web3" → Import wallet (CDP click +
- *     programmatic fallback; native click absorbed by anti-bot).
+ *     programmatic fallback; OKX's onboarding reads navigator.webdriver
+ *     and ignores synthetic Playwright clicks, so we dispatch the click
+ *     as a real OS-level mouse event via CDP).
  *   - "Seed phrase or private key" picker on the same page.
  *   - 12-box seed form opens in #ui-ses-iframe; Confirm.
  *   - "Secure your wallet" opens on a NEW page; Password preselected;
@@ -19,7 +21,8 @@ const TEST_PASSWORD = 'TestPassword123!';
  *
  * Requires the context to be launched with
  * `--disable-blink-features=AutomationControlled` so navigator.webdriver
- * is hidden — without this the welcome-screen click is absorbed.
+ * reads false; without it OKX's onboarding treats the session as
+ * automated and the welcome-screen click has no effect.
  */
 export async function onboardOkx(page: Page, extensionId: string): Promise<Page> {
   if (page.url() === 'about:blank') {

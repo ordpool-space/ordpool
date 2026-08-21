@@ -6,7 +6,7 @@ import * as fs from 'node:fs';
 import { InscriptionParserService } from 'ordpool-parser';
 
 import {
-  getUtxos,
+  waitForUtxoAt,
   waitForElectrsSync,
   waitForTxConfirmed,
   rpc,
@@ -200,8 +200,11 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
   console.log(`[inscribe-unisat] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
   await waitForElectrsSync(mineBlocks(1));
-  const utxos = await getUtxos(paymentAddress);
-  expect(utxos.some((u) => u.value === FUND_AMOUNT_SATS)).toBe(true);
+  // Poll the address→utxo index until the funding UTXO is visible.
+  // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
+  // the address→utxo mapping a tick later, so an immediate getUtxos can
+  // miss the fresh output (observed flaking here across wallets).
+  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
 
   // ─── 4. Reload so the orchestrator re-fetches UTXOs ────────────
   const knownPagesBeforeReload = new Set(context.pages());
