@@ -30,6 +30,7 @@ on:
       - '.github/workflows/e2e-regtest-mint.yml'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
@@ -175,6 +176,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh xverse
+
+      # Unisat — a non-native regtest wallet. Onboards inline (no seed
+      # vault), so we only need the unpacked .crx. Proves the SDK
+      # connector's mainnet→bcrt address shim works page-driven.
+      - name: Cache unpacked Unisat extension
+        id: unisat-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/unisat
+          key: unisat-extension-v1.7.15
+      - name: Download + unpack Unisat from SDK release mirror
+        if: steps.unisat-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh unisat
 
       - name: Bootstrap regtest funds (101 blocks, dump WIF)
         working-directory: sdk
@@ -349,6 +366,19 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # Same stack, non-native wallet: /inscribe via Unisat. Proves the
+      # connector's mainnet→bcrt address shim carries the page-driven flow.
+      - name: Run the page-driven inscribe regtest spec (Unisat)
+        if: always()
+        working-directory: frontend
+        env:
+          UNISAT_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/unisat
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
