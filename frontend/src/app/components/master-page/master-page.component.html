@@ -121,6 +121,13 @@
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21</a>
       </li>
 
+      <!-- HACK: Inscribe nav link -->
+      <li class="nav-item" routerLinkActive="active" id="btn-inscribe">
+        <a class="nav-link" [routerLink]="['/inscribe' | relativeUrl]" (click)="collapse()">
+          <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true" title="Inscribe a file">Inscribe</fa-icon>
+        </a>
+      </li>
+
       <!-- HACK: ordpool-stats nav item -->
       <li class="nav-item" id="btn-ordpool-stats" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(ordpool-stats)/.*' }">
         <a class="nav-link" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', '24h', 'hour']" (click)="collapse()">

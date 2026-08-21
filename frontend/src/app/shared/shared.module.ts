@@ -171,6 +171,7 @@ import { CodeViewerComponent } from '@components/_ordpool/digital-artifact-viewe
 import { MetadataViewerComponent } from '@components/_ordpool/digital-artifact-viewer/metadata-viewer/metadata-viewer.component';
 import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wallet-connect.component';
 import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
+import { InscribeMintComponent } from '@components/_ordpool/inscribe-mint/inscribe-mint.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
 import { AtomicalViewerComponent } from '@components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
 import { CounterpartyViewerComponent } from '@components/_ordpool/digital-artifact-viewer/counterparty-viewer/counterparty-viewer.component';
@@ -335,6 +336,7 @@ import { HighlightModule } from 'ngx-highlightjs';
 
     WalletConnectComponent,
     Cat21MintComponent,
+    InscribeMintComponent,
     CounterpartyViewerComponent,
     StampViewerComponent,
     Src721ViewerComponent,

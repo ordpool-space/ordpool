@@ -1,0 +1,244 @@
+<div class="container-xl ps-5 pe-5">
+  <div class="text-center">
+
+    <h2 class="mt-4 mb-3" data-testid="page-title">Inscribe a file on Bitcoin</h2>
+
+    <div class="text-start">
+      <p class="mx-auto" style="max-width: 800px;">
+        Upload any file — image, SVG, text, JSON, PDF — and inscribe it directly
+        onto Bitcoin from your own wallet. <strong>No service fee</strong> (you pay
+        only the network miner fee), <strong>non-custodial</strong> (your wallet signs
+        the transactions, we never touch your keys), and every inscription also mints
+        <strong>two free CAT-21 cats</strong> 😺 as a side effect.
+      </p>
+    </div>
+  </div>
+
+  <div class="box mt-4">
+    <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
+
+      <!-- File dropzone -->
+      <label class="dropzone d-block text-center p-5 mt-2"
+             [class.dragging]="isDragging"
+             (dragover)="onDragOver($event)"
+             (dragleave)="onDragLeave($event)"
+             (drop)="onDrop($event)">
+        <input type="file" class="dropzone-input" data-testid="inscribe-file-input" (change)="onPick($event)">
+        <ng-container *ngIf="!pickedFile">
+          <div class="fs-5">Drag a file here, or <span class="link-like">click to choose</span></div>
+          <div class="text-muted small mt-2">Max {{ 350000 / 1000 }} KB per inscription</div>
+        </ng-container>
+        <ng-container *ngIf="pickedFile as f">
+          <div class="fs-5" data-testid="inscribe-file-name">{{ f.name }}</div>
+          <div class="text-muted small mt-1">
+            <span data-testid="inscribe-detected-type">{{ f.contentType }}</span>
+            · {{ f.sizeBytes | number }} bytes
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary mt-2"
+                  (click)="clearFile(); $event.preventDefault()">Choose a different file</button>
+        </ng-container>
+      </label>
+
+      <div class="feedback-error p-2 mt-2" *ngIf="fileError" data-testid="inscribe-file-error">
+        {{ fileError }}
+      </div>
+
+      <!-- Pre-connect cost estimate -->
+      <div class="mt-3" *ngIf="pickedFile && preConnectMintSats !== null && !x.connectedWallet"
+           data-testid="inscribe-cost-estimate">
+        <span class="text-muted">Estimated cost </span>
+        <strong>{{ preConnectMintSats | number }}</strong>
+        <span class="symbol" i18n="shared.sat|sat">sat</span>
+        (<app-fiat [value]="preConnectMintSats"></app-fiat>)
+      </div>
+
+      <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
+        Please
+        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+        to inscribe.
+      </p>
+
+      <ng-container *ngIf="x.connectedWallet">
+
+        <form class="validated" [formGroup]="form" (ngSubmit)="inscribe(x.connectedWallet)">
+
+          <div class="row mt-4">
+            <div class="col-md-6 order-md-2">
+              <small class="text-muted">Select your preferred fee rate:</small><br>
+              <app-ordpool-fees-box-clickable (feeClicked)="setFeeRate($event)"
+                class="d-block pt-2"></app-ordpool-fees-box-clickable>
+            </div>
+
+            <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
+              <div class="input-group input-group-lg mt-3">
+                <span class="input-group-text">Fee rate</span>
+                <input type="number" class="form-control" data-testid="inscribe-fee-rate" [formControl]="cfeeRate">
+                <span class="input-group-text">sat/vB</span>
+              </div>
+              <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+                <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
+                <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB — anything lower won't relay on a default-config Bitcoin Core node.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Exact wallet debit once a UTXO is picked -->
+          <div class="p-2 mt-3" *ngIf="selectedPaymentOutput as row" data-testid="inscribe-total-cost">
+            You'll pay
+            <strong>{{ totalSpendSats(x.connectedWallet) | number }}</strong>
+            <span class="symbol" i18n="shared.sat|sat">sat</span>
+            (<app-fiat [value]="totalSpendSats(x.connectedWallet) || 0"></app-fiat>)
+            — commit + reveal miner fees plus the {{ postageSats }} sat inscription output.
+          </div>
+
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading()">
+            We could not find enough funds in your payment address.<br>
+            No UTXO can cover the miner fee plus the {{ postageSats }} sat inscription output at
+            <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>.
+            Fund <code class="bitcoin">{{ x.connectedWallet.paymentAddress }}</code>
+            <app-clipboard [button]="true" [text]="x.connectedWallet.paymentAddress" [class]="'btn btn-sm p-0'"></app-clipboard>
+            or pick a lower fee rate.
+          </div>
+
+          <!-- Expert UTXO picker -->
+          <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
+            <details>
+              <summary>Choose a different funding source</summary>
+              <p class="mt-2">
+                We auto-pick the safest large source we can find. Each transaction has
+                an inscription output (a {{ postageSats }}-sat dust output sent to your
+                ordinals address) plus change back to your payment address. Change below
+                the dust limit is folded into the miner fee. Sources flagged
+                <em>asset found</em> carry an inscription, rune, rare sat, or cat —
+                inscribing with one sends that asset to the miner as fee.
+              </p>
+
+              <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let row of paymentOutputs$ | async"
+                [ngClass]="{ selected: row === this.selectedPaymentOutput, 'utxo-row-assets': row.bucket === 'assets', 'utxo-row-clean': row.bucket === 'clean' }">
+
+                <button *ngIf="row !== this.selectedPaymentOutput && row.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
+                  (click)="selectPaymentOutput(row)" type="button">Use this UTXO</button>
+                <button *ngIf="row !== this.selectedPaymentOutput && row.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
+                  (click)="selectPaymentOutput(row)" type="button">Use anyway</button>
+
+                UTXO {{ row.paymentOutput.txid }}:{{ row.paymentOutput.vout }}
+
+                <span *ngIf="row.paymentOutput.status.confirmed" class="btn btn-outline-success no-cursor pe-1 ps-1">Confirmed</span>
+                <span *ngIf="!row.paymentOutput.status.confirmed" class="btn btn-outline-danger no-cursor pe-1 ps-1">Unconfirmed</span>
+
+                <span [ngSwitch]="row.bucket" class="utxo-bucket-badge ms-2" [title]="bucketTooltip(row.bucket)">
+                  <span *ngSwitchCase="'clean'" class="badge bg-success">&#10003; safe</span>
+                  <span *ngSwitchCase="'assets'" class="badge bg-danger">&#9888; asset found</span>
+                  <span *ngSwitchCase="'unscanned'" class="badge bg-secondary">not scanned</span>
+                  <span *ngSwitchCase="'scanning'" class="badge bg-info">scanning…</span>
+                  <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
+                </span>
+
+                <a *ngIf="row.bucket === 'unscanned'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(row)">Scan</a>
+                <a *ngIf="row.bucket === 'failed'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(row)">Retry scan</a>
+
+                <div *ngIf="row.bucket === 'assets' && row.scan.kind === 'scanned-with-assets'" class="mt-2 ps-2 pe-2 pt-1 pb-1 utxo-assets-detail">
+                  <strong>Assets on this UTXO:</strong><br>
+                  <ng-container *ngIf="row.scan.content.inscriptionIds.length > 0">
+                    Inscription{{ row.scan.content.inscriptionIds.length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let id of row.scan.content.inscriptionIds; let last = last">
+                      <a [href]="ordReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                    </ng-container><br>
+                  </ng-container>
+                  <ng-container *ngIf="runeNames(row.scan.content).length > 0">
+                    Rune{{ runeNames(row.scan.content).length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let name of runeNames(row.scan.content); let last = last">
+                      <a [href]="ordReviewBase + '/rune/' + name" target="_blank" rel="noopener">{{ name }}</a><ng-container *ngIf="!last">, </ng-container>
+                    </ng-container><br>
+                  </ng-container>
+                  <ng-container *ngIf="row.scan.content.catIds.length > 0">
+                    CAT-21 cat{{ row.scan.content.catIds.length === 1 ? '' : 's' }}: {{ row.scan.content.catIds.length }}<br>
+                  </ng-container>
+                </div>
+
+                <br>
+
+                {{ row.paymentOutput.value | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="row.paymentOutput.value"></app-fiat> Available Value<br>
+
+                - {{ row.simulation.totalFeeSats | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees (commit + reveal)<br>
+
+                - {{ postageSats | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="postageSats"></app-fiat> Inscription Output<br>
+
+                = {{ changeSats(row) | number }}
+                <span class="symbol" i18n="shared.sat|sat">sat</span>
+                <app-fiat [value]="changeSats(row)"></app-fiat> Change ({{ changeSats(row) === 0 ? 'no ' : '' }}2nd output)<br>
+              </div>
+            </details>
+          </div>
+
+          <div class="text-center mt-4">
+            <button type="submit" data-testid="inscribe-btn"
+              *ngIf="!utxoLoading() && !mintSuccess()"
+              [attr.aria-busy]="mintLoading()"
+              [disabled]="form.invalid || !selectedPaymentOutput || !pickedFile"
+              class="btn btn-primary mt-4 mb-4 text-white">
+              <ng-container *ngIf="!mintLoading()">📎 Inscribe my file</ng-container>
+              <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>
+            </button>
+
+            <button type="button" data-testid="inscribe-another"
+              *ngIf="mintSuccess()" (click)="inscribeAnother()"
+              class="btn btn-primary mt-4 mb-4 text-white">📎 Inscribe another file</button>
+
+            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
+              <i class="spinner-border spinner-border-sm text-light"></i> Scanning your payments address
+            </button>
+          </div>
+        </form>
+
+        <div class="alert alert-success" *ngIf="mintSuccess() as success" data-testid="inscribe-success">
+          ✅&nbsp; Your inscription has been broadcast to the mempool.<br>
+          <div class="mt-2">
+            Commit tx:
+            <a class="alert-link text-decoration-underline" data-testid="inscribe-commit-txid"
+              [routerLink]="['/tx/' | relativeUrl, success.commitTxId]">{{ success.commitTxId }}</a>
+          </div>
+          <div>
+            Reveal tx:
+            <a class="alert-link text-decoration-underline" [attr.aria-label]="success.revealTxId"
+              data-testid="inscribe-reveal-txid"
+              [routerLink]="['/tx/' | relativeUrl, success.revealTxId]">{{ success.revealTxId }}</a>
+          </div>
+          <div class="mt-2">
+            Inscription:
+            <a class="alert-link text-decoration-underline"
+              [href]="ordReviewBase + '/inscription/' + inscriptionId(success.revealTxId)" target="_blank" rel="noopener">
+              {{ inscriptionId(success.revealTxId) }}
+            </a>
+            (visible once the reveal confirms and ord indexes the block)
+          </div>
+          <div class="mt-2">
+            😺 This inscription also minted <strong>2 free CAT-21 cats</strong> — one on the commit,
+            one on the reveal. Find them at
+            <a class="alert-link text-decoration-underline" href="https://cat21.space/" target="_blank" rel="noopener">cat21.space</a>.
+          </div>
+        </div>
+
+        <div class="alert alert-danger" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
+        <div class="alert alert-danger" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
+        <div class="alert alert-danger" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>
+
+        <ng-container *ngIf="isSingleAddressWallet(x.connectedWallet)">
+          <p class="alert alert-warning mt-4" *ngIf="!selectedPaymentOutput || (selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold && selectedPaymentOutput.bucket !== 'clean' && selectedPaymentOutput.bucket !== 'assets')">
+            Your wallet uses a single address for both payments and ordinals.
+            UTXOs at or below {{ smallUtxoWarningThreshold | number }} sats may hold inscriptions,
+            runes, rare sats, or cats — spending one as an input would send the asset to the miner as fee.
+            Review the UTXO you inscribe with in expert mode above.
+          </p>
+        </ng-container>
+
+      </ng-container>
+    </ng-container>
+  </div>
+</div>
