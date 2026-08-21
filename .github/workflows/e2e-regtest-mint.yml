@@ -35,6 +35,7 @@ on:
       - 'frontend/playwright/specs/regtest/inscribe-mint-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/okx-onboard-helper.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
@@ -242,6 +243,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh okx
+
+      # Alby — a NATIVE-regtest wallet (returns bcrt1 directly, no
+      # address shim). Signing is seeded + fired through Alby's SW
+      # directly by the spec (its popup confirm never resolves headless).
+      - name: Cache unpacked Alby extension
+        id: alby-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/alby
+          key: alby-extension-v3.14.2
+      - name: Download + unpack Alby from SDK release mirror
+        if: steps.alby-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh alby
 
       - name: Bootstrap regtest funds (101 blocks, dump WIF)
         working-directory: sdk
@@ -465,6 +482,19 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # Same stack, native-regtest wallet with SW-bypass signing:
+      # /inscribe via Alby.
+      - name: Run the page-driven inscribe regtest spec (Alby)
+        if: always()
+        working-directory: frontend
+        env:
+          ALBY_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/alby
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
