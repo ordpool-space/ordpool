@@ -38,17 +38,19 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
  *      cat21wallet-onboard.spec.ts`; this spec embeds it inline as
  *      the beforeAll primer so the round-trip is self-contained.
  *
- * Scope of THIS iteration: confirm cat21-wallet is wired into the
- * frontend picker AND the connect approval flow round-trips end to
- * end. The full mint round-trip (PSBT build → signPsbt → broadcast)
- * has a known regtest-address-derivation gap — cat21-wallet returns
- * MAINNET bc1q from `getAddresses` regardless of the dapp's network
- * request, while the orchestrator-built PSBT is keyed to bcrt1q on
- * regtest. The SDK's own `cat21wallet-mint-roundtrip.spec.ts` works
- * around this by deriving bcrt1q/bcrt1p from the same pubkey via a
- * custom harness (`deriveRegtestAddresses`) — wiring that into the
- * consumer-driven flow is a separate piece of work tracked alongside
- * this spec.
+ * The test drives the full CAT-21 mint round-trip end to end: connect
+ * via the frontend picker, fund the connected address, build + sign the
+ * PSBT in the wallet, broadcast, and verify the on-chain tx (locktime=21,
+ * output 0 = 546 sat, RBF sequence 0xfffffffd, parses via
+ * Cat21ParserService into a well-formed CAT-21).
+ *
+ * cat21-wallet is a native-regtest wallet: its connector returns
+ * bcrt1q/bcrt1p directly when the dapp requests Network.Regtest, so no
+ * address shim is needed. The non-native wallets (Leather / Unisat /
+ * Wizz / OKX) get their mainnet `getAddresses` output rewritten to
+ * bcrt equivalents by the connector's `toRegtestWalletInfo` shim. Either
+ * way the payment address the spec reads and funds is bcrt1q, matching
+ * the orchestrator-built PSBT.
  */
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4200';
@@ -177,7 +179,7 @@ test.afterAll(async () => {
   await context?.close();
 });
 
-test('cat21-wallet appears in the picker and the connect approval round-trips', async () => {
+test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page', async () => {
   test.setTimeout(180_000);
 
   const page = await context.newPage();
