@@ -31,6 +31,7 @@ on:
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
@@ -192,6 +193,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh unisat
+
+      # Wizz — a non-native regtest wallet (Unisat-family). Onboards
+      # inline; the connector shim rewrites its mainnet address to bcrt1.
+      - name: Cache unpacked Wizz extension
+        id: wizz-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/wizz
+          key: wizz-extension-v2.13.4
+      - name: Download + unpack Wizz from SDK release mirror
+        if: steps.wizz-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh wizz
 
       - name: Bootstrap regtest funds (101 blocks, dump WIF)
         working-directory: sdk
@@ -379,6 +395,18 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # Same stack, second non-native wallet: /inscribe via Wizz.
+      - name: Run the page-driven inscribe regtest spec (Wizz)
+        if: always()
+        working-directory: frontend
+        env:
+          WIZZ_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/wizz
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
