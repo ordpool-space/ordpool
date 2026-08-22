@@ -115,17 +115,20 @@
       </li>
       -->
 
-      <!-- HACK: CAT-21 nav link -->
-      <li class="nav-item" routerLinkActive="active" id="btn-cat21-mint">
-        <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()">
-          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30">CAT-21</a>
-      </li>
-
-      <!-- HACK: Inscribe nav link -->
-      <li class="nav-item" routerLinkActive="active" id="btn-inscribe">
-        <a class="nav-link" [routerLink]="['/inscribe' | relativeUrl]" (click)="collapse()">
-          <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true" title="Inscribe a file">Inscribe</fa-icon>
+      <!-- HACK: Mint dropdown (CAT-21 + Inscribe) -->
+      <li class="nav-item dropdown" ngbDropdown id="btn-mint"
+          [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(cat21-mint|inscribe).*' }">
+        <a class="nav-link dropdown-toggle" ngbDropdownToggle role="button" style="cursor: pointer;" title="Mint">
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="30" alt="">Mint
         </a>
+        <div ngbDropdownMenu aria-labelledby="btn-mint">
+          <a ngbDropdownItem id="btn-cat21-mint" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()">
+            <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="24" alt="">Mint a CAT-21 😺
+          </a>
+          <a ngbDropdownItem id="btn-inscribe" [routerLink]="['/inscribe' | relativeUrl]" (click)="collapse()">
+            <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true"></fa-icon> Inscribe a file
+          </a>
+        </div>
       </li>
 
       <!-- HACK: ordpool-stats nav item -->

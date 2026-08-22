@@ -17,8 +17,23 @@
   <div class="box mt-4">
     <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
+      <!-- Mode: inscribe a file, or delegate to an existing inscription -->
+      <div class="btn-group w-100 mb-2" role="group" data-testid="inscribe-mode">
+        <button type="button" class="btn"
+                [class.btn-primary]="inscribeMode === 'file'"
+                [class.btn-outline-secondary]="inscribeMode !== 'file'"
+                data-testid="inscribe-mode-file"
+                (click)="switchInscribeMode('file')">Inscribe a file</button>
+        <button type="button" class="btn"
+                [class.btn-primary]="inscribeMode === 'delegate'"
+                [class.btn-outline-secondary]="inscribeMode !== 'delegate'"
+                data-testid="inscribe-mode-delegate"
+                (click)="switchInscribeMode('delegate')">Delegate</button>
+      </div>
+
       <!-- File dropzone -->
-      <label class="dropzone d-block text-center p-5 mt-2"
+      <label *ngIf="inscribeMode === 'file'"
+             class="dropzone d-block text-center p-5 mt-2"
              [class.dragging]="isDragging"
              (dragover)="onDragOver($event)"
              (dragleave)="onDragLeave($event)"
@@ -39,12 +54,135 @@
         </ng-container>
       </label>
 
+      <!-- Delegate: point at an existing inscription -->
+      <div *ngIf="inscribeMode === 'delegate'" class="mt-2 text-start" data-testid="inscribe-delegate">
+        <label class="small text-muted" for="inscribe-delegate-id">Inscription id to delegate to</label>
+        <input #delId type="text" class="form-control" id="inscribe-delegate-id" spellcheck="false"
+               placeholder="e.g. 6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0"
+               data-testid="inscribe-delegate-id"
+               [value]="delegateId"
+               (input)="onDelegateIdChange(delId.value)">
+        <div class="text-muted small mt-1">
+          A delegate carries an empty body and points at another inscription.
+          Ord renders the target's content, so this inscription costs only a
+          few sats.
+        </div>
+        <div class="feedback-error p-1 small mt-1" *ngIf="delegateIdError" data-testid="inscribe-delegate-error">
+          {{ delegateIdError }}
+        </div>
+
+        <div *ngIf="delegatePreviewId as id" class="mt-3" data-testid="inscribe-delegate-preview">
+          <div class="small text-muted mb-1">Preview of {{ id }}</div>
+          <!-- SECURITY LOCK: do not add allow-same-origin. See safe-url.pipe.ts. -->
+          <iframe [src]="'/preview/' + id | safeResourceUrl"
+                  sandbox="allow-scripts" scrolling="no" loading="lazy"
+                  class="w-100" style="height: 240px; border: 1px solid #444; border-radius: 4px;"></iframe>
+        </div>
+      </div>
+
       <div class="feedback-error p-2 mt-2" *ngIf="fileError" data-testid="inscribe-file-error">
         {{ fileError }}
       </div>
 
+      <!-- Advanced options (compression, note, metadata) -->
+      <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent" data-testid="inscribe-advanced">
+        <summary>Advanced options</summary>
+
+        <!-- Compression (content_encoding tag) — file mode only -->
+        <div class="mt-3" *ngIf="inscribeMode === 'file'" data-testid="inscribe-compression">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="inscribe-compress" #compressBox
+                   data-testid="inscribe-compress-toggle"
+                   [checked]="compressEnabled"
+                   [disabled]="!compression?.worthIt"
+                   (change)="toggleCompression(compressBox.checked)">
+            <label class="form-check-label" for="inscribe-compress">Compress the body</label>
+          </div>
+          <div class="text-muted small mt-1" *ngIf="compression as c">
+            <span *ngIf="c.worthIt" data-testid="inscribe-compression-savings">
+              {{ c.originalSize | number }} → {{ c.compressedSize | number }} bytes
+              ({{ c.savedPercent }}% smaller), stored as
+              <span class="badge bg-secondary">content_encoding: {{ c.bestEncoding }}</span>.
+              Ord decodes it back to the original on the way out, so viewers see
+              the file unchanged.
+            </span>
+            <span *ngIf="!c.worthIt" data-testid="inscribe-compression-skip">
+              This file type is already compressed, so compressing again would
+              not shrink it.
+            </span>
+          </div>
+        </div>
+
+        <!-- Note (ord tag 15, UTF-8) -->
+        <div class="mt-3" data-testid="inscribe-note">
+          <label class="small text-muted" for="inscribe-note-input">Note</label>
+          <input type="text" class="form-control" id="inscribe-note-input"
+                 data-testid="inscribe-note-input" [formControl]="noteControl"
+                 placeholder="ordpool.space">
+          <div class="text-muted small mt-1">
+            A short on-chain text tag stored with the inscription. Leave empty to
+            omit it.
+          </div>
+        </div>
+
+        <!-- Metadata (ord tag 5, CBOR) -->
+        <div class="mt-4" data-testid="inscribe-metadata">
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="small text-muted mb-0">Metadata</label>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn"
+                      [class.btn-primary]="metadataMode === 'kv'"
+                      [class.btn-outline-secondary]="metadataMode !== 'kv'"
+                      data-testid="inscribe-metadata-mode-kv"
+                      (click)="switchMetadataMode('kv')">Key / value</button>
+              <button type="button" class="btn"
+                      [class.btn-primary]="metadataMode === 'json'"
+                      [class.btn-outline-secondary]="metadataMode !== 'json'"
+                      data-testid="inscribe-metadata-mode-json"
+                      (click)="switchMetadataMode('json')">JSON</button>
+            </div>
+          </div>
+
+          <!-- Key-value editor -->
+          <div *ngIf="metadataMode === 'kv'" class="mt-2" data-testid="inscribe-metadata-kv">
+            <div class="input-group input-group-sm mb-2" *ngFor="let row of metadataRows; let i = index">
+              <input #k type="text" class="form-control" placeholder="key" [value]="row.key"
+                     [attr.data-testid]="'inscribe-metadata-key-' + i"
+                     (input)="setMetadataRow(i, k.value, v.value)">
+              <input #v type="text" class="form-control" placeholder="value" [value]="row.value"
+                     [attr.data-testid]="'inscribe-metadata-value-' + i"
+                     (input)="setMetadataRow(i, k.value, v.value)">
+              <button type="button" class="btn btn-outline-danger" title="Remove"
+                      [attr.data-testid]="'inscribe-metadata-remove-' + i"
+                      (click)="removeMetadataRow(i)">&times;</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-testid="inscribe-metadata-add" (click)="addMetadataRow()">+ Add attribute</button>
+          </div>
+
+          <!-- JSON editor -->
+          <div *ngIf="metadataMode === 'json'" class="mt-2">
+            <textarea #jsonArea class="form-control" rows="5" spellcheck="false"
+                      placeholder='&#123; "collection": "cats", "edition": 21 &#125;'
+                      data-testid="inscribe-metadata-json"
+                      [value]="metadataJson"
+                      (input)="onMetadataJsonChange(jsonArea.value)"></textarea>
+          </div>
+
+          <div class="feedback-error p-1 small mt-1" *ngIf="metadataError" data-testid="inscribe-metadata-error">
+            {{ metadataError }}
+          </div>
+          <div class="text-muted small mt-1" *ngIf="metadataModeHint" data-testid="inscribe-metadata-hint">
+            {{ metadataModeHint }}
+          </div>
+          <div class="text-muted small mt-1" *ngIf="metadataBytes as m" data-testid="inscribe-metadata-size">
+            {{ m.length | number }} bytes of CBOR metadata will be stored on-chain.
+          </div>
+        </div>
+      </details>
+
       <!-- Pre-connect cost estimate -->
-      <div class="mt-3" *ngIf="pickedFile && preConnectMintSats !== null && !x.connectedWallet"
+      <div class="mt-3" *ngIf="hasContent && preConnectMintSats !== null && !x.connectedWallet"
            data-testid="inscribe-cost-estimate">
         <span class="text-muted">Estimated cost </span>
         <strong>{{ preConnectMintSats | number }}</strong>
@@ -181,9 +319,9 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !selectedPaymentOutput || !pickedFile"
+              [disabled]="form.invalid || !selectedPaymentOutput || !hasContent || metadataInvalid || delegateInvalid"
               class="btn btn-primary mt-4 mb-4 text-white">
-              <ng-container *ngIf="!mintLoading()">📎 Inscribe my file</ng-container>
+              <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>
             </button>
 
