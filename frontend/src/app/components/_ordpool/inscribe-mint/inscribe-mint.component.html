@@ -88,28 +88,27 @@
       <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent" data-testid="inscribe-advanced">
         <summary>Advanced options</summary>
 
-        <!-- Compression (brotli / content_encoding: br) — file mode only -->
-        <div class="mt-3" *ngIf="inscribeMode === 'file' && showCompression" data-testid="inscribe-compression">
+        <!-- Compression (content_encoding tag) — file mode only -->
+        <div class="mt-3" *ngIf="inscribeMode === 'file'" data-testid="inscribe-compression">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="inscribe-compress" #compressBox
                    data-testid="inscribe-compress-toggle"
                    [checked]="compressEnabled"
                    [disabled]="!compression?.worthIt"
                    (change)="toggleCompression(compressBox.checked)">
-            <label class="form-check-label" for="inscribe-compress">
-              Compress with brotli
-              <span class="badge bg-secondary ms-1">content_encoding: br</span>
-            </label>
+            <label class="form-check-label" for="inscribe-compress">Compress the body</label>
           </div>
           <div class="text-muted small mt-1" *ngIf="compression as c">
             <span *ngIf="c.worthIt" data-testid="inscribe-compression-savings">
               {{ c.originalSize | number }} → {{ c.compressedSize | number }} bytes
-              ({{ c.savedPercent }}% smaller). Ord decodes it back to the original
-              on the way out, so viewers see the file unchanged.
+              ({{ c.savedPercent }}% smaller), stored as
+              <span class="badge bg-secondary">content_encoding: {{ c.bestEncoding }}</span>.
+              Ord decodes it back to the original on the way out, so viewers see
+              the file unchanged.
             </span>
             <span *ngIf="!c.worthIt" data-testid="inscribe-compression-skip">
-              This file type is already compressed. Brotli would not shrink it, so
-              there is nothing to gain.
+              This file type is already compressed, so compressing again would
+              not shrink it.
             </span>
           </div>
         </div>

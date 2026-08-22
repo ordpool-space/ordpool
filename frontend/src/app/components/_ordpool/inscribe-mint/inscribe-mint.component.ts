@@ -10,6 +10,7 @@ import {
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
   InscribeUtxoSimulation,
+  InscriptionContentEncoding,
   ORD_TAGS,
   OrdEnvelopeField,
   SMALL_UTXO_WARNING_THRESHOLD_SAT,
@@ -203,20 +204,12 @@ export class InscribeMintComponent implements OnInit {
   cfeeRate = this.form.controls.feeRate;
   noteControl = this.form.controls.note;
 
-  // ---- Compression (brotli, content_encoding: 'br') -----------------------
-  // assessCompression is the SDK's pre-check: it reports whether brotli
-  // meaningfully shrinks the body (never decides for us). We default the
-  // toggle ON iff `worthIt`; the user can override.
-  //
-  // GATED OFF: the SDK's brotli runs on `brotli-wasm`, whose `pkg.web` entry
-  // loads the .wasm via `new URL('brotli_wasm_bg.wasm', import.meta.url)` +
-  // fetch. Angular's webpack resolves brotli-wasm to that entry (the `import`
-  // export condition) instead of the bundler entry, and neither emits the
-  // .wasm nor rewrites the URL: a file:// load in dev, a 404 in prod. So the
-  // assessment always fails in the browser today. The wiring below is
-  // complete and unit-tested; flip `showCompression` to true once the SDK
-  // ships a bundler-agnostic brotli load (see the SDK fix prompt).
-  showCompression = false;
+  // ---- Compression (content_encoding tag) ---------------------------------
+  // assessCompression tries the available codecs and reports the smallest
+  // (native gzip today via CompressionStream; the SDK reserves 'br' for a
+  // future brotli encoder). It never decides for us. We default the toggle ON
+  // iff `worthIt`; the user can override. ord serves the content_encoding tag
+  // through as the HTTP header, so the browser decodes it on the way out.
   compression: CompressionAssessment | null = null;
   compressEnabled = false;
 
@@ -337,15 +330,12 @@ export class InscribeMintComponent implements OnInit {
 
       this.pickedFile = { name: file.name, bytes, contentType, sizeBytes: bytes.length };
       // Pre-check compression; default the toggle on only when it's worth it.
-      // Gated: the browser brotli load is broken today (see showCompression).
-      if (this.showCompression) {
-        try {
-          this.compression = await assessCompression(bytes, contentType);
-        } catch {
-          this.compression = null;
-        }
-        this.compressEnabled = this.compression?.worthIt ?? false;
+      try {
+        this.compression = await assessCompression(bytes, contentType);
+      } catch {
+        this.compression = null;
       }
+      this.compressEnabled = this.compression?.worthIt ?? false;
       this.syncContent();
       this.recomputePreConnectCost();
       this.cd.markForCheck();
@@ -357,15 +347,21 @@ export class InscribeMintComponent implements OnInit {
     }
   }
 
-  /** `true` when the content_encoding: 'br' tag applies to the current body. */
+  /** `true` when a content_encoding tag applies to the current body. */
   get isCompressed(): boolean {
     return this.compressEnabled && !!this.compression?.worthIt;
   }
 
+  /** The winning codec's content_encoding value, or undefined when off/none. */
+  get activeContentEncoding(): InscriptionContentEncoding | undefined {
+    const c = this.compression;
+    return this.isCompressed && c && c.bestEncoding !== 'none' ? c.bestEncoding : undefined;
+  }
+
   /**
-   * The bytes actually inscribed: the brotli output when compression is on and
-   * worth it, otherwise the raw file. One source of truth for setContent, the
-   * cost estimate, and the pre-flight gate so the three never disagree.
+   * The bytes actually inscribed: the compressed output when compression is on
+   * and worth it, otherwise the raw file. One source of truth for setContent,
+   * the cost estimate, and the pre-flight gate so the three never disagree.
    */
   private finalBody(): Uint8Array | null {
     const file = this.pickedFile;
@@ -590,7 +586,7 @@ export class InscribeMintComponent implements OnInit {
     this.orchestrator.setContent({
       body,
       contentType: this.pickedFile.contentType,
-      contentEncoding: this.isCompressed ? 'br' : undefined,
+      contentEncoding: this.activeContentEncoding,
       ...common,
     });
   }
