@@ -263,41 +263,40 @@ describe('InscribeMintComponent', () => {
   });
 
   // ---- Compression --------------------------------------------------------
+  // Compression is gated off in the browser build (showCompression=false)
+  // until the SDK ships a bundler-agnostic brotli load; the wiring below is
+  // exercised directly so it stays correct for when the flag flips on.
 
-  it('worthIt compression → toggle on, content carries the compressed body + content_encoding br', async () => {
-    const compressed = new Uint8Array([1, 2, 3]);
-    assessCompressionImpl = async () => ({
-      worthIt: true, originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97, compressed,
-    });
+  it('compression gated off by default → no assessment on file pick, raw body', async () => {
+    expect(component.showCompression).toBe(false);
     await (component as any).handleFile(pngFile());
-    expect(component.compressEnabled).toBe(true);
+    expect(component.compression).toBeNull();
+    expect(component.isCompressed).toBe(false);
+    const last = lastContent();
+    expect(last.contentEncoding).toBeUndefined();
+    expect(last.body).toBe(component.pickedFile?.bytes);
+  });
+
+  it('compression on (worthIt) → content carries the compressed body + content_encoding br', async () => {
+    await (component as any).handleFile(pngFile());
+    const compressed = new Uint8Array([1, 2, 3]);
+    component.compression = { worthIt: true, originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97, compressed };
+    component.toggleCompression(true);
     expect(component.isCompressed).toBe(true);
-    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    const last = lastContent();
     expect(last.body).toBe(compressed);
     expect(last.contentEncoding).toBe('br');
   });
 
-  it('not-worthIt compression → toggle off, raw body, no content_encoding tag', async () => {
-    const f = pngFile();
-    await (component as any).handleFile(f);
-    expect(component.compressEnabled).toBe(false);
-    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
-    expect(last.contentEncoding).toBeUndefined();
-    expect(last.body).toBe(component.pickedFile!.bytes);
-  });
-
-  it('toggleCompression(false) after a worthIt pick → falls back to the raw body', async () => {
-    assessCompressionImpl = async () => ({
-      worthIt: true, originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97,
-      compressed: new Uint8Array([9, 9, 9]),
-    });
+  it('toggleCompression(false) after enabling → falls back to the raw body', async () => {
     await (component as any).handleFile(pngFile());
-    setContentSpy.mockClear();
+    component.compression = { worthIt: true, originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97, compressed: new Uint8Array([9, 9, 9]) };
+    component.toggleCompression(true);
     component.toggleCompression(false);
-    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    const last = lastContent();
     expect(component.isCompressed).toBe(false);
     expect(last.contentEncoding).toBeUndefined();
-    expect(last.body).toBe(component.pickedFile!.bytes);
+    expect(last.body).toBe(component.pickedFile?.bytes);
   });
 
   // ---- Note ---------------------------------------------------------------

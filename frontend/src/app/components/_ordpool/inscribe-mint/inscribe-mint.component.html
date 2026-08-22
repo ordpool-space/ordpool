@@ -89,7 +89,7 @@
         <summary>Advanced options</summary>
 
         <!-- Compression (brotli / content_encoding: br) — file mode only -->
-        <div class="mt-3" *ngIf="inscribeMode === 'file'" data-testid="inscribe-compression">
+        <div class="mt-3" *ngIf="inscribeMode === 'file' && showCompression" data-testid="inscribe-compression">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="inscribe-compress" #compressBox
                    data-testid="inscribe-compress-toggle"

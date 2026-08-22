@@ -207,6 +207,16 @@ export class InscribeMintComponent implements OnInit {
   // assessCompression is the SDK's pre-check: it reports whether brotli
   // meaningfully shrinks the body (never decides for us). We default the
   // toggle ON iff `worthIt`; the user can override.
+  //
+  // GATED OFF: the SDK's brotli runs on `brotli-wasm`, whose `pkg.web` entry
+  // loads the .wasm via `new URL('brotli_wasm_bg.wasm', import.meta.url)` +
+  // fetch. Angular's webpack resolves brotli-wasm to that entry (the `import`
+  // export condition) instead of the bundler entry, and neither emits the
+  // .wasm nor rewrites the URL: a file:// load in dev, a 404 in prod. So the
+  // assessment always fails in the browser today. The wiring below is
+  // complete and unit-tested; flip `showCompression` to true once the SDK
+  // ships a bundler-agnostic brotli load (see the SDK fix prompt).
+  showCompression = false;
   compression: CompressionAssessment | null = null;
   compressEnabled = false;
 
@@ -327,12 +337,15 @@ export class InscribeMintComponent implements OnInit {
 
       this.pickedFile = { name: file.name, bytes, contentType, sizeBytes: bytes.length };
       // Pre-check compression; default the toggle on only when it's worth it.
-      try {
-        this.compression = await assessCompression(bytes, contentType);
-      } catch {
-        this.compression = null;
+      // Gated: the browser brotli load is broken today (see showCompression).
+      if (this.showCompression) {
+        try {
+          this.compression = await assessCompression(bytes, contentType);
+        } catch {
+          this.compression = null;
+        }
+        this.compressEnabled = this.compression?.worthIt ?? false;
       }
-      this.compressEnabled = this.compression?.worthIt ?? false;
       this.syncContent();
       this.recomputePreConnectCost();
       this.cd.markForCheck();
