@@ -64,6 +64,11 @@ jest.mock('ordpool-sdk', () => {
     // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
     // The real deterministic-CBOR encoder is unit-tested in the SDK.
     encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
+    ORD_TAGS: {
+      content_type: 1, pointer: 2, parent: 3, metadata: 5, metaprotocol: 7,
+      content_encoding: 9, delegate: 11, rune: 13, note: 15, properties: 17, property_encoding: 19,
+    },
+    encodeInscriptionId: (id: string) => new TextEncoder().encode(id),
   };
 });
 
@@ -395,5 +400,67 @@ describe('InscribeMintComponent', () => {
     expect(component.metadataRows).toEqual([]);
     expect(component.metadataBytes).toBeNull();
     expect(component.metadataMode).toBe('kv');
+  });
+
+  // ---- Delegate mode ------------------------------------------------------
+
+  const DELEGATE_ID = 'a'.repeat(64) + 'i0';
+
+  it('switch to delegate mode clears the picked file', async () => {
+    await (component as any).handleFile(pngFile());
+    expect(component.pickedFile).not.toBeNull();
+    component.switchInscribeMode('delegate');
+    expect(component.inscribeMode).toBe('delegate');
+    expect(component.pickedFile).toBeNull();
+  });
+
+  it('valid delegate id → empty body + delegate in content, no contentType', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange(DELEGATE_ID);
+    expect(component.delegateIdError).toBe('');
+    expect(component.hasContent).toBe(true);
+    const c = lastContent();
+    expect(c.delegate).toBe(DELEGATE_ID);
+    expect(c.body.length).toBe(0);
+    expect(c.contentType).toBeUndefined();
+  });
+
+  it('invalid delegate id → error, blocked, no content', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange('not-an-id');
+    expect(component.delegateIdError).toContain('valid inscription id');
+    expect(component.delegateInvalid).toBe(true);
+    expect(lastContent()).toBeNull();
+  });
+
+  it('delegate content still carries note + metadata', () => {
+    component.switchInscribeMode('delegate');
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'k', 'v');
+    component.onDelegateIdChange(DELEGATE_ID);
+    const c = lastContent();
+    expect(c.delegate).toBe(DELEGATE_ID);
+    expect(c.note).toBe('ordpool.space');
+    expect(decodeMeta(c.metadata)).toEqual({ k: 'v' });
+  });
+
+  it('inscribe() in delegate mode → gate intent has empty body + no contentType, mint runs', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange(DELEGATE_ID);
+    gateResult = { ok: true, resources: {} };
+    component.inscribe(wallet());
+    const intent = validateSpy.mock.calls[validateSpy.mock.calls.length - 1][0].operation.intent;
+    expect(intent.body.length).toBe(0);
+    expect(intent.contentType).toBeUndefined();
+    expect(mintSpy).toHaveBeenCalled();
+  });
+
+  it('leaving delegate mode clears the delegate id', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange(DELEGATE_ID);
+    component.switchInscribeMode('file');
+    expect(component.inscribeMode).toBe('file');
+    expect(component.delegateId).toBe('');
+    expect(component.delegateInvalid).toBe(false);
   });
 });

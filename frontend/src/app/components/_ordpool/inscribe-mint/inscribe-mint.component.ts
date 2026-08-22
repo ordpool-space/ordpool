@@ -10,6 +10,8 @@ import {
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
   InscribeUtxoSimulation,
+  ORD_TAGS,
+  OrdEnvelopeField,
   SMALL_UTXO_WARNING_THRESHOLD_SAT,
   SimulateInscribeFeesResult,
   TxnOutput,
@@ -24,6 +26,7 @@ import {
   bucketOf,
   cat21Config,
   encodeCborDeterministic,
+  encodeInscriptionId,
   findAutoPickCandidate,
   getDummyKeypair,
   getMinimumUtxoSize,
@@ -217,6 +220,14 @@ export class InscribeMintComponent implements OnInit {
   metadataError = '';        // invalid JSON or un-encodable value (blocks mint)
   metadataModeHint = '';     // transient note when a JSON->KV switch is refused
   metadataBytes: Uint8Array | null = null;   // encoded CBOR, null when empty
+
+  // ---- Mode: inscribe a file, or delegate to an existing inscription -------
+  // A delegate inscription carries an EMPTY body and a tag-11 pointer to
+  // another inscription's id; ord renders the target's content. Note +
+  // metadata still apply; compression + the dropzone do not.
+  inscribeMode: 'file' | 'delegate' = 'file';
+  delegateId = '';
+  delegateIdError = '';
 
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
@@ -491,26 +502,107 @@ export class InscribeMintComponent implements OnInit {
     this.metadataBytes = null;
   }
 
-  /** Push the current file into the orchestrator (no tip: no service fee). */
+  // ---- Delegate mode ------------------------------------------------------
+
+  /** ord inscription id shape: 64 hex, then 'i', then a non-negative index. */
+  private isValidInscriptionId(id: string): boolean {
+    return /^[0-9a-f]{64}i\d+$/i.test(id);
+  }
+
+  /** The validated target id (for preview + wiring), or null while empty/invalid. */
+  get delegatePreviewId(): string | null {
+    const id = this.delegateId.trim();
+    return id && !this.delegateIdError ? id : null;
+  }
+
+  /** `true` while delegate mode has no usable target id (blocks mint). */
+  get delegateInvalid(): boolean {
+    return this.inscribeMode === 'delegate' && !this.delegatePreviewId;
+  }
+
+  /** Is there something to inscribe? A picked file, or a valid delegate id. */
+  get hasContent(): boolean {
+    return this.inscribeMode === 'delegate' ? !!this.delegatePreviewId : !!this.pickedFile;
+  }
+
+  /** Switch between the file dropzone and the delegate-id input. */
+  switchInscribeMode(mode: 'file' | 'delegate'): void {
+    if (mode === this.inscribeMode) {return;}
+    this.inscribeMode = mode;
+    this.fileError = '';
+    this.mintGateError = '';
+    if (mode === 'delegate') {
+      // The dropzone + compression don't apply to an empty-body delegate.
+      this.pickedFile = null;
+      this.compression = null;
+      this.compressEnabled = false;
+    } else {
+      this.delegateId = '';
+      this.delegateIdError = '';
+    }
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  onDelegateIdChange(id: string): void {
+    this.delegateId = id;
+    const trimmed = id.trim();
+    this.delegateIdError = !trimmed || this.isValidInscriptionId(trimmed)
+      ? ''
+      : 'Enter a valid inscription id: 64 hex characters, then "i", then an index (e.g. abcd…i0).';
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  /** Push the current content into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
-    const body = this.finalBody();
-    if (!this.pickedFile || !body) {return;}
     const note = this.noteControl.value.trim();
+    const common = {
+      note: note || undefined,
+      metadata: this.metadataBytes ?? undefined,
+    };
+
+    if (this.inscribeMode === 'delegate') {
+      const id = this.delegatePreviewId;
+      if (!id) {this.orchestrator.setContent(null); return;}
+      // A delegate carries an empty body and no content_type of its own.
+      this.orchestrator.setContent({ body: new Uint8Array(0), delegate: id, ...common });
+      return;
+    }
+
+    const body = this.finalBody();
+    if (!this.pickedFile || !body) {this.orchestrator.setContent(null); return;}
     this.orchestrator.setContent({
       body,
       contentType: this.pickedFile.contentType,
       contentEncoding: this.isCompressed ? 'br' : undefined,
-      note: note || undefined,
-      metadata: this.metadataBytes ?? undefined,
+      ...common,
     });
   }
 
   private recomputePreConnectCost(): void {
     this.preConnectMintSats = null;
-    const file = this.pickedFile;
     const feeRate = this.cfeeRate.value;
-    const body = this.finalBody();
-    if (!file || !body || !feeRate || feeRate <= 0) {return;}
+    if (!feeRate || feeRate <= 0) {return;}
+
+    let body: Uint8Array;
+    let contentType: string | undefined;
+    let envelopeFields: OrdEnvelopeField[] | undefined;
+    if (this.inscribeMode === 'delegate') {
+      const id = this.delegatePreviewId;
+      if (!id) {return;}
+      // Empty body; the delegate tag is what sizes the reveal, so include it.
+      body = new Uint8Array(0);
+      envelopeFields = [{ tag: ORD_TAGS.delegate, value: encodeInscriptionId(id) }];
+    } else {
+      const b = this.finalBody();
+      if (!this.pickedFile || !b) {return;}
+      body = b;
+      contentType = this.pickedFile.contentType;
+    }
+
     try {
       const scureNet = toScureNetwork(this.network);
       const dummy = getDummyKeypair(scureNet);
@@ -524,7 +616,8 @@ export class InscribeMintComponent implements OnInit {
       const sim = simulateInscribeFees({
         feeRatePerVbyte: feeRate,
         body,
-        contentType: file.contentType,
+        contentType,
+        envelopeFields,
         fundingInput,
         senderChangeAddress: dummy.addressP2WPKH,
         recipientAddress: dummy.addressP2TR,
@@ -593,9 +686,19 @@ export class InscribeMintComponent implements OnInit {
 
   inscribe(wallet: WalletInfo): void {
     // The gate + orchestrator see the exact bytes that land on-chain
-    // (compressed when the box is ticked), so the size check is accurate.
-    const body = this.finalBody();
-    if (!this.pickedFile || !body) {return;}
+    // (compressed when the box is ticked, or empty for a delegate), so the
+    // size check is accurate.
+    let body: Uint8Array;
+    let contentType: string | undefined;
+    if (this.inscribeMode === 'delegate') {
+      if (!this.delegatePreviewId) {return;}
+      body = new Uint8Array(0);
+    } else {
+      const b = this.finalBody();
+      if (!this.pickedFile || !b) {return;}
+      body = b;
+      contentType = this.pickedFile.contentType;
+    }
     this.mintGateError = '';
     this.mintAttempted = true;
 
@@ -617,7 +720,7 @@ export class InscribeMintComponent implements OnInit {
           recipient: wallet.ordinalsAddress,
           feeRate: this.cfeeRate.value,
           body,
-          contentType: this.pickedFile.contentType,
+          contentType,
         },
       },
     });
@@ -651,6 +754,9 @@ export class InscribeMintComponent implements OnInit {
     this.compression = null;
     this.compressEnabled = false;
     this.resetMetadata();
+    this.inscribeMode = 'file';
+    this.delegateId = '';
+    this.delegateIdError = '';
     this.noteControl.setValue('ordpool.space');
     this.cd.detectChanges();
   }
