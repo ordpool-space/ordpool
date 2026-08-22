@@ -5,6 +5,7 @@ import { combineLatest, map, take, tap } from 'rxjs';
 import { detectMimeType } from 'ordpool-parser';
 import {
   AUTO_SCAN_MAX_VALUE_SAT,
+  CompressionAssessment,
   INSCRIBE_POSTAGE_SATS,
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
@@ -18,6 +19,7 @@ import {
   UtxoScanState,
   WalletInfo,
   WalletService,
+  assessCompression,
   bitcoinNetwork,
   bucketOf,
   cat21Config,
@@ -190,8 +192,19 @@ export class InscribeMintComponent implements OnInit {
       validators: [Validators.required, Validators.min(0.1)],
       nonNullable: true,
     }),
+    // Prefilled watermark so we can measure how many inscriptions came
+    // through ordpool; the user can clear it. Empty → no note tag.
+    note: new FormControl('ordpool.space', { nonNullable: true }),
   });
   cfeeRate = this.form.controls.feeRate;
+  noteControl = this.form.controls.note;
+
+  // ---- Compression (brotli, content_encoding: 'br') -----------------------
+  // assessCompression is the SDK's pre-check: it reports whether brotli
+  // meaningfully shrinks the body (never decides for us). We default the
+  // toggle ON iff `worthIt`; the user can override.
+  compression: CompressionAssessment | null = null;
+  compressEnabled = false;
 
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
@@ -210,6 +223,9 @@ export class InscribeMintComponent implements OnInit {
         this.recomputePreConnectCost();
       }
     });
+
+    // Editing the note re-synths the tag on the pending content.
+    this.noteControl.valueChanges.subscribe(() => this.syncContent());
 
     // Wipe the scanner cache when one wallet swaps out for another.
     let lastWalletAddress: string | null = null;
@@ -256,6 +272,8 @@ export class InscribeMintComponent implements OnInit {
     this.pickedFile = null;
     this.fileError = '';
     this.preConnectMintSats = null;
+    this.compression = null;
+    this.compressEnabled = false;
     this.orchestrator.setContent(null);
     this.cd.markForCheck();
   }
@@ -284,6 +302,13 @@ export class InscribeMintComponent implements OnInit {
       }
 
       this.pickedFile = { name: file.name, bytes, contentType, sizeBytes: bytes.length };
+      // Pre-check compression; default the toggle on only when it's worth it.
+      try {
+        this.compression = await assessCompression(bytes, contentType);
+      } catch {
+        this.compression = null;
+      }
+      this.compressEnabled = this.compression?.worthIt ?? false;
       this.syncContent();
       this.recomputePreConnectCost();
       this.cd.markForCheck();
@@ -295,12 +320,41 @@ export class InscribeMintComponent implements OnInit {
     }
   }
 
+  /** `true` when the content_encoding: 'br' tag applies to the current body. */
+  get isCompressed(): boolean {
+    return this.compressEnabled && !!this.compression?.worthIt;
+  }
+
+  /**
+   * The bytes actually inscribed: the brotli output when compression is on and
+   * worth it, otherwise the raw file. One source of truth for setContent, the
+   * cost estimate, and the pre-flight gate so the three never disagree.
+   */
+  private finalBody(): Uint8Array | null {
+    const file = this.pickedFile;
+    if (!file) {return null;}
+    const c = this.compression;
+    return this.isCompressed && c ? c.compressed : file.bytes;
+  }
+
+  /** User flipped the compression checkbox: re-sync content + cost. */
+  toggleCompression(enabled: boolean): void {
+    this.compressEnabled = enabled;
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
   /** Push the current file into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
-    if (!this.pickedFile) {return;}
+    const body = this.finalBody();
+    if (!this.pickedFile || !body) {return;}
+    const note = this.noteControl.value.trim();
     this.orchestrator.setContent({
-      body: this.pickedFile.bytes,
+      body,
       contentType: this.pickedFile.contentType,
+      contentEncoding: this.isCompressed ? 'br' : undefined,
+      note: note || undefined,
     });
   }
 
@@ -308,7 +362,8 @@ export class InscribeMintComponent implements OnInit {
     this.preConnectMintSats = null;
     const file = this.pickedFile;
     const feeRate = this.cfeeRate.value;
-    if (!file || !feeRate || feeRate <= 0) {return;}
+    const body = this.finalBody();
+    if (!file || !body || !feeRate || feeRate <= 0) {return;}
     try {
       const scureNet = toScureNetwork(this.network);
       const dummy = getDummyKeypair(scureNet);
@@ -321,7 +376,7 @@ export class InscribeMintComponent implements OnInit {
       });
       const sim = simulateInscribeFees({
         feeRatePerVbyte: feeRate,
-        body: file.bytes,
+        body,
         contentType: file.contentType,
         fundingInput,
         senderChangeAddress: dummy.addressP2WPKH,
@@ -390,7 +445,10 @@ export class InscribeMintComponent implements OnInit {
   }
 
   inscribe(wallet: WalletInfo): void {
-    if (!this.pickedFile) {return;}
+    // The gate + orchestrator see the exact bytes that land on-chain
+    // (compressed when the box is ticked), so the size check is accurate.
+    const body = this.finalBody();
+    if (!this.pickedFile || !body) {return;}
     this.mintGateError = '';
     this.mintAttempted = true;
 
@@ -411,7 +469,7 @@ export class InscribeMintComponent implements OnInit {
         intent: {
           recipient: wallet.ordinalsAddress,
           feeRate: this.cfeeRate.value,
-          body: this.pickedFile.bytes,
+          body,
           contentType: this.pickedFile.contentType,
         },
       },
@@ -443,6 +501,9 @@ export class InscribeMintComponent implements OnInit {
     this.mintGateError = '';
     this.preConnectMintSats = null;
     this.mintAttempted = false;
+    this.compression = null;
+    this.compressEnabled = false;
+    this.noteControl.setValue('ordpool.space');
     this.cd.detectChanges();
   }
 }

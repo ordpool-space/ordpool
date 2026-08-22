@@ -43,6 +43,49 @@
         {{ fileError }}
       </div>
 
+      <!-- Advanced options (compression, note) -->
+      <details class="mt-3 inscribe-advanced text-start" *ngIf="pickedFile" data-testid="inscribe-advanced">
+        <summary>Advanced options</summary>
+
+        <!-- Compression (brotli / content_encoding: br) -->
+        <div class="mt-3" data-testid="inscribe-compression">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="inscribe-compress" #compressBox
+                   data-testid="inscribe-compress-toggle"
+                   [checked]="compressEnabled"
+                   [disabled]="!compression?.worthIt"
+                   (change)="toggleCompression(compressBox.checked)">
+            <label class="form-check-label" for="inscribe-compress">
+              Compress with brotli
+              <span class="badge bg-secondary ms-1">content_encoding: br</span>
+            </label>
+          </div>
+          <div class="text-muted small mt-1" *ngIf="compression as c">
+            <span *ngIf="c.worthIt" data-testid="inscribe-compression-savings">
+              {{ c.originalSize | number }} → {{ c.compressedSize | number }} bytes
+              ({{ c.savedPercent }}% smaller). Ord decodes it back to the original
+              on the way out, so viewers see the file unchanged.
+            </span>
+            <span *ngIf="!c.worthIt" data-testid="inscribe-compression-skip">
+              This file type is already compressed. Brotli would not shrink it, so
+              there is nothing to gain.
+            </span>
+          </div>
+        </div>
+
+        <!-- Note (ord tag 15, UTF-8) -->
+        <div class="mt-3" data-testid="inscribe-note">
+          <label class="small text-muted" for="inscribe-note-input">Note</label>
+          <input type="text" class="form-control" id="inscribe-note-input"
+                 data-testid="inscribe-note-input" [formControl]="noteControl"
+                 placeholder="ordpool.space">
+          <div class="text-muted small mt-1">
+            A short on-chain text tag stored with the inscription. Leave empty to
+            omit it.
+          </div>
+        </div>
+      </details>
+
       <!-- Pre-connect cost estimate -->
       <div class="mt-3" *ngIf="pickedFile && preConnectMintSats !== null && !x.connectedWallet"
            data-testid="inscribe-cost-estimate">

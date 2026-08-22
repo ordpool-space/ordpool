@@ -13,6 +13,17 @@ const mintSpy = jest.fn();
 const validateSpy = jest.fn();
 const simulateSpy = jest.fn();
 
+// Swappable per-test so we can exercise the worthIt / not-worthIt branches.
+// Default: brotli isn't worth it, so `compressed` is the original bytes.
+type Assessment = {
+  worthIt: boolean; originalSize: number; compressedSize: number;
+  savedBytes: number; savedPercent: number; compressed: Uint8Array;
+};
+let assessCompressionImpl = async (bytes: Uint8Array): Promise<Assessment> => ({
+  worthIt: false, originalSize: bytes.length, compressedSize: bytes.length,
+  savedBytes: 0, savedPercent: 0, compressed: bytes,
+});
+
 jest.mock('ordpool-sdk', () => {
   const { InjectionToken } = jest.requireActual('@angular/core');
   return {
@@ -49,6 +60,7 @@ jest.mock('ordpool-sdk', () => {
     prepareInscribeFundingInput: () => ({ txid: 'f'.repeat(64), vout: 0, value: 10_000_000 }),
     simulateInscribeFees: (...args: unknown[]) => { simulateSpy(...args); return { fundingRequirementSats: 4321, totalFeeSats: 3000 }; },
     validateInscribeOperation: (args: unknown) => { validateSpy(args); return gateResult; },
+    assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
   };
 });
 
@@ -115,6 +127,10 @@ describe('InscribeMintComponent', () => {
 
   beforeEach(async () => {
     gateResult = { ok: true, resources: {} };
+    assessCompressionImpl = async (bytes: Uint8Array) => ({
+      worthIt: false, originalSize: bytes.length, compressedSize: bytes.length,
+      savedBytes: 0, savedPercent: 0, compressed: bytes,
+    });
     setContentSpy.mockClear();
     mintSpy.mockClear();
     validateSpy.mockClear();
@@ -236,5 +252,59 @@ describe('InscribeMintComponent', () => {
     component.inscribeAnother();
     expect(orchestrator.reset).toHaveBeenCalled();
     expect(component.pickedFile).toBeNull();
+  });
+
+  // ---- Compression --------------------------------------------------------
+
+  it('worthIt compression → toggle on, content carries the compressed body + content_encoding br', async () => {
+    const compressed = new Uint8Array([1, 2, 3]);
+    assessCompressionImpl = async () => ({
+      worthIt: true, originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97, compressed,
+    });
+    await (component as any).handleFile(pngFile());
+    expect(component.compressEnabled).toBe(true);
+    expect(component.isCompressed).toBe(true);
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(last.body).toBe(compressed);
+    expect(last.contentEncoding).toBe('br');
+  });
+
+  it('not-worthIt compression → toggle off, raw body, no content_encoding tag', async () => {
+    const f = pngFile();
+    await (component as any).handleFile(f);
+    expect(component.compressEnabled).toBe(false);
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(last.contentEncoding).toBeUndefined();
+    expect(last.body).toBe(component.pickedFile!.bytes);
+  });
+
+  it('toggleCompression(false) after a worthIt pick → falls back to the raw body', async () => {
+    assessCompressionImpl = async () => ({
+      worthIt: true, originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97,
+      compressed: new Uint8Array([9, 9, 9]),
+    });
+    await (component as any).handleFile(pngFile());
+    setContentSpy.mockClear();
+    component.toggleCompression(false);
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(component.isCompressed).toBe(false);
+    expect(last.contentEncoding).toBeUndefined();
+    expect(last.body).toBe(component.pickedFile!.bytes);
+  });
+
+  // ---- Note ---------------------------------------------------------------
+
+  it('note defaults to "ordpool.space" and is threaded into content', async () => {
+    await (component as any).handleFile(pngFile());
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(last.note).toBe('ordpool.space');
+  });
+
+  it('empty note → the tag is omitted (undefined)', async () => {
+    await (component as any).handleFile(pngFile());
+    setContentSpy.mockClear();
+    component.noteControl.setValue('   ');
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(last.note).toBeUndefined();
   });
 });
