@@ -84,6 +84,61 @@
             omit it.
           </div>
         </div>
+
+        <!-- Metadata (ord tag 5, CBOR) -->
+        <div class="mt-4" data-testid="inscribe-metadata">
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="small text-muted mb-0">Metadata</label>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn"
+                      [class.btn-primary]="metadataMode === 'kv'"
+                      [class.btn-outline-secondary]="metadataMode !== 'kv'"
+                      data-testid="inscribe-metadata-mode-kv"
+                      (click)="switchMetadataMode('kv')">Key / value</button>
+              <button type="button" class="btn"
+                      [class.btn-primary]="metadataMode === 'json'"
+                      [class.btn-outline-secondary]="metadataMode !== 'json'"
+                      data-testid="inscribe-metadata-mode-json"
+                      (click)="switchMetadataMode('json')">JSON</button>
+            </div>
+          </div>
+
+          <!-- Key-value editor -->
+          <div *ngIf="metadataMode === 'kv'" class="mt-2" data-testid="inscribe-metadata-kv">
+            <div class="input-group input-group-sm mb-2" *ngFor="let row of metadataRows; let i = index">
+              <input #k type="text" class="form-control" placeholder="key" [value]="row.key"
+                     [attr.data-testid]="'inscribe-metadata-key-' + i"
+                     (input)="setMetadataRow(i, k.value, v.value)">
+              <input #v type="text" class="form-control" placeholder="value" [value]="row.value"
+                     [attr.data-testid]="'inscribe-metadata-value-' + i"
+                     (input)="setMetadataRow(i, k.value, v.value)">
+              <button type="button" class="btn btn-outline-danger" title="Remove"
+                      [attr.data-testid]="'inscribe-metadata-remove-' + i"
+                      (click)="removeMetadataRow(i)">&times;</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-testid="inscribe-metadata-add" (click)="addMetadataRow()">+ Add attribute</button>
+          </div>
+
+          <!-- JSON editor -->
+          <div *ngIf="metadataMode === 'json'" class="mt-2">
+            <textarea #jsonArea class="form-control" rows="5" spellcheck="false"
+                      placeholder='&#123; "collection": "cats", "edition": 21 &#125;'
+                      data-testid="inscribe-metadata-json"
+                      [value]="metadataJson"
+                      (input)="onMetadataJsonChange(jsonArea.value)"></textarea>
+          </div>
+
+          <div class="feedback-error p-1 small mt-1" *ngIf="metadataError" data-testid="inscribe-metadata-error">
+            {{ metadataError }}
+          </div>
+          <div class="text-muted small mt-1" *ngIf="metadataModeHint" data-testid="inscribe-metadata-hint">
+            {{ metadataModeHint }}
+          </div>
+          <div class="text-muted small mt-1" *ngIf="metadataBytes as m" data-testid="inscribe-metadata-size">
+            {{ m.length | number }} bytes of CBOR metadata will be stored on-chain.
+          </div>
+        </div>
       </details>
 
       <!-- Pre-connect cost estimate -->
@@ -224,7 +279,7 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !selectedPaymentOutput || !pickedFile"
+              [disabled]="form.invalid || !selectedPaymentOutput || !pickedFile || metadataInvalid"
               class="btn btn-primary mt-4 mb-4 text-white">
               <ng-container *ngIf="!mintLoading()">📎 Inscribe my file</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>

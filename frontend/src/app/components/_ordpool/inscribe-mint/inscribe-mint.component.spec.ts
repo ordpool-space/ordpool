@@ -61,6 +61,9 @@ jest.mock('ordpool-sdk', () => {
     simulateInscribeFees: (...args: unknown[]) => { simulateSpy(...args); return { fundingRequirementSats: 4321, totalFeeSats: 3000 }; },
     validateInscribeOperation: (args: unknown) => { validateSpy(args); return gateResult; },
     assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
+    // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
+    // The real deterministic-CBOR encoder is unit-tested in the SDK.
+    encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
   };
 });
 
@@ -306,5 +309,91 @@ describe('InscribeMintComponent', () => {
     component.noteControl.setValue('   ');
     const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
     expect(last.note).toBeUndefined();
+  });
+
+  // ---- Metadata -----------------------------------------------------------
+
+  function lastContent(): any {
+    return setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1]?.[0];
+  }
+  function decodeMeta(bytes: Uint8Array): unknown {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  it('KV metadata → encoded bytes threaded into content', async () => {
+    await (component as any).handleFile(pngFile());
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'collection', 'cats');
+    expect(component.metadataBytes).not.toBeNull();
+    expect(decodeMeta(lastContent().metadata)).toEqual({ collection: 'cats' });
+  });
+
+  it('empty metadata → no metadata tag', async () => {
+    await (component as any).handleFile(pngFile());
+    expect(lastContent().metadata).toBeUndefined();
+  });
+
+  it('blank keys are dropped from KV metadata', async () => {
+    await (component as any).handleFile(pngFile());
+    component.addMetadataRow();
+    component.setMetadataRow(0, '   ', 'ignored');
+    expect(component.metadataBytes).toBeNull();
+    expect(lastContent().metadata).toBeUndefined();
+  });
+
+  it('invalid JSON → metadataInvalid, no bytes, mint blocked', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{ not valid');
+    expect(component.metadataInvalid).toBe(true);
+    expect(component.metadataError).toContain('Invalid JSON');
+    expect(component.metadataBytes).toBeNull();
+  });
+
+  it('valid nested JSON → bytes encode the nested object', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{"a":{"b":1},"list":[1,2]}');
+    expect(component.metadataInvalid).toBe(false);
+    const bytes = component.metadataBytes;
+    expect(bytes).not.toBeNull();
+    expect(decodeMeta(bytes as Uint8Array)).toEqual({ a: { b: 1 }, list: [1, 2] });
+  });
+
+  it('KV → JSON mode serialises the current object', async () => {
+    await (component as any).handleFile(pngFile());
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'edition', '21');
+    component.switchMetadataMode('json');
+    expect(component.metadataMode).toBe('json');
+    expect(JSON.parse(component.metadataJson)).toEqual({ edition: '21' });
+  });
+
+  it('JSON → KV parses back a flat object', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{"a":"1","b":"2"}');
+    component.switchMetadataMode('kv');
+    expect(component.metadataMode).toBe('kv');
+    expect(component.metadataRows).toEqual([{ key: 'a', value: '1' }, { key: 'b', value: '2' }]);
+  });
+
+  it('JSON → KV refused for nested data (JSON stays authoritative)', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{"a":{"b":1}}');
+    component.switchMetadataMode('kv');
+    expect(component.metadataMode).toBe('json');
+    expect(component.metadataModeHint).toContain('nested');
+  });
+
+  it('inscribeAnother resets metadata state', () => {
+    component.metadataRows = [{ key: 'a', value: 'b' }];
+    component.metadataBytes = new Uint8Array([1]);
+    component.metadataMode = 'json';
+    component.inscribeAnother();
+    expect(component.metadataRows).toEqual([]);
+    expect(component.metadataBytes).toBeNull();
+    expect(component.metadataMode).toBe('kv');
   });
 });

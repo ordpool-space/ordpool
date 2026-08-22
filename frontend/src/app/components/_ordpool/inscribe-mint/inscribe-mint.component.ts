@@ -23,6 +23,7 @@ import {
   bitcoinNetwork,
   bucketOf,
   cat21Config,
+  encodeCborDeterministic,
   findAutoPickCandidate,
   getDummyKeypair,
   getMinimumUtxoSize,
@@ -206,6 +207,17 @@ export class InscribeMintComponent implements OnInit {
   compression: CompressionAssessment | null = null;
   compressEnabled = false;
 
+  // ---- Metadata (ord tag 5, CBOR) -----------------------------------------
+  // Two authoring modes: a flat key-value editor, or a raw JSON textarea for
+  // anything nested. Both feed one deterministic-CBOR encode; the bytes ride
+  // along on setContent. Empty input emits no tag.
+  metadataMode: 'kv' | 'json' = 'kv';
+  metadataRows: { key: string; value: string }[] = [];
+  metadataJson = '';
+  metadataError = '';        // invalid JSON or un-encodable value (blocks mint)
+  metadataModeHint = '';     // transient note when a JSON->KV switch is refused
+  metadataBytes: Uint8Array | null = null;   // encoded CBOR, null when empty
+
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
     this.seoService.setDescription('Inscribe any file onto Bitcoin directly from your own wallet. No service fee, non-custodial, and every inscription mints two free CAT-21 cats.');
@@ -274,6 +286,7 @@ export class InscribeMintComponent implements OnInit {
     this.preConnectMintSats = null;
     this.compression = null;
     this.compressEnabled = false;
+    this.resetMetadata();
     this.orchestrator.setContent(null);
     this.cd.markForCheck();
   }
@@ -345,6 +358,139 @@ export class InscribeMintComponent implements OnInit {
     this.cd.markForCheck();
   }
 
+  // ---- Metadata -----------------------------------------------------------
+
+  /** `true` when the JSON textarea holds something that won't encode. */
+  get metadataInvalid(): boolean {
+    return !!this.metadataError;
+  }
+
+  addMetadataRow(): void {
+    this.metadataRows.push({ key: '', value: '' });
+    this.cd.markForCheck();
+  }
+
+  removeMetadataRow(i: number): void {
+    this.metadataRows.splice(i, 1);
+    this.rebuildMetadata();
+  }
+
+  setMetadataRow(i: number, key: string, value: string): void {
+    const row = this.metadataRows[i];
+    if (!row) {return;}
+    row.key = key;
+    row.value = value;
+    this.rebuildMetadata();
+  }
+
+  onMetadataJsonChange(json: string): void {
+    this.metadataJson = json;
+    this.rebuildMetadata();
+  }
+
+  /** Switch author mode, carrying the current object across when it can. */
+  switchMetadataMode(mode: 'kv' | 'json'): void {
+    this.metadataModeHint = '';
+    if (mode === this.metadataMode) {return;}
+
+    if (mode === 'json') {
+      const obj = this.kvToObject();
+      this.metadataJson = Object.keys(obj).length ? JSON.stringify(obj, null, 2) : '';
+      this.metadataMode = 'json';
+    } else {
+      const parsed = this.parseJsonMetadata();
+      if (parsed.ok && this.isFlatPrimitiveObject(parsed.value)) {
+        this.metadataRows = Object.entries(parsed.value).map(([key, v]) => ({
+          key,
+          value: v === null ? '' : String(v),
+        }));
+        this.metadataMode = 'kv';
+      } else {
+        // Nested / array / invalid JSON: JSON mode stays authoritative so we
+        // never silently drop structure the flat editor can't hold.
+        this.metadataModeHint = parsed.ok
+          ? 'This JSON is nested or an array. The key-value editor only handles a flat object, so it stays in JSON mode.'
+          : 'Fix the JSON before switching to the key-value editor.';
+        this.cd.markForCheck();
+        return;
+      }
+    }
+    this.rebuildMetadata();
+  }
+
+  private kvToObject(): Record<string, string> {
+    const obj: Record<string, string> = {};
+    for (const { key, value } of this.metadataRows) {
+      const k = key.trim();
+      if (k) {obj[k] = value;}
+    }
+    return obj;
+  }
+
+  private parseJsonMetadata(): { ok: true; value: unknown } | { ok: false } {
+    const raw = this.metadataJson.trim();
+    if (!raw) {return { ok: true, value: {} };}
+    try {
+      return { ok: true, value: JSON.parse(raw) };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  private isFlatPrimitiveObject(v: unknown): v is Record<string, string | number | boolean | null> {
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) {return false;}
+    return Object.values(v as Record<string, unknown>).every(
+      (x) => x === null || ['string', 'number', 'boolean'].includes(typeof x));
+  }
+
+  /** Re-encode the current metadata to CBOR and push it into the content. */
+  private rebuildMetadata(): void {
+    this.metadataError = '';
+    this.metadataModeHint = '';
+
+    let obj: unknown;
+    if (this.metadataMode === 'kv') {
+      obj = this.kvToObject();
+    } else {
+      const parsed = this.parseJsonMetadata();
+      if (!parsed.ok) {
+        this.metadataError = 'Invalid JSON. Fix it or clear the field to inscribe without metadata.';
+        this.metadataBytes = null;
+        this.syncContent();
+        this.cd.markForCheck();
+        return;
+      }
+      obj = parsed.value;
+    }
+
+    const isEmpty =
+      obj == null ||
+      (Array.isArray(obj) && obj.length === 0) ||
+      (typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj as object).length === 0);
+
+    if (isEmpty) {
+      this.metadataBytes = null;
+    } else {
+      try {
+        this.metadataBytes = encodeCborDeterministic(obj);
+      } catch {
+        this.metadataError = 'This metadata could not be encoded. Please simplify it.';
+        this.metadataBytes = null;
+      }
+    }
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  private resetMetadata(): void {
+    this.metadataMode = 'kv';
+    this.metadataRows = [];
+    this.metadataJson = '';
+    this.metadataError = '';
+    this.metadataModeHint = '';
+    this.metadataBytes = null;
+  }
+
   /** Push the current file into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
     const body = this.finalBody();
@@ -355,6 +501,7 @@ export class InscribeMintComponent implements OnInit {
       contentType: this.pickedFile.contentType,
       contentEncoding: this.isCompressed ? 'br' : undefined,
       note: note || undefined,
+      metadata: this.metadataBytes ?? undefined,
     });
   }
 
@@ -503,6 +650,7 @@ export class InscribeMintComponent implements OnInit {
     this.mintAttempted = false;
     this.compression = null;
     this.compressEnabled = false;
+    this.resetMetadata();
     this.noteControl.setValue('ordpool.space');
     this.cd.detectChanges();
   }
