@@ -233,7 +233,11 @@ describe('getTooltipContent', () => {
     expect(result).toContain('CAT-21: 1000');
     expect(result).toContain('Inscriptions: 2000');
     expect(result).toContain('Runes: 3000');
-    // expect(result).toContain('Runes (excluding ⧉ UNCOMMON•GOODS): 4000');
+    // The non-uncommon-runes line renders as "Runes: 4000 <small>(excluding
+    // ⧉ UNCOMMON•GOODS)</small>"; assert the value + the label fragment so the
+    // feesNonUncommonRuneMints row is actually pinned in the tooltip.
+    expect(result).toContain('Runes: 4000');
+    expect(result).toContain('(excluding ⧉ UNCOMMON•GOODS)');
     expect(result).toContain('BRC-20: 5000');
     expect(result).toContain('SRC-20: 6000');
   });

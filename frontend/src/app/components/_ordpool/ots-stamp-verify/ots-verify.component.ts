@@ -302,6 +302,11 @@ export class OtsVerifyComponent {
         }
       : null;
 
+    // Single-use: a pre-dropped file resolves exactly one receipt. Clear it so
+    // a later independent .ots verify (no fresh file drop) can't reuse the
+    // stale file and render a false 'different file' mismatch.
+    this.cachedFile = null;
+
     this.status = {
       kind: 'verified',
       receipt: {

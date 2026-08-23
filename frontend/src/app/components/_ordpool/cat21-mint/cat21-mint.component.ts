@@ -208,7 +208,8 @@ export class Cat21MintComponent implements OnInit {
   }
 
   get recommendedFundingSats(): number {
-    return calculateRecommendedFundingSats(this.cfeeRate.value || 1);
+    const rate = this.cfeeRate.value;
+    return calculateRecommendedFundingSats(Number.isFinite(rate) && rate > 0 ? rate : 1);
   }
 
   form = new FormGroup({
@@ -216,7 +217,10 @@ export class Cat21MintComponent implements OnInit {
     // (April 2024). Below 0.1 sat/vB won't relay on a default-config
     // node; above it the wallet itself surfaces any broadcast issue.
     feeRate: new FormControl(1, {
-      validators: [Validators.required, Validators.min(0.1)],
+      // Cap at the SDK gate's 1000 sat/vB ceiling and reject non-finite rates
+      // (Infinity from a `1e999` input, NaN) before they reach the funding calc
+      // or the orchestrator. Mirrors inscribe-mint.
+      validators: [Validators.required, Validators.min(0.1), Validators.max(1000)],
       nonNullable: true,
     }),
   });
@@ -230,7 +234,7 @@ export class Cat21MintComponent implements OnInit {
     });
 
     this.cfeeRate.valueChanges.subscribe((rate) => {
-      if (rate) this.orchestrator.setFeeRate(rate);
+      if (rate && Number.isFinite(rate)) this.orchestrator.setFeeRate(rate);
     });
 
     // Wipe the scanner cache when one wallet swaps out for another —

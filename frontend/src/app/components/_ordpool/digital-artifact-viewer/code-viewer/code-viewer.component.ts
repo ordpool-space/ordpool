@@ -46,11 +46,26 @@ export class CodeViewerComponent {
       parser = 'babel';
     }
 
+    // No prettier parser matches this content type (e.g. application/yaml, which
+    // the preview service still routes to the code viewer). Show the raw source
+    // rather than calling prettier with an empty parser, which rejects with
+    // "Couldn't resolve parser" and would leave the panel blank.
+    if (!parser) {
+      this.formatedText = source;
+      this.cd.detectChanges();
+      return;
+    }
+
     prettier.format(source, {
       parser,
       plugins: [prettierPluginCss, prettierPluginBabel, prettierPluginEstree]
     }).then(formatedText => {
       this.formatedText = formatedText;
+      this.cd.detectChanges();
+    }).catch(() => {
+      // Input the matched parser can't parse (malformed JS/CSS): fall back to
+      // the raw source so the panel shows the content instead of a blank block.
+      this.formatedText = source;
       this.cd.detectChanges();
     });
   }

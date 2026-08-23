@@ -42,7 +42,6 @@ import {
 export class OrdpoolStatsComponent {
   
   loading = false;
-  lastHoveredStat?: OrdpoolStatisticResponse;
 
   private route = inject(ActivatedRoute);
   private ordpoolApiService = inject(OrdpoolApiService);
@@ -71,7 +70,11 @@ export class OrdpoolStatsComponent {
         heading: formatChartHeading(type),
         description: formatChartDescription(type, interval, aggregation)
       }))
-    ))
+    )),
+    // Two async pipes in the template consume statistics$; without a shared
+    // terminal each opens its own subscription and fires the stats API twice
+    // per navigation.
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
 
   constructor() {
@@ -112,9 +115,7 @@ export class OrdpoolStatsComponent {
         },
         borderColor: '#FF9900',
         formatter: (params: any) => {
-          const dataIndex = params[0]?.dataIndex;
-          const stat = statistics[dataIndex];
-          this.lastHoveredStat = stat;
+          const stat = statistics[params[0]?.dataIndex];
           return getTooltipContent(type, stat);
         },
       },
@@ -152,15 +153,9 @@ export class OrdpoolStatsComponent {
     };
   }
 
-  onChartInit(chartInstance) {
-    // chartInstance.on('click', 'series', this.onChartClick.bind(this));
-    chartInstance.getZr().on('click', this.onChartClick.bind(this));
-  }
-
-  onChartClick(e) {
-    if (this.lastHoveredStat) {
-      console.log('DEBUG', this.lastHoveredStat);
-    }
+  onChartInit(_chartInstance) {
+    // ECharts init hook wired via the template's (chartInit) output. No click
+    // behaviour is attached: the tooltip already surfaces the hovered stat.
   }
 
   isMobile() {

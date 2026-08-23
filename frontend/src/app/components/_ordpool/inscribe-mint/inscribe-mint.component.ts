@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { combineLatest, map, take, tap } from 'rxjs';
+import { combineLatest, map, shareReplay, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
 import {
@@ -166,6 +166,11 @@ export class InscribeMintComponent implements OnInit {
       this.orchestrator.setSelectedUtxo(next ? next.paymentOutput : null);
       this.cd.detectChanges();
     }),
+    // Two async pipes in the template consume this (the row count + the *ngFor).
+    // Without shareReplay each opens its own subscription and the tap side
+    // effects (autoScan, auto-pick, setSelectedUtxo, detectChanges) run twice
+    // per emission. Matches cat21-mint's paymentOutputs$.
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
 
   selectedPaymentOutput: ViableInscribeSimulation | undefined;
