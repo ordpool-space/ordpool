@@ -330,8 +330,13 @@ export class InscribeMintComponent implements OnInit {
 
       this.pickedFile = { name: file.name, bytes, contentType, sizeBytes: bytes.length };
       // Pre-check compression; default the toggle on only when it's worth it.
+      // Pass the same-origin wasm URL so Chrome/Edge (no native brotli encoder)
+      // can still try brotli; Safari/Firefox/Node use their native one and
+      // never fetch it. Built from document.baseURI to survive a <base href>.
       try {
-        this.compression = await assessCompression(bytes, contentType);
+        this.compression = await assessCompression(bytes, contentType, {
+          brotliWasmUrl: new URL('assets/brotli_wasm_bg.wasm', document.baseURI).href,
+        });
       } catch {
         this.compression = null;
       }

@@ -41,11 +41,12 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
  *      broadcasts commit + reveal sequentially via POST /api/tx.
  *   7. Read the reveal txid off the success panel, mine, confirm, and
  *      assert the on-chain reveal is a well-formed inscription: parses
- *      through `InscriptionParserService`, carries `content_encoding=gzip`
- *      (the page compresses by default; the SVG clears the 5% margin), the
- *      on-chain body is real gzip (smaller + `1f 8b` magic) that DECODES
- *      back byte-identically to the fixture, has the right content-type,
- *      and (the CAT-21 side-effect the wallet convention adds) carries
+ *      through `InscriptionParserService`, carries a `content_encoding`
+ *      tag (`br` or `gzip` — the page compresses by default and picks the
+ *      smaller; the SVG clears the 5% margin), the on-chain body is real
+ *      compressed bytes (smaller than the fixture) that DECODE back
+ *      byte-identically to the fixture, has the right content-type, and
+ *      (the CAT-21 side-effect the wallet convention adds) carries
  *      locktime=21 on both commit and reveal.
  *
  * The compress-on-the-page → decode-off-chain roundtrip is the acceptance
@@ -375,14 +376,16 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
 
-  // The page compresses by default: the SVG fixture clears assessCompression's
-  // 5% margin, so the on-chain body is gzip and carries content_encoding=gzip.
-  // Prove the encode happened, that real compressed bytes landed on-chain, and
-  // — the immutability-safety criterion — that it decodes back byte-identically.
-  expect(parsed[0].getContentEncoding()).toBe('gzip');
+  // The page compresses by default and inscribes the smaller of gzip / brotli
+  // (the SVG fixture clears assessCompression's 5% margin). In CI's headed
+  // Chromium the hosted wasm makes brotli available and it wins, but assert
+  // codec-agnostically so the test holds on any engine. The decode-back is the
+  // immutability-safety criterion: a compressor that didn't decode back would
+  // corrupt the inscription forever.
+  const enc = parsed[0].getContentEncoding();
+  expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
   const onChain = Buffer.from(parsed[0].getDataRaw());
   expect(onChain.length).toBeLessThan(EXPECTED_BODY.length); // actually compressed
-  expect([onChain[0], onChain[1]]).toEqual([0x1f, 0x8b]);    // gzip magic
   const decoded = Buffer.from(await parsed[0].getData(), 'base64');
   expect(decoded.equals(EXPECTED_BODY)).toBe(true);          // clean decode to original
 });
