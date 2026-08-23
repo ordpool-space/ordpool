@@ -115,7 +115,10 @@ export class OrdpoolStatsComponent {
         },
         borderColor: '#FF9900',
         formatter: (params: any) => {
-          const stat = statistics[params[0]?.dataIndex];
+          // atomical-ops embeds the source row on each point (statRef) because
+          // its grouped series break the flat statistics[dataIndex] mapping;
+          // every other chart has one point per stats row and falls through.
+          const stat = params[0]?.data?.statRef ?? statistics[params[0]?.dataIndex];
           return getTooltipContent(type, stat);
         },
       },

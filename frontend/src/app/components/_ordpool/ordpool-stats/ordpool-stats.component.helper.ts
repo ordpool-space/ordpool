@@ -167,18 +167,23 @@ export function getSeriesData<T extends ChartType>(
       // operation, render one series per distinct op with the ATOMICAL_OPERATION_LABELS
       // display label (splat / split / custom-color for the single-letter ops,
       // raw multi-letter codes like nft / mint-nft-realm / dft otherwise).
-      const byOp = new Map<string, [number, number | undefined][]>();
+      //
+      // Unlike the single-series charts, these series have DIFFERENT lengths, so
+      // a flat statistics[dataIndex] tooltip lookup misaligns. Carry each point's
+      // source row on `statRef` so the tooltip resolves the correct stat from
+      // params[0].data instead of re-indexing the flat array.
+      const byOp = new Map<string, { value: [number, number | undefined]; statRef: AtomicalOpsStatistic }[]>();
       for (const row of stats) {
         const op = row.operation ?? 'unknown';
         const points = byOp.get(op) ?? [];
-        points.push([row.minTime, row.count]);
+        points.push({ value: [row.minTime, row.count], statRef: row });
         byOp.set(op, points);
       }
       return Array.from(byOp.entries()).map(([op, data]) => ({
         name: atomicalOpLabel(op),
         type: 'line',
         data,
-      }));
+      })) as LineSeriesOption[];
     },
     'counterparty-messages': (stats: CounterpartyMessagesStatistic[]) => [
       { name: 'Counterparty messages', type: 'line', data: stats.map((stat) => [stat.minTime, stat.count]) },

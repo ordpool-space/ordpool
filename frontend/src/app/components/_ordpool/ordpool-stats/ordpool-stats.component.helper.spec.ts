@@ -1,4 +1,5 @@
 import {
+  AtomicalOpsStatistic,
   ChartType,
   FeeStatistic,
   InscriptionSizeStatistic,
@@ -133,6 +134,34 @@ describe('getSeriesData', () => {
         [1734998400000, 12],
       ] },
     ]);
+  });
+
+  it('groups atomical-ops by operation and carries each point source row on statRef', () => {
+    // Grouped series of DIFFERENT lengths ('nft' spans two periods, 'dft' one).
+    // That unevenness is exactly why a flat statistics[dataIndex] tooltip lookup
+    // misaligned; each point carries statRef so the tooltip resolves the right stat.
+    const t1 = 1734994800000;
+    const t2 = 1734998400000;
+    const nftA: AtomicalOpsStatistic = { minHeight: 1, maxHeight: 2, minTime: t1, maxTime: t1, operation: 'nft', count: 3 };
+    const nftB: AtomicalOpsStatistic = { minHeight: 3, maxHeight: 4, minTime: t2, maxTime: t2, operation: 'nft', count: 5 };
+    const dft: AtomicalOpsStatistic = { minHeight: 5, maxHeight: 6, minTime: t2, maxTime: t2, operation: 'dft', count: 7 };
+
+    const result = getSeriesData('atomical-ops', [nftA, nftB, dft]) as any[];
+
+    expect(result).toHaveLength(2);
+    // Find by point count (the two grouped ops have 2 and 1 points); robust to
+    // how ATOMICAL_OPERATION_LABELS renames the op for the legend.
+    const nftSeries = result.find((s) => s.data.length === 2);
+    const dftSeries = result.find((s) => s.data.length === 1);
+
+    expect(nftSeries.data).toEqual([
+      { value: [t1, 3], statRef: nftA },
+      { value: [t2, 5], statRef: nftB },
+    ]);
+    expect(dftSeries.data).toEqual([
+      { value: [t2, 7], statRef: dft },
+    ]);
+    expect(nftSeries.data.length).not.toBe(dftSeries.data.length);
   });
 
   it('should throw an error for unsupported chart type', () => {

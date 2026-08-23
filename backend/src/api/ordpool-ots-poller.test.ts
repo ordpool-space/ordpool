@@ -1,6 +1,7 @@
 import ordpoolOtsPoller, { CalendarResponse, KNOWN_CALENDARS } from './ordpool-ots-poller';
 import ordpoolOtsTxidSet from './ordpool-ots-txid-set';
 import ordpoolOtsRepository from '../repositories/OrdpoolOtsRepository';
+import config from '../config';
 
 jest.mock('../repositories/OrdpoolOtsRepository', () => ({
   __esModule: true,
@@ -14,8 +15,8 @@ jest.mock('../repositories/OrdpoolOtsRepository', () => ({
 
 const repoMock = ordpoolOtsRepository as jest.Mocked<typeof ordpoolOtsRepository>;
 
-/** Helper: build a stub fetch that returns a fixed response per calendar URL. */
-function stubFetch(byUrl: Record<string, CalendarResponse | { status: number }>): typeof fetch {
+/** Helper: build a stub fetch that returns a fixed response per URL (calendar JSON or electrs /tx). */
+function stubFetch(byUrl: Record<string, any>): typeof fetch {
   return (async (input: any) => {
     const url = typeof input === 'string' ? input : input.url;
     const r = byUrl[url];
@@ -31,6 +32,29 @@ const TIP = '7f909ce454f6c88a6f6721e2e4527ac0a76ca6460a0f0bbdf94978aeae58081e';
 const TXID_CONF = '8d8ce7ac7b68335a040243f31e7e3a2ba8fb82166ca569e7c8b80361b90e8b9f';
 const TXID_PENDING = '914a3f3575a1da92035a57bd758da8588fd11776927ab880915f97e66612f773';
 const TXID_OTHER = '054cc18a8162887917a1e6e5c60389bb4b6647167e6936d231466d7b2710f413';
+
+// Each calendar commit tx carries its OWN 32-byte Merkle root in its OP_RETURN;
+// the poller reads that (not the calendar tip) via electrs.
+const REAL_ROOT_CONF = 'a1'.repeat(32);
+const REAL_ROOT_PENDING = 'b2'.repeat(32);
+const ELECTRS_BASE = config.ESPLORA.REST_API_URL.replace(/\/$/, '');
+const electrsTxUrl = (txid: string): string => `${ELECTRS_BASE}/tx/${txid}`;
+
+/**
+ * electrs /tx response shaped like a calendar commit whose OP_RETURN carries
+ * `root`. No `status` field on purpose: resolveMerkleRoot reads only vin/vout,
+ * and a `status` key would collide with stubFetch's { status } error marker.
+ */
+function calendarCommitTx(txid: string, root: string): any {
+  return {
+    txid,
+    vin: [{ txid: 'prev'.padEnd(64, '0') }],
+    vout: [
+      { value: 546, scriptpubkey: '0014' + '0'.repeat(40) },   // P2WPKH change
+      { value: 0, scriptpubkey: '6a20' + root },                // OP_RETURN + 32-byte root
+    ],
+  };
+}
 
 const ALICE = KNOWN_CALENDARS.find(c => c.nickname === 'alice')!;
 const BOB = KNOWN_CALENDARS.find(c => c.nickname === 'bob')!;
@@ -73,6 +97,7 @@ describe('OrdpoolOtsPoller.tick()', () => {
       [BOB.url]: emptyResponse(),
       [FINNEY.url]: emptyResponse(),
       [CATALLAXY.url]: emptyResponse(),
+      [electrsTxUrl(TXID_CONF)]: calendarCommitTx(TXID_CONF, REAL_ROOT_CONF),
     }));
 
     const results = await ordpoolOtsPoller.tick();
@@ -81,7 +106,7 @@ describe('OrdpoolOtsPoller.tick()', () => {
     expect(repoMock.upsertConfirmed).toHaveBeenCalledWith(expect.objectContaining({
       txid: TXID_CONF,
       calendar: 'alice',
-      merkleRoot: TIP,
+      merkleRoot: REAL_ROOT_CONF,     // the tx's OWN OP_RETURN root, not the calendar tip
       blockheight: 948192,
       fee: 159,           // normalised (positive)
       feerate: '0.68',
@@ -93,19 +118,45 @@ describe('OrdpoolOtsPoller.tick()', () => {
     expect(alice.newPending).toBe(0);
   });
 
+  it('falls back to the calendar tip when the electrs fetch for the confirmed tx fails', async () => {
+    ordpoolOtsPoller.setFetch(stubFetch({
+      [ALICE.url]: {
+        tip: TIP,
+        transactions: [{
+          txid: TXID_CONF, confirmations: 3,
+          blockhash: '0'.repeat(64), blockheight: 948192, blocktime: 1778100000,
+          fee: -159, feerate: '0.68',
+        }],
+        most_recent_tx: 'None',
+      },
+      [BOB.url]: emptyResponse(),
+      [FINNEY.url]: emptyResponse(),
+      [CATALLAXY.url]: emptyResponse(),
+      [electrsTxUrl(TXID_CONF)]: { status: 500 },   // electrs down -> best-effort fallback to tip
+    }));
+
+    await ordpoolOtsPoller.tick();
+
+    expect(repoMock.upsertConfirmed).toHaveBeenCalledWith(expect.objectContaining({
+      txid: TXID_CONF,
+      merkleRoot: TIP,
+    }));
+  });
+
   it('records most_recent_tx as a pending row', async () => {
     ordpoolOtsPoller.setFetch(stubFetch({
       [ALICE.url]: { tip: TIP, transactions: [], most_recent_tx: TXID_PENDING },
       [BOB.url]: emptyResponse(),
       [FINNEY.url]: emptyResponse(),
       [CATALLAXY.url]: emptyResponse(),
+      [electrsTxUrl(TXID_PENDING)]: calendarCommitTx(TXID_PENDING, REAL_ROOT_PENDING),
     }));
 
     const results = await ordpoolOtsPoller.tick();
 
     expect(repoMock.upsertPending).toHaveBeenCalledTimes(1);
     expect(repoMock.upsertPending).toHaveBeenCalledWith({
-      txid: TXID_PENDING, calendar: 'alice', merkleRoot: TIP,
+      txid: TXID_PENDING, calendar: 'alice', merkleRoot: REAL_ROOT_PENDING,
     });
     expect(ordpoolOtsTxidSet.has(TXID_PENDING)).toBe(true);
     const alice = results.find(r => r.calendar === 'alice')!;
