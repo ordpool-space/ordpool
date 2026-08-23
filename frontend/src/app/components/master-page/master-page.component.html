@@ -1,8 +1,8 @@
 <ng-container *ngIf="{ val: network$ | async } as network">
 <header *ngIf="headerVisible" class="sticky-header">
 
-  <nav class="navbar navbar-expand-md navbar-dark ">
-  <!-- Hamburger -->
+  <nav class="navbar navbar-expand-xl navbar-dark ">
+  <!-- Hamburger (services/account menu) -->
   <ng-container *ngIf="servicesEnabled">
     <div *ngIf="user" class="profile_image_container" [class]="{'anon': !user.imageMd5}" (click)="hamburgerClick($event)">
       <img *ngIf="user.imageMd5" [src]="'/api/v1/services/account/images/' + user.username + '?md5=' + user.imageMd5" class="profile_image">
@@ -16,7 +16,7 @@
   </ng-container>
 
   <!-- HACK: Large screen - Ordpool logo -->
-  <a class="navbar-brand d-none d-md-flex" [ngClass]="{'dual-logos': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
+  <a class="navbar-brand d-none d-xl-flex" [ngClass]="{'dual-logos': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
     <ng-container *ngIf="{ val: connectionState$ | async } as connectionState">
 
       <!-- HACK: ORDPOOL LOGO!! Necker-flipped cube matching the up-RIGHT
@@ -30,7 +30,7 @@
     </ng-container>
   </a>
   <!-- HACK: Mobile - Ordpool logo -->
-  <a class="navbar-brand d-flex d-md-none justify-content-center" [ngClass]="{'dual-logos': subdomain, 'me-0': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
+  <a class="navbar-brand d-flex d-xl-none" [ngClass]="{'dual-logos': subdomain, 'me-0': subdomain}" [routerLink]="['/' | relativeUrl]" (click)="brandClick($event)">
 
       <!-- HACK: ORDPOOL LOGO!! Necker-flipped cube matching the up-RIGHT
            vanishing direction of the block-timeline cubes (see overrides2). -->
@@ -70,6 +70,13 @@
     -->
   </a>
 
+  <!-- HACK: burger toggle — shown below xl; opens the nav + search panel -->
+  <button class="navbar-toggler ms-auto d-xl-none" type="button"
+          (click)="navCollapsed = !navCollapsed"
+          [attr.aria-expanded]="!navCollapsed" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
   <!-- HACK: Network dropdown commented out for ordpool
   <div (window:resize)="onResize()" ngbDropdown class="dropdown-container" *ngIf="isDropdownVisible">
     <button ngbDropdownToggle type="button" class="btn btn-secondary dropdown-toggle-split d-flex justify-content-center align-items-center" aria-haspopup="true">
@@ -87,7 +94,7 @@
   </div>
   -->
 
-  <div class="navbar-collapse" id="navbarCollapse">
+  <div class="navbar-collapse" [ngbCollapse]="navCollapsed" id="navbarCollapse">
     <ul class="navbar-nav {{ network.val }}">
       <!-- HACK: MEMEpool nav item -->
       <li class="nav-item" id="btn-home" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(block|mempool-block)/.*' }">
@@ -119,7 +126,7 @@
            The mobile nav is a fixed bottom icon bar with no room for a
            dropdown, so on mobile the two actions render as separate icon
            items below (d-lg-none). -->
-      <li class="nav-item dropdown d-none d-lg-block" ngbDropdown id="btn-mint"
+      <li class="nav-item dropdown d-none d-xl-block" ngbDropdown id="btn-mint"
           [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(cat21-mint|inscribe).*' }">
         <a class="nav-link dropdown-toggle" ngbDropdownToggle role="button" style="cursor: pointer;" title="Mint">
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="30" alt="">Mint
@@ -135,30 +142,30 @@
       </li>
 
       <!-- HACK: CAT-21 + Inscribe as separate icon items on mobile only -->
-      <li class="nav-item d-lg-none" id="btn-cat21-mint-mobile"
+      <li class="nav-item d-xl-none" id="btn-cat21-mint-mobile"
           [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(cat21-mint).*' }">
         <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()" title="Mint a CAT-21">
-          <img src="/resources/cat21-logo.svg" style="margin-top: -4px" height="26" alt="CAT-21">
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="26" alt="">Mint a CAT-21
         </a>
       </li>
-      <li class="nav-item d-lg-none" id="btn-inscribe-mobile"
+      <li class="nav-item d-xl-none" id="btn-inscribe-mobile"
           [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(inscribe).*' }">
         <a class="nav-link" [routerLink]="['/inscribe' | relativeUrl]" (click)="collapse()" title="Inscribe a file">
-          <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true"></fa-icon>
+          <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true"></fa-icon> Inscribe a file
         </a>
       </li>
 
       <!-- HACK: ordpool-stats nav item -->
       <li class="nav-item" id="btn-ordpool-stats" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(ordpool-stats)/.*' }">
         <a class="nav-link" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', '24h', 'hour']" (click)="collapse()">
-          <fa-icon [icon]="['fas', 'chart-area']" [fixedWidth]="true" i18n-title="master-page.graphs" title="Ordpool Stats">Stats</fa-icon>
+          <fa-icon [icon]="['fas', 'chart-area']" [fixedWidth]="true" i18n-title="master-page.graphs" title="Ordpool Stats"></fa-icon> Stats
         </a>
       </li>
 
       <!-- HACK: OpenTimestamps calendars dashboard (icon-only) -->
       <li class="nav-item" id="btn-open-timestamps" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(open-timestamps).*' }">
         <a class="nav-link" [routerLink]="['/open-timestamps' | relativeUrl]" (click)="collapse()">
-          <fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" title="OpenTimestamps calendars"></fa-icon>
+          <fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" title="OpenTimestamps calendars"></fa-icon> OpenTimestamps
         </a>
       </li>
 

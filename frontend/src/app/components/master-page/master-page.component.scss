@@ -32,33 +32,16 @@ li.nav-item {
     width: auto;
     margin-bottom: 8px;
   }
-  @media (max-width: 991px) {
+  @media (max-width: 1199.98px) {
     margin: 0;
-    padding-left: 8px;
-    padding-right: 8px;
-    .svg-wrapper {
-      height: 25.6px;
-      width: auto;
-      margin-bottom: 0;
-    }
+    padding: 0;
     .nav-link {
-      padding: 12px 0;
+      padding: 0.65rem 1rem;
     }
-
-  }
-  @media (max-width: 429px) {
-    margin: 0;
-    padding-left: 6px;
-    padding-right: 6px;
-  }
-  @media (max-width: 369px) {
-    margin: 0;
-    padding-left: 4px;
-    padding-right: 4px;
   }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1200px) {
   .navbar {
     padding: 0rem 2rem;
   }
@@ -75,33 +58,18 @@ li.nav-item {
 }
 
 .navbar-nav {
-  background: var(--nav-bg);
-  bottom: 0;
-  box-shadow: 0 0 15px 0 var(--nav-shadow);
-  flex-direction: row;
-  left: 0;
-  justify-content: space-between;
-  position: fixed;
-  width: 100%;
-  @media (min-width: 992px) {
-    background: transparent;
-    box-shadow: none;
-    position: relative;
-    width: auto;
-  }
+  // navbar-expand-xl gives us a horizontal row on wide screens and a vertical
+  // list below 1200px (inside the burger panel). No fixed bottom bar.
   a {
-    font-size: 0.8em;
-    @media (min-width: 370px) {
-      font-size: 0.9em;
-    }
-    @media (min-width: 430px) {
-      font-size: 1em;
-    }
+    font-size: 1em;
   }
 
-  li {
-    flex-grow: 1; /* Allows items to grow */
-    text-align: center; /* For text alignment */
+  // Burger panel (below xl): full-width left-aligned rows with labels.
+  @media (max-width: 1199.98px) {
+    padding: 0.25rem 0 0.5rem;
+    li.nav-item {
+      text-align: left;
+    }
   }
 }
 
@@ -113,7 +81,7 @@ li.nav-item {
   }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1200px) {
   .navbar-collapse {
     justify-content: space-between;
   }
@@ -122,9 +90,11 @@ li.nav-item {
 .navbar {
   .dropdown {
     .dropdown-toggle {
-      width: 62px;
-      height: 36px;
-      margin-top: 5px;
+      // Nav 'Mint' dropdown sizes to its label; the old fixed 62px box
+      // was for the (now-removed) network switcher and cramped 'Mint'
+      // into the next item.
+      width: auto;
+      height: auto;
     }
   }
 }
@@ -192,7 +162,7 @@ nav {
   align-items: center;
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1200px) {
   .search-form-container {
     width: 100%;
     max-width: 500px;

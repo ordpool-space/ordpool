@@ -23,7 +23,7 @@ export class MasterPageComponent implements OnInit, OnDestroy {
   env: Env;
   network$: Observable<string>;
   connectionState$: Observable<number>;
-  navCollapsed = false;
+  navCollapsed = true;
   isMobile = window.innerWidth <= 767.98;
   officialMempoolSpace = this.stateService.env.OFFICIAL_MEMPOOL_SPACE;
   officialMempoolSpaceBuild = this.stateService.isMempoolSpaceBuild;
@@ -117,7 +117,8 @@ export class MasterPageComponent implements OnInit, OnDestroy {
   }
 
   collapse(): void {
-    this.navCollapsed = !this.navCollapsed;
+    // Close the burger panel after a nav-item click / search.
+    this.navCollapsed = true;
   }
 
   isSmallScreen(): boolean {
