@@ -115,8 +115,11 @@
       </li>
       -->
 
-      <!-- HACK: Mint dropdown (CAT-21 + Inscribe) -->
-      <li class="nav-item dropdown" ngbDropdown id="btn-mint"
+      <!-- HACK: Mint dropdown (CAT-21 + Inscribe) — desktop only.
+           The mobile nav is a fixed bottom icon bar with no room for a
+           dropdown, so on mobile the two actions render as separate icon
+           items below (d-lg-none). -->
+      <li class="nav-item dropdown d-none d-lg-block" ngbDropdown id="btn-mint"
           [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(cat21-mint|inscribe).*' }">
         <a class="nav-link dropdown-toggle" ngbDropdownToggle role="button" style="cursor: pointer;" title="Mint">
           <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="30" alt="">Mint
@@ -129,6 +132,20 @@
             <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true"></fa-icon> Inscribe a file
           </a>
         </div>
+      </li>
+
+      <!-- HACK: CAT-21 + Inscribe as separate icon items on mobile only -->
+      <li class="nav-item d-lg-none" id="btn-cat21-mint-mobile"
+          [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(cat21-mint).*' }">
+        <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()" title="Mint a CAT-21">
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px" height="26" alt="CAT-21">
+        </a>
+      </li>
+      <li class="nav-item d-lg-none" id="btn-inscribe-mobile"
+          [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(inscribe).*' }">
+        <a class="nav-link" [routerLink]="['/inscribe' | relativeUrl]" (click)="collapse()" title="Inscribe a file">
+          <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true"></fa-icon>
+        </a>
       </li>
 
       <!-- HACK: ordpool-stats nav item -->
