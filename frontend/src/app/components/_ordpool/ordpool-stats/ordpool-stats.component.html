@@ -103,7 +103,7 @@
             <div class="chart" 
               *browserOnly echarts 
               [initOpts]="chartInitOptions" 
-              [options]="getChartOptions(statistics.type, statistics.stats)"
+              [options]="statistics.chartOptions"
               (chartInit)="onChartInit($event)">
             </div>
           }

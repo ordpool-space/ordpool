@@ -68,7 +68,11 @@ export class OrdpoolStatsComponent {
         aggregation,
         stats,
         heading: formatChartHeading(type),
-        description: formatChartDescription(type, interval, aggregation)
+        description: formatChartDescription(type, interval, aggregation),
+        // Build the ECharts option once per data emission, not on every change
+        // detection cycle (the template binds statistics.chartOptions instead of
+        // calling getChartOptions() in the binding, which reran on every CD).
+        chartOptions: this.getChartOptions(type, stats),
       }))
     )),
     // Two async pipes in the template consume statistics$; without a shared
@@ -83,7 +87,9 @@ export class OrdpoolStatsComponent {
   }
 
   chartInitOptions = {
-    renderer: 'svg',
+    // Canvas renderer: far faster than SVG for line charts with many points
+    // (SVG allocates a DOM node per point; canvas draws to a single bitmap).
+    renderer: 'canvas',
   };
 
   /**
