@@ -138,7 +138,8 @@ export interface TransactionExtended extends IEsploraApi.Transaction {
   feeDelta?: number;
   replacement?: boolean;
   uid?: number;
-  flags?: number;
+  // HACK -- Ordpool: decimal-string bigint (ordpool flags reach bit 82). Reconstruct with BigInt(tx.flags).
+  flags?: string;
   // HACK -- Ordpool: tristate OTS-commit knowledge for strip-wire surfaces
   // (REST /api/v1/tx/:txId and the WS track-tx push). The frontend cannot
   // recompute ordpool_ots locally -- it's the only indexer-derived flag --
@@ -261,13 +262,16 @@ export interface TransactionStripped {
 }
 
 export interface TransactionClassified extends TransactionStripped {
-  flags: number;
+  // HACK -- Ordpool: decimal-string bigint (ordpool flags reach bit 82). Reconstruct with BigInt(tx.flags).
+  flags: string;
 }
 
 // [txid, fee, vsize, value, rate, flags, acceleration?]
-export type TransactionCompressed = [string, number, number, number, number, number, number, 1?];
+// flags (index 5) is a decimal-string bigint: ordpool flags reach bit 82, past Number's safe range.
+export type TransactionCompressed = [string, number, number, number, number, string, number, 1?];
 // [txid, rate, flags, acceleration?]
-export type MempoolDeltaChange = [string, number, number, (1|0)];
+// flags (index 2) is a decimal-string bigint: ordpool flags reach bit 82, past Number's safe range.
+export type MempoolDeltaChange = [string, number, string, (1|0)];
 
 // binary flags for transaction classification
 export const TransactionFlags = {

@@ -72,7 +72,7 @@ export class MempoolBlockOverviewComponent implements OnInit, OnDestroy, OnChang
           const inOldBlock = {};
           const inNewBlock = {};
           const added: TransactionStripped[] = [];
-          const changed: { txid: string, rate: number | undefined, flags: number, acc: boolean | undefined }[] = [];
+          const changed: { txid: string, rate: number | undefined, flags: string, acc: boolean | undefined }[] = [];
           const removed: string[] = [];
           for (const tx of transactionsStripped) {
             inNewBlock[tx.txid] = true;

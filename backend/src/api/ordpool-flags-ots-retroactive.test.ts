@@ -26,7 +26,7 @@ const OTS_BIT = OrdpoolTransactionFlags.ordpool_ots;
 const ATOMICAL_BIT = OrdpoolTransactionFlags.ordpool_atomical;
 const INSCRIPTION_BIT = OrdpoolTransactionFlags.ordpool_inscription;
 
-function hasBit(flags: number, bit: bigint): boolean {
+function hasBit(flags: string, bit: bigint): boolean {
   return (BigInt(flags) & bit) === bit;
 }
 
@@ -36,7 +36,7 @@ function hasBit(flags: number, bit: bigint): boolean {
 function makeTx(txid: string, opts: Partial<TransactionExtended> = {}): TransactionExtended {
   return {
     txid,
-    flags: 0,
+    flags: '0',
     vin: [],
     vout: [],
     ancestors: undefined,
@@ -55,14 +55,14 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
   // ---- (1) first-classification baseline ----
 
   it('first classification: poller does NOT know the tx -> no OTS bit', async () => {
-    const tx = makeTx('aaaa', { flags: 0 });
+    const tx = makeTx('aaaa', { flags: '0' });
     const result = await Common.getTransactionFlags(tx);
     expect(hasBit(result, OTS_BIT)).toBe(false);
   });
 
   it('first classification: poller knows the tx -> OTS bit is set', async () => {
     ordpoolOtsTxidSet.add('bbbb');
-    const tx = makeTx('bbbb', { flags: 0 });
+    const tx = makeTx('bbbb', { flags: '0' });
     const result = await Common.getTransactionFlags(tx);
     expect(hasBit(result, OTS_BIT)).toBe(true);
   });
@@ -71,7 +71,7 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
 
   it('re-classification: tx classified before poller saw it -> still picks up the bit', async () => {
     // Step 1: tx ingested at mempool. tx.flags written without OTS bit.
-    const tx = makeTx('cccc', { flags: Number(ATOMICAL_BIT) });
+    const tx = makeTx('cccc', { flags: ATOMICAL_BIT.toString() });
     let result = await Common.getTransactionFlags(tx);
     tx.flags = result;
     expect(hasBit(result, OTS_BIT)).toBe(false);
@@ -93,7 +93,7 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
 
   it('re-classification: tx already has OTS bit + poller still knows -> still has OTS bit', async () => {
     ordpoolOtsTxidSet.add('dddd');
-    const tx = makeTx('dddd', { flags: Number(OTS_BIT | INSCRIPTION_BIT) });
+    const tx = makeTx('dddd', { flags: (OTS_BIT | INSCRIPTION_BIT).toString() });
     const result = await Common.getTransactionFlags(tx);
     expect(hasBit(result, OTS_BIT)).toBe(true);
     expect(hasBit(result, INSCRIPTION_BIT)).toBe(true);
@@ -106,7 +106,7 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
     // of truth, and we never DOWNGRADE flags during re-classification.
     // (addOtsFlag is OR-only; the flag, once set in tx.flags, survives.)
     // This protects historical block summaries from being silently rewritten.
-    const tx = makeTx('eeee', { flags: Number(OTS_BIT) });
+    const tx = makeTx('eeee', { flags: OTS_BIT.toString() });
     const result = await Common.getTransactionFlags(tx);
     expect(hasBit(result, OTS_BIT)).toBe(true);
   });
@@ -116,7 +116,7 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
   it('CPFP refresh: ancestors added later does NOT clobber the OTS bit', async () => {
     ordpoolOtsTxidSet.add('ffff');
     const tx = makeTx('ffff', {
-      flags: Number(OTS_BIT | INSCRIPTION_BIT),
+      flags: (OTS_BIT | INSCRIPTION_BIT).toString(),
       ancestors: [{ txid: 'parent', weight: 1, fee: 100 }] as any,
     });
     const result = await Common.getTransactionFlags(tx);
@@ -127,7 +127,7 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
   it('replacement flag added later does NOT clobber the OTS bit', async () => {
     ordpoolOtsTxidSet.add('gggg');
     const tx = makeTx('gggg', {
-      flags: Number(OTS_BIT),
+      flags: OTS_BIT.toString(),
       replacement: true,
     });
     const result = await Common.getTransactionFlags(tx);
@@ -141,13 +141,13 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
     // No tx.flags seed -> slow path through analyseTransaction. The witness
     // is empty so analyseTransaction won't add any artifact bits, but the
     // OTS pre-enrichment still fires.
-    const tx = makeTx('hhhh', { flags: 0, vin: [], vout: [] });
+    const tx = makeTx('hhhh', { flags: '0', vin: [], vout: [] });
     const result = await Common.getTransactionFlags(tx);
     expect(hasBit(result, OTS_BIT)).toBe(true);
   });
 
   it('slow path: poller does NOT know the tx -> no OTS bit even after analyseTransaction', async () => {
-    const tx = makeTx('iiii', { flags: 0, vin: [], vout: [] });
+    const tx = makeTx('iiii', { flags: '0', vin: [], vout: [] });
     const result = await Common.getTransactionFlags(tx);
     expect(hasBit(result, OTS_BIT)).toBe(false);
   });
@@ -157,7 +157,7 @@ describe('OTS flag — eventual-consistency invariant via Common.getTransactionF
   it('mempool refresh scenario end-to-end: initial classify (poller blind) -> refresh (poller knows) -> OTS bit appears', async () => {
     // Step 1: cold start. Mempool ingests tx jjjj. Poller hasn't bootstrapped
     // anything yet.
-    const tx = makeTx('jjjj', { flags: 0 });
+    const tx = makeTx('jjjj', { flags: '0' });
     let result = await Common.getTransactionFlags(tx);
     tx.flags = result;                                      // persist as $setMempool would
     expect(hasBit(result, OTS_BIT)).toBe(false);

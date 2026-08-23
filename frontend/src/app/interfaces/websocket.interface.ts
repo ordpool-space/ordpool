@@ -83,7 +83,7 @@ export interface MempoolBlockDelta {
   block: number;
   added: TransactionStripped[];
   removed: string[];
-  changed: { txid: string, rate: number, flags: number, acc: boolean }[];
+  changed: { txid: string, rate: number, flags: string, acc: boolean }[];
 }
 export interface MempoolBlockState {
   block: number;
@@ -119,10 +119,10 @@ export interface MempoolInfo {
   minrelaytxfee: number;           //  (numeric) Current minimum relay fee for transactions
 }
 
-// [txid, fee, vsize, value, rate, flags, acceleration?]
-export type TransactionCompressed = [string, number, number, number, number, number, number, 1?];
-// [txid, rate, flags, acceleration?]
-export type MempoolDeltaChange = [string, number, number, (1|0)];
+// [txid, fee, vsize, value, rate, flags, acceleration?] -- flags is a decimal-string bigint (bit 82).
+export type TransactionCompressed = [string, number, number, number, number, string, number, 1?];
+// [txid, rate, flags, acceleration?] -- flags is a decimal-string bigint (bit 82).
+export type MempoolDeltaChange = [string, number, string, (1|0)];
 
 export interface IBackendInfo {
   hostname?: string;

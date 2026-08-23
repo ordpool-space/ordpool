@@ -95,12 +95,12 @@ describe('Common.getTransactionFlags — async parser integration', () => {
     const result = await Common.getTransactionFlags(createMockTx(), 840000);
     const resultBigInt = BigInt(result);
 
-    // ALL ordpool flags should be readable on the round-tripped Number
+    // ALL ordpool flags should be readable on the round-tripped value
     for (const key of Object.keys(OrdpoolTransactionFlags)) {
       expect(resultBigInt & OrdpoolTransactionFlags[key]).toBe(OrdpoolTransactionFlags[key]);
     }
-    expect(typeof result).toBe('number');
-    expect(isNaN(result)).toBe(false);
+    expect(typeof result).toBe('string');
+    expect(result).toMatch(/^\d+$/); // decimal-string bigint, losslessly BigInt-parseable
   });
 
   it('continues when the parser throws (no crash, no flags set)', async () => {
@@ -111,8 +111,8 @@ describe('Common.getTransactionFlags — async parser integration', () => {
 
     // The parser threw; getTransactionFlags caught + logged; the upstream-only
     // flags still come back valid (no NaN, no ordpool bits leaked through).
-    expect(typeof result).toBe('number');
-    expect(isNaN(result)).toBe(false);
+    expect(typeof result).toBe('string');
+    expect(result).toMatch(/^\d+$/); // decimal-string bigint, losslessly BigInt-parseable
     expect(resultBigInt & OrdpoolTransactionFlags.ordpool_cat21).toBe(0n);
     expect(resultBigInt & OrdpoolTransactionFlags.ordpool_inscription).toBe(0n);
   });
@@ -190,8 +190,8 @@ describe('Common.classifyTransaction — async ordpool flow', () => {
     expect(BigInt(classified[3].flags) & OrdpoolTransactionFlags.ordpool_inscription).toBe(0n);
 
     for (const tx of classified) {
-      expect(typeof tx.flags).toBe('number');
-      expect(isNaN(tx.flags)).toBe(false);
+      expect(typeof tx.flags).toBe('string');
+      expect(tx.flags).toMatch(/^\d+$/); // decimal-string bigint, losslessly BigInt-parseable
     }
   });
 });

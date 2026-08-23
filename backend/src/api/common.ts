@@ -609,8 +609,13 @@ export class Common {
     return isTaproot || !isNotTaproot;
   }
 
-  // HACK -- Ordpool: async; awaits ordpool-parser inline.
-  static async getTransactionFlags(tx: TransactionExtended, height?: number): Promise<number> {
+  // HACK -- Ordpool: async; awaits ordpool-parser inline. Returns the flags
+  // bigint as a decimal STRING, not a Number: ordpool flags live at bits 48-82,
+  // so the OR-combined value (low mempool bits + high ordpool bits) exceeds
+  // Number's 53-bit mantissa and Number(flags) would silently clear the low
+  // bits. Consumers reconstruct with BigInt(tx.flags). See the coexistence
+  // regression in __tests__/ordpool-flags-bigint-gotcha.test.ts.
+  static async getTransactionFlags(tx: TransactionExtended, height?: number): Promise<string> {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
 
     // Update variable flags (CPFP, RBF)
@@ -646,7 +651,7 @@ export class Common {
 
     // Already processed static flags, no need to do it again
     if (tx.flags) {
-      return Number(flags);
+      return flags.toString();
     }
 
     // Process static flags
@@ -798,12 +803,12 @@ export class Common {
       logger.warn('ordpool-parser analyseTransaction failed: ' + (e instanceof Error ? e.message : e));
     }
 
-    return Number(flags);
+    return flags.toString();
   }
 
   // HACK -- Ordpool: async
   static async classifyTransaction(tx: TransactionExtended, height?: number): Promise<TransactionClassified> {
-    let flags = 0;
+    let flags = '0';
     try {
       flags = await Common.getTransactionFlags(tx, height);
     } catch (e) {

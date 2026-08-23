@@ -30,7 +30,7 @@ export default class TxView implements TransactionStripped {
   feerate: number;
   acc?: boolean;
   rate?: number;
-  flags: number;
+  flags: string;
   bigintFlags?: bigint | null = 0b00000100_00000000_00000000_00000000n;
   time?: number;
   status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'added_prioritized' | 'prioritized' | 'added_deprioritized' | 'deprioritized' | 'censored' | 'selected' | 'rbf' | 'accelerated' | 'matched' | 'unmatched';
@@ -66,7 +66,7 @@ export default class TxView implements TransactionStripped {
     this.acc = tx.acc;
     this.rate = tx.rate;
     this.status = tx.status;
-    this.flags = tx.flags || 0;
+    this.flags = tx.flags || '0';
     this.bigintFlags = tx.flags ? (BigInt(tx.flags) | (this.acc ? TransactionFlags.acceleration : 0n)): 0n;
     this.initialised = false;
     this.vertexArray = scene.vertexArray;

@@ -270,7 +270,8 @@ export interface TransactionStripped {
   value: number;
   rate?: number; // effective fee rate
   acc?: boolean;
-  flags?: number | null;
+  // HACK -- Ordpool: decimal-string bigint (ordpool flags reach bit 82). Reconstruct with BigInt(tx.flags).
+  flags?: string | null;
   time?: number;
   status?: 'found' | 'missing' | 'sigop' | 'fresh' | 'freshcpfp' | 'added' | 'added_prioritized' | 'prioritized' | 'added_deprioritized' | 'deprioritized' | 'censored' | 'selected' | 'rbf' | 'accelerated' | 'matched' | 'unmatched';
   context?: 'projected' | 'actual' | 'stale' | 'canonical';

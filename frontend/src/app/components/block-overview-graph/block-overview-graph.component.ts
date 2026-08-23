@@ -236,7 +236,7 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
 
   // initialize the scene without any entry transition
   setup(transactions: TransactionStripped[], sort: boolean = false): void {
-    const filtersAvailable = transactions.reduce((flagSet, tx) => flagSet || tx.flags > 0, false);
+    const filtersAvailable = transactions.reduce((flagSet, tx) => flagSet || (!!tx.flags && tx.flags !== '0'), false);
     if (filtersAvailable !== this.filtersAvailable) {
       this.setFilterFlags();
     }

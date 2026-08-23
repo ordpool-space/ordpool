@@ -55,9 +55,12 @@ describe('ordpool flags: BigInt arithmetic is required for bits >= 32', () => {
       OrdpoolTransactionFlags.ordpool_inscription_image |
       OrdpoolTransactionFlags.ordpool_ots;
 
-    // Number<->BigInt round-trip is exact because all ordpool bits fit
-    // inside Number's 53-bit mantissa window when measured from the lowest
-    // ordpool bit (48) to the highest (81): a 34-bit spread.
+    // Round-trips exact HERE only because every set bit is >= 48: the spread
+    // from the lowest (48) to highest (81) set bit is 34 bits, inside Number's
+    // 53-bit mantissa. This does NOT generalise -- once a low mempool bit
+    // (rbf=bit0, v2=bit3) coexists with a high ordpool bit the spread exceeds
+    // 53 and Number() silently clears the low bits. That is why the wire format
+    // is a decimal string, not a Number; see the coexistence regression below.
     expect(BigInt(Number(combined))).toBe(combined);
 
     // Each constituent bit can be tested individually, BigInt-only.
@@ -91,7 +94,7 @@ describe('ordpool flags: BigInt arithmetic is required for bits >= 32', () => {
 
     const tx = {
       txid: 'aabbccdd',
-      flags: Number(allOrdpoolBits),
+      flags: allOrdpoolBits.toString(),
       vin: [],
       ancestors: undefined,
       descendants: undefined,
@@ -117,5 +120,42 @@ describe('ordpool flags: BigInt arithmetic is required for bits >= 32', () => {
     ]) {
       expect((returnedBig & bit) === bit).toBe(true);
     }
+  });
+
+  it('REGRESSION: low mempool bits + high ordpool bits BOTH survive (string wire, not Number)', async () => {
+    // The exact bug the string wire format closes. An inscription-image mint
+    // that also RBF-signals and is version 2 carries low mempool bits
+    // (rbf=bit0, v2=bit3) AND high ordpool bits (inscription=50, mint=59,
+    // image=60) in one bigint. getTransactionFlags used to return
+    // Number(flags), whose 53-bit mantissa (anchored at bit 60) rounded bits
+    // 0-7 away -- silently clearing rbf/v2 on EVERY artifact tx. It now returns
+    // a decimal-string bigint, so every bit survives.
+    const rbf = 1n << 0n;
+    const v2 = 1n << 3n;
+    const seeded = rbf | v2
+      | OrdpoolTransactionFlags.ordpool_inscription
+      | OrdpoolTransactionFlags.ordpool_inscription_mint
+      | OrdpoolTransactionFlags.ordpool_inscription_image;
+
+    const tx = {
+      txid: 'ffff',
+      flags: seeded.toString(),
+      vin: [],
+      ancestors: undefined,
+      descendants: undefined,
+      replacement: undefined,
+    } as unknown as TransactionExtended;
+
+    const returned = await Common.getTransactionFlags(tx);
+    expect(typeof returned).toBe('string'); // wire is a string, never a Number
+    const rt = BigInt(returned);
+
+    // Low bits survive (the bug) ...
+    expect(rt & rbf).toBe(rbf);
+    expect(rt & v2).toBe(v2);
+    // ... and so do the high ordpool bits, and the whole value is lossless.
+    expect(rt & OrdpoolTransactionFlags.ordpool_inscription_image)
+      .toBe(OrdpoolTransactionFlags.ordpool_inscription_image);
+    expect(rt).toBe(seeded);
   });
 });
