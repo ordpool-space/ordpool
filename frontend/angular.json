@@ -177,6 +177,11 @@
                 "glob": "*.css",
                 "input": ".theme-build",
                 "output": "/"
+              },
+              {
+                "glob": "brotli_wasm_bg.wasm",
+                "input": "node_modules/ordpool-sdk/wasm",
+                "output": "assets"
               }
             ],
             "styles": [
@@ -198,7 +203,12 @@
               "assets": [
                 "src/favicon.ico",
                 "src/robots.txt",
-                "src/_redirects"
+                "src/_redirects",
+                {
+                  "glob": "brotli_wasm_bg.wasm",
+                  "input": "node_modules/ordpool-sdk/wasm",
+                  "output": "assets"
+                }
               ],
               "fileReplacements": [
                 {

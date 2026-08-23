@@ -13,6 +13,18 @@ const mintSpy = jest.fn();
 const validateSpy = jest.fn();
 const simulateSpy = jest.fn();
 
+// Swappable per-test so we can exercise the worthIt / not-worthIt branches.
+// Default: not worth it, so `compressed` is the original bytes, encoding none.
+type Assessment = {
+  worthIt: boolean; bestEncoding: 'none' | 'gzip' | 'br';
+  originalSize: number; compressedSize: number;
+  savedBytes: number; savedPercent: number; compressed: Uint8Array;
+};
+let assessCompressionImpl = async (bytes: Uint8Array): Promise<Assessment> => ({
+  worthIt: false, bestEncoding: 'none', originalSize: bytes.length, compressedSize: bytes.length,
+  savedBytes: 0, savedPercent: 0, compressed: bytes,
+});
+
 jest.mock('ordpool-sdk', () => {
   const { InjectionToken } = jest.requireActual('@angular/core');
   return {
@@ -49,6 +61,15 @@ jest.mock('ordpool-sdk', () => {
     prepareInscribeFundingInput: () => ({ txid: 'f'.repeat(64), vout: 0, value: 10_000_000 }),
     simulateInscribeFees: (...args: unknown[]) => { simulateSpy(...args); return { fundingRequirementSats: 4321, totalFeeSats: 3000 }; },
     validateInscribeOperation: (args: unknown) => { validateSpy(args); return gateResult; },
+    assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
+    // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
+    // The real deterministic-CBOR encoder is unit-tested in the SDK.
+    encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
+    ORD_TAGS: {
+      content_type: 1, pointer: 2, parent: 3, metadata: 5, metaprotocol: 7,
+      content_encoding: 9, delegate: 11, rune: 13, note: 15, properties: 17, property_encoding: 19,
+    },
+    encodeInscriptionId: (id: string) => new TextEncoder().encode(id),
   };
 });
 
@@ -115,6 +136,10 @@ describe('InscribeMintComponent', () => {
 
   beforeEach(async () => {
     gateResult = { ok: true, resources: {} };
+    assessCompressionImpl = async (bytes: Uint8Array) => ({
+      worthIt: false, bestEncoding: 'none', originalSize: bytes.length, compressedSize: bytes.length,
+      savedBytes: 0, savedPercent: 0, compressed: bytes,
+    });
     setContentSpy.mockClear();
     mintSpy.mockClear();
     validateSpy.mockClear();
@@ -236,5 +261,208 @@ describe('InscribeMintComponent', () => {
     component.inscribeAnother();
     expect(orchestrator.reset).toHaveBeenCalled();
     expect(component.pickedFile).toBeNull();
+  });
+
+  // ---- Compression (native gzip) ------------------------------------------
+
+  it('worthIt gzip → toggle on by default, compressed body + content_encoding gzip', async () => {
+    const compressed = new Uint8Array([1, 2, 3]);
+    assessCompressionImpl = async () => ({
+      worthIt: true, bestEncoding: 'gzip', originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97, compressed,
+    });
+    await (component as any).handleFile(pngFile());
+    expect(component.compressEnabled).toBe(true);
+    expect(component.isCompressed).toBe(true);
+    expect(component.activeContentEncoding).toBe('gzip');
+    const last = lastContent();
+    expect(last.body).toBe(compressed);
+    expect(last.contentEncoding).toBe('gzip');
+  });
+
+  it('not-worthIt (already compressed) → toggle off, raw body, no content_encoding', async () => {
+    await (component as any).handleFile(pngFile());   // default mock: worthIt false, encoding none
+    expect(component.compressEnabled).toBe(false);
+    expect(component.activeContentEncoding).toBeUndefined();
+    const last = lastContent();
+    expect(last.contentEncoding).toBeUndefined();
+    expect(last.body).toBe(component.pickedFile?.bytes);
+  });
+
+  it('toggleCompression(false) after a worthIt pick → falls back to the raw body', async () => {
+    assessCompressionImpl = async () => ({
+      worthIt: true, bestEncoding: 'gzip', originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97,
+      compressed: new Uint8Array([9, 9, 9]),
+    });
+    await (component as any).handleFile(pngFile());
+    setContentSpy.mockClear();
+    component.toggleCompression(false);
+    const last = lastContent();
+    expect(component.isCompressed).toBe(false);
+    expect(last.contentEncoding).toBeUndefined();
+    expect(last.body).toBe(component.pickedFile?.bytes);
+  });
+
+  // ---- Note ---------------------------------------------------------------
+
+  it('note defaults to "ordpool.space" and is threaded into content', async () => {
+    await (component as any).handleFile(pngFile());
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(last.note).toBe('ordpool.space');
+  });
+
+  it('empty note → the tag is omitted (undefined)', async () => {
+    await (component as any).handleFile(pngFile());
+    setContentSpy.mockClear();
+    component.noteControl.setValue('   ');
+    const last = setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1][0];
+    expect(last.note).toBeUndefined();
+  });
+
+  // ---- Metadata -----------------------------------------------------------
+
+  function lastContent(): any {
+    return setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1]?.[0];
+  }
+  function decodeMeta(bytes: Uint8Array): unknown {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  it('KV metadata → encoded bytes threaded into content', async () => {
+    await (component as any).handleFile(pngFile());
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'collection', 'cats');
+    expect(component.metadataBytes).not.toBeNull();
+    expect(decodeMeta(lastContent().metadata)).toEqual({ collection: 'cats' });
+  });
+
+  it('empty metadata → no metadata tag', async () => {
+    await (component as any).handleFile(pngFile());
+    expect(lastContent().metadata).toBeUndefined();
+  });
+
+  it('blank keys are dropped from KV metadata', async () => {
+    await (component as any).handleFile(pngFile());
+    component.addMetadataRow();
+    component.setMetadataRow(0, '   ', 'ignored');
+    expect(component.metadataBytes).toBeNull();
+    expect(lastContent().metadata).toBeUndefined();
+  });
+
+  it('invalid JSON → metadataInvalid, no bytes, mint blocked', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{ not valid');
+    expect(component.metadataInvalid).toBe(true);
+    expect(component.metadataError).toContain('Invalid JSON');
+    expect(component.metadataBytes).toBeNull();
+  });
+
+  it('valid nested JSON → bytes encode the nested object', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{"a":{"b":1},"list":[1,2]}');
+    expect(component.metadataInvalid).toBe(false);
+    const bytes = component.metadataBytes;
+    expect(bytes).not.toBeNull();
+    expect(decodeMeta(bytes as Uint8Array)).toEqual({ a: { b: 1 }, list: [1, 2] });
+  });
+
+  it('KV → JSON mode serialises the current object', async () => {
+    await (component as any).handleFile(pngFile());
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'edition', '21');
+    component.switchMetadataMode('json');
+    expect(component.metadataMode).toBe('json');
+    expect(JSON.parse(component.metadataJson)).toEqual({ edition: '21' });
+  });
+
+  it('JSON → KV parses back a flat object', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{"a":"1","b":"2"}');
+    component.switchMetadataMode('kv');
+    expect(component.metadataMode).toBe('kv');
+    expect(component.metadataRows).toEqual([{ key: 'a', value: '1' }, { key: 'b', value: '2' }]);
+  });
+
+  it('JSON → KV refused for nested data (JSON stays authoritative)', async () => {
+    await (component as any).handleFile(pngFile());
+    component.switchMetadataMode('json');
+    component.onMetadataJsonChange('{"a":{"b":1}}');
+    component.switchMetadataMode('kv');
+    expect(component.metadataMode).toBe('json');
+    expect(component.metadataModeHint).toContain('nested');
+  });
+
+  it('inscribeAnother resets metadata state', () => {
+    component.metadataRows = [{ key: 'a', value: 'b' }];
+    component.metadataBytes = new Uint8Array([1]);
+    component.metadataMode = 'json';
+    component.inscribeAnother();
+    expect(component.metadataRows).toEqual([]);
+    expect(component.metadataBytes).toBeNull();
+    expect(component.metadataMode).toBe('kv');
+  });
+
+  // ---- Delegate mode ------------------------------------------------------
+
+  const DELEGATE_ID = 'a'.repeat(64) + 'i0';
+
+  it('switch to delegate mode clears the picked file', async () => {
+    await (component as any).handleFile(pngFile());
+    expect(component.pickedFile).not.toBeNull();
+    component.switchInscribeMode('delegate');
+    expect(component.inscribeMode).toBe('delegate');
+    expect(component.pickedFile).toBeNull();
+  });
+
+  it('valid delegate id → empty body + delegate in content, no contentType', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange(DELEGATE_ID);
+    expect(component.delegateIdError).toBe('');
+    expect(component.hasContent).toBe(true);
+    const c = lastContent();
+    expect(c.delegate).toBe(DELEGATE_ID);
+    expect(c.body.length).toBe(0);
+    expect(c.contentType).toBeUndefined();
+  });
+
+  it('invalid delegate id → error, blocked, no content', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange('not-an-id');
+    expect(component.delegateIdError).toContain('valid inscription id');
+    expect(component.delegateInvalid).toBe(true);
+    expect(lastContent()).toBeNull();
+  });
+
+  it('delegate content still carries note + metadata', () => {
+    component.switchInscribeMode('delegate');
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'k', 'v');
+    component.onDelegateIdChange(DELEGATE_ID);
+    const c = lastContent();
+    expect(c.delegate).toBe(DELEGATE_ID);
+    expect(c.note).toBe('ordpool.space');
+    expect(decodeMeta(c.metadata)).toEqual({ k: 'v' });
+  });
+
+  it('inscribe() in delegate mode → gate intent has empty body + no contentType, mint runs', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange(DELEGATE_ID);
+    gateResult = { ok: true, resources: {} };
+    component.inscribe(wallet());
+    const intent = validateSpy.mock.calls[validateSpy.mock.calls.length - 1][0].operation.intent;
+    expect(intent.body.length).toBe(0);
+    expect(intent.contentType).toBeUndefined();
+    expect(mintSpy).toHaveBeenCalled();
+  });
+
+  it('leaving delegate mode clears the delegate id', () => {
+    component.switchInscribeMode('delegate');
+    component.onDelegateIdChange(DELEGATE_ID);
+    component.switchInscribeMode('file');
+    expect(component.inscribeMode).toBe('file');
+    expect(component.delegateId).toBe('');
+    expect(component.delegateInvalid).toBe(false);
   });
 });

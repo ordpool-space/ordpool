@@ -173,6 +173,7 @@ import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wall
 import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
 import { InscribeMintComponent } from '@components/_ordpool/inscribe-mint/inscribe-mint.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
+import { SafeResourceUrlPipe } from '@components/_ordpool/safe-url.pipe';
 import { AtomicalViewerComponent } from '@components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
 import { CounterpartyViewerComponent } from '@components/_ordpool/digital-artifact-viewer/counterparty-viewer/counterparty-viewer.component';
 import { StampViewerComponent } from '@components/_ordpool/digital-artifact-viewer/stamp-viewer/stamp-viewer.component';
@@ -365,6 +366,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     AtomicalViewerComponent,
     MiniInscriptionViewerComponent,
     CapitalizeFirstPipe,
+    SafeResourceUrlPipe,
   ],
   providers: [
     BytesPipe,

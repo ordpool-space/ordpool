@@ -5,10 +5,14 @@ import { combineLatest, map, take, tap } from 'rxjs';
 import { detectMimeType } from 'ordpool-parser';
 import {
   AUTO_SCAN_MAX_VALUE_SAT,
+  CompressionAssessment,
   INSCRIBE_POSTAGE_SATS,
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
   InscribeUtxoSimulation,
+  InscriptionContentEncoding,
+  ORD_TAGS,
+  OrdEnvelopeField,
   SMALL_UTXO_WARNING_THRESHOLD_SAT,
   SimulateInscribeFeesResult,
   TxnOutput,
@@ -18,9 +22,12 @@ import {
   UtxoScanState,
   WalletInfo,
   WalletService,
+  assessCompression,
   bitcoinNetwork,
   bucketOf,
   cat21Config,
+  encodeCborDeterministic,
+  encodeInscriptionId,
   findAutoPickCandidate,
   getDummyKeypair,
   getMinimumUtxoSize,
@@ -190,8 +197,40 @@ export class InscribeMintComponent implements OnInit {
       validators: [Validators.required, Validators.min(0.1)],
       nonNullable: true,
     }),
+    // Prefilled watermark so we can measure how many inscriptions came
+    // through ordpool; the user can clear it. Empty → no note tag.
+    note: new FormControl('ordpool.space', { nonNullable: true }),
   });
   cfeeRate = this.form.controls.feeRate;
+  noteControl = this.form.controls.note;
+
+  // ---- Compression (content_encoding tag) ---------------------------------
+  // assessCompression tries the available codecs and reports the smallest
+  // (native gzip today via CompressionStream; the SDK reserves 'br' for a
+  // future brotli encoder). It never decides for us. We default the toggle ON
+  // iff `worthIt`; the user can override. ord serves the content_encoding tag
+  // through as the HTTP header, so the browser decodes it on the way out.
+  compression: CompressionAssessment | null = null;
+  compressEnabled = false;
+
+  // ---- Metadata (ord tag 5, CBOR) -----------------------------------------
+  // Two authoring modes: a flat key-value editor, or a raw JSON textarea for
+  // anything nested. Both feed one deterministic-CBOR encode; the bytes ride
+  // along on setContent. Empty input emits no tag.
+  metadataMode: 'kv' | 'json' = 'kv';
+  metadataRows: { key: string; value: string }[] = [];
+  metadataJson = '';
+  metadataError = '';        // invalid JSON or un-encodable value (blocks mint)
+  metadataModeHint = '';     // transient note when a JSON->KV switch is refused
+  metadataBytes: Uint8Array | null = null;   // encoded CBOR, null when empty
+
+  // ---- Mode: inscribe a file, or delegate to an existing inscription -------
+  // A delegate inscription carries an EMPTY body and a tag-11 pointer to
+  // another inscription's id; ord renders the target's content. Note +
+  // metadata still apply; compression + the dropzone do not.
+  inscribeMode: 'file' | 'delegate' = 'file';
+  delegateId = '';
+  delegateIdError = '';
 
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
@@ -210,6 +249,9 @@ export class InscribeMintComponent implements OnInit {
         this.recomputePreConnectCost();
       }
     });
+
+    // Editing the note re-synths the tag on the pending content.
+    this.noteControl.valueChanges.subscribe(() => this.syncContent());
 
     // Wipe the scanner cache when one wallet swaps out for another.
     let lastWalletAddress: string | null = null;
@@ -256,6 +298,9 @@ export class InscribeMintComponent implements OnInit {
     this.pickedFile = null;
     this.fileError = '';
     this.preConnectMintSats = null;
+    this.compression = null;
+    this.compressEnabled = false;
+    this.resetMetadata();
     this.orchestrator.setContent(null);
     this.cd.markForCheck();
   }
@@ -284,6 +329,18 @@ export class InscribeMintComponent implements OnInit {
       }
 
       this.pickedFile = { name: file.name, bytes, contentType, sizeBytes: bytes.length };
+      // Pre-check compression; default the toggle on only when it's worth it.
+      // Pass the same-origin wasm URL so Chrome/Edge (no native brotli encoder)
+      // can still try brotli; Safari/Firefox/Node use their native one and
+      // never fetch it. Built from document.baseURI to survive a <base href>.
+      try {
+        this.compression = await assessCompression(bytes, contentType, {
+          brotliWasmUrl: new URL('assets/brotli_wasm_bg.wasm', document.baseURI).href,
+        });
+      } catch {
+        this.compression = null;
+      }
+      this.compressEnabled = this.compression?.worthIt ?? false;
       this.syncContent();
       this.recomputePreConnectCost();
       this.cd.markForCheck();
@@ -295,20 +352,271 @@ export class InscribeMintComponent implements OnInit {
     }
   }
 
-  /** Push the current file into the orchestrator (no tip: no service fee). */
+  /** `true` when a content_encoding tag applies to the current body. */
+  get isCompressed(): boolean {
+    return this.compressEnabled && !!this.compression?.worthIt;
+  }
+
+  /** The winning codec's content_encoding value, or undefined when off/none. */
+  get activeContentEncoding(): InscriptionContentEncoding | undefined {
+    const c = this.compression;
+    return this.isCompressed && c && c.bestEncoding !== 'none' ? c.bestEncoding : undefined;
+  }
+
+  /**
+   * The bytes actually inscribed: the compressed output when compression is on
+   * and worth it, otherwise the raw file. One source of truth for setContent,
+   * the cost estimate, and the pre-flight gate so the three never disagree.
+   */
+  private finalBody(): Uint8Array | null {
+    const file = this.pickedFile;
+    if (!file) {return null;}
+    const c = this.compression;
+    return this.isCompressed && c ? c.compressed : file.bytes;
+  }
+
+  /** User flipped the compression checkbox: re-sync content + cost. */
+  toggleCompression(enabled: boolean): void {
+    this.compressEnabled = enabled;
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  // ---- Metadata -----------------------------------------------------------
+
+  /** `true` when the JSON textarea holds something that won't encode. */
+  get metadataInvalid(): boolean {
+    return !!this.metadataError;
+  }
+
+  addMetadataRow(): void {
+    this.metadataRows.push({ key: '', value: '' });
+    this.cd.markForCheck();
+  }
+
+  removeMetadataRow(i: number): void {
+    this.metadataRows.splice(i, 1);
+    this.rebuildMetadata();
+  }
+
+  setMetadataRow(i: number, key: string, value: string): void {
+    const row = this.metadataRows[i];
+    if (!row) {return;}
+    row.key = key;
+    row.value = value;
+    this.rebuildMetadata();
+  }
+
+  onMetadataJsonChange(json: string): void {
+    this.metadataJson = json;
+    this.rebuildMetadata();
+  }
+
+  /** Switch author mode, carrying the current object across when it can. */
+  switchMetadataMode(mode: 'kv' | 'json'): void {
+    this.metadataModeHint = '';
+    if (mode === this.metadataMode) {return;}
+
+    if (mode === 'json') {
+      const obj = this.kvToObject();
+      this.metadataJson = Object.keys(obj).length ? JSON.stringify(obj, null, 2) : '';
+      this.metadataMode = 'json';
+    } else {
+      const parsed = this.parseJsonMetadata();
+      if (parsed.ok && this.isFlatPrimitiveObject(parsed.value)) {
+        this.metadataRows = Object.entries(parsed.value).map(([key, v]) => ({
+          key,
+          value: v === null ? '' : String(v),
+        }));
+        this.metadataMode = 'kv';
+      } else {
+        // Nested / array / invalid JSON: JSON mode stays authoritative so we
+        // never silently drop structure the flat editor can't hold.
+        this.metadataModeHint = parsed.ok
+          ? 'This JSON is nested or an array. The key-value editor only handles a flat object, so it stays in JSON mode.'
+          : 'Fix the JSON before switching to the key-value editor.';
+        this.cd.markForCheck();
+        return;
+      }
+    }
+    this.rebuildMetadata();
+  }
+
+  private kvToObject(): Record<string, string> {
+    const obj: Record<string, string> = {};
+    for (const { key, value } of this.metadataRows) {
+      const k = key.trim();
+      if (k) {obj[k] = value;}
+    }
+    return obj;
+  }
+
+  private parseJsonMetadata(): { ok: true; value: unknown } | { ok: false } {
+    const raw = this.metadataJson.trim();
+    if (!raw) {return { ok: true, value: {} };}
+    try {
+      return { ok: true, value: JSON.parse(raw) };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  private isFlatPrimitiveObject(v: unknown): v is Record<string, string | number | boolean | null> {
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) {return false;}
+    return Object.values(v as Record<string, unknown>).every(
+      (x) => x === null || ['string', 'number', 'boolean'].includes(typeof x));
+  }
+
+  /** Re-encode the current metadata to CBOR and push it into the content. */
+  private rebuildMetadata(): void {
+    this.metadataError = '';
+    this.metadataModeHint = '';
+
+    let obj: unknown;
+    if (this.metadataMode === 'kv') {
+      obj = this.kvToObject();
+    } else {
+      const parsed = this.parseJsonMetadata();
+      if (!parsed.ok) {
+        this.metadataError = 'Invalid JSON. Fix it or clear the field to inscribe without metadata.';
+        this.metadataBytes = null;
+        this.syncContent();
+        this.cd.markForCheck();
+        return;
+      }
+      obj = parsed.value;
+    }
+
+    const isEmpty =
+      obj == null ||
+      (Array.isArray(obj) && obj.length === 0) ||
+      (typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj as object).length === 0);
+
+    if (isEmpty) {
+      this.metadataBytes = null;
+    } else {
+      try {
+        this.metadataBytes = encodeCborDeterministic(obj);
+      } catch {
+        this.metadataError = 'This metadata could not be encoded. Please simplify it.';
+        this.metadataBytes = null;
+      }
+    }
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  private resetMetadata(): void {
+    this.metadataMode = 'kv';
+    this.metadataRows = [];
+    this.metadataJson = '';
+    this.metadataError = '';
+    this.metadataModeHint = '';
+    this.metadataBytes = null;
+  }
+
+  // ---- Delegate mode ------------------------------------------------------
+
+  /** ord inscription id shape: 64 hex, then 'i', then a non-negative index. */
+  private isValidInscriptionId(id: string): boolean {
+    return /^[0-9a-f]{64}i\d+$/i.test(id);
+  }
+
+  /** The validated target id (for preview + wiring), or null while empty/invalid. */
+  get delegatePreviewId(): string | null {
+    const id = this.delegateId.trim();
+    return id && !this.delegateIdError ? id : null;
+  }
+
+  /** `true` while delegate mode has no usable target id (blocks mint). */
+  get delegateInvalid(): boolean {
+    return this.inscribeMode === 'delegate' && !this.delegatePreviewId;
+  }
+
+  /** Is there something to inscribe? A picked file, or a valid delegate id. */
+  get hasContent(): boolean {
+    return this.inscribeMode === 'delegate' ? !!this.delegatePreviewId : !!this.pickedFile;
+  }
+
+  /** Switch between the file dropzone and the delegate-id input. */
+  switchInscribeMode(mode: 'file' | 'delegate'): void {
+    if (mode === this.inscribeMode) {return;}
+    this.inscribeMode = mode;
+    this.fileError = '';
+    this.mintGateError = '';
+    if (mode === 'delegate') {
+      // The dropzone + compression don't apply to an empty-body delegate.
+      this.pickedFile = null;
+      this.compression = null;
+      this.compressEnabled = false;
+    } else {
+      this.delegateId = '';
+      this.delegateIdError = '';
+    }
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  onDelegateIdChange(id: string): void {
+    this.delegateId = id;
+    const trimmed = id.trim();
+    this.delegateIdError = !trimmed || this.isValidInscriptionId(trimmed)
+      ? ''
+      : 'Enter a valid inscription id: 64 hex characters, then "i", then an index (e.g. abcd…i0).';
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  /** Push the current content into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
-    if (!this.pickedFile) {return;}
+    const note = this.noteControl.value.trim();
+    const common = {
+      note: note || undefined,
+      metadata: this.metadataBytes ?? undefined,
+    };
+
+    if (this.inscribeMode === 'delegate') {
+      const id = this.delegatePreviewId;
+      if (!id) {this.orchestrator.setContent(null); return;}
+      // A delegate carries an empty body and no content_type of its own.
+      this.orchestrator.setContent({ body: new Uint8Array(0), delegate: id, ...common });
+      return;
+    }
+
+    const body = this.finalBody();
+    if (!this.pickedFile || !body) {this.orchestrator.setContent(null); return;}
     this.orchestrator.setContent({
-      body: this.pickedFile.bytes,
+      body,
       contentType: this.pickedFile.contentType,
+      contentEncoding: this.activeContentEncoding,
+      ...common,
     });
   }
 
   private recomputePreConnectCost(): void {
     this.preConnectMintSats = null;
-    const file = this.pickedFile;
     const feeRate = this.cfeeRate.value;
-    if (!file || !feeRate || feeRate <= 0) {return;}
+    if (!feeRate || feeRate <= 0) {return;}
+
+    let body: Uint8Array;
+    let contentType: string | undefined;
+    let envelopeFields: OrdEnvelopeField[] | undefined;
+    if (this.inscribeMode === 'delegate') {
+      const id = this.delegatePreviewId;
+      if (!id) {return;}
+      // Empty body; the delegate tag is what sizes the reveal, so include it.
+      body = new Uint8Array(0);
+      envelopeFields = [{ tag: ORD_TAGS.delegate, value: encodeInscriptionId(id) }];
+    } else {
+      const b = this.finalBody();
+      if (!this.pickedFile || !b) {return;}
+      body = b;
+      contentType = this.pickedFile.contentType;
+    }
+
     try {
       const scureNet = toScureNetwork(this.network);
       const dummy = getDummyKeypair(scureNet);
@@ -321,8 +629,9 @@ export class InscribeMintComponent implements OnInit {
       });
       const sim = simulateInscribeFees({
         feeRatePerVbyte: feeRate,
-        body: file.bytes,
-        contentType: file.contentType,
+        body,
+        contentType,
+        envelopeFields,
         fundingInput,
         senderChangeAddress: dummy.addressP2WPKH,
         recipientAddress: dummy.addressP2TR,
@@ -390,7 +699,20 @@ export class InscribeMintComponent implements OnInit {
   }
 
   inscribe(wallet: WalletInfo): void {
-    if (!this.pickedFile) {return;}
+    // The gate + orchestrator see the exact bytes that land on-chain
+    // (compressed when the box is ticked, or empty for a delegate), so the
+    // size check is accurate.
+    let body: Uint8Array;
+    let contentType: string | undefined;
+    if (this.inscribeMode === 'delegate') {
+      if (!this.delegatePreviewId) {return;}
+      body = new Uint8Array(0);
+    } else {
+      const b = this.finalBody();
+      if (!this.pickedFile || !b) {return;}
+      body = b;
+      contentType = this.pickedFile.contentType;
+    }
     this.mintGateError = '';
     this.mintAttempted = true;
 
@@ -411,8 +733,8 @@ export class InscribeMintComponent implements OnInit {
         intent: {
           recipient: wallet.ordinalsAddress,
           feeRate: this.cfeeRate.value,
-          body: this.pickedFile.bytes,
-          contentType: this.pickedFile.contentType,
+          body,
+          contentType,
         },
       },
     });
@@ -443,6 +765,13 @@ export class InscribeMintComponent implements OnInit {
     this.mintGateError = '';
     this.preConnectMintSats = null;
     this.mintAttempted = false;
+    this.compression = null;
+    this.compressEnabled = false;
+    this.resetMetadata();
+    this.inscribeMode = 'file';
+    this.delegateId = '';
+    this.delegateIdError = '';
+    this.noteControl.setValue('ordpool.space');
     this.cd.detectChanges();
   }
 }

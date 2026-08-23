@@ -41,13 +41,17 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
  *      broadcasts commit + reveal sequentially via POST /api/tx.
  *   7. Read the reveal txid off the success panel, mine, confirm, and
  *      assert the on-chain reveal is a well-formed inscription: parses
- *      through `InscriptionParserService`, recovers the exact fixture
- *      bytes + content-type, and (the CAT-21 side-effect the wallet
- *      convention adds) carries locktime=21 on both commit and reveal.
+ *      through `InscriptionParserService`, carries a `content_encoding`
+ *      tag (`br` or `gzip` — the page compresses by default and picks the
+ *      smaller; the SVG clears the 5% margin), the on-chain body is real
+ *      compressed bytes (smaller than the fixture) that DECODE back
+ *      byte-identically to the fixture, has the right content-type, and
+ *      (the CAT-21 side-effect the wallet convention adds) carries
+ *      locktime=21 on both commit and reveal.
  *
- * The byte-identical content-roundtrip via the parser is the acceptance
- * criterion — it proves the inscription is recoverable by every
- * downstream ordpool consumer the same way.
+ * The compress-on-the-page → decode-off-chain roundtrip is the acceptance
+ * criterion. Because an inscription is immutable, a compressor that didn't
+ * decode back would corrupt it forever, so we verify the decode explicitly.
  *
  * Intentionally CI-only (the workflow downloads the unverified Xverse
  * .crx into a runner that gets torn down). The config refuses to run it
@@ -372,7 +376,16 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
 
-  // Byte-identical content recovery — the acceptance criterion.
-  const recovered = Buffer.from(parsed[0].getDataRaw());
-  expect(recovered.equals(EXPECTED_BODY)).toBe(true);
+  // The page compresses by default and inscribes the smaller of gzip / brotli
+  // (the SVG fixture clears assessCompression's 5% margin). In CI's headed
+  // Chromium the hosted wasm makes brotli available and it wins, but assert
+  // codec-agnostically so the test holds on any engine. The decode-back is the
+  // immutability-safety criterion: a compressor that didn't decode back would
+  // corrupt the inscription forever.
+  const enc = parsed[0].getContentEncoding();
+  expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
+  const onChain = Buffer.from(parsed[0].getDataRaw());
+  expect(onChain.length).toBeLessThan(EXPECTED_BODY.length); // actually compressed
+  const decoded = Buffer.from(await parsed[0].getData(), 'base64');
+  expect(decoded.equals(EXPECTED_BODY)).toBe(true);          // clean decode to original
 });
