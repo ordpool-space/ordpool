@@ -1,5 +1,6 @@
 import { InscriptionParserService, isImageContentType, isValidInscriptionId, ParsedInscription } from 'ordpool-parser';
 
+import { isHidden } from './hidden-content';
 import { $fetchTxByTxid } from './ordpool-tx-fetch.helper';
 
 
@@ -11,6 +12,13 @@ class OrdpoolInscriptionsApi {
     // prevent endless loops via circular delegates
     if (recursiveLevel > 4) {
       throw new Error('Too many delegate levels. Stopping.');
+    }
+
+    // HACK -- Ordpool: a non-hidden inscription can delegate to a hidden
+    // target. The route gates only the requested id, so gate every resolved
+    // id here (initial + each delegate hop) before decoding its witness.
+    if (isHidden(inscriptionId)) {
+      return undefined;
     }
 
     const inscription = await this.$getInscriptionById(inscriptionId);

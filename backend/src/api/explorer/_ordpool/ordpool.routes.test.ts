@@ -169,14 +169,25 @@ describe('$getIndexerProgress route handler', () => {
     });
 
     it('treats the MAX_LAG_MINUTES boundary as inclusive (200 at exactly the limit)', async () => {
-      // Route uses lagMs <= MAX_LAG_MINUTES * 60_000.
-      const thirtyMinMinusOneSecond = new Date(Date.now() - (30 * 60 * 1000 - 1000));
-      (ordpoolBlocksRepository.getPendingStatsCount as jest.Mock).mockResolvedValue(100);
-      (OrdpoolMissingStats.getLastSuccessAt as jest.Mock).mockReturnValue(thirtyMinMinusOneSecond);
+      // Route uses lagMs <= MAX_LAG_MINUTES * 60_000. Freeze the clock so the
+      // last-success timestamp lands EXACTLY on the limit -- with a real clock
+      // the few-ms drift between this setup and the route's Date.now() pushes
+      // lag past the limit, so a "one second under" input tested nothing about
+      // the inclusive (<=) boundary a regression to < would break.
+      const now = 1_700_000_000_000;
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+      try {
+        const exactlyAtLimit = new Date(now - 30 * 60 * 1000); // lagMs === limit
+        (ordpoolBlocksRepository.getPendingStatsCount as jest.Mock).mockResolvedValue(100);
+        (OrdpoolMissingStats.getLastSuccessAt as jest.Mock).mockReturnValue(exactlyAtLimit);
 
-      const res = await call$getIndexerProgress();
+        const res = await call$getIndexerProgress();
 
-      expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(jsonBody(res).lagMinutes).toBe(30);
+      } finally {
+        nowSpy.mockRestore();
+      }
     });
   });
 

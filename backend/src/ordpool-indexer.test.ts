@@ -101,13 +101,20 @@ describe('OrdpoolIndexer', () => {
   });
 
   it('enters rest state after completion', async () => {
+    // Stub now() to a concrete value and reset sleepUntil so the run isn't
+    // early-returned by a stale value left by a prior test. Without the stub,
+    // now() is undefined, production computes undefined + interval = NaN, and
+    // the old assertion was expect(NaN).toBe(NaN) -- passing regardless of the
+    // rest interval, so it pinned nothing.
+    OrdpoolIndexer['sleepUntil'] = 0;
+    mockDateProvider.now.mockReturnValue(1000);
     (OrdpoolMissingStats.processMissingStats as jest.Mock)
       .mockResolvedValueOnce(false); // No more tasks
 
     await OrdpoolIndexer.run();
 
     const expectedRestTime = 10 * 60 * 1000; // 10 minutes rest
-    expect(OrdpoolIndexer['sleepUntil']).toBe(mockDateProvider.now() + expectedRestTime);
+    expect(OrdpoolIndexer['sleepUntil']).toBe(1000 + expectedRestTime);
     expect(mockSetTimeout).toHaveBeenCalled();
   });
 

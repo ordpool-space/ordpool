@@ -185,6 +185,8 @@ export const ORDPOOL_BLOCK_DB_FIELDS = `
   ordpool_stats.amounts_src20_mint                           AS amountsSrc20Mint,
   ordpool_stats.amounts_src20_transfer                       AS amountsSrc20Transfer,
 
+  ordpool_stats.amounts_alkanes                              AS amountsAlkanes,
+
   ordpool_stats.fees_rune_mints                              AS feesRuneMints,
   ordpool_stats.fees_non_uncommon_rune_mints                 AS feesNonUncommonRuneMints,
   ordpool_stats.fees_brc20_mints                             AS feesBrc20Mints,

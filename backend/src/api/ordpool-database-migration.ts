@@ -25,7 +25,11 @@ class OrdpoolDatabaseMigration {
 
     if (ordpoolDatabaseSchemaVersion === 0) {
       logger.info('Changing database to Ordpool schema!', 'Ordpool');
-      await this.$executeQuery(`INSERT INTO state VALUES('ordpool_schema_version', 0, NULL);`);
+      // Idempotent seed: a v0 migration that threw after this row was inserted
+      // leaves version 0 with the row already present. A plain INSERT would then
+      // hit the state.name UNIQUE constraint on the retry and abort before the
+      // migration runs again, so ON DUPLICATE KEY makes the re-run a no-op.
+      await this.$executeQuery(`INSERT INTO state VALUES('ordpool_schema_version', 0, NULL) ON DUPLICATE KEY UPDATE name = name;`);
     }
 
     // Bump these two from debug → notice so journalctl's default config
