@@ -4,7 +4,7 @@ import config from '../../../config';
 import DB from '../../../database';
 import logger from '../../../logger';
 import { getSqlInterval } from './get-sql-interval';
-import ordpoolStatsDaily, { getLiveSelectClause, getRollupSelectClause, rollupGroupBy } from './ordpool-stats-daily';
+import ordpoolStatsDaily, { getLiveSelectClause, getRollupSelectClause, getSatelliteRollupRead, rollupGroupBy, SATELLITE_ROLLUPS } from './ordpool-stats-daily';
 import { Aggregation, ChartType, Interval, OrdpoolStatisticResponse } from './ordpool-statistics-interface';
 
 
@@ -19,32 +19,45 @@ class OrdpoolStatisticsApi {
     const firstInscriptionHeight = getFirstInscriptionHeight(config.MEMPOOL.NETWORK);
     const sqlInterval = getSqlInterval(interval);
 
-    // Satellite-table charts use their own JOIN target + an extra GROUP BY
-    // discriminator (one series per operation / message_type).
-    if (type === 'atomical-ops') {
-      return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
-        'ordpool_stats_atomical_op', 'sat.operation', 'operation');
-    }
-    if (type === 'counterparty-messages') {
-      return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
-        'ordpool_stats_counterparty', 'sat.message_type', 'messageType');
-    }
-    if (type === 'ots') {
-      // ordpool_stats_ots only carries confirmed-by-block rows once the
-      // poller's confirm step fills in blockhash/blockheight. Pending rows
-      // (NULL blockhash) deliberately skip aggregation -- they're not on
-      // chain yet.
-      return this.getSatelliteTotal(firstInscriptionHeight, sqlInterval, aggregation,
-        'ordpool_stats_ots');
-    }
-
-    // Historical day/week/month/year charts read the pre-aggregated daily
-    // rollup (milliseconds) instead of re-scanning every block in the window
-    // (~27s). block/hour over a long interval is coarsened to day -- block-level
-    // over a year is tens of thousands of unreadable points anyway.
+    // Historical day/week/month/year charts read the pre-aggregated daily rollup
+    // (milliseconds) instead of re-scanning every block in the window (~27s).
+    // block/hour over a long interval is coarsened to day -- block-level over a
+    // year is tens of thousands of unreadable points anyway.
     const effectiveAggregation = this.coarsenAggregation(interval, aggregation);
+    const useRollup = effectiveAggregation !== 'block' && effectiveAggregation !== 'hour';
 
-    if (effectiveAggregation !== 'block' && effectiveAggregation !== 'hour' && await ordpoolStatsDaily.isReady()) {
+    // Satellite-table charts (atomical-ops, counterparty-messages, ots) get the
+    // same rollup treatment for day+ aggregation; short block/hour intervals stay
+    // on the live per-block breakdown/total query.
+    const satellite = SATELLITE_ROLLUPS.find((c) => c.chartType === type);
+    if (satellite) {
+      const rollupSql = useRollup && await ordpoolStatsDaily.isReady(satellite.rollupTable)
+        ? getSatelliteRollupRead(type, sqlInterval, effectiveAggregation)
+        : null;
+      if (rollupSql) {
+        try {
+          const [rows]: any[] = await DB.query(rollupSql);
+          return rows;
+        } catch (error) {
+          logger.err(`Error executing satellite rollup query: ${error}`, 'Ordpool');
+          throw error;
+        }
+      }
+      if (type === 'atomical-ops') {
+        return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
+          'ordpool_stats_atomical_op', 'sat.operation', 'operation');
+      }
+      if (type === 'counterparty-messages') {
+        return this.getSatelliteBreakdown(firstInscriptionHeight, sqlInterval, aggregation,
+          'ordpool_stats_counterparty', 'sat.message_type', 'messageType');
+      }
+      // ordpool_stats_ots only carries confirmed-by-block rows once the poller's
+      // confirm step fills in blockhash/blockheight; pending rows (NULL blockhash)
+      // are filtered by the INNER JOIN.
+      return this.getSatelliteTotal(firstInscriptionHeight, sqlInterval, aggregation, 'ordpool_stats_ots');
+    }
+
+    if (useRollup && await ordpoolStatsDaily.isReady()) {
       return this.getFromRollup(type, sqlInterval, effectiveAggregation);
     }
 

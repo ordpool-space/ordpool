@@ -2,9 +2,11 @@ import {
   CHART_METRICS,
   getLiveSelectClause,
   getRollupSelectClause,
+  getSatelliteRollupRead,
   isRollupChart,
   rollupGroupBy,
   rollupTableDdl,
+  satelliteRollupDdls,
 } from './ordpool-stats-daily';
 
 const BASE_ALIASES = ['minHeight', 'maxHeight', 'minTime', 'maxTime'];
@@ -72,5 +74,48 @@ describe('ordpool-stats-daily rollup SQL generation', () => {
   it('throws on an unknown chart type', () => {
     expect(() => getLiveSelectClause('nope' as never)).toThrow('Invalid chart type');
     expect(() => getRollupSelectClause('nope' as never)).toThrow('Invalid chart type');
+  });
+});
+
+describe('ordpool-stats-daily satellite rollups', () => {
+
+  it('creates one rollup table per satellite chart (discriminator PK for breakdowns, day PK for totals)', () => {
+    const ddls = satelliteRollupDdls();
+    expect(ddls).toHaveLength(3);
+
+    const atomical = ddls.find((d) => d.includes('ordpool_stats_atomical_op_daily')) ?? '';
+    expect(atomical).toContain('`operation` VARCHAR(16) NOT NULL');
+    expect(atomical).toContain('`count` BIGINT');
+    expect(atomical).toContain('PRIMARY KEY (`day`, `operation`)');
+
+    const ots = ddls.find((d) => d.includes('ordpool_stats_ots_daily')) ?? '';
+    expect(ots).toContain('PRIMARY KEY (`day`)');
+    expect(ots).not.toContain('operation');
+  });
+
+  it('breakdown read groups by bucket + discriminator and SUMs the daily counts', () => {
+    const sql = getSatelliteRollupRead('atomical-ops', '1 YEAR', 'day') ?? '';
+    expect(sql).toContain('FROM ordpool_stats_atomical_op_daily d');
+    expect(sql).toContain('d.operation AS operation');
+    expect(sql).toContain('SUM(d.count) AS count');
+    expect(sql).toContain('GROUP BY d.day, d.operation');
+  });
+
+  it('counterparty read aliases message_type -> messageType and buckets by month', () => {
+    const sql = getSatelliteRollupRead('counterparty-messages', '1 YEAR', 'month') ?? '';
+    expect(sql).toContain('d.message_type AS messageType');
+    expect(sql).toContain('GROUP BY YEAR(d.day), MONTH(d.day), d.message_type');
+  });
+
+  it('total (ots) read has no discriminator', () => {
+    const sql = getSatelliteRollupRead('ots', '1 YEAR', 'day') ?? '';
+    expect(sql).toContain('FROM ordpool_stats_ots_daily d');
+    expect(sql).toContain('SUM(d.count) AS count');
+    expect(sql).not.toContain('operation');
+    expect(sql).toContain('GROUP BY d.day');
+  });
+
+  it('returns null for a non-satellite chart', () => {
+    expect(getSatelliteRollupRead('mints', '1 YEAR', 'day')).toBeNull();
   });
 });

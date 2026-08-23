@@ -1,7 +1,7 @@
 
 import DB from '../database';
 import logger from '../logger';
-import { rollupTableDdl } from './explorer/_ordpool/ordpool-stats-daily';
+import { rollupTableDdl, satelliteRollupDdls } from './explorer/_ordpool/ordpool-stats-daily';
 
 class OrdpoolDatabaseMigration {
 
@@ -12,7 +12,7 @@ class OrdpoolDatabaseMigration {
   // counters move on different cadences but every generation bump must
   // come with a matching migration block; see
   // src/api/ordpool-parser-flag-version.ts for the linkage.
-  private static currentVersion = 11;
+  private static currentVersion = 12;
 
   private queryTimeout = 3600_000;
 
@@ -703,6 +703,16 @@ class OrdpoolDatabaseMigration {
     // table + filesort). Populated + kept current by OrdpoolStatsDaily.
     if (version <= 10) {
       queries.push(rollupTableDdl());
+    }
+
+    // Daily rollups for the satellite-table charts (atomical-ops,
+    // counterparty-messages, ots): COUNT per day (+ discriminator), the same fix
+    // as the main rollup. Split into its own version so a v11 DB (which already
+    // has the main rollup) still creates these on upgrade.
+    if (version <= 11) {
+      for (const ddl of satelliteRollupDdls()) {
+        queries.push(ddl);
+      }
     }
 
     return queries;
