@@ -465,4 +465,33 @@ describe('InscribeMintComponent', () => {
     expect(component.delegateId).toBe('');
     expect(component.delegateInvalid).toBe(false);
   });
+
+  // ---- Total-size cap + cost accuracy (review fixes) ----------------------
+
+  it('oversize total (small file + huge metadata) is blocked before minting', async () => {
+    await (component as any).handleFile(pngFile());
+    // 400 KB of metadata pushes body+metadata+note past the 350 KB cap even
+    // though the file itself is tiny (the SDK gate only sees the 8-byte file).
+    component.metadataBytes = new Uint8Array(400_000);
+    gateResult = { ok: true, resources: {} };
+    component.inscribe(wallet());
+    expect(component.mintGateError).toMatch(/cap|350/);
+    expect(mintSpy).not.toHaveBeenCalled();
+  });
+
+  it('pre-connect cost sim includes the note + metadata envelope fields', async () => {
+    await (component as any).handleFile(pngFile());   // note defaults to 'ordpool.space'
+    component.addMetadataRow();
+    component.setMetadataRow(0, 'k', 'v');
+    const lastSim = simulateSpy.mock.calls[simulateSpy.mock.calls.length - 1][0];
+    const tags = (lastSim.envelopeFields ?? []).map((f: { tag: number }) => f.tag);
+    expect(tags).toContain(15); // note
+    expect(tags).toContain(5);  // metadata
+  });
+
+  it('non-finite Infinity fee-rate does not produce a pre-connect estimate', async () => {
+    await (component as any).handleFile(pngFile());
+    component.cfeeRate.setValue(Infinity);
+    expect(component.preConnectMintSats).toBeNull();
+  });
 });

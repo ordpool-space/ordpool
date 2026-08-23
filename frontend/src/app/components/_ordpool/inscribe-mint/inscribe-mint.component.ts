@@ -194,7 +194,10 @@ export class InscribeMintComponent implements OnInit {
 
   form = new FormGroup({
     feeRate: new FormControl(1, {
-      validators: [Validators.required, Validators.min(0.1)],
+      // max 1000 matches the SDK gate's maxFeeRatePerVbyte; it also rejects
+      // a non-finite Infinity (from a `1e999` input) so the form goes
+      // invalid and the mint button disables instead of estimating "Infinity".
+      validators: [Validators.required, Validators.min(0.1), Validators.max(1000)],
       nonNullable: true,
     }),
     // Prefilled watermark so we can measure how many inscriptions came
@@ -250,8 +253,12 @@ export class InscribeMintComponent implements OnInit {
       }
     });
 
-    // Editing the note re-synths the tag on the pending content.
-    this.noteControl.valueChanges.subscribe(() => this.syncContent());
+    // Editing the note re-synths the tag on the pending content and
+    // refreshes the cost estimate (the note bytes count on-chain).
+    this.noteControl.valueChanges.subscribe(() => {
+      this.syncContent();
+      this.recomputePreConnectCost();
+    });
 
     // Wipe the scanner cache when one wallet swaps out for another.
     let lastWalletAddress: string | null = null;
@@ -482,6 +489,7 @@ export class InscribeMintComponent implements OnInit {
         this.metadataError = 'Invalid JSON. Fix it or clear the field to inscribe without metadata.';
         this.metadataBytes = null;
         this.syncContent();
+        this.recomputePreConnectCost();
         this.cd.markForCheck();
         return;
       }
@@ -503,7 +511,17 @@ export class InscribeMintComponent implements OnInit {
         this.metadataBytes = null;
       }
     }
+    // The 350 KB cap bounds body + metadata + note (not just the file):
+    // large metadata must not push the reveal past standard relay. Setting
+    // metadataError here blocks the mint (metadataInvalid) with feedback.
+    if (this.metadataBytes && !this.metadataError) {
+      const body = this.finalBody() ?? new Uint8Array(0);
+      if (this.totalContentBytes(body) > MAX_CONTENT_BYTES) {
+        this.metadataError = `This metadata pushes the inscription over the ${MAX_CONTENT_BYTES / 1000} KB on-chain limit. Trim it or pick a smaller file.`;
+      }
+    }
     this.syncContent();
+    this.recomputePreConnectCost();
     this.cd.markForCheck();
   }
 
@@ -596,26 +614,58 @@ export class InscribeMintComponent implements OnInit {
     });
   }
 
+  /**
+   * The envelope fields (delegate OR content_encoding, plus note + metadata)
+   * the orchestrator emits for the current form. The pre-connect estimate
+   * feeds these to `simulateInscribeFees` so it matches the exact
+   * post-connect figure instead of undercounting by the note + metadata
+   * bytes (the note default 'ordpool.space' is always present).
+   */
+  private simEnvelopeFields(): OrdEnvelopeField[] {
+    const enc = new TextEncoder();
+    const fields: OrdEnvelopeField[] = [];
+    if (this.inscribeMode === 'delegate') {
+      const id = this.delegatePreviewId;
+      if (id) {fields.push({ tag: ORD_TAGS.delegate, value: encodeInscriptionId(id) });}
+    } else if (this.activeContentEncoding) {
+      fields.push({ tag: ORD_TAGS.content_encoding, value: enc.encode(this.activeContentEncoding) });
+    }
+    const note = this.noteControl.value.trim();
+    if (note) {fields.push({ tag: ORD_TAGS.note, value: enc.encode(note) });}
+    if (this.metadataBytes) {fields.push({ tag: ORD_TAGS.metadata, value: this.metadataBytes });}
+    return fields;
+  }
+
+  /**
+   * Total on-chain content bytes: body + CBOR metadata + note. The 350 KB
+   * cap must bound this SUM, not just the file body, otherwise large
+   * metadata (uncapped by the file dropzone) can push the reveal over
+   * standard relay. Inscriptions are immutable, so this is a hard gate.
+   */
+  private totalContentBytes(body: Uint8Array): number {
+    const note = this.noteControl.value.trim();
+    return body.length + (this.metadataBytes?.length ?? 0) + new TextEncoder().encode(note).length;
+  }
+
   private recomputePreConnectCost(): void {
     this.preConnectMintSats = null;
     const feeRate = this.cfeeRate.value;
-    if (!feeRate || feeRate <= 0) {return;}
+    // Reject non-finite rates (Infinity from a `1e999` input, NaN) so the
+    // estimate never renders "Infinity sat".
+    if (!feeRate || !Number.isFinite(feeRate) || feeRate <= 0) {return;}
 
     let body: Uint8Array;
     let contentType: string | undefined;
-    let envelopeFields: OrdEnvelopeField[] | undefined;
     if (this.inscribeMode === 'delegate') {
-      const id = this.delegatePreviewId;
-      if (!id) {return;}
-      // Empty body; the delegate tag is what sizes the reveal, so include it.
+      if (!this.delegatePreviewId) {return;}
       body = new Uint8Array(0);
-      envelopeFields = [{ tag: ORD_TAGS.delegate, value: encodeInscriptionId(id) }];
     } else {
       const b = this.finalBody();
       if (!this.pickedFile || !b) {return;}
       body = b;
       contentType = this.pickedFile.contentType;
     }
+    const envelopeFields = this.simEnvelopeFields();
 
     try {
       const scureNet = toScureNetwork(this.network);
@@ -631,7 +681,7 @@ export class InscribeMintComponent implements OnInit {
         feeRatePerVbyte: feeRate,
         body,
         contentType,
-        envelopeFields,
+        envelopeFields: envelopeFields.length ? envelopeFields : undefined,
         fundingInput,
         senderChangeAddress: dummy.addressP2WPKH,
         recipientAddress: dummy.addressP2TR,
@@ -639,7 +689,8 @@ export class InscribeMintComponent implements OnInit {
         network: this.network,
       });
       this.preConnectMintSats = sim.fundingRequirementSats;
-    } catch {
+    } catch (err) {
+      console.warn('[inscribe] pre-connect cost simulation failed', err);
       this.preConnectMintSats = null;
     }
   }
@@ -715,6 +766,16 @@ export class InscribeMintComponent implements OnInit {
     }
     this.mintGateError = '';
     this.mintAttempted = true;
+
+    // The 350 KB cap must bound the TOTAL content (body + metadata + note),
+    // not just the file body the SDK gate sees. Inscriptions are immutable,
+    // so this is a hard stop.
+    const total = this.totalContentBytes(body);
+    if (total > MAX_CONTENT_BYTES) {
+      this.mintGateError = `This inscription is ${Math.ceil(total / 1024)} KB (file + metadata + note); the on-chain cap is ${MAX_CONTENT_BYTES / 1000} KB. Trim the metadata or pick a smaller file.`;
+      this.cd.detectChanges();
+      return;
+    }
 
     const gate = validateInscribeOperation({
       config: {

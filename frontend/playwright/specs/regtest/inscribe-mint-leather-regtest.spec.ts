@@ -16,7 +16,7 @@ import {
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
- * E2E (regtest inscribe) — ordpool /inscribe via Leather.
+ * E2E (regtest inscribe) - ordpool /inscribe via Leather.
  *
  * Leather is a NON-NATIVE regtest wallet: mainnet HRP from
  * `getAddresses`, rewritten to `bcrt1…` by the SDK connector's
@@ -241,7 +241,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Leather', 
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
   // Compression landed on-chain (the SVG fixture clears the 5% margin) and
-  // decodes back byte-identically — the immutability-safety acceptance criterion.
+  // decodes back byte-identically - the immutability-safety acceptance criterion.
   const enc = parsed[0].getContentEncoding();
   expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
   const onChain = Buffer.from(parsed[0].getDataRaw());

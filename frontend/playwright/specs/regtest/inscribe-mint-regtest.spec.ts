@@ -5,7 +5,7 @@ import * as fs from 'node:fs';
 
 import { InscriptionParserService } from 'ordpool-parser';
 
-// Reused verbatim from the SDK's published e2e/ helpers — the workflow
+// Reused verbatim from the SDK's published e2e/ helpers - the workflow
 // copies them into ./sdk-lib/ before this spec runs (Node 24's built-in
 // type-stripping refuses to compile .ts under node_modules).
 import {
@@ -19,7 +19,7 @@ import {
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
- * E2E (regtest inscribe) — ordpool /inscribe
+ * E2E (regtest inscribe) - ordpool /inscribe
  *
  * Drives the real Angular `/inscribe` page through a complete single-file
  * inscription round-trip with the real Xverse extension:
@@ -36,13 +36,13 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
  *   5. Drop the fixture file on the dropzone (a tiny SVG), pin the fee
  *      rate, wait for the "Inscribe my file" button to enable.
  *   6. Click it, approve the ONE Xverse sign popup (only the commit
- *      funding input is wallet-signed — the reveal is finalized inside
+ *      funding input is wallet-signed - the reveal is finalized inside
  *      the orchestrator with an ephemeral key it then zeroes). The page
  *      broadcasts commit + reveal sequentially via POST /api/tx.
  *   7. Read the reveal txid off the success panel, mine, confirm, and
  *      assert the on-chain reveal is a well-formed inscription: parses
  *      through `InscriptionParserService`, carries a `content_encoding`
- *      tag (`br` or `gzip` — the page compresses by default and picks the
+ *      tag (`br` or `gzip` - the page compresses by default and picks the
  *      smaller; the SVG clears the 5% margin), the on-chain body is real
  *      compressed bytes (smaller than the fixture) that DECODE back
  *      byte-identically to the fixture, has the right content-type, and
@@ -55,7 +55,7 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
  *
  * Intentionally CI-only (the workflow downloads the unverified Xverse
  * .crx into a runner that gets torn down). The config refuses to run it
- * locally — see `playwright.regtest.config.ts`.
+ * locally - see `playwright.regtest.config.ts`.
  */
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
@@ -125,7 +125,7 @@ test.beforeAll(async () => {
     );
   }
 
-  // Clone the seed user-data-dir so we don't mutate the original — the
+  // Clone the seed user-data-dir so we don't mutate the original - the
   // suite may retry, and a partially-onboarded vault from a prior run
   // would poison the unlock step.
   const workingDir = `${SEED_USER_DATA_DIR}.inscribepage-${process.pid}-${Date.now()}`;
@@ -157,7 +157,7 @@ test.afterAll(async () => {
 });
 
 test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', async () => {
-  test.setTimeout(420_000); // 7 min — wallet popups + commit/reveal + blocks
+  test.setTimeout(420_000); // 7 min - wallet popups + commit/reveal + blocks
 
   // ─── 1. Unlock the vault ───────────────────────────────────────
   const primer = await context.newPage();
@@ -215,13 +215,13 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
     .first().click();
   // Closing the connect popup forces Xverse to open a FRESH tab for the
-  // sign step later — same dance the cat21-mint + SDK roundtrip specs use.
+  // sign step later - same dance the cat21-mint + SDK roundtrip specs use.
   await approvalConnect.close().catch(() => undefined);
 
   // ─── 3. Read the payment address from the empty-state hint ─────
   // With no funds yet, the form renders the "We could not find enough
   // funds … Fund <code class="bitcoin">…</code>" hint. Read the address
-  // verbatim — no SDK testHooks required.
+  // verbatim - no SDK testHooks required.
   const paymentCode = page.locator('code.bitcoin', { hasText: /^(bcrt1q|bcrt1p|3|tb1q|2)/ }).first();
   await expect(paymentCode).toBeVisible({ timeout: 60_000 });
   const paymentAddress = (await paymentCode.textContent())!.trim();
@@ -240,7 +240,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
 
   // ─── 4b. Reload so the orchestrator re-fetches UTXOs ───────────
-  // getUtxos fires once on connect — funding AFTER connect doesn't
+  // getUtxos fires once on connect - funding AFTER connect doesn't
   // trigger a re-fetch. A reload forces a fresh utxos$ pipeline. If
   // Xverse pops a permission-renewal popup we approve it.
   const knownPagesBeforeReload = new Set(context.pages());
@@ -283,7 +283,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
 
   const inscribeButton = page.locator('[data-testid="inscribe-btn"]');
   // Enabled only when form valid + a viable UTXO auto-picked + a file is
-  // set — all three now hold.
+  // set - all three now hold.
   await expect(inscribeButton).toBeEnabled({ timeout: 60_000 });
   await shot(page, '06-ready-to-inscribe');
 
@@ -315,7 +315,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   }, undefined, { timeout: 30_000, polling: 250 });
   await expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
 
-  // Retry the Confirm click — Xverse occasionally swallows the first
+  // Retry the Confirm click - Xverse occasionally swallows the first
   // click during the React onClick attach.
   for (let attempt = 0; attempt < 3; attempt++) {
     if (approvalSign.isClosed()) break;
@@ -345,7 +345,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
 
   // ─── 9. Confirm both txs, verify the inscription on-chain ──────
   // Commit + reveal are already in the mempool (broadcast sequentially
-  // by the page). One block confirms both — bitcoind packs the reveal
+  // by the page). One block confirms both - bitcoind packs the reveal
   // in the same block as its unconfirmed commit parent.
   await waitForElectrsSync(mineBlocks(1));
   const commitTx = await waitForTxConfirmed(commitTxId);
@@ -353,7 +353,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   console.log(`[inscribe-page] commit locktime=${commitTx.locktime} reveal locktime=${revealTx.locktime}`);
 
   // The cat21-wallet / SDK builder convention sets nLockTime=21 on every
-  // cat-touching tx it builds — here both the commit and the reveal —
+  // cat-touching tx it builds - here both the commit and the reveal -
   // so each also mints a bonus CAT-21 cat. Regression guard on the SDK
   // builder invariant (a third-party wallet with locktime=0 would still
   // deliver the inscription; the SDK is the builder here, so we pin it).

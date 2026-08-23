@@ -16,7 +16,7 @@ import {
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
- * E2E (regtest inscribe) — ordpool /inscribe via Unisat.
+ * E2E (regtest inscribe) - ordpool /inscribe via Unisat.
  *
  * Unisat is a NON-NATIVE regtest wallet: its `getAddresses` returns
  * mainnet `bc1q…` regardless of the requested network. The SDK's
@@ -24,7 +24,7 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
  * (same pubkey, HRP-swapped scriptPubKey), and the signer-side companion
  * passes `network: 'mainnet'` so the wallet unlocks its mainnet-derived
  * key. Because the shim lives in the CONNECTOR (not the test harness),
- * the page-driven flow works end to end — this spec proves it against
+ * the page-driven flow works end to end - this spec proves it against
  * the real `/inscribe` page.
  *
  * Sibling of `inscribe-mint-regtest.spec.ts` (Xverse); the only wallet-
@@ -69,7 +69,7 @@ async function shot(p: Page, name: string): Promise<void> {
 }
 
 // Onboard Unisat by importing the known mnemonic. Lifted verbatim from
-// cubes-frontend's unisat-cube-mint-roundtrip spec — every step is
+// cubes-frontend's unisat-cube-mint-roundtrip spec - every step is
 // testid-anchored, so no text waits.
 async function onboardUnisat(page: Page): Promise<void> {
   await page.setViewportSize({ width: 400, height: 800 });
@@ -121,7 +121,7 @@ async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number): P
     },
   }).catch(() => null);
   if (popup) {
-    // Unisat renders Connect as a styled <div>, not a <button> — match by text.
+    // Unisat renders Connect as a styled <div>, not a <button> - match by text.
     await popup.getByText(/^Connect$/).first().click();
     await popup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
   }
@@ -268,7 +268,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
   // Compression landed on-chain (the SVG fixture clears the 5% margin) and
-  // decodes back byte-identically — the immutability-safety acceptance criterion.
+  // decodes back byte-identically - the immutability-safety acceptance criterion.
   const enc = parsed[0].getContentEncoding();
   expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
   const onChain = Buffer.from(parsed[0].getDataRaw());

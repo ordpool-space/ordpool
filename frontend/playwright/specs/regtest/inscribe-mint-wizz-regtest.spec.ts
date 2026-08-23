@@ -16,7 +16,7 @@ import {
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 /**
- * E2E (regtest inscribe) — ordpool /inscribe via Wizz.
+ * E2E (regtest inscribe) - ordpool /inscribe via Wizz.
  *
  * Wizz is a NON-NATIVE regtest wallet (Unisat-family): mainnet HRP from
  * `getAddresses`, rewritten to `bcrt1…` by the SDK connector's
@@ -125,7 +125,7 @@ async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number): Pro
 }
 
 // Sign button carries a spinner overlay + braille chars in textContent
-// while Wizz analyses the PSBT — atomically match + click inside
+// while Wizz analyses the PSBT - atomically match + click inside
 // page.evaluate to sidestep the pointer-events race.
 async function approveWizzSign(knownPages: Set<Page>): Promise<void> {
   const approval = await waitForApprovalPopup({
@@ -275,7 +275,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
   // Compression landed on-chain (the SVG fixture clears the 5% margin) and
-  // decodes back byte-identically — the immutability-safety acceptance criterion.
+  // decodes back byte-identically - the immutability-safety acceptance criterion.
   const enc = parsed[0].getContentEncoding();
   expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
   const onChain = Buffer.from(parsed[0].getDataRaw());

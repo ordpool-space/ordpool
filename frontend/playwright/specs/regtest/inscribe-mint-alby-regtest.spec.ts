@@ -15,14 +15,14 @@ import {
 } from './sdk-lib/regtest-helpers';
 
 /**
- * E2E (regtest inscribe) — ordpool /inscribe via Alby.
+ * E2E (regtest inscribe) - ordpool /inscribe via Alby.
  *
  * Alby is a NATIVE-regtest wallet (returns bcrt1 directly, no address
  * shim). The wrinkle is signing: Alby's signPsbt popup opens a React
  * confirm dialog whose Promise never resolves in headless CI. So this
  * spec keeps an extension-origin `seedPage` alive and fires Alby's own
  * `webbtc/signPsbt` SW route directly (the exact path Alby's popup would
- * call after the user clicks Confirm — no wallet crypto bypassed, only
+ * call after the user clicks Confirm - no wallet crypto bypassed, only
  * the hung UI Promise). `window.alby.webbtc.signPsbt` on the app page is
  * patched via addInitScript to proxy into that SW call. Onboarding is
  * seeded through the SW (setPassword → addAccount → setMnemonic). The
@@ -170,7 +170,7 @@ test.beforeAll(async () => {
 
   await seedAlbyAccount(seedPage);
   await shot(seedPage, '00-after-seed').catch(() => undefined);
-  // Keep seedPage OPEN — the test talks to the SW through it.
+  // Keep seedPage OPEN - the test talks to the SW through it.
 });
 
 test.afterAll(async () => {
@@ -202,7 +202,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   });
 
   // Expose the SW-bypass to the app page, then patch ONLY
-  // window.alby.webbtc.signPsbt to proxy into it — enable() +
+  // window.alby.webbtc.signPsbt to proxy into it - enable() +
   // getAddress() keep using Alby's real inpage API.
   await page.exposeFunction('__albyBypassSignPsbt', async (psbtHex: string) => albySignViaSw(psbtHex));
   await page.addInitScript(() => {
@@ -307,7 +307,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
   // Compression landed on-chain (the SVG fixture clears the 5% margin) and
-  // decodes back byte-identically — the immutability-safety acceptance criterion.
+  // decodes back byte-identically - the immutability-safety acceptance criterion.
   const enc = parsed[0].getContentEncoding();
   expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
   const onChain = Buffer.from(parsed[0].getDataRaw());

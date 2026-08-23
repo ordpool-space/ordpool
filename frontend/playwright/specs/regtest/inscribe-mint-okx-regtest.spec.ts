@@ -17,7 +17,7 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 import { onboardOkx } from './okx-onboard-helper';
 
 /**
- * E2E (regtest inscribe) — ordpool /inscribe via OKX.
+ * E2E (regtest inscribe) - ordpool /inscribe via OKX.
  *
  * OKX is a NON-NATIVE regtest wallet: mainnet HRP from `getAddresses`,
  * rewritten to `bcrt1…` by the SDK connector's `toRegtestWalletInfo`
@@ -77,7 +77,7 @@ async function approveOkxConnect(knownPages: Set<Page>, timeoutMs: number): Prom
   return approval;
 }
 
-// OKX reuses its extension page for the sign approval — poll all pages
+// OKX reuses its extension page for the sign approval - poll all pages
 // for the "Signature request" body, dismiss a promo overlay if present,
 // then click Confirm.
 async function approveOkxSign(): Promise<void> {
@@ -153,7 +153,7 @@ test.beforeAll(async () => {
   if (!onboardPage) onboardPage = await context.newPage();
   await onboardOkx(onboardPage, extensionId);
   await shot(onboardPage, '00-onboarded');
-  // Do NOT close onboardPage — OKX reuses its extension page for sign.
+  // Do NOT close onboardPage - OKX reuses its extension page for sign.
 });
 
 test.afterAll(async () => {
@@ -237,7 +237,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
   // Compression landed on-chain (the SVG fixture clears the 5% margin) and
-  // decodes back byte-identically — the immutability-safety acceptance criterion.
+  // decodes back byte-identically - the immutability-safety acceptance criterion.
   const enc = parsed[0].getContentEncoding();
   expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
   const onChain = Buffer.from(parsed[0].getDataRaw());
