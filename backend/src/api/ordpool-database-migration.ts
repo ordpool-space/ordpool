@@ -1,6 +1,7 @@
 
 import DB from '../database';
 import logger from '../logger';
+import { rollupTableDdl } from './explorer/_ordpool/ordpool-stats-daily';
 
 class OrdpoolDatabaseMigration {
 
@@ -11,7 +12,7 @@ class OrdpoolDatabaseMigration {
   // counters move on different cadences but every generation bump must
   // come with a matching migration block; see
   // src/api/ordpool-parser-flag-version.ts for the linkage.
-  private static currentVersion = 10;
+  private static currentVersion = 11;
 
   private queryTimeout = 3600_000;
 
@@ -694,6 +695,14 @@ class OrdpoolDatabaseMigration {
           INDEX idx_fetched_at (fetched_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
+    }
+
+    // Daily pre-aggregation for the ordpool-stats charts. Historical day-buckets
+    // are immutable, so the chart query reads ~700 precomputed rows instead of
+    // re-scanning ~117k blocks per request (GROUP BY date-functions -> temp
+    // table + filesort). Populated + kept current by OrdpoolStatsDaily.
+    if (version <= 10) {
+      queries.push(rollupTableDdl());
     }
 
     return queries;

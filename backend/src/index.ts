@@ -56,6 +56,7 @@ import stratumApi from './api/services/stratum';
 import ordpoolDatabaseMigration from './api/ordpool-database-migration';
 import ordpoolOtsTxidSet from './api/ordpool-ots-txid-set';
 import ordpoolOtsPoller from './api/ordpool-ots-poller';
+import ordpoolStatsDaily from './api/explorer/_ordpool/ordpool-stats-daily';
 import generalOrdpoolRoutes from './api/explorer/_ordpool/ordpool.routes';
 import ordpoolIndexer from './ordpool-indexer';
 
@@ -161,6 +162,11 @@ class Server {
           logger.warn('OTS txid-set bootstrap failed; continuing with empty set. Reason: ' + (e instanceof Error ? e.message : e), 'Ordpool');
         }
         ordpoolOtsPoller.start();
+        // Backfills the ordpool-stats daily rollup on first tick (if empty) and
+        // keeps today's bucket current; the stats API reads it for day/week/
+        // month/year charts. Non-blocking: charts fall back to the live query
+        // until the rollup is ready.
+        ordpoolStatsDaily.start();
       } catch (e) {
         throw new Error(e instanceof Error ? e.message : 'Error');
       }

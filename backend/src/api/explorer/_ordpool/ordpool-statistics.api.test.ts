@@ -1,5 +1,6 @@
 import OrdpoolStatisticsApi from './ordpool-statistics.api';
 import DB from '../../../database';
+import ordpoolStatsDaily from './ordpool-stats-daily';
 
 jest.mock('../../../database', () => ({
   query: jest.fn(),
@@ -9,7 +10,19 @@ jest.mock('../../../logger', () => ({
   err: jest.fn(),
 }));
 
+// Keep the real SQL generators; stub only the rollup service's readiness so the
+// tests exercise the live path by default (isReady=false), or opt into the
+// rollup path per test.
+jest.mock('./ordpool-stats-daily', () => {
+  const actual = jest.requireActual('./ordpool-stats-daily');
+  return { ...actual, __esModule: true, default: { isReady: jest.fn(), start: jest.fn(), stop: jest.fn() } };
+});
+
 describe('OrdpoolStatisticsApi', () => {
+  beforeEach(() => {
+    (ordpoolStatsDaily.isReady as jest.Mock).mockResolvedValue(false);
+  });
+
   afterEach(() => {
     jest.resetAllMocks();
   });
@@ -152,6 +165,37 @@ describe('OrdpoolStatisticsApi', () => {
       expect(DB.query).toHaveBeenCalledWith(
         expect.stringContaining('ORDER BY b.blockTimestamp DESC')
       );
+    });
+
+    it('reads the daily rollup for day aggregation once the rollup is ready', async () => {
+      (ordpoolStatsDaily.isReady as jest.Mock).mockResolvedValue(true);
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ cat21Mints: 9 }]]);
+
+      const result = await OrdpoolStatisticsApi.getOrdpoolStatistics('mints', '1y', 'day');
+
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('FROM ordpool_stats_daily d'));
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('SUM(d.amounts_cat21_mint) AS cat21Mints'));
+      expect(result).toEqual([{ cat21Mints: 9 }]);
+    });
+
+    it('coarsens block aggregation over a long interval onto the rollup', async () => {
+      (ordpoolStatsDaily.isReady as jest.Mock).mockResolvedValue(true);
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ cat21Mints: 3 }]]);
+
+      // block + 1y -> coarsened to day -> served from the rollup, not the live scan.
+      await OrdpoolStatisticsApi.getOrdpoolStatistics('mints', '1y', 'block');
+
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('ordpool_stats_daily d'));
+    });
+
+    it('keeps short block/hour intervals on the live per-block query', async () => {
+      (ordpoolStatsDaily.isReady as jest.Mock).mockResolvedValue(true);
+      (DB.query as jest.Mock).mockResolvedValueOnce([[{ cat21Mints: 1 }]]);
+
+      // block + 1h stays live (the rollup would lose intra-day resolution).
+      await OrdpoolStatisticsApi.getOrdpoolStatistics('mints', '1h', 'block');
+
+      expect(DB.query).toHaveBeenCalledWith(expect.stringContaining('FROM blocks b'));
     });
   });
 });
