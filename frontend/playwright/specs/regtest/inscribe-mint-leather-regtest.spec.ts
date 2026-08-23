@@ -240,6 +240,12 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Leather', 
   const parsed = InscriptionParserService.parse({ txid: revealTxId, vin: [{ witness: witnessHex }] });
   expect(parsed.length).toBe(1);
   expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
-  const recovered = Buffer.from(parsed[0].getDataRaw());
-  expect(recovered.equals(EXPECTED_BODY)).toBe(true);
+  // Compression landed on-chain (the SVG fixture clears the 5% margin) and
+  // decodes back byte-identically — the immutability-safety acceptance criterion.
+  expect(parsed[0].getContentEncoding()).toBe('gzip');
+  const onChain = Buffer.from(parsed[0].getDataRaw());
+  expect(onChain.length).toBeLessThan(EXPECTED_BODY.length); // actually compressed
+  expect([onChain[0], onChain[1]]).toEqual([0x1f, 0x8b]);    // gzip magic
+  const decoded = Buffer.from(await parsed[0].getData(), 'base64');
+  expect(decoded.equals(EXPECTED_BODY)).toBe(true);          // clean decode to original
 });
