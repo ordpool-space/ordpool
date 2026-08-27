@@ -3,31 +3,86 @@
     <h4 class="modal-title" id="modal-basic-title">Connect Wallet</h4>
     <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
-  <div class="modal-body" *ngIf="installedWallets$ | async as wallets">
+  <div class="modal-body">
 
-    <ul class="list-unstyled" *ngIf="wallets.installedWallets.length">
-      <li *ngFor="let w of wallets.installedWallets">
-        <button class="btn btn-purple mt-3 w-100 text-start" [disabled]="connectButtonDisabled"
-          (click)="connectWallet(w.type)">
-          <img [src]="w.logo" width="25" height="25" class="me-2">
-          {{ w.label }}<small style="font-size: 0.7em" *ngIf="w.subLabel">&nbsp; {{ w.subLabel }}</small>
-        </button>
+   <ng-container *ngIf="!xpubMode && (pickerRows$ | async) as rows">
+
+    <p class="text-muted small mb-2">
+      Connect a wallet to mint a cat. Every wallet below can mint;
+      tap the <span aria-hidden="true">&#9432;</span> to see what else it can do here.
+    </p>
+
+    <ul class="list-unstyled">
+      <li *ngFor="let row of rows" class="wallet-row">
+
+        <img [src]="row.logo" width="25" height="25" class="wallet-logo">
+        <span class="wallet-name">
+          {{ row.label }}<small class="wallet-sublabel" *ngIf="row.subLabel">&nbsp; {{ row.subLabel }}</small>
+        </span>
+
+        <!-- info icon: full capability list, sourced from the SDK matrix -->
+        <button type="button" class="info-btn"
+          #pop="ngbPopover"
+          [ngbPopover]="infoPop"
+          [popoverTitle]="'What ' + row.label + ' supports'"
+          container="body"
+          popoverClass="walletCapabilityPopover"
+          triggers="manual"
+          (click)="pop.toggle()"
+          [attr.aria-label]="'What does ' + row.label + ' support?'">&#9432;</button>
+
+        <!-- action: reachable now = Connect, not installed = Download,
+             watch-only = paste an xpub (opens the connect-xpub flow) -->
+        <ng-container [ngSwitch]="row.state">
+          <button *ngSwitchCase="'installed'" class="btn btn-purple btn-sm action"
+            [disabled]="connectButtonDisabled" (click)="connectWallet(row.wallet)">Connect</button>
+          <a *ngSwitchCase="'not-installed'" class="btn btn-secondary btn-sm action"
+            [href]="row.downloadLink" target="_blank" rel="noopener">Download</a>
+          <button *ngSwitchCase="'watch-only'" class="btn btn-purple btn-sm action"
+            (click)="startXpub()">Connect (xpub)</button>
+        </ng-container>
+
+        <ng-template #infoPop>
+          <div class="wallet-info">
+
+            <!-- 1. header: signing mode + platform badges -->
+            <div class="wi-header">
+              <span class="wi-mode">{{ row.info.signingModeLine }}</span>
+              <span class="wi-badges">
+                <span class="badge bg-secondary ms-1" *ngFor="let b of row.info.platformBadges">{{ b }}</span>
+              </span>
+            </div>
+
+            <!-- 2. what this action (mint) needs -->
+            <div class="wi-action">
+              <strong>{{ row.info.action.name }}</strong>
+              <span class="wi-status">
+                <span class="wi-icon" aria-hidden="true">{{ row.info.action.icon }}</span>
+                {{ row.info.action.wording }}<span *ngIf="row.info.action.caveat">. {{ row.info.action.caveat }}.</span>
+              </span>
+            </div>
+
+            <hr class="my-2">
+
+            <!-- 3. everything this wallet can do here -->
+            <div class="wi-caps">
+              <div class="wi-caps-title text-muted small">Everything this wallet can do here</div>
+              <ul class="list-unstyled mb-0">
+                <li *ngFor="let cap of row.info.capabilities" class="wi-cap">
+                  <span class="wi-icon" aria-hidden="true">{{ cap.icon }}</span>
+                  <span class="wi-cap-name">{{ cap.name }}</span>
+                  <span class="wi-cap-caveat text-muted" *ngIf="cap.caveat">{{ cap.caveat }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- 4. footer: wallet-level note -->
+            <p class="wi-note text-muted small mt-2 mb-0" *ngIf="row.info.note">{{ row.info.note }}</p>
+          </div>
+        </ng-template>
+
       </li>
     </ul>
-
-    <ng-container *ngIf="wallets.notInstalledWallets.length">
-      Not installed, click to download:
-
-      <ul class="list-unstyled">
-        <li *ngFor="let w of wallets.notInstalledWallets">
-          <a class="btn btn-secondary mt-3 w-100 text-start" [href]="w.downloadLink" target="_blank">
-            <img [src]="w.logo" width="25" height="25" class="me-2">
-            {{ w.label }}<small style="font-size: 0.7em" *ngIf="w.subLabel">&nbsp; {{ w.subLabel }}</small>
-          </a>
-        </li>
-      </ul>
-
-    </ng-container>
 
     <ng-container *ngIf="showFakeWallet">
       Just for debugging:
@@ -38,6 +93,41 @@
         </li>
       </ul>
     </ng-container>
+
+   </ng-container>
+
+   <!-- watch-only (xpub): paste an account public key, we derive + scan -->
+   <div *ngIf="xpubMode" class="xpub-connect">
+     <button type="button" class="btn btn-link p-0 mb-2" (click)="cancelXpub()">&larr; Back to wallets</button>
+     <h6 class="mb-1">Connect a watch-only wallet</h6>
+     <p class="text-muted small">
+       Paste your account public key (xpub / ypub / zpub). We derive your
+       addresses and scan for funds; you sign each mint in your own wallet.
+     </p>
+
+     <textarea class="form-control mb-2 xpub-input" rows="3" [(ngModel)]="xpubValue"
+       placeholder="xpub... / ypub... / zpub..." [disabled]="xpubConnecting"></textarea>
+
+     <div *ngIf="xpubScriptTypeNeeded" class="mb-2">
+       <label class="form-label small mb-1">Account type</label>
+       <select class="form-select form-select-sm" [(ngModel)]="xpubScriptType" [disabled]="xpubConnecting">
+         <option [ngValue]="undefined" disabled>Choose the account type</option>
+         <option [ngValue]="'p2tr'">Taproot (P2TR), recommended for cats</option>
+         <option [ngValue]="'p2wpkh'">Native SegWit (P2WPKH)</option>
+         <option [ngValue]="'p2sh-p2wpkh'">Nested SegWit (P2SH-P2WPKH)</option>
+         <option [ngValue]="'p2pkh'">Legacy (P2PKH)</option>
+       </select>
+     </div>
+
+     <div *ngIf="xpubError" class="alert alert-warning py-2 small mb-2">{{ xpubError }}</div>
+
+     <button type="button" class="btn btn-purple w-100"
+       [disabled]="!xpubValue.trim() || xpubConnecting || (xpubScriptTypeNeeded && !xpubScriptType)"
+       (click)="connectXpub()">
+       <ng-container *ngIf="!xpubConnecting">Connect &amp; scan</ng-container>
+       <ng-container *ngIf="xpubConnecting">Scanning addresses...</ng-container>
+     </button>
+   </div>
 
   </div>
 </ng-template>

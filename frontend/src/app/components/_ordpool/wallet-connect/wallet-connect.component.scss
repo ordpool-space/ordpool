@@ -24,3 +24,97 @@
 .btn-testnet {
   background-color: #5fd15c;
 }
+
+.xpub-connect .xpub-input {
+  font-family: monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+// Wallet picker rows: [logo] name (i) ......... [action]
+.wallet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+
+  .wallet-logo {
+    flex-shrink: 0;
+  }
+
+  .wallet-name {
+    flex-grow: 1;
+    min-width: 0;
+  }
+
+  .wallet-sublabel {
+    font-size: 0.7em;
+    opacity: 0.75;
+  }
+
+  .action {
+    flex-shrink: 0;
+    min-width: 96px;
+  }
+}
+
+// The info affordance next to every wallet name.
+.info-btn {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #FF9900;
+  font-size: 1.05rem;
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    color: #ffb84d;
+    outline: none;
+  }
+}
+
+// Capability popover content.
+::ng-deep .walletCapabilityPopover {
+  max-width: 360px;
+
+  .wi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .wi-action {
+    margin-top: 0.35rem;
+
+    .wi-status {
+      display: block;
+    }
+  }
+
+  .wi-icon {
+    display: inline-block;
+    width: 1.1em;
+    text-align: center;
+  }
+
+  .wi-cap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem;
+    padding: 0.1rem 0;
+  }
+
+  .wi-cap-caveat {
+    flex-basis: 100%;
+    padding-left: 1.35em;
+    font-size: 0.85em;
+  }
+}

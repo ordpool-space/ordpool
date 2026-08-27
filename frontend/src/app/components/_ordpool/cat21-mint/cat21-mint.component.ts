@@ -23,6 +23,7 @@ import {
 } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
+import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
 
 export interface ViableSimulation {
   simulation: SimulateTransactionResult;
@@ -43,6 +44,7 @@ export class Cat21MintComponent implements OnInit {
   walletService = inject(WalletService);
   cat21ApiService = inject(Cat21ApiService);
   private orchestrator = inject(Cat21MintOrchestrator);
+  private psbtExportPrompt = inject(PsbtExportPromptService);
   private scanner = inject(UtxoContentScanner);
   private config = inject(cat21Config);
   cd = inject(ChangeDetectorRef);
@@ -270,7 +272,11 @@ export class Cat21MintComponent implements OnInit {
   /** Template handler: form submit / mint button. */
   mintCat21(_wallet: WalletInfo): void {
     this.mintAttempted = true;
-    this.orchestrator.mint().subscribe({
+    // Watch-only (xpub) wallets sign via the export/paste bridge; injected
+    // wallets ignore the callback, so it is passed unconditionally.
+    const prompt = (unsigned: { base64: string; hex: string }) =>
+      this.psbtExportPrompt.promptForSignedPsbt(unsigned);
+    this.orchestrator.mint(prompt).subscribe({
       next: () => this.cd.detectChanges(),
       error: () => this.cd.detectChanges(),
     });

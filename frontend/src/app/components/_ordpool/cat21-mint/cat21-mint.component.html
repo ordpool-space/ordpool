@@ -47,7 +47,8 @@
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
         <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>.
-        We support Xverse, Leather, Unisat, OKX, Phantom, and Magic Eden Wallet.
+        The connect dialog lists every wallet that can mint, with an info
+        button showing what each one supports.
       </p>
 
       <ng-container *ngIf="x.connectedWallet">

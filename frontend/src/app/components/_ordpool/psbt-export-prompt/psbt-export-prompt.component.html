@@ -1,0 +1,28 @@
+<div class="modal-header">
+  <h4 class="modal-title">Sign in your own wallet</h4>
+  <button type="button" class="btn-close" aria-label="Close" (click)="activeModal.dismiss()"></button>
+</div>
+<div class="modal-body">
+  <p class="text-muted">
+    Watch-only wallets don't sign in the browser. Export this unsigned PSBT,
+    sign it in your own wallet (Sparrow, Electrum, Coldcard, ...), then paste
+    the signed PSBT back to finalize and broadcast the mint.
+  </p>
+
+  <label class="form-label">Unsigned PSBT (base64)</label>
+  <textarea class="form-control psbt mb-2" rows="3" readonly [value]="unsigned.base64"></textarea>
+  <div class="mb-3">
+    <app-clipboard [button]="true" [text]="unsigned.base64" [class]="'btn btn-secondary btn-sm'"></app-clipboard>
+    <button type="button" class="btn btn-secondary btn-sm ms-2" (click)="download()">Download .psbt</button>
+  </div>
+
+  <label class="form-label" for="signedPsbt">Signed PSBT (base64 or hex)</label>
+  <textarea id="signedPsbt" class="form-control psbt" rows="3" [(ngModel)]="signedPsbt"
+    placeholder="Paste the signed PSBT from your wallet"></textarea>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" (click)="activeModal.dismiss()">Cancel</button>
+  <button type="button" class="btn btn-primary" [disabled]="!signedPsbt.trim()" (click)="submit()">
+    Finalize &amp; broadcast
+  </button>
+</div>
