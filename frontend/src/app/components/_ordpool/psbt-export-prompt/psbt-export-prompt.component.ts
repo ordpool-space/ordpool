@@ -24,9 +24,22 @@ export class PsbtExportPromptComponent {
 
   constructor(public activeModal: NgbActiveModal) {}
 
-  /** Offer the unsigned PSBT as a file for wallets that import from disk. */
+  /**
+   * Offer the unsigned PSBT as a file for wallets that import from disk.
+   *
+   * A `.psbt` file is a BINARY container (magic bytes `0x70 0x73 0x62 0x74
+   * 0xff` = "psbt\xff"). Wallets that import a `.psbt` from disk read those
+   * raw bytes and reject a file that holds the base64 TEXT instead. Decode
+   * the base64 to its bytes here so the download is a real binary PSBT. The
+   * copy-to-clipboard path stays base64, the text form wallets paste.
+   */
   download(): void {
-    const blob = new Blob([this.unsigned.base64], { type: 'application/octet-stream' });
+    const binary = atob(this.unsigned.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

@@ -1,11 +1,11 @@
 /**
  * Tests the watch-only (xpub) connect flow on the wallet picker. The SUT is
  * the component's logic; its collaborators (the SDK WalletService, HttpClient,
- * NgbModal) are mocked. `ordpool-sdk` is mocked at the module boundary both to
- * inject a stub WalletService and to dodge the sats-connect ESM chain, exactly
- * as the sibling cat21-mint spec does. The component is built via
- * runInInjectionContext so we exercise the connect logic without compiling the
- * heavy template.
+ * NgbModal, and the pure `scanWatchOnly` helper) are mocked. `ordpool-sdk` is
+ * mocked at the module boundary both to inject a stub WalletService and to
+ * dodge the sats-connect ESM chain, exactly as the sibling cat21-mint spec
+ * does. The component is built via runInInjectionContext so we exercise the
+ * connect logic without compiling the heavy template.
  */
 jest.mock('ordpool-sdk', () => ({
   Cat21Service: class Cat21Service {},
@@ -26,6 +26,7 @@ jest.mock('ordpool-sdk', () => ({
   walletsSupporting: jest.fn(() => []),
   capabilityOf: jest.fn(() => ({ support: 'unsupported' })),
   walletMatrixEntry: jest.fn(() => undefined),
+  scanWatchOnly: jest.fn(),
 }));
 
 import { ChangeDetectorRef } from '@angular/core';
@@ -34,9 +35,35 @@ import { TestBed } from '@angular/core/testing';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { Subject, of, throwError } from 'rxjs';
 
-import { Cat21Service, WalletService } from 'ordpool-sdk';
+import {
+  Cat21Service,
+  KnownOrdinalWallets,
+  WalletPlatform,
+  WalletService,
+  capabilityOf,
+  scanWatchOnly,
+  walletMatrixEntry,
+  walletsSupporting,
+} from 'ordpool-sdk';
 
 import { WalletConnectComponent } from './wallet-connect.component';
+
+/** Flush pending promise microtasks + one macrotask so `from(Promise)` emits. */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** A two-address scan result the review step renders + connects from. */
+function fakeScan() {
+  return {
+    scanned: [
+      { address: { address: 'addr0', publicKeyHex: 'pk0', path: '0/0', chain: 0, index: 0 }, probe: { funded: false, fundedSats: 0 } },
+      { address: { address: 'addr1', publicKeyHex: 'pk1', path: '0/1', chain: 0, index: 1 }, probe: { funded: true, fundedSats: 5000 } },
+    ],
+    ordinals: { address: 'addr0', publicKeyHex: 'pk0', path: '0/0', chain: 0, index: 0 },
+    payment: { address: 'addr1', publicKeyHex: 'pk1', path: '0/1', chain: 0, index: 1 },
+    ordinalsReason: 'default',
+    paymentReason: 'funds',
+  };
+}
 
 describe('WalletConnectComponent watch-only (xpub) flow', () => {
 
@@ -47,12 +74,14 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
     isMainnet$: unknown;
     networkMismatch$: unknown;
     expectedNetworkGroup: string;
-    connectXpub: jest.Mock;
+    network: string;
+    connectFakeWallet: jest.Mock;
   };
   let http: { get: jest.Mock };
   let component: WalletConnectComponent;
 
   beforeEach(() => {
+    (scanWatchOnly as jest.Mock).mockReset();
     walletService = {
       wallets$: of({ installedWallets: [], notInstalledWallets: [] }),
       connectedWallet$: of(null),
@@ -60,7 +89,8 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
       isMainnet$: of(true),
       networkMismatch$: of(false),
       expectedNetworkGroup: 'mainnet',
-      connectXpub: jest.fn(),
+      network: 'mainnet',
+      connectFakeWallet: jest.fn(),
     };
     http = { get: jest.fn() };
 
@@ -88,54 +118,167 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
     expect(component.xpubValue).toBe('');
   });
 
-  it('connectXpub passes the pasted key + a probe to the SDK and closes on success', () => {
-    walletService.connectXpub.mockReturnValue(of({ type: 'xpub' }));
-    const close = jest.spyOn(component, 'close').mockImplementation(() => undefined);
+  it('scanXpub scans the pasted key with a probe and defaults to the auto-picked funding address', async () => {
+    const scan = fakeScan();
+    (scanWatchOnly as jest.Mock).mockResolvedValue(scan);
     component.xpubValue = '  zpub-key  ';
 
-    component.connectXpub();
+    component.scanXpub();
+    await tick();
 
-    expect(walletService.connectXpub).toHaveBeenCalledWith(
-      expect.objectContaining({ extendedPublicKey: 'zpub-key', probe: expect.any(Function) }),
+    expect(scanWatchOnly).toHaveBeenCalledWith(
+      expect.objectContaining({ extendedPublicKey: 'zpub-key', network: 'mainnet', probe: expect.any(Function) }),
     );
-    expect(close).toHaveBeenCalled();
+    expect(component.xpubScanResult).toBe(scan);
+    // auto-picked payment (addr1) sits at scanned index 1
+    expect(component.xpubPaymentIndex).toBe(1);
     expect(component.xpubConnecting).toBe(false);
   });
 
-  it('reveals the account-type selector when the SDK reports script-type-ambiguous', () => {
-    walletService.connectXpub.mockReturnValue(
-      throwError(() => new Error('Watch-only: this key prefix (xpub/tpub) is script-type-ambiguous; pass scriptType')),
+  it('confirmXpub connects with the confirmed selection, honoring a payment override', () => {
+    const scan = fakeScan();
+    component.xpubScanResult = scan as never;
+    // User overrides the funding address to scanned index 0 (addr0).
+    component.xpubPaymentIndex = 0;
+    const close = jest.spyOn(component, 'close').mockImplementation(() => undefined);
+
+    component.confirmXpub();
+
+    expect(walletService.connectFakeWallet).toHaveBeenCalledWith({
+      type: 'xpub',
+      ordinalsAddress: 'addr0',
+      ordinalsPublicKey: 'pk0',
+      paymentAddress: 'addr0',
+      paymentPublicKey: 'pk0',
+      signingSupported: true,
+    });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('confirmXpub keeps the ordinals auto-pick while using the overridden payment address', () => {
+    const scan = fakeScan();
+    component.xpubScanResult = scan as never;
+    component.xpubPaymentIndex = 1; // funding = addr1, ordinals stays addr0
+    jest.spyOn(component, 'close').mockImplementation(() => undefined);
+
+    component.confirmXpub();
+
+    expect(walletService.connectFakeWallet).toHaveBeenCalledWith({
+      type: 'xpub',
+      ordinalsAddress: 'addr0',
+      ordinalsPublicKey: 'pk0',
+      paymentAddress: 'addr1',
+      paymentPublicKey: 'pk1',
+      signingSupported: true,
+    });
+  });
+
+  it('reveals the account-type selector when the SDK reports script-type-ambiguous', async () => {
+    (scanWatchOnly as jest.Mock).mockRejectedValue(
+      new Error('Watch-only: this key prefix (xpub/tpub) is script-type-ambiguous; pass scriptType'),
     );
     component.xpubValue = 'xpub-plain';
 
-    component.connectXpub();
+    component.scanXpub();
+    await tick();
 
     expect(component.xpubScriptTypeNeeded).toBe(true);
     expect(component.xpubError).toContain('account type');
     expect(component.xpubConnecting).toBe(false);
+    expect(component.xpubScanResult).toBeNull();
   });
 
-  it('surfaces any other connect error verbatim without asking for a script type', () => {
-    walletService.connectXpub.mockReturnValue(throwError(() => new Error('electrs unreachable')));
+  it('surfaces any other scan error verbatim without asking for a script type', async () => {
+    (scanWatchOnly as jest.Mock).mockRejectedValue(new Error('electrs unreachable'));
     component.xpubValue = 'zpub-key';
 
-    component.connectXpub();
+    component.scanXpub();
+    await tick();
 
     expect(component.xpubScriptTypeNeeded).toBe(false);
     expect(component.xpubError).toBe('electrs unreachable');
   });
 
+  it('editXpubKey returns from the review step to the paste form, keeping the key', () => {
+    component.xpubValue = 'zpub-key';
+    component.xpubScanResult = fakeScan() as never;
+    component.xpubError = 'stale';
+
+    component.editXpubKey();
+
+    expect(component.xpubScanResult).toBeNull();
+    expect(component.xpubError).toBeNull();
+    expect(component.xpubValue).toBe('zpub-key');
+  });
+
   it('the probe reports funded + summed sats from the address utxo endpoint', async () => {
-    walletService.connectXpub.mockReturnValue(of({ type: 'xpub' }));
-    jest.spyOn(component, 'close').mockImplementation(() => undefined);
+    (scanWatchOnly as jest.Mock).mockResolvedValue(fakeScan());
     http.get.mockReturnValue(of([{ value: 100 }, { value: 250 }]));
     component.xpubValue = 'zpub-key';
 
-    component.connectXpub();
-    const probe = walletService.connectXpub.mock.calls[0][0].probe as (a: string) => Promise<{ funded: boolean; fundedSats: number }>;
+    component.scanXpub();
+    const probe = (scanWatchOnly as jest.Mock).mock.calls[0][0].probe as (a: string) => Promise<{ funded: boolean; fundedSats: number }>;
     const result = await probe('bc1pexample');
 
     expect(http.get).toHaveBeenCalledWith(expect.stringContaining('/api/address/bc1pexample/utxo'));
     expect(result).toEqual({ funded: true, fundedSats: 350 });
+  });
+});
+
+describe('WalletConnectComponent picker: hiddenFromPicker gated on Desktop', () => {
+
+  let component: WalletConnectComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: WalletService,
+          useValue: {
+            wallets$: of({ installedWallets: [], notInstalledWallets: [] }),
+            connectedWallet$: of(null),
+            walletConnectRequested$: new Subject<boolean>(),
+            isMainnet$: of(true),
+            networkMismatch$: of(false),
+            expectedNetworkGroup: 'mainnet',
+            network: 'mainnet',
+          },
+        },
+        { provide: Cat21Service, useValue: { pendingMints$: jest.fn(() => of([])) } },
+        { provide: NgbModal, useValue: { open: jest.fn() } },
+        { provide: HttpClient, useValue: { get: jest.fn() } },
+        { provide: ChangeDetectorRef, useValue: { markForCheck: jest.fn(), detectChanges: jest.fn() } },
+      ],
+    });
+    component = TestBed.runInInjectionContext(() => new WalletConnectComponent());
+
+    // A hidden wallet (Phantom) and a normal one (Xverse), both mint-capable.
+    (KnownOrdinalWallets as Record<string, unknown>).phantom = {
+      label: 'Phantom', logo: 'p.png', downloadLink: 'dl-p', hiddenFromPicker: true,
+    };
+    (KnownOrdinalWallets as Record<string, unknown>).xverse = {
+      label: 'Xverse', logo: 'x.png', downloadLink: 'dl-x', hiddenFromPicker: false,
+    };
+    (walletsSupporting as jest.Mock).mockReturnValue([
+      { wallet: 'phantom', signingMode: 'injected' },
+      { wallet: 'xverse', signingMode: 'injected' },
+    ]);
+    // Non-null matrix entry so buildWalletInfoPopover returns a popover (row kept).
+    (walletMatrixEntry as jest.Mock).mockReturnValue({ label: 'W', platforms: [], signingMode: 'injected', note: undefined });
+    (capabilityOf as jest.Mock).mockReturnValue({ support: 'proven' });
+  });
+
+  it('desktop picker drops hiddenFromPicker wallets', () => {
+    (component as unknown as { platform: WalletPlatform }).platform = WalletPlatform.Desktop;
+    const rows = (component as unknown as { buildPickerRows: (w: unknown) => { wallet: string }[] })
+      .buildPickerRows({ installedWallets: [], notInstalledWallets: [] });
+    expect(rows.map((r) => r.wallet)).toEqual(['xverse']);
+  });
+
+  it('mobile picker keeps hiddenFromPicker wallets (Phantom/Binance belong there)', () => {
+    (component as unknown as { platform: WalletPlatform }).platform = WalletPlatform.Mobile;
+    const rows = (component as unknown as { buildPickerRows: (w: unknown) => { wallet: string }[] })
+      .buildPickerRows({ installedWallets: [], notInstalledWallets: [] });
+    expect(rows.map((r) => r.wallet)).toEqual(['phantom', 'xverse']);
   });
 });

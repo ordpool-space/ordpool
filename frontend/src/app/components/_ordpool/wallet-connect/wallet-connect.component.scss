@@ -31,6 +31,20 @@
   word-break: break-all;
 }
 
+// Scan-review step: auto-picked identities + funding-address override.
+.xpub-connect .xpub-pick {
+  .label {
+    width: auto;
+    display: block;
+  }
+
+  .address {
+    font-family: monospace;
+    font-size: 0.8rem;
+    word-break: break-all;
+  }
+}
+
 // Wallet picker rows: [logo] name (i) ......... [action]
 .wallet-row {
   display: flex;

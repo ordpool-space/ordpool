@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { firstValueFrom, map, of, switchMap } from 'rxjs';
+import { firstValueFrom, from, map, of, switchMap } from 'rxjs';
 
 import { Cat21Service } from 'ordpool-sdk';
 import { WalletService } from 'ordpool-sdk';
@@ -20,7 +20,9 @@ interface DetectedWallets {
 import {
   WalletCapability,
   WalletPlatform,
+  WatchOnlyScanResult,
   WatchOnlyScriptType,
+  scanWatchOnly,
   walletsSupporting,
 } from 'ordpool-sdk';
 
@@ -32,7 +34,8 @@ import { buildWalletInfoPopover, WalletInfoPopover } from './wallet-capability-d
  * - `installed`: provider injected, so offer Connect.
  * - `not-installed`: offer the download link.
  * - `watch-only`: signs out-of-band (xpub); the row opens a paste-key flow
- *   that connects via `WalletService.connectXpub`.
+ *   that scans the key (`scanWatchOnly`), lets the user confirm/override the
+ *   funding address, then connects the assembled watch-only identity.
  */
 type PickerRowState = 'installed' | 'not-installed' | 'watch-only';
 
@@ -75,6 +78,14 @@ export class WalletConnectComponent {
   xpubScriptTypeNeeded = false;
   xpubConnecting = false;
   xpubError: string | null = null;
+
+  // Scan-review step (shared UX doc: "show which address was auto-picked and
+  // let the user override"). The paste form scans the account key, then this
+  // holds the derived receive window + the SDK's auto-picks so the user can
+  // confirm (or override) which address funds the mint before connecting.
+  xpubScanResult: WatchOnlyScanResult | null = null;
+  /** Index into {@link WatchOnlyScanResult.scanned} for the chosen funding (payment) address. */
+  xpubPaymentIndex = 0;
 
   /**
    * The only reason to connect a wallet on ordpool.space is to mint a cat,
@@ -142,7 +153,12 @@ export class WalletConnectComponent {
 
     for (const entry of walletsSupporting(this.pageAction, { platform: this.platform })) {
       const meta = KnownOrdinalWallets[entry.wallet];
-      if (meta.hiddenFromPicker) {
+      // `hiddenFromPicker` (Phantom, Binance) is a DESKTOP-only convenience:
+      // it drops wallets whose desktop binary can't drive the SDK's flows.
+      // On a mobile in-app picker those same wallets DO belong (the shared
+      // UX doc: a mobile picker reads `walletsForPlatform(Mobile)` and must
+      // not consult `hiddenFromPicker`), so the skip is gated on Desktop.
+      if (this.platform === WalletPlatform.Desktop && meta.hiddenFromPicker) {
         continue;
       }
       const info = buildWalletInfoPopover(entry.wallet, this.pageAction);
@@ -186,6 +202,8 @@ export class WalletConnectComponent {
     this.xpubScriptTypeNeeded = false;
     this.xpubConnecting = false;
     this.xpubError = null;
+    this.xpubScanResult = null;
+    this.xpubPaymentIndex = 0;
   }
 
   /** Switch the modal body to the watch-only paste form. */
@@ -199,21 +217,30 @@ export class WalletConnectComponent {
     this.resetXpub();
   }
 
+  /** From the scan-review step back to the paste form (keeps the pasted key). */
+  editXpubKey(): void {
+    this.xpubScanResult = null;
+    this.xpubError = null;
+  }
+
   /**
-   * Connect a watch-only wallet from a pasted account extended public key.
-   * The SDK derives + scans (via our electrs probe) and pushes a normal
-   * WalletInfo onto `connectedWallet$`; the mint flow then runs unchanged,
-   * signing through the export/paste bridge. A plain xpub/tpub is
-   * script-type-ambiguous: the SDK throws, and we reveal the account-type
-   * selector for a second attempt.
+   * Scan a pasted account extended public key. The SDK derives the receive
+   * window and probes each address (via our electrs UTXO endpoint) to
+   * auto-pick the ordinals + payment identities. The result is held in
+   * {@link xpubScanResult} so {@link confirmXpub} can show the picks and let
+   * the user override which address funds the mint before connecting.
+   *
+   * A plain xpub/tpub is script-type-ambiguous: the SDK throws, and we reveal
+   * the account-type selector for a second attempt.
    */
-  connectXpub(): void {
+  scanXpub(): void {
     const key = this.xpubValue.trim();
     if (!key || this.xpubConnecting) {
       return;
     }
     this.xpubConnecting = true;
     this.xpubError = null;
+    this.xpubScanResult = null;
 
     const probe = (address: string) => firstValueFrom(
       this.http
@@ -224,26 +251,66 @@ export class WalletConnectComponent {
         }))),
     );
 
-    this.walletService
-      .connectXpub({ extendedPublicKey: key, scriptType: this.xpubScriptType, probe })
-      .subscribe({
-        next: () => {
-          this.xpubConnecting = false;
-          this.close();
-        },
-        error: (err: unknown) => {
-          this.xpubConnecting = false;
-          const msg = err instanceof Error ? err.message : String(err);
-          if (/script-type-ambiguous/i.test(msg)) {
-            this.xpubScriptTypeNeeded = true;
-            this.xpubError = 'This key could be a Taproot or a legacy account. '
-              + 'Pick the account type below (Taproot is recommended for cats), then connect again.';
-          } else {
-            this.xpubError = msg;
-          }
-          this.cd.markForCheck();
-        },
-      });
+    from(scanWatchOnly({
+      extendedPublicKey: key,
+      network: this.walletService.network,
+      scriptType: this.xpubScriptType,
+      probe,
+    })).subscribe({
+      next: (scan) => {
+        this.xpubConnecting = false;
+        this.xpubScanResult = scan;
+        // Default the funding pick to the SDK's auto-picked payment address;
+        // the user can change it in the review step.
+        const picked = scan.scanned.findIndex((s) => s.address.address === scan.payment.address);
+        this.xpubPaymentIndex = picked >= 0 ? picked : 0;
+        this.cd.markForCheck();
+      },
+      error: (err: unknown) => {
+        this.xpubConnecting = false;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/script-type-ambiguous/i.test(msg)) {
+          this.xpubScriptTypeNeeded = true;
+          this.xpubError = 'This key could be a Taproot or a legacy account. '
+            + 'Pick the account type below (Taproot is recommended for cats), then scan again.';
+        } else {
+          this.xpubError = msg;
+        }
+        this.cd.markForCheck();
+      },
+    });
+  }
+
+  /**
+   * Connect the watch-only wallet with the confirmed / overridden selection.
+   * The ordinals identity stays the SDK's auto-pick (the cat-bearing address);
+   * the payment identity is whichever scanned address the user confirmed as
+   * the mint's funding source. Both addresses come from the user's own account
+   * key derivation, never an on-chain owner lookup. The assembled WalletInfo is
+   * persisted + emitted on `connectedWallet$`, so every mint flow then runs
+   * unchanged and signs through the export/paste bridge.
+   */
+  confirmXpub(): void {
+    const scan = this.xpubScanResult;
+    if (!scan) {
+      return;
+    }
+    const payment = scan.scanned[this.xpubPaymentIndex]?.address ?? scan.payment;
+    const ordinals = scan.ordinals;
+
+    const walletInfo: WalletInfo = {
+      type: KnownOrdinalWalletType.xpub,
+      ordinalsAddress: ordinals.address,
+      ordinalsPublicKey: ordinals.publicKeyHex,
+      paymentAddress: payment.address,
+      paymentPublicKey: payment.publicKeyHex,
+      // The watch-only signer (psbtExportSigner) ships, so mint flows that
+      // gate on this proceed to the export/paste bridge.
+      signingSupported: true,
+    };
+
+    this.walletService.connectFakeWallet(walletInfo);
+    this.close();
   }
 
   close(): void {

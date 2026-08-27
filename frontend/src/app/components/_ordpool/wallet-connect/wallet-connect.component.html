@@ -28,6 +28,7 @@
           container="body"
           popoverClass="walletCapabilityPopover"
           triggers="manual"
+          [autoClose]="'outside'"
           (click)="pop.toggle()"
           [attr.aria-label]="'What does ' + row.label + ' support?'">&#9432;</button>
 
@@ -98,6 +99,9 @@
 
    <!-- watch-only (xpub): paste an account public key, we derive + scan -->
    <div *ngIf="xpubMode" class="xpub-connect">
+
+    <!-- step 1: paste the account key and scan -->
+    <ng-container *ngIf="!xpubScanResult">
      <button type="button" class="btn btn-link p-0 mb-2" (click)="cancelXpub()">&larr; Back to wallets</button>
      <h6 class="mb-1">Connect a watch-only wallet</h6>
      <p class="text-muted small">
@@ -123,10 +127,50 @@
 
      <button type="button" class="btn btn-purple w-100"
        [disabled]="!xpubValue.trim() || xpubConnecting || (xpubScriptTypeNeeded && !xpubScriptType)"
-       (click)="connectXpub()">
+       (click)="scanXpub()">
        <ng-container *ngIf="!xpubConnecting">Connect &amp; scan</ng-container>
        <ng-container *ngIf="xpubConnecting">Scanning addresses...</ng-container>
      </button>
+    </ng-container>
+
+    <!-- step 2: scan review: confirm the auto-picked funding address or override it -->
+    <ng-container *ngIf="xpubScanResult as scan">
+     <button type="button" class="btn btn-link p-0 mb-2" (click)="editXpubKey()">&larr; Use a different key</button>
+     <h6 class="mb-1">Confirm your addresses</h6>
+     <p class="text-muted small mb-2">
+       We scanned {{ scan.scanned.length }} derived addresses. Confirm which
+       address funds the mint, then connect.
+     </p>
+
+     <!-- ordinals identity (where a minted cat lands) -->
+     <div class="xpub-pick mb-2">
+       <div class="label small text-muted">Cat address (ordinals)</div>
+       <div class="address">{{ scan.ordinals.address | shortenString : 14 }}</div>
+       <div class="small text-muted">
+         {{ scan.ordinalsReason === 'cat' ? 'Holds a CAT-21 cat' : 'Receive address #0 (default)' }}
+       </div>
+     </div>
+
+     <!-- payment identity: the funding source, overridable -->
+     <div class="xpub-pick mb-2">
+       <label class="label small text-muted" for="xpubPayment">Funding address (pays the mint)</label>
+       <select id="xpubPayment" class="form-select form-select-sm" [(ngModel)]="xpubPaymentIndex">
+         <option *ngFor="let s of scan.scanned; let i = index" [ngValue]="i">
+           #{{ s.address.index }} · {{ s.address.address | shortenString : 12 }} · {{ (s.probe.fundedSats || 0) | number }} sats{{ s.probe.hasCat ? ' · cat' : '' }}
+         </option>
+       </select>
+       <div class="small text-muted mt-1">
+         Auto-picked: {{ scan.paymentReason === 'funds' ? 'the highest-funded address' : 'receive address #0 (no funds detected in the scanned window)' }}.
+       </div>
+     </div>
+
+     <div *ngIf="xpubError" class="alert alert-warning py-2 small mb-2">{{ xpubError }}</div>
+
+     <button type="button" class="btn btn-purple w-100" (click)="confirmXpub()">
+       Connect this wallet
+     </button>
+    </ng-container>
+
    </div>
 
   </div>
