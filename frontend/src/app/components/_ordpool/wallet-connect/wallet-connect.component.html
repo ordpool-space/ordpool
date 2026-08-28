@@ -149,6 +149,16 @@
        <div class="small text-muted">
          {{ scan.ordinalsReason === 'cat' ? 'Holds a CAT-21 cat' : 'Receive address #0 (default)' }}
        </div>
+       <!-- Interim (cross-session agreed): until the SDK's cat-at-address
+            detection lands, we can't tell which of your addresses holds an
+            existing cat, so we default to receive #0. Warn a multi-address
+            wallet that the pick may be wrong. -->
+       <div class="alert alert-warning py-2 small mt-2 mb-0" *ngIf="scan.ordinalsReason !== 'cat'">
+         We picked receive address #0 as your cat address. Detecting which
+         address already holds a cat is coming; until then, if your cat (for
+         example the Genesis Cat) sits on a different address, verify this is
+         right before you mint.
+       </div>
      </div>
 
      <!-- payment identity: the funding source, overridable -->
