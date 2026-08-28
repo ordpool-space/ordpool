@@ -225,11 +225,13 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
   });
 });
 
-describe('WalletConnectComponent picker: hiddenFromPicker gated on Desktop', () => {
+describe('WalletConnectComponent picker: platform + install-state detection', () => {
 
   let component: WalletConnectComponent;
+  let getInstalledWallets: jest.Mock;
 
   beforeEach(() => {
+    getInstalledWallets = jest.fn(() => ({ installedWallets: [], notInstalledWallets: [] }));
     TestBed.configureTestingModule({
       providers: [
         {
@@ -242,6 +244,7 @@ describe('WalletConnectComponent picker: hiddenFromPicker gated on Desktop', () 
             networkMismatch$: of(false),
             expectedNetworkGroup: 'mainnet',
             network: 'mainnet',
+            getInstalledWallets,
           },
         },
         { provide: Cat21Service, useValue: { pendingMints$: jest.fn(() => of([])) } },
@@ -268,17 +271,34 @@ describe('WalletConnectComponent picker: hiddenFromPicker gated on Desktop', () 
     (capabilityOf as jest.Mock).mockReturnValue({ support: 'proven' });
   });
 
+  const setPlatform = (p: WalletPlatform) =>
+    ((component as unknown as { platform: WalletPlatform }).platform = p);
+  const buildRows = () =>
+    (component as unknown as { buildPickerRows: () => { wallet: string; state: string }[] }).buildPickerRows();
+
   it('desktop picker drops hiddenFromPicker wallets', () => {
-    (component as unknown as { platform: WalletPlatform }).platform = WalletPlatform.Desktop;
-    const rows = (component as unknown as { buildPickerRows: (w: unknown) => { wallet: string }[] })
-      .buildPickerRows({ installedWallets: [], notInstalledWallets: [] });
-    expect(rows.map((r) => r.wallet)).toEqual(['xverse']);
+    setPlatform(WalletPlatform.Desktop);
+    expect(buildRows().map((r) => r.wallet)).toEqual(['xverse']);
   });
 
   it('mobile picker keeps hiddenFromPicker wallets (Phantom/Binance belong there)', () => {
-    (component as unknown as { platform: WalletPlatform }).platform = WalletPlatform.Mobile;
-    const rows = (component as unknown as { buildPickerRows: (w: unknown) => { wallet: string }[] })
-      .buildPickerRows({ installedWallets: [], notInstalledWallets: [] });
-    expect(rows.map((r) => r.wallet)).toEqual(['phantom', 'xverse']);
+    setPlatform(WalletPlatform.Mobile);
+    expect(buildRows().map((r) => r.wallet)).toEqual(['phantom', 'xverse']);
+  });
+
+  it('mobile: a DETECTED hidden wallet resolves to installed via the unfiltered getInstalledWallets, not the stripped wallets$', () => {
+    setPlatform(WalletPlatform.Mobile);
+    // Phantom's provider IS injected in its mobile in-app browser:
+    // getInstalledWallets (unfiltered) lists it; wallets$ would have stripped it.
+    getInstalledWallets.mockReturnValue({ installedWallets: [{ type: 'phantom' }], notInstalledWallets: [] });
+    const phantom = buildRows().find((r) => r.wallet === 'phantom');
+    expect(phantom?.state).toBe('installed');
+  });
+
+  it('desktop: an installed normal wallet resolves to installed from getInstalledWallets', () => {
+    setPlatform(WalletPlatform.Desktop);
+    getInstalledWallets.mockReturnValue({ installedWallets: [{ type: 'xverse' }], notInstalledWallets: [] });
+    const xverse = buildRows().find((r) => r.wallet === 'xverse');
+    expect(xverse?.state).toBe('installed');
   });
 });

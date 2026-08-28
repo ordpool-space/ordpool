@@ -6,17 +6,10 @@ import { firstValueFrom, from, map, of, switchMap } from 'rxjs';
 import { Cat21Service } from 'ordpool-sdk';
 import { WalletService } from 'ordpool-sdk';
 import {
-  KnownOrdinalWallet,
   KnownOrdinalWallets,
   KnownOrdinalWalletType,
   WalletInfo,
 } from 'ordpool-sdk';
-
-/** Shape of {@link WalletService.wallets$} (anonymous in the SDK types). */
-interface DetectedWallets {
-  installedWallets: KnownOrdinalWallet[];
-  notInstalledWallets: KnownOrdinalWallet[];
-}
 import {
   WalletCapability,
   WalletPlatform,
@@ -98,13 +91,15 @@ export class WalletConnectComponent {
 
   /** Platform the SDK provider path is reachable on right now. */
   private readonly platform: WalletPlatform =
-    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    (typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
       ? WalletPlatform.Mobile
       : WalletPlatform.Desktop;
 
-  /** Picker rows, matrix-scoped to Cat21Mint and marked by live detection. */
+  /** Picker rows, matrix-scoped to Cat21Mint and marked by live detection.
+   *  wallets$ is only the re-emit trigger; install-state comes from the
+   *  UNFILTERED getInstalledWallets() inside buildPickerRows (see there). */
   pickerRows$ = this.walletService.wallets$.pipe(
-    map((wallets) => this.buildPickerRows(wallets)),
+    map(() => this.buildPickerRows()),
   );
 
   connectedWallet$ = this.walletService.connectedWallet$;
@@ -147,8 +142,14 @@ export class WalletConnectComponent {
    * Compose the picker: every wallet the matrix says can mint on this
    * platform, cross-referenced with runtime detection for install state.
    */
-  private buildPickerRows(wallets: DetectedWallets): PickerRow[] {
-    const installed = new Set(wallets.installedWallets.map((w) => w.type));
+  private buildPickerRows(): PickerRow[] {
+    // Install-state comes from the UNFILTERED detection. wallets$ strips
+    // hiddenFromPicker (Phantom/Binance) on every platform, but on a mobile
+    // in-app browser those providers ARE injected and the row must read as
+    // installed; the matrix `platforms` list already governs which rows show.
+    const installed = new Set(
+      this.walletService.getInstalledWallets().installedWallets.map((w) => w.type),
+    );
     const rows: PickerRow[] = [];
 
     for (const entry of walletsSupporting(this.pageAction, { platform: this.platform })) {
