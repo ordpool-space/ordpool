@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { firstValueFrom, from, map, of, switchMap } from 'rxjs';
+import { firstValueFrom, from, map, of, Subscription, switchMap } from 'rxjs';
 
 import { Cat21Service } from 'ordpool-sdk';
 import { WalletService } from 'ordpool-sdk';
@@ -79,6 +79,8 @@ export class WalletConnectComponent {
   xpubScanResult: WatchOnlyScanResult | null = null;
   /** Index into {@link WatchOnlyScanResult.scanned} for the chosen funding (payment) address. */
   xpubPaymentIndex = 0;
+  /** In-flight scan; torn down when the modal is dismissed or the flow resets. */
+  private scanSub?: Subscription;
 
   /**
    * The only reason to connect a wallet on ordpool.space is to mint a cat,
@@ -197,6 +199,8 @@ export class WalletConnectComponent {
   }
 
   private resetXpub(): void {
+    this.scanSub?.unsubscribe();
+    this.scanSub = undefined;
     this.xpubMode = false;
     this.xpubValue = '';
     this.xpubScriptType = undefined;
@@ -252,7 +256,7 @@ export class WalletConnectComponent {
         }))),
     );
 
-    from(scanWatchOnly({
+    this.scanSub = from(scanWatchOnly({
       extendedPublicKey: key,
       network: this.walletService.network,
       scriptType: this.xpubScriptType,

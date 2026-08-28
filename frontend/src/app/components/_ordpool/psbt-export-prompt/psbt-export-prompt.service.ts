@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import { from, Observable } from 'rxjs';
+import { defer, from, Observable } from 'rxjs';
 
 import { PsbtExportPromptComponent } from './psbt-export-prompt.component';
 
@@ -19,10 +19,15 @@ export class PsbtExportPromptService {
   private modal = inject(NgbModal);
 
   promptForSignedPsbt(unsigned: { base64: string; hex: string }): Observable<string> {
-    const ref = this.modal.open(PsbtExportPromptComponent, { centered: true, backdrop: 'static' });
-    ref.componentInstance.unsigned = unsigned;
-    // ref.result resolves with the pasted signed PSBT (close) or rejects on
-    // dismiss; the rejection propagates as a mint error.
-    return from(ref.result as Promise<string>);
+    // Cold: open the dialog on SUBSCRIBE, not on call. An orchestrator that
+    // builds the pipeline but errors or is unsubscribed before the sign step
+    // then leaves no orphaned modal on screen.
+    return defer(() => {
+      const ref = this.modal.open(PsbtExportPromptComponent, { centered: true, backdrop: 'static' });
+      ref.componentInstance.unsigned = unsigned;
+      // ref.result resolves with the pasted signed PSBT (close) or rejects on
+      // dismiss; the rejection propagates as a mint error.
+      return from(ref.result as Promise<string>);
+    });
   }
 }
