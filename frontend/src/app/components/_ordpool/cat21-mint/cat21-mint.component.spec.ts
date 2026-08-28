@@ -45,7 +45,11 @@ jest.mock('ordpool-sdk', () => {
       ?? rows.find((r) => r.bucket === 'unscanned')
       ?? rows.find((r) => r.bucket === 'failed')
       ?? null,
-    calculateRecommendedFundingSats: (rate: number) => Math.ceil((546 + 200 * rate) / 100) * 100,
+    // Sentinel, deliberately NOT the SDK's real formula: output = rate * 1000.
+    // The SDK measures the true PSBT vsize and owns that number; this mock only
+    // makes the component's own job observable (clamp the fee rate, then delegate),
+    // so the spec can't go stale-green by re-implementing an SDK internal.
+    calculateRecommendedFundingSats: (rate: number) => rate * 1000,
     runeNamesFromContent: (content: { runes: object | null }) =>
       content.runes ? Object.keys(content.runes) : [],
   };
@@ -341,22 +345,26 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
-  // D. recommendedFundingSats — dynamic floor on cfeeRate
+  // D. recommendedFundingSats — the component clamps the fee rate, then
+  //    delegates to the SDK helper. The SDK measures the real PSBT vsize and
+  //    owns that number; the component's only job is the clamp + pass-through,
+  //    which is all these tests pin (sentinel mock: value = rate * 1000).
   // -------------------------------------------------------------------
 
-  describe('D. recommendedFundingSats — dynamic floor', () => {
-    it('D1: default feeRate=1 → 800 sat', () => {
-      expect(component.recommendedFundingSats).toBe(800);
-    });
-
-    it('D2: feeRate=5 → 1600 sat (546 + 200×5 = 1546 → 1600)', () => {
+  describe('D. recommendedFundingSats — clamp + delegate', () => {
+    it('D1: passes a valid fee rate straight through to the SDK helper', () => {
       component.cfeeRate.setValue(5);
-      expect(component.recommendedFundingSats).toBe(1600);
+      expect(component.recommendedFundingSats).toBe(5000);
     });
 
-    it('D3: feeRate=100 → 20600 sat', () => {
-      component.cfeeRate.setValue(100);
-      expect(component.recommendedFundingSats).toBe(20600);
+    it('D2: clamps a non-positive fee rate to 1 before calling the helper', () => {
+      component.cfeeRate.setValue(0);
+      expect(component.recommendedFundingSats).toBe(1000);
+    });
+
+    it('D3: clamps a non-finite fee rate to 1 before calling the helper', () => {
+      component.cfeeRate.setValue(null as unknown as number);
+      expect(component.recommendedFundingSats).toBe(1000);
     });
   });
 
@@ -738,16 +746,12 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(component.cfeeRate.hasError('min')).toBe(true);
     });
 
-    it('MATRIX-B14(B): recommendedFundingSats scales correctly at 1/5/50/100 sat/vB', () => {
-      const cases: Array<[number, number]> = [
-        [1, 800],
-        [5, 1600],
-        [50, 10600],
-        [100, 20600],
-      ];
-      for (const [rate, expected] of cases) {
+    it('MATRIX-B14(B): recommendedFundingSats delegates to the SDK helper for every fee tier', () => {
+      // Pass-through, not a pinned vsize number: sentinel mock returns rate * 1000,
+      // so each tier proves the clamped rate reaches the SDK helper unchanged.
+      for (const rate of [1, 5, 50, 100]) {
         component.cfeeRate.setValue(rate);
-        expect(component.recommendedFundingSats).toBe(expected);
+        expect(component.recommendedFundingSats).toBe(rate * 1000);
       }
     });
   });
