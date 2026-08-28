@@ -31,6 +31,7 @@ jest.mock('ordpool-sdk', () => ({
 
 import { ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { Subject, of, throwError } from 'rxjs';
@@ -101,6 +102,7 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
         { provide: NgbModal, useValue: { open: jest.fn() } },
         { provide: HttpClient, useValue: http },
         { provide: ChangeDetectorRef, useValue: { markForCheck: jest.fn(), detectChanges: jest.fn() } },
+        { provide: Router, useValue: { url: '/cat21-mint' } },
       ],
     });
     component = TestBed.runInInjectionContext(() => new WalletConnectComponent());
@@ -229,9 +231,11 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
 
   let component: WalletConnectComponent;
   let getInstalledWallets: jest.Mock;
+  let router: { url: string };
 
   beforeEach(() => {
     getInstalledWallets = jest.fn(() => ({ installedWallets: [], notInstalledWallets: [] }));
+    router = { url: '/cat21-mint' };
     TestBed.configureTestingModule({
       providers: [
         {
@@ -251,6 +255,7 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
         { provide: NgbModal, useValue: { open: jest.fn() } },
         { provide: HttpClient, useValue: { get: jest.fn() } },
         { provide: ChangeDetectorRef, useValue: { markForCheck: jest.fn(), detectChanges: jest.fn() } },
+        { provide: Router, useValue: router },
       ],
     });
     component = TestBed.runInInjectionContext(() => new WalletConnectComponent());
@@ -300,5 +305,12 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
     getInstalledWallets.mockReturnValue({ installedWallets: [{ type: 'xverse' }], notInstalledWallets: [] });
     const xverse = buildRows().find((r) => r.wallet === 'xverse');
     expect(xverse?.state).toBe('installed');
+  });
+
+  it('the page action follows the route: mint copy on the mint page, inscribe copy on /inscribe', () => {
+    router.url = '/cat21-mint';
+    expect(component.pageActionLabel).toBe('mint a cat');
+    router.url = '/inscribe';
+    expect(component.pageActionLabel).toBe('inscribe a file');
   });
 });

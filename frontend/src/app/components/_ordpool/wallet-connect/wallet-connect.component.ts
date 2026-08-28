@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, TemplateRef, ViewChild } from '@angular/core';
+import { Router } from '@angular/router';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom, from, map, of, Subscription, switchMap } from 'rxjs';
 
@@ -61,6 +62,7 @@ export class WalletConnectComponent {
   cat21Service = inject(Cat21Service);
   private http = inject(HttpClient);
   private cd = inject(ChangeDetectorRef);
+  private router = inject(Router);
 
   // Watch-only (xpub) connect flow, shown in place of the wallet list when
   // the user picks the watch-only row.
@@ -83,13 +85,24 @@ export class WalletConnectComponent {
   private scanSub?: Subscription;
 
   /**
-   * The only reason to connect a wallet on ordpool.space is to mint a cat,
-   * so the picker is scoped to that one capability. `walletsSupporting`
-   * already excludes wallets that can't mint or aren't reachable on this
-   * platform; runtime provider detection (`wallets$`) then marks each as
-   * installed vs "get the extension".
+   * The capability the current page needs a wallet for. The connect modal is
+   * GLOBAL (opened from the header and from any page via
+   * `requestWalletConnect()`), so the action is derived from the route:
+   * `/inscribe` needs Inscription, everything else (the mint page + the header
+   * CTA) defaults to Cat21Mint. `walletsSupporting` then scopes the picker to
+   * wallets that can do THAT action on this platform, and the info popover's
+   * "what this action needs" row reflects it.
    */
-  readonly pageAction = WalletCapability.Cat21Mint;
+  private get pageAction(): WalletCapability {
+    return this.router.url.includes('/inscribe')
+      ? WalletCapability.Inscription
+      : WalletCapability.Cat21Mint;
+  }
+
+  /** Human label for the current page action, used in the modal intro copy. */
+  get pageActionLabel(): string {
+    return this.pageAction === WalletCapability.Inscription ? 'inscribe a file' : 'mint a cat';
+  }
 
   /** Platform the SDK provider path is reachable on right now. */
   private readonly platform: WalletPlatform =
