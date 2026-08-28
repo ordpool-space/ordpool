@@ -1,5 +1,6 @@
 import {
   CapabilitySupport,
+  KnownOrdinalWallets,
   KnownOrdinalWalletType,
   WalletCapability,
   WalletMatrixEntry,
@@ -67,11 +68,15 @@ export function supportWording(support: CapabilitySupport): string {
   }
 }
 
-/** signingMode -> one-line explanation (shared spec table). */
+/** signingMode -> one-line explanation (shared spec table). The example wallet
+ *  list is a matrix fact (single source of truth: the xpub subLabel), never
+ *  hardcoded here; only the sentence frame is ours. */
 export function signingModeLine(mode: WalletMatrixEntry['signingMode']): string {
-  return mode === 'watch-only'
-    ? 'You sign in your own wallet (Sparrow, Coldcard, Ledger, …)'
-    : 'Signs in your browser';
+  if (mode !== 'watch-only') {
+    return 'Signs in your browser';
+  }
+  const examples = KnownOrdinalWallets[KnownOrdinalWalletType.xpub].subLabel ?? '';
+  return `You sign in your own wallet (${examples})`;
 }
 
 /** Platform enum values -> human badges, in Desktop, Mobile order. */

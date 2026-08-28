@@ -20,6 +20,9 @@ export class PsbtExportPromptComponent {
   /** Set imperatively by the opener before the modal renders. */
   unsigned: { base64: string; hex: string } = { base64: '', hex: '' };
 
+  /** Download filename; the opener sets it per operation (mint / inscribe / ...). */
+  fileName = 'unsigned.psbt';
+
   signedPsbt = '';
 
   constructor(public activeModal: NgbActiveModal) {}
@@ -43,7 +46,7 @@ export class PsbtExportPromptComponent {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'cat21-mint-unsigned.psbt';
+    a.download = this.fileName;
     a.click();
     URL.revokeObjectURL(url);
   }

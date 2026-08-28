@@ -83,6 +83,8 @@ jest.mock('ordpool-sdk', () => {
     WalletCapability,
     WalletPlatform,
     KnownOrdinalWalletType,
+    // F2 single source of truth for the watch-only example wallet list.
+    KnownOrdinalWallets: { xpub: { subLabel: 'Sparrow, Coldcard, Ledger, …' } },
     walletMatrixEntry: (w: string) => MATRIX[w],
     capabilityOf: (w: string, c: string) =>
       MATRIX[w]?.capabilities?.[c] ?? { support: 'unsupported' },

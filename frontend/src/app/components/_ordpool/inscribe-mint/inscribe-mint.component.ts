@@ -40,6 +40,7 @@ import {
 
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
+import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
 
 /** One viable funding UTXO joined with its content-scan bucket. */
 export interface ViableInscribeSimulation {
@@ -85,6 +86,7 @@ export class InscribeMintComponent implements OnInit {
 
   walletService = inject(WalletService);
   private orchestrator = inject(InscribeMintOrchestrator);
+  private psbtExportPrompt = inject(PsbtExportPromptService);
   private scanner = inject(UtxoContentScanner);
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
@@ -808,7 +810,11 @@ export class InscribeMintComponent implements OnInit {
     if (gate.ok) {
       // Belt-and-braces: re-sync content in case a debounce hadn't fired.
       this.syncContent();
-      this.orchestrator.mint().subscribe({
+      // Watch-only (xpub) wallets sign via the export/paste bridge; injected
+      // wallets ignore the callback, so it is passed unconditionally.
+      const prompt = (unsigned: { base64: string; hex: string }) =>
+        this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt');
+      this.orchestrator.mint(prompt).subscribe({
         next: () => this.cd.detectChanges(),
         error: () => this.cd.detectChanges(),
       });

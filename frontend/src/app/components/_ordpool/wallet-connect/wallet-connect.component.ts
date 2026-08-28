@@ -1,8 +1,7 @@
-import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, TemplateRef, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
-import { firstValueFrom, from, map, of, Subscription, switchMap } from 'rxjs';
+import { from, map, of, Subscription, switchMap } from 'rxjs';
 
 import { Cat21Service } from 'ordpool-sdk';
 import { WalletService } from 'ordpool-sdk';
@@ -16,6 +15,7 @@ import {
   WalletPlatform,
   WatchOnlyScanResult,
   WatchOnlyScriptType,
+  makeWatchOnlyProbe,
   scanWatchOnly,
   walletsSupporting,
 } from 'ordpool-sdk';
@@ -60,7 +60,6 @@ export class WalletConnectComponent {
   modalService = inject(NgbModal);
   walletService = inject(WalletService);
   cat21Service = inject(Cat21Service);
-  private http = inject(HttpClient);
   private cd = inject(ChangeDetectorRef);
   private router = inject(Router);
 
@@ -83,6 +82,8 @@ export class WalletConnectComponent {
   xpubPaymentIndex = 0;
   /** In-flight scan; torn down when the modal is dismissed or the flow resets. */
   private scanSub?: Subscription;
+  /** Aborts the in-flight probe fetches when the scan is torn down. */
+  private scanAbort?: AbortController;
 
   /**
    * The capability the current page needs a wallet for. The connect modal is
@@ -214,6 +215,8 @@ export class WalletConnectComponent {
   private resetXpub(): void {
     this.scanSub?.unsubscribe();
     this.scanSub = undefined;
+    this.scanAbort?.abort();
+    this.scanAbort = undefined;
     this.xpubMode = false;
     this.xpubValue = '';
     this.xpubScriptType = undefined;
@@ -260,14 +263,17 @@ export class WalletConnectComponent {
     this.xpubError = null;
     this.xpubScanResult = null;
 
-    const probe = (address: string) => firstValueFrom(
-      this.http
-        .get<{ value: number }[]>(`${environment.apiBaseUrl}/api/address/${address}/utxo`)
-        .pipe(map((utxos) => ({
-          funded: utxos.length > 0,
-          fundedSats: utxos.reduce((sum, u) => sum + u.value, 0),
-        }))),
-    );
+    // One authoritative ordinals-safe probe (SDK): funded/fundedSats count only
+    // UTXOs proven clean (no inscription, rune, cat, or rare sat) and hasCat
+    // comes from the cat index, so the ordinals auto-pick finds a cat at any
+    // receive index (the Genesis Cat is not at index 0). No size heuristics.
+    this.scanAbort = new AbortController();
+    const probe = makeWatchOnlyProbe({
+      esploraApiUrl: `${environment.apiBaseUrl}/api`,
+      ordApiUrl: environment.ordBaseUrls[0],
+      cat21OrdApiUrl: environment.cat21OrdBaseUrl,
+      signal: this.scanAbort.signal,
+    });
 
     this.scanSub = from(scanWatchOnly({
       extendedPublicKey: key,
@@ -302,11 +308,11 @@ export class WalletConnectComponent {
   /**
    * Connect the watch-only wallet with the confirmed / overridden selection.
    * The ordinals identity stays the SDK's auto-pick (the cat-bearing address);
-   * the payment identity is whichever scanned address the user confirmed as
-   * the mint's funding source. Both addresses come from the user's own account
-   * key derivation, never an on-chain owner lookup. The assembled WalletInfo is
-   * persisted + emitted on `connectedWallet$`, so every mint flow then runs
-   * unchanged and signs through the export/paste bridge.
+   * the payment identity is whichever scanned address the user confirmed as the
+   * mint's funding source. The SDK's `connectFromScan` assembles the WalletInfo
+   * and emits it on `connectedWallet$` (guarding that both addresses are in the
+   * scan, so a watch-only identity is never an on-chain-lookup value), so every
+   * mint flow runs unchanged and signs through the export/paste bridge.
    */
   confirmXpub(): void {
     const scan = this.xpubScanResult;
@@ -314,21 +320,13 @@ export class WalletConnectComponent {
       return;
     }
     const payment = scan.scanned[this.xpubPaymentIndex]?.address ?? scan.payment;
-    const ordinals = scan.ordinals;
-
-    const walletInfo: WalletInfo = {
-      type: KnownOrdinalWalletType.xpub,
-      ordinalsAddress: ordinals.address,
-      ordinalsPublicKey: ordinals.publicKeyHex,
-      paymentAddress: payment.address,
-      paymentPublicKey: payment.publicKeyHex,
-      // The watch-only signer (psbtExportSigner) ships, so mint flows that
-      // gate on this proceed to the export/paste bridge.
-      signingSupported: true,
-    };
-
-    this.walletService.connectFakeWallet(walletInfo);
-    this.close();
+    this.walletService.connectFromScan(scan, { ordinals: scan.ordinals, payment }).subscribe({
+      next: () => this.close(),
+      error: (err: unknown) => {
+        this.xpubError = err instanceof Error ? err.message : String(err);
+        this.cd.markForCheck();
+      },
+    });
   }
 
   close(): void {

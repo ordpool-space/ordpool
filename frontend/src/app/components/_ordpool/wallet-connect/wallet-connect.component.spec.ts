@@ -27,6 +27,7 @@ jest.mock('ordpool-sdk', () => ({
   capabilityOf: jest.fn(() => ({ support: 'unsupported' })),
   walletMatrixEntry: jest.fn(() => undefined),
   scanWatchOnly: jest.fn(),
+  makeWatchOnlyProbe: jest.fn(() => jest.fn()),
 }));
 
 import { ChangeDetectorRef } from '@angular/core';
@@ -77,6 +78,7 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
     expectedNetworkGroup: string;
     network: string;
     connectFakeWallet: jest.Mock;
+    connectFromScan: jest.Mock;
   };
   let http: { get: jest.Mock };
   let component: WalletConnectComponent;
@@ -92,6 +94,7 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
       expectedNetworkGroup: 'mainnet',
       network: 'mainnet',
       connectFakeWallet: jest.fn(),
+      connectFromScan: jest.fn(() => of({ type: 'xpub' })),
     };
     http = { get: jest.fn() };
 
@@ -137,7 +140,7 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
     expect(component.xpubConnecting).toBe(false);
   });
 
-  it('confirmXpub connects with the confirmed selection, honoring a payment override', () => {
+  it('confirmXpub connects via the SDK connectFromScan with the confirmed selection, honoring a payment override', () => {
     const scan = fakeScan();
     component.xpubScanResult = scan as never;
     // User overrides the funding address to scanned index 0 (addr0).
@@ -146,14 +149,10 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
 
     component.confirmXpub();
 
-    expect(walletService.connectFakeWallet).toHaveBeenCalledWith({
-      type: 'xpub',
-      ordinalsAddress: 'addr0',
-      ordinalsPublicKey: 'pk0',
-      paymentAddress: 'addr0',
-      paymentPublicKey: 'pk0',
-      signingSupported: true,
-    });
+    expect(walletService.connectFromScan).toHaveBeenCalledWith(
+      scan,
+      { ordinals: scan.ordinals, payment: scan.scanned[0].address },
+    );
     expect(close).toHaveBeenCalled();
   });
 
@@ -165,14 +164,10 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
 
     component.confirmXpub();
 
-    expect(walletService.connectFakeWallet).toHaveBeenCalledWith({
-      type: 'xpub',
-      ordinalsAddress: 'addr0',
-      ordinalsPublicKey: 'pk0',
-      paymentAddress: 'addr1',
-      paymentPublicKey: 'pk1',
-      signingSupported: true,
-    });
+    expect(walletService.connectFromScan).toHaveBeenCalledWith(
+      scan,
+      { ordinals: scan.ordinals, payment: scan.scanned[1].address },
+    );
   });
 
   it('reveals the account-type selector when the SDK reports script-type-ambiguous', async () => {
@@ -213,18 +208,6 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
     expect(component.xpubValue).toBe('zpub-key');
   });
 
-  it('the probe reports funded + summed sats from the address utxo endpoint', async () => {
-    (scanWatchOnly as jest.Mock).mockResolvedValue(fakeScan());
-    http.get.mockReturnValue(of([{ value: 100 }, { value: 250 }]));
-    component.xpubValue = 'zpub-key';
-
-    component.scanXpub();
-    const probe = (scanWatchOnly as jest.Mock).mock.calls[0][0].probe as (a: string) => Promise<{ funded: boolean; fundedSats: number }>;
-    const result = await probe('bc1pexample');
-
-    expect(http.get).toHaveBeenCalledWith(expect.stringContaining('/api/address/bc1pexample/utxo'));
-    expect(result).toEqual({ funded: true, fundedSats: 350 });
-  });
 });
 
 describe('WalletConnectComponent picker: platform + install-state detection', () => {

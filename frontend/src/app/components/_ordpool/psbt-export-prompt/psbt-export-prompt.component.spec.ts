@@ -70,6 +70,8 @@ describe('PsbtExportPromptComponent', () => {
       let binary = '';
       expected.forEach((b) => { binary += String.fromCharCode(b); });
       component.unsigned = { base64: btoa(binary), hex: '70736274ff012a' };
+      // The opener sets the filename per operation (mint / inscribe / ...).
+      component.fileName = 'cat21-mint-unsigned.psbt';
 
       component.download();
 

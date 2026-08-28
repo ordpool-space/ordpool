@@ -275,7 +275,7 @@ export class Cat21MintComponent implements OnInit {
     // Watch-only (xpub) wallets sign via the export/paste bridge; injected
     // wallets ignore the callback, so it is passed unconditionally.
     const prompt = (unsigned: { base64: string; hex: string }) =>
-      this.psbtExportPrompt.promptForSignedPsbt(unsigned);
+      this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'cat21-mint-unsigned.psbt');
     this.orchestrator.mint(prompt).subscribe({
       next: () => this.cd.detectChanges(),
       error: () => this.cd.detectChanges(),
