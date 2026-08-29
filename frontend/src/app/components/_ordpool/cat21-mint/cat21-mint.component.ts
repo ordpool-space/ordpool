@@ -5,6 +5,7 @@ import { catchError, combineLatest, map, of, shareReplay, take, tap } from 'rxjs
 
 import {
   AUTO_SCAN_MAX_VALUE_SAT,
+  BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE,
   Cat21ApiService,
   Cat21MintOrchestrator,
   SimulateTransactionResult,
@@ -210,16 +211,14 @@ export class Cat21MintComponent implements OnInit {
   }
 
   form = new FormGroup({
-    // Floor matches Bitcoin Core's default `-minrelaytxfee`, lowered from
-    // 1 sat/vB to 0.1 sat/vB (1000 -> 100 sat/kvB, DEFAULT_MIN_RELAY_TX_FEE,
-    // commit 6da5de58cabc) and first shipped in v29.1 (2025-09-03) + all
-    // v30.x. Below 0.1 sat/vB won't relay on a default-config node; above it
-    // the wallet itself surfaces any broadcast issue.
+    // Floor = the SDK's BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE (Bitcoin Core's
+    // default -minrelaytxfee; the constant's doc carries the sourced value +
+    // version). Below it a tx won't relay on a default-config node.
     feeRate: new FormControl(1, {
       // Cap at the SDK gate's 1000 sat/vB ceiling and reject non-finite rates
       // (Infinity from a `1e999` input, NaN) before they reach the funding calc
       // or the orchestrator. Mirrors inscribe-mint.
-      validators: [Validators.required, Validators.min(0.1), Validators.max(1000)],
+      validators: [Validators.required, Validators.min(BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE), Validators.max(1000)],
       nonNullable: true,
     }),
   });

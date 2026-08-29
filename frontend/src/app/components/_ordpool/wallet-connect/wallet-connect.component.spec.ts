@@ -171,8 +171,10 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
   });
 
   it('reveals the account-type selector when the SDK reports script-type-ambiguous', async () => {
+    // The SDK throws WatchOnlyDeriveError with a stable `code`; the component
+    // matches on code, not the human-readable message.
     (scanWatchOnly as jest.Mock).mockRejectedValue(
-      new Error('Watch-only: this key prefix (xpub/tpub) is script-type-ambiguous; pass scriptType'),
+      Object.assign(new Error('this key prefix is ambiguous; pass scriptType'), { code: 'script-type-ambiguous' }),
     );
     component.xpubValue = 'xpub-plain';
 

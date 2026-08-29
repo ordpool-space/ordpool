@@ -6,6 +6,7 @@ import { combineLatest, map, shareReplay, take, tap } from 'rxjs';
 import { detectMimeType } from 'ordpool-parser';
 import {
   AUTO_SCAN_MAX_VALUE_SAT,
+  BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE,
   CompressionAssessment,
   INSCRIBE_POSTAGE_SATS,
   InscribeMintOrchestrator,
@@ -203,15 +204,13 @@ export class InscribeMintComponent implements OnInit {
 
   form = new FormGroup({
     feeRate: new FormControl(1, {
-      // min 0.1 = Bitcoin Core DEFAULT_MIN_RELAY_TX_FEE (100 sat/kvB), lowered
-      // from 1 sat/vB in commit 6da5de58cabc, first shipped v29.1 (2025-09-03)
-      // + all v30.x; a lower rate won't relay on a default-config node. (v29.0
-      // and earlier used 1 sat/vB; do not "correct" 0.1 back to 1.) max 1000
-      // matches the SDK
-      // gate's maxFeeRatePerVbyte and rejects a non-finite Infinity (from a
-      // `1e999` input) so the form goes invalid and the mint button disables
-      // instead of estimating "Infinity".
-      validators: [Validators.required, Validators.min(0.1), Validators.max(1000)],
+      // min = the SDK's BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE (Bitcoin Core's
+      // default -minrelaytxfee; the constant's doc carries the sourced value +
+      // version). A lower rate won't relay on a default-config node. max 1000
+      // matches the SDK gate's maxFeeRatePerVbyte and rejects a non-finite
+      // Infinity (from a `1e999` input) so the form goes invalid and the mint
+      // button disables instead of estimating "Infinity".
+      validators: [Validators.required, Validators.min(BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE), Validators.max(1000)],
       nonNullable: true,
     }),
     // Prefilled watermark so we can measure how many inscriptions came

@@ -29,6 +29,7 @@ jest.mock('ordpool-sdk', () => {
   const { InjectionToken } = jest.requireActual('@angular/core');
   return {
     AUTO_SCAN_MAX_VALUE_SAT: 50_000,
+    BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE: 0.1,
     SMALL_UTXO_WARNING_THRESHOLD_SAT: 10_000,
     INSCRIBE_POSTAGE_SATS: 546,
     Network: { Mainnet: 'mainnet', Testnet3: 'testnet', Regtest: 'regtest' },

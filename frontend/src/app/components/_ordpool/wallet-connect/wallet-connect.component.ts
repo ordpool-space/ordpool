@@ -305,13 +305,16 @@ export class WalletConnectComponent implements OnDestroy {
       },
       error: (err: unknown) => {
         this.xpubConnecting = false;
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/script-type-ambiguous/i.test(msg)) {
+        // Match the SDK's stable WatchOnlyDeriveError.code, not the
+        // human-readable message (which is free to change). A plain string
+        // field is cross-realm safe, unlike instanceof.
+        const code = (err as { code?: string })?.code;
+        if (code === 'script-type-ambiguous') {
           this.xpubScriptTypeNeeded = true;
           this.xpubError = 'This key could be a Taproot or a legacy account. '
             + 'Pick the account type below (Taproot is recommended for cats), then scan again.';
         } else {
-          this.xpubError = msg;
+          this.xpubError = err instanceof Error ? err.message : String(err);
         }
         this.cd.markForCheck();
       },
