@@ -43,5 +43,19 @@ describe('DivisibilityPipe', () => {
     expect(pipe.transform(10000, 2, 'en-US')).toBe('100');
     expect(pipe.transform(10000n, 2, 'en-US')).toBe('100');
   });
+
+  // Regression: BigInt(10 ** divisibility) evaluated 10 ** d as a JS double,
+  // which is only exact to d = 22. The runes protocol allows divisibility up to
+  // 38, so d >= 23 produced a wrong divisor (e.g. 10 ** 23 rounded to
+  // 99999999999999991611392) and misplaced the decimal point. 10n ** BigInt(d)
+  // keeps the divisor exact for every valid divisibility.
+  it('should keep the divisor exact for divisibility 23 (10^23 renders as 1, not a spurious fraction)', () => {
+    expect(pipe.transform(10n ** 23n, 23)).toBe('1');
+  });
+
+  it('should format the fractional part correctly at the maximum divisibility 38', () => {
+    // 10^38 + 5 => integer part 1, fractional part 5 padded to 38 digits.
+    expect(pipe.transform(10n ** 38n + 5n, 38, 'en-US')).toBe('1.' + '0'.repeat(37) + '5');
+  });
 });
 

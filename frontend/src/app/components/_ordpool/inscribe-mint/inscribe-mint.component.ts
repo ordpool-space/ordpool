@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { combineLatest, map, shareReplay, take, tap } from 'rxjs';
 
@@ -92,6 +93,7 @@ export class InscribeMintComponent implements OnInit {
   private network = inject(bitcoinNetwork);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
+  private destroyRef = inject(DestroyRef);
 
   /** ord review base for inscription/rune links (dev/regtest/prod aligned). */
   readonly ordReviewBase = this.config.ordApiUrl;
@@ -201,9 +203,12 @@ export class InscribeMintComponent implements OnInit {
 
   form = new FormGroup({
     feeRate: new FormControl(1, {
-      // max 1000 matches the SDK gate's maxFeeRatePerVbyte; it also rejects
-      // a non-finite Infinity (from a `1e999` input) so the form goes
-      // invalid and the mint button disables instead of estimating "Infinity".
+      // min 0.1 = Bitcoin Core v30+ DEFAULT_MIN_RELAY_TX_FEE (100 sat/kvB); a
+      // lower rate won't relay on a default-config node. (v29 and earlier used
+      // 1 sat/vB; do not "correct" 0.1 back to 1.) max 1000 matches the SDK
+      // gate's maxFeeRatePerVbyte and rejects a non-finite Infinity (from a
+      // `1e999` input) so the form goes invalid and the mint button disables
+      // instead of estimating "Infinity".
       validators: [Validators.required, Validators.min(0.1), Validators.max(1000)],
       nonNullable: true,
     }),
@@ -253,7 +258,7 @@ export class InscribeMintComponent implements OnInit {
       this.cd.detectChanges();
     });
 
-    this.cfeeRate.valueChanges.subscribe((rate) => {
+    this.cfeeRate.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((rate) => {
       if (rate && rate > 0) {
         this.orchestrator.setFeeRate(rate);
         this.recomputePreConnectCost();
@@ -262,14 +267,17 @@ export class InscribeMintComponent implements OnInit {
 
     // Editing the note re-synths the tag on the pending content and
     // refreshes the cost estimate (the note bytes count on-chain).
-    this.noteControl.valueChanges.subscribe(() => {
+    this.noteControl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncContent();
       this.recomputePreConnectCost();
     });
 
     // Wipe the scanner cache when one wallet swaps out for another.
+    // takeUntilDestroyed: connectedWallet$ is the root WalletService's
+    // never-completing BehaviorSubject, so without teardown each visit to this
+    // routed component leaks the instance (and its captured file bytes).
     let lastWalletAddress: string | null = null;
-    this.connectedWallet$.subscribe((w) => {
+    this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
       const addr = w?.ordinalsAddress ?? null;
       if (lastWalletAddress !== null && addr !== lastWalletAddress) {
         this.scanner.reset();
@@ -337,7 +345,7 @@ export class InscribeMintComponent implements OnInit {
       if (bytes.length > MAX_CONTENT_BYTES) {
         this.pickedFile = null;
         this.orchestrator.setContent(null);
-        this.fileError = `This file is ${Math.ceil(bytes.length / 1024)} KB. On-chain inscriptions are capped at ${MAX_CONTENT_BYTES / 1000} KB. Compress it or pick a smaller file.`;
+        this.fileError = `This file is ${Math.ceil(bytes.length / 1000)} KB. On-chain inscriptions are capped at ${MAX_CONTENT_BYTES / 1000} KB. Compress it or pick a smaller file.`;
         this.cd.markForCheck();
         return;
       }
@@ -779,7 +787,7 @@ export class InscribeMintComponent implements OnInit {
     // so this is a hard stop.
     const total = this.totalContentBytes(body);
     if (total > MAX_CONTENT_BYTES) {
-      this.mintGateError = `This inscription is ${Math.ceil(total / 1024)} KB (file + metadata + note); the on-chain cap is ${MAX_CONTENT_BYTES / 1000} KB. Trim the metadata or pick a smaller file.`;
+      this.mintGateError = `This inscription is ${Math.ceil(total / 1000)} KB (file + metadata + note); the on-chain cap is ${MAX_CONTENT_BYTES / 1000} KB. Trim the metadata or pick a smaller file.`;
       this.cd.detectChanges();
       return;
     }

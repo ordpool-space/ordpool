@@ -193,7 +193,7 @@
       class="btn"
       [ngClass]="(networkMismatch$ | async) ? 'btn-danger' : 'btn-secondary'"
       [title]="(networkMismatch$ | async)
-        ? 'Wallet is on the wrong network — expected ' + expectedNetworkGroup
+        ? 'Wallet is on the wrong network: expected ' + expectedNetworkGroup
         : 'Your connected ' + knownOrdinalWallets[x.connectedWallet.type].label + ' Wallet'">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
       <span *ngIf="networkMismatch$ | async" aria-hidden="true" class="ms-1">&#9888;</span>

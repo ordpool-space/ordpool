@@ -38,7 +38,10 @@ export class DivisibilityPipe implements PipeTransform {
     }
 
     const num = BigInt(value);
-    const divisor = BigInt(10 ** divisibility);
+    // 10n ** BigInt(d), not BigInt(10 ** d): the runes protocol allows divisibility up
+    // to 38, and the JS double 10 ** d is only exact to d = 22, so the BigInt path keeps
+    // the divisor exact for every valid divisibility.
+    const divisor = 10n ** BigInt(divisibility);
     const integerPart = num / divisor;
     const fractionalPart = num % divisor;
 

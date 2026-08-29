@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { catchError, combineLatest, map, of, shareReplay, take, tap } from 'rxjs';
 
@@ -49,6 +50,7 @@ export class Cat21MintComponent implements OnInit {
   private config = inject(cat21Config);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
+  private destroyRef = inject(DestroyRef);
 
   /** Asset-detail link bases sourced from cat21Config so dev / regtest / prod stay aligned with the scanner's own endpoints. */
   readonly ordReviewBase = this.config.ordApiUrl;
@@ -83,21 +85,17 @@ export class Cat21MintComponent implements OnInit {
   );
   catImageUrl = (n: number) => this.cat21ApiService.getCatImageUrl(n);
 
-  // Viable UTXO list — orchestrator returns ALL rows including
+  // Viable UTXO list: the orchestrator returns ALL rows including
   // insufficient ones; the template only wants the rows the user can
-  // actually mint with. Sort largest-first + cap at 10 so the expert
+  // actually mint with. Sort largest-first and cap at 10 so the expert
   // panel never renders hundreds of rows.
   //
-  // We `combineLatest` over `simulations$` and the scanner's
-  // `states$` so the row's `bucket` field updates whenever either
-  // source changes. Previously this read the scanner state via a
-  // signal snapshot inside `map(...)`, which meant the bucket stayed
-  // at whatever it was when the simulation last emitted — so the red
-  // `⚠ asset found` badge never surfaced for a user who funded their
-  // wallet, opened the mint page, and clicked Mint without touching
-  // the fee-rate input. `scanner.states$` is a BehaviorSubject so the
-  // initial empty-Map value emits immediately on subscribe; the
-  // combineLatest pair fires the first emission as soon as
+  // combineLatest over `simulations$` and the scanner's `states$` so the
+  // row's `bucket` field updates whenever either source changes; otherwise a
+  // user who funds their wallet, opens the mint page, and clicks Mint without
+  // touching the fee-rate input never sees the red `⚠ asset found` badge.
+  // `scanner.states$` is a BehaviorSubject, so its initial empty-Map value
+  // emits immediately on subscribe and the combineLatest pair fires as soon as
   // `simulations$` produces its first value.
   paymentOutputs$ = combineLatest([
     this.orchestrator.simulations$,
@@ -155,15 +153,13 @@ export class Cat21MintComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
-  // Template-bound field (matches the previous component's shape).
-  // Mutated in two paths:
+  // Template-bound field. Mutated in two paths:
   //   - the `tap` above auto-syncs on every fresh UTXO list
   //   - selectPaymentOutput(row) when the user clicks "Use this UTXO"
   selectedPaymentOutput: ViableSimulation | undefined;
 
-  // State-machine projections — read-only views of orchestrator.state()
-  // shaped to match the existing template bindings so the HTML stays
-  // unchanged.
+  // State-machine projections: read-only views of orchestrator.state()
+  // shaped to match the template bindings so the HTML stays unchanged.
   private state = this.orchestrator.state;
   readonly utxoLoading = computed(() => this.state() === 'loading-utxos');
   readonly utxoError = computed(() =>
@@ -172,11 +168,10 @@ export class Cat21MintComponent implements OnInit {
       : '',
   );
   readonly mintCat21Loading = computed(() => this.state() === 'minting');
-  readonly mintCat21Success = computed(() =>
-    this.state() === 'success' && this.orchestrator.successTxId()
-      ? { txId: this.orchestrator.successTxId()! }
-      : undefined,
-  );
+  readonly mintCat21Success = computed(() => {
+    const txId = this.orchestrator.successTxId();
+    return this.state() === 'success' && txId ? { txId } : undefined;
+  });
   readonly mintCat21Error = computed(() =>
     this.state() === 'error' && this.isMintingFlow()
       ? this.orchestrator.errorMessage() ?? ''
@@ -235,17 +230,20 @@ export class Cat21MintComponent implements OnInit {
       this.cd.detectChanges();
     });
 
-    this.cfeeRate.valueChanges.subscribe((rate) => {
+    this.cfeeRate.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((rate) => {
       if (rate && Number.isFinite(rate)) this.orchestrator.setFeeRate(rate);
     });
 
-    // Wipe the scanner cache when one wallet swaps out for another —
-    // the previous wallet's UTXO outpoints aren't relevant to the new
-    // one and would otherwise accumulate forever. Initial null →
-    // wallet is excluded: the scanner is already empty and a reset
-    // would clobber any scan state the pipeline pushed mid-connect.
+    // Wipe the scanner cache when one wallet swaps out for another: the
+    // previous wallet's UTXO outpoints aren't relevant to the new one and
+    // would otherwise accumulate forever. Initial null → wallet is excluded:
+    // the scanner is already empty and a reset would clobber any scan state
+    // the pipeline pushed mid-connect.
+    // takeUntilDestroyed: connectedWallet$ is the root WalletService's
+    // never-completing BehaviorSubject, so the `this`-capturing subscription
+    // must be torn down or every visit to this routed component leaks.
     let lastWalletAddress: string | null = null;
-    this.connectedWallet$.subscribe((w) => {
+    this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
       const addr = w?.ordinalsAddress ?? null;
       if (lastWalletAddress !== null && addr !== lastWalletAddress) {
         this.scanner.reset();

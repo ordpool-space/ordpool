@@ -152,6 +152,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   // without them three.js leaks GPU memory across height switches.
   private animFrame: number | null = null;
   private cleanup: (() => void) | null = null;
+  /** Bumped on each rebuild() so a superseded renderCubes() can bail after its
+   *  async three.js import instead of constructing a second WebGLRenderer. */
+  private rebuildToken = 0;
 
   async ngAfterViewInit(): Promise<void> {
     await this.rebuild();
@@ -162,14 +165,21 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   }
 
   private async rebuild(): Promise<void> {
+    // Serialize concurrent rebuilds: the sizes Input setter and ngAfterViewInit
+    // both call rebuild() on 2d -> 3d entry, and each renderCubes() awaits the
+    // three.js dynamic import. Without a token both resume and each build a
+    // WebGLRenderer (rAF loop + global listeners + GL context) while only the
+    // last cleanup is retained, leaking the first. The token lets a superseded
+    // renderCubes() bail after its import instead of building an orphan.
+    const token = ++this.rebuildToken;
     this.disposeStage();
     if (this._sizes === null || !this.host?.nativeElement) {
       return;
     }
-    await this.renderCubes(this._sizes);
+    await this.renderCubes(this._sizes, token);
   }
 
-  private async renderCubes(sizes: number[]): Promise<void> {
+  private async renderCubes(sizes: number[], token: number): Promise<void> {
     // Dynamic imports: three.js + addons land in a separate webpack chunk.
     // Visitors who never open a .bitmap inscription pay zero bytes for this.
     const [THREE, { OrbitControls }, { Octree }, { Capsule }, { EffectComposer }, { SAOPass }, { SSAARenderPass },
@@ -200,7 +210,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // was designed around.
     THREE.ColorManagement.enabled = false;
 
-    if (this._sizes === null || !this.host?.nativeElement) {
+    // A newer rebuild() superseded this one while the three.js import was in
+    // flight; bail before constructing a second renderer so only the latest
+    // rebuild builds a WebGLRenderer.
+    if (token !== this.rebuildToken || this._sizes === null || !this.host?.nativeElement) {
       return;
     }
 
@@ -235,16 +248,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // passes = ~9× the pixel work of DPR=1. Clamp to 1.5 on mobile, 2 on
     // desktop -- both give "retina-feel" without paying for it twice.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileLike ? 1.5 : 2));
-    // Targeted cleanup: remove any stale <canvas> siblings before appending
-    // ours. Two rebuild() calls race on mode='2d' → '3d': the sizes Input
-    // setter triggers rebuild during view-creation, and ngAfterViewInit
-    // triggers it again. Both pass through to renderCubes asynchronously
-    // (dynamic three.js import), so each appends its own canvas; the
-    // cleanup closure stored on `this.cleanup` only knows about the
-    // most-recently-built renderer, orphaning the first canvas. Sweeping
-    // direct-child <canvas> elements here keeps the host clean. We leave
-    // the template-rendered touch UI (.touch-joy-zone-*, .touch-jump)
-    // intact — those are mounted from the component template, not by us.
+    // Defense-in-depth: the rebuildToken guard above already ensures only the
+    // latest rebuild reaches this point, so at most one renderer is built. As a
+    // belt-and-suspenders step, sweep any stale direct-child <canvas> before
+    // appending ours. The template-rendered touch UI (.touch-joy-zone-*,
+    // .touch-jump) stays put: it is mounted from the component template, not by us.
     Array.from(hostEl.querySelectorAll(':scope > canvas')).forEach(c => c.remove());
     hostEl.appendChild(renderer.domElement);
 

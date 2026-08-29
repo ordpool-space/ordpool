@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, TemplateRef, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnDestroy, TemplateRef, ViewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { NgbModal, NgbModalRef, NgbPopover } from '@ng-bootstrap/ng-bootstrap';
 import { from, map, of, Subscription, switchMap } from 'rxjs';
@@ -50,7 +51,7 @@ interface PickerRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
 })
-export class WalletConnectComponent {
+export class WalletConnectComponent implements OnDestroy {
 
   // just for debugging
   showFakeWallet = false;
@@ -80,7 +81,8 @@ export class WalletConnectComponent {
   xpubScanResult: WatchOnlyScanResult | null = null;
   /** Index into {@link WatchOnlyScanResult.scanned} for the chosen funding (payment) address. */
   xpubPaymentIndex = 0;
-  /** In-flight scan; torn down when the modal is dismissed or the flow resets. */
+  /** In-flight scan; torn down by resetXpub() on flow reset, on modal close or
+   *  dismiss (open() wires modalRef.result), and on component destroy. */
   private scanSub?: Subscription;
   /** Aborts the in-flight probe fetches when the scan is torn down. */
   private scanAbort?: AbortController;
@@ -128,16 +130,13 @@ export class WalletConnectComponent {
   expectedNetworkGroup = this.walletService.expectedNetworkGroup;
 
   // Live feed of CAT-21 mints in the mempool addressed to the connected
-  // wallet. Replaces the old localStorage-backed lastCat21Mints$:
-  //   - cross-device aware (a mint started from phone surfaces here on
-  //     the next 30s poll)
-  //   - only shows what's actually pending; once mined, the tx drops
-  //     out of the mempool feed and the user finds it on cat21.space
+  // wallet. Cross-device aware (a mint started from phone surfaces here on
+  // the next 30s poll) and shows only what's actually pending; once mined,
+  // the tx drops out of the mempool feed and the user finds it on cat21.space.
   //
-  // The switchMap stops the previous polling chain whenever the wallet
-  // changes and starts a fresh one for the new addresses — exactly
-  // what we want when the user disconnects + reconnects with a
-  // different wallet.
+  // The switchMap stops the previous polling chain whenever the wallet changes
+  // and starts a fresh one for the new addresses, so a disconnect + reconnect
+  // with a different wallet does not keep polling the old one.
   pendingCats$ = this.connectedWallet$.pipe(
     switchMap(w => w
       ? this.cat21Service.pendingMints$([w.ordinalsAddress, w.paymentAddress])
@@ -151,7 +150,17 @@ export class WalletConnectComponent {
   modalRef: NgbModalRef | undefined;
 
   constructor() {
-    this.walletConnectRequested$.subscribe(() => this.open());
+    // takeUntilDestroyed (constructor injection context): this component is the
+    // header's persistent <app-wallet-connect>, so the subscription to the root
+    // service outlives nothing in practice, but tearing it down on destroy keeps
+    // the teardown contract honest.
+    this.walletConnectRequested$.pipe(takeUntilDestroyed()).subscribe(() => this.open());
+  }
+
+  ngOnDestroy(): void {
+    // Abort any in-flight watch-only scan (scanAbort) and drop its subscription
+    // if the component is torn down mid-scan.
+    this.resetXpub();
   }
 
   /**
@@ -210,6 +219,10 @@ export class WalletConnectComponent {
       ariaLabelledBy: 'modal-basic-title',
       centered: true
     });
+    // Tear down any in-flight watch-only scan on BOTH modal outcomes: result
+    // resolves on close, rejects on dismiss (X button, ESC, backdrop click).
+    // Without this a scan started then dismissed leaves scanAbort un-aborted.
+    this.modalRef.result.then(() => this.resetXpub(), () => this.resetXpub());
   }
 
   private resetXpub(): void {
