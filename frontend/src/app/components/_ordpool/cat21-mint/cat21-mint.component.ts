@@ -210,9 +210,11 @@ export class Cat21MintComponent implements OnInit {
   }
 
   form = new FormGroup({
-    // Floor matches Bitcoin Core's default `-minrelaytxfee` since v27.0
-    // (April 2024). Below 0.1 sat/vB won't relay on a default-config
-    // node; above it the wallet itself surfaces any broadcast issue.
+    // Floor matches Bitcoin Core's default `-minrelaytxfee`, lowered from
+    // 1 sat/vB to 0.1 sat/vB (1000 -> 100 sat/kvB, DEFAULT_MIN_RELAY_TX_FEE,
+    // commit 6da5de58cabc) and first shipped in v29.1 (2025-09-03) + all
+    // v30.x. Below 0.1 sat/vB won't relay on a default-config node; above it
+    // the wallet itself surfaces any broadcast issue.
     feeRate: new FormControl(1, {
       // Cap at the SDK gate's 1000 sat/vB ceiling and reject non-finite rates
       // (Infinity from a `1e999` input, NaN) before they reach the funding calc

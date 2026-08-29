@@ -203,9 +203,11 @@ export class InscribeMintComponent implements OnInit {
 
   form = new FormGroup({
     feeRate: new FormControl(1, {
-      // min 0.1 = Bitcoin Core v30+ DEFAULT_MIN_RELAY_TX_FEE (100 sat/kvB); a
-      // lower rate won't relay on a default-config node. (v29 and earlier used
-      // 1 sat/vB; do not "correct" 0.1 back to 1.) max 1000 matches the SDK
+      // min 0.1 = Bitcoin Core DEFAULT_MIN_RELAY_TX_FEE (100 sat/kvB), lowered
+      // from 1 sat/vB in commit 6da5de58cabc, first shipped v29.1 (2025-09-03)
+      // + all v30.x; a lower rate won't relay on a default-config node. (v29.0
+      // and earlier used 1 sat/vB; do not "correct" 0.1 back to 1.) max 1000
+      // matches the SDK
       // gate's maxFeeRatePerVbyte and rejects a non-finite Infinity (from a
       // `1e999` input) so the form goes invalid and the mint button disables
       // instead of estimating "Infinity".

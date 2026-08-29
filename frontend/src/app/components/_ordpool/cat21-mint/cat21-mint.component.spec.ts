@@ -591,7 +591,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('J. fee-rate validator', () => {
-    it('J1: accepts 0.1 sat/vB (Bitcoin Core relay floor since v27.0)', () => {
+    it('J1: accepts 0.1 sat/vB (Bitcoin Core relay floor since v29.1 / v30)', () => {
       component.cfeeRate.setValue(0.1);
       expect(component.cfeeRate.valid).toBe(true);
     });
