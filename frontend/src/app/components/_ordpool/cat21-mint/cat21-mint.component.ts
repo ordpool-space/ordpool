@@ -1,15 +1,15 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { catchError, combineLatest, map, of, shareReplay, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, shareReplay, take, tap } from 'rxjs';
 
 import {
-  AnnotatedFundingUtxo,
   AUTO_SCAN_MAX_VALUE_SAT,
   BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE,
   Cat21ApiService,
   Cat21MintOrchestrator,
-  FundingRecommendation,
+  Cat21Service,
+  MintSnapshot,
   SimulateTransactionResult,
   SMALL_UTXO_WARNING_THRESHOLD_SAT,
   TxnOutput,
@@ -17,11 +17,14 @@ import {
   UtxoContentScanner,
   UtxoScanBucket,
   UtxoScanState,
+  UtxoSimulationRow,
   WalletInfo,
   WalletService,
+  bitcoinNetwork,
   bucketOf,
   calculateRecommendedFundingSats,
   cat21Config,
+  classifyOutpoint,
   runeNamesFromContent,
 } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
@@ -46,13 +49,68 @@ export class Cat21MintComponent implements OnInit {
 
   walletService = inject(WalletService);
   cat21ApiService = inject(Cat21ApiService);
-  private orchestrator = inject(Cat21MintOrchestrator);
-  private psbtExportPrompt = inject(PsbtExportPromptService);
+  private cat21 = inject(Cat21Service);
   private scanner = inject(UtxoContentScanner);
   private config = inject(cat21Config);
+  private network = inject(bitcoinNetwork);
+  private psbtExportPrompt = inject(PsbtExportPromptService);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
   private destroyRef = inject(DestroyRef);
+
+  /**
+   * The framework-agnostic mint orchestrator (a plain SDK class, constructed
+   * here, not an Angular `@Injectable`). The staying Angular/SDK services are
+   * wired in as its ports:
+   *   - `getUtxos`  → `Cat21Service` (electrs payment-address UTXOs)
+   *   - `scan`      → the SDK's `classifyOutpoint` (ord + cat21-ord content check)
+   *   - `broadcast` → `Cat21Service.postTransaction`
+   * Signing is wired internally by the orchestrator from the connected wallet's
+   * type; the consumer only supplies these IO ports + drives it via `setWallet`
+   * / `setFeeRate` / `setSelectedUtxo` / `mint`.
+   */
+  private orchestrator = new Cat21MintOrchestrator({
+    getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
+    scan: {
+      classify: async (op) =>
+        (await classifyOutpoint(op, {
+          ordApiUrl: this.config.ordApiUrl,
+          cat21OrdApiUrl: this.config.cat21OrdApiUrl,
+        })).clean
+          ? 'clean'
+          : 'has-assets',
+    },
+    broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
+    network: this.network,
+  });
+
+  /** Orchestrator snapshot bridged to a signal; every state change re-renders. */
+  private snap = signal<MintSnapshot>(this.orchestrator.getSnapshot());
+
+  // The snapshot's simulation rows bridged to a hot BehaviorSubject so
+  // paymentOutputs$ can combineLatest them with the scanner's states$ (both
+  // synchronous, emit-on-subscribe). Fed from the same subscribe binding below.
+  private simulationsSubject = new BehaviorSubject<UtxoSimulationRow[]>(this.orchestrator.getSnapshot().simulations);
+
+  constructor() {
+    // One-line binding: the orchestrator owns all mint state; we mirror its
+    // snapshot into a signal + the simulations subject, and mark the OnPush view
+    // for check on every change (wallet UTXOs resolving, scans completing, mint
+    // transitions).
+    const unsubscribe = this.orchestrator.subscribe((s) => {
+      this.snap.set(s);
+      // Only re-push when the simulation rows actually change (a new array from a
+      // real recompute). The orchestrator also emits on selectedUtxo / feeRate /
+      // state changes with the SAME simulations array; re-pushing those would
+      // re-run paymentOutputs$'s tap, which calls setSelectedUtxo, which emits
+      // again: a feedback loop. Reference compare cuts it.
+      if (s.simulations !== this.simulationsSubject.value) {
+        this.simulationsSubject.next(s.simulations);
+      }
+      this.cd.markForCheck();
+    });
+    this.destroyRef.onDestroy(unsubscribe);
+  }
 
   /** Asset-detail link bases sourced from cat21Config so dev / regtest / prod stay aligned with the scanner's own endpoints. */
   readonly ordReviewBase = this.config.ordApiUrl;
@@ -72,10 +130,8 @@ export class Cat21MintComponent implements OnInit {
   readonly autoScanThreshold = AUTO_SCAN_MAX_VALUE_SAT;
 
   // ordpool's framework StateService streams recommended fees via the
-  // websocket the mempool UI already runs. Cat21MintOrchestrator also
-  // exposes a polled recommendedFees$ derived from the REST endpoint,
-  // but we stay with the live websocket source here because it's
-  // already wired and matches the rest of ordpool's freshness.
+  // websocket the mempool UI already runs, so the fee seed + tier buttons
+  // stay on that live source (matches the rest of ordpool's freshness).
   recommendedFees$ = inject(StateService).recommendedFees$;
   connectedWallet$ = this.walletService.connectedWallet$;
 
@@ -87,20 +143,21 @@ export class Cat21MintComponent implements OnInit {
   );
   catImageUrl = (n: number) => this.cat21ApiService.getCatImageUrl(n);
 
-  // Viable UTXO list: the orchestrator returns ALL rows including
-  // insufficient ones; the template only wants the rows the user can
-  // actually mint with. Sort largest-first and cap at 10 so the expert
-  // panel never renders hundreds of rows.
+  // Viable UTXO list: the orchestrator's snapshot carries ALL simulation rows
+  // including insufficient ones; the template only wants the rows the user can
+  // actually mint with. Sort largest-first and cap at 10 so the expert panel
+  // never renders hundreds of rows.
   //
-  // combineLatest over `simulations$` and the scanner's `states$` so the
-  // row's `bucket` field updates whenever either source changes; otherwise a
-  // user who funds their wallet, opens the mint page, and clicks Mint without
-  // touching the fee-rate input never sees the red `⚠ asset found` badge.
-  // `scanner.states$` is a BehaviorSubject, so its initial empty-Map value
-  // emits immediately on subscribe and the combineLatest pair fires as soon as
-  // `simulations$` produces its first value.
+  // The snapshot's `simulations` is a signal read, bridged to an observable so
+  // it can combineLatest with the scanner's `states$`: the row's `bucket` field
+  // updates whenever either source changes; otherwise a user who funds their
+  // wallet, opens the mint page, and clicks Mint without touching the fee-rate
+  // input never sees the red `⚠ asset found` badge. `scanner.states$` is a
+  // BehaviorSubject, so its initial empty-Map value emits immediately on
+  // subscribe and the combineLatest pair fires as soon as the snapshot produces
+  // its first simulation list.
   paymentOutputs$ = combineLatest([
-    this.orchestrator.simulations$,
+    this.simulationsSubject,
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableSimulation[] => {
@@ -125,9 +182,9 @@ export class Cat21MintComponent implements OnInit {
         value: r.paymentOutput.value,
       })));
 
-      // Funding auto-pick is the SDK orchestrator's job (`fundingRecommendation$`),
-      // not ours: it force-scans covering candidates regardless of size and
-      // never auto-selects an unscanned/asset coin. We leave the orchestrator's
+      // Funding auto-pick is the orchestrator's job (its `fundingRecommendation`
+      // force-scans covering candidates regardless of size and never
+      // auto-selects an unscanned/asset coin). We leave the orchestrator's
       // selection unset unless the user MANUALLY picks a row (selectPaymentOutput,
       // an expert override past the asset warning); it then mints on its
       // content-clean recommendation. A consumer-side raw pre-pick here would
@@ -146,7 +203,7 @@ export class Cat21MintComponent implements OnInit {
         this.selectedPaymentOutput = undefined;
         this.orchestrator.setSelectedUtxo(null);
       }
-      this.cd.detectChanges();
+      this.cd.markForCheck();
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
@@ -157,20 +214,10 @@ export class Cat21MintComponent implements OnInit {
   // safe auto-recommendation funds the mint.
   selectedPaymentOutput: ViableSimulation | undefined;
 
-  /** SDK safe auto-recommendation. `expert-required` means only asset-bearing
-   *  coins cover the fee, so the user must pick a funding UTXO explicitly; the
-   *  template surfaces that so the form is never silently stuck. */
-  readonly fundingRecommendation$ = this.orchestrator.fundingRecommendation$;
-
-  private readonly fundingRecommendationSig = toSignal(this.fundingRecommendation$, {
-    initialValue: { status: 'scanning', recommended: null, candidates: [] } as FundingRecommendation<
-      TxnOutput & AnnotatedFundingUtxo
-    >,
-  });
-
-  /** Current funding status: `auto` (safe-auto covers), `expert-required` (only
-   *  asset coins cover), `insufficient` (nothing covers), `scanning` (deciding). */
-  readonly fundingStatus = computed(() => this.fundingRecommendationSig().status);
+  /** Current funding status from the snapshot: `auto` (safe-auto covers),
+   *  `expert-required` (only asset coins cover), `insufficient` (nothing covers),
+   *  `scanning` (deciding). The template branches the notices on this. */
+  readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
   /** The mint is fundable when the user MANUALLY picked a coin (an explicit
    *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
@@ -178,26 +225,26 @@ export class Cat21MintComponent implements OnInit {
    *  / `scanning` leave it unfundable until the user acts. Gates the mint button
    *  so removing the consumer-side auto-pick never leaves the button stuck. */
   readonly hasFundingSource = computed(
-    () => !!this.orchestrator.selectedUtxo() || this.fundingStatus() === 'auto',
+    () => !!this.snap().selectedUtxo || this.fundingStatus() === 'auto',
   );
 
-  // State-machine projections: read-only views of orchestrator.state()
+  // State-machine projections: read-only views of the snapshot's `state`
   // shaped to match the template bindings so the HTML stays unchanged.
-  private state = this.orchestrator.state;
+  private state = computed(() => this.snap().state);
   readonly utxoLoading = computed(() => this.state() === 'loading-utxos');
   readonly utxoError = computed(() =>
-    this.state() === 'error' && !this.orchestrator.successTxId() && !this.isMintingFlow()
-      ? this.orchestrator.errorMessage() ?? ''
+    this.state() === 'error' && !this.snap().successTxId && !this.isMintingFlow()
+      ? this.snap().errorMessage ?? ''
       : '',
   );
   readonly mintCat21Loading = computed(() => this.state() === 'minting');
   readonly mintCat21Success = computed(() => {
-    const txId = this.orchestrator.successTxId();
+    const txId = this.snap().successTxId;
     return this.state() === 'success' && txId ? { txId } : undefined;
   });
   readonly mintCat21Error = computed(() =>
     this.state() === 'error' && this.isMintingFlow()
-      ? this.orchestrator.errorMessage() ?? ''
+      ? this.snap().errorMessage ?? ''
       : '',
   );
 
@@ -250,23 +297,34 @@ export class Cat21MintComponent implements OnInit {
     this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee }) => {
       this.cfeeRate.setValue(fastestFee);
       this.orchestrator.setFeeRate(this.cfeeRate.value);
-      this.cd.detectChanges();
+      this.cd.markForCheck();
     });
 
     this.cfeeRate.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((rate) => {
       if (rate && Number.isFinite(rate)) this.orchestrator.setFeeRate(rate);
     });
 
-    // Wipe the scanner cache when one wallet swaps out for another: the
-    // previous wallet's UTXO outpoints aren't relevant to the new one and
-    // would otherwise accumulate forever. Initial null → wallet is excluded:
-    // the scanner is already empty and a reset would clobber any scan state
-    // the pipeline pushed mid-connect.
+    // On wallet change: push the new wallet into the orchestrator (setWallet
+    // fetches its UTXOs + recomputes) and wipe the scanner cache (the previous
+    // wallet's UTXO outpoints aren't relevant to the new one and would otherwise
+    // accumulate forever). Initial null → wallet excluded from the reset: the
+    // scanner is already empty and a reset would clobber any scan state the
+    // pipeline pushed mid-connect.
     // takeUntilDestroyed: connectedWallet$ is the root WalletService's
     // never-completing BehaviorSubject, so the `this`-capturing subscription
     // must be torn down or every visit to this routed component leaks.
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      void this.orchestrator.setWallet(
+        w
+          ? {
+              type: w.type,
+              ordinalsAddress: w.ordinalsAddress,
+              paymentAddress: w.paymentAddress,
+              paymentPublicKey: w.paymentPublicKey,
+            }
+          : null,
+      );
       const addr = w?.ordinalsAddress ?? null;
       if (lastWalletAddress !== null && addr !== lastWalletAddress) {
         this.scanner.reset();
@@ -294,13 +352,16 @@ export class Cat21MintComponent implements OnInit {
   mintCat21(_wallet: WalletInfo): void {
     this.mintAttempted = true;
     // Watch-only (xpub) wallets sign via the export/paste bridge; injected
-    // wallets ignore the callback, so it is passed unconditionally.
+    // wallets ignore the callback, so it is passed unconditionally. The
+    // orchestrator's `mint` expects a Promise-returning prompt, so bridge the
+    // service's Observable through `firstValueFrom`. Success / error land in the
+    // snapshot (state + successTxId / errorMessage) via the `subscribe` binding;
+    // the markForCheck here is belt-and-suspenders for the OnPush view.
     const prompt = (unsigned: { base64: string; hex: string }) =>
-      this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'cat21-mint-unsigned.psbt');
-    this.orchestrator.mint(prompt).subscribe({
-      next: () => this.cd.detectChanges(),
-      error: () => this.cd.detectChanges(),
-    });
+      firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'cat21-mint-unsigned.psbt'));
+    this.orchestrator.mint(prompt)
+      .then(() => this.cd.markForCheck())
+      .catch(() => this.cd.markForCheck());
   }
 
   /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */

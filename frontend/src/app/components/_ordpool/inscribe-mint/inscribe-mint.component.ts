@@ -1,18 +1,18 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { combineLatest, map, shareReplay, take, tap } from 'rxjs';
+import { BehaviorSubject, combineLatest, firstValueFrom, map, shareReplay, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
 import {
-  AnnotatedFundingUtxo,
   AUTO_SCAN_MAX_VALUE_SAT,
   BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE,
+  Cat21Service,
   CompressionAssessment,
-  FundingRecommendation,
   INSCRIBE_POSTAGE_SATS,
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
+  InscribeSnapshot,
   InscribeUtxoSimulation,
   InscriptionContentEncoding,
   ORD_TAGS,
@@ -30,6 +30,7 @@ import {
   bitcoinNetwork,
   bucketOf,
   cat21Config,
+  classifyOutpoint,
   encodeCborDeterministic,
   encodeInscriptionId,
   getDummyKeypair,
@@ -88,7 +89,7 @@ const BLOCKED_CONTENT_TYPES = [
 export class InscribeMintComponent implements OnInit {
 
   walletService = inject(WalletService);
-  private orchestrator = inject(InscribeMintOrchestrator);
+  private cat21 = inject(Cat21Service);
   private psbtExportPrompt = inject(PsbtExportPromptService);
   private scanner = inject(UtxoContentScanner);
   private config = inject(cat21Config);
@@ -96,6 +97,49 @@ export class InscribeMintComponent implements OnInit {
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
   private destroyRef = inject(DestroyRef);
+
+  /**
+   * The framework-agnostic inscribe orchestrator (a plain SDK class, constructed
+   * here, not an Angular `@Injectable`). The staying Angular/SDK services are
+   * wired in as its ports (getUtxos → Cat21Service, scan → the SDK's
+   * classifyOutpoint, broadcast → Cat21Service.postTransaction for commit+reveal).
+   * Signing is wired internally by the orchestrator from the connected wallet.
+   */
+  private orchestrator = new InscribeMintOrchestrator({
+    getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
+    scan: {
+      classify: async (op) =>
+        (await classifyOutpoint(op, {
+          ordApiUrl: this.config.ordApiUrl,
+          cat21OrdApiUrl: this.config.cat21OrdApiUrl,
+        })).clean
+          ? 'clean'
+          : 'has-assets',
+    },
+    broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
+    network: this.network,
+  });
+
+  /** Orchestrator snapshot bridged to a signal; every state change re-renders. */
+  private snap = signal<InscribeSnapshot>(this.orchestrator.getSnapshot());
+
+  // The snapshot's simulation rows bridged to a hot BehaviorSubject so
+  // paymentOutputs$ can combineLatest them with the scanner's states$ (both
+  // synchronous). Fed from the same subscribe binding below, guarded so only a
+  // real recompute (a new array) re-pushes, otherwise the funding tap's
+  // setSelectedUtxo re-emit would feed back and loop.
+  private simulationsSubject = new BehaviorSubject<InscribeUtxoSimulation[]>(this.orchestrator.getSnapshot().simulations);
+
+  constructor() {
+    const unsubscribe = this.orchestrator.subscribe((s) => {
+      this.snap.set(s);
+      if (s.simulations !== this.simulationsSubject.value) {
+        this.simulationsSubject.next(s.simulations);
+      }
+      this.cd.markForCheck();
+    });
+    this.destroyRef.onDestroy(unsubscribe);
+  }
 
   /** ord review base for inscription/rune links (dev/regtest/prod aligned). */
   readonly ordReviewBase = this.config.ordApiUrl;
@@ -129,7 +173,7 @@ export class InscribeMintComponent implements OnInit {
   // ---- UTXO picker (cloned from cat21-mint) -------------------------------
 
   paymentOutputs$ = combineLatest([
-    this.orchestrator.simulations$,
+    this.simulationsSubject,
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableInscribeSimulation[] => {
@@ -173,7 +217,7 @@ export class InscribeMintComponent implements OnInit {
         this.selectedPaymentOutput = undefined;
         this.orchestrator.setSelectedUtxo(null);
       }
-      this.cd.detectChanges();
+      this.cd.markForCheck();
     }),
     // Two async pipes in the template consume this (the row count + the *ngFor).
     // Without shareReplay each opens its own subscription and the tap side
@@ -188,20 +232,10 @@ export class InscribeMintComponent implements OnInit {
   // safe auto-recommendation funds the inscription.
   selectedPaymentOutput: ViableInscribeSimulation | undefined;
 
-  /** SDK safe auto-recommendation. `expert-required` means only asset-bearing
-   *  coins cover the fee, so the user must pick a funding UTXO explicitly; the
-   *  template surfaces that so the form is never silently stuck. */
-  readonly fundingRecommendation$ = this.orchestrator.fundingRecommendation$;
-
-  private readonly fundingRecommendationSig = toSignal(this.fundingRecommendation$, {
-    initialValue: { status: 'scanning', recommended: null, candidates: [] } as FundingRecommendation<
-      TxnOutput & AnnotatedFundingUtxo
-    >,
-  });
-
-  /** Current funding status: `auto` (safe-auto covers), `expert-required` (only
-   *  asset coins cover), `insufficient` (nothing covers), `scanning` (deciding). */
-  readonly fundingStatus = computed(() => this.fundingRecommendationSig().status);
+  /** Current funding status from the snapshot: `auto` (safe-auto covers),
+   *  `expert-required` (only asset coins cover), `insufficient` (nothing covers),
+   *  `scanning` (deciding). The template branches the notices on this. */
+  readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
   /** The inscription is fundable when the user MANUALLY picked a coin (an explicit
    *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
@@ -209,25 +243,25 @@ export class InscribeMintComponent implements OnInit {
    *  / `scanning` leave it unfundable until the user acts. Gates the inscribe
    *  button so removing the consumer-side auto-pick never leaves it stuck. */
   readonly hasFundingSource = computed(
-    () => !!this.orchestrator.selectedUtxo() || this.fundingStatus() === 'auto',
+    () => !!this.snap().selectedUtxo || this.fundingStatus() === 'auto',
   );
 
   // ---- State-machine projections ------------------------------------------
 
-  private state = this.orchestrator.state;
+  private state = computed(() => this.snap().state);
   readonly utxoLoading = computed(() => this.state() === 'loading-utxos');
   readonly utxoError = computed(() =>
-    this.state() === 'error' && !this.orchestrator.successResult() && !this.mintAttempted
-      ? this.orchestrator.errorMessage() ?? ''
+    this.state() === 'error' && !this.snap().successResult && !this.mintAttempted
+      ? this.snap().errorMessage ?? ''
       : '',
   );
   readonly mintLoading = computed(() => this.state() === 'minting');
   readonly mintSuccess = computed(() =>
-    this.state() === 'success' ? this.orchestrator.successResult() : null,
+    this.state() === 'success' ? this.snap().successResult : null,
   );
   readonly mintError = computed(() =>
     this.state() === 'error' && this.mintAttempted
-      ? this.orchestrator.errorMessage() ?? ''
+      ? this.snap().errorMessage ?? ''
       : '',
   );
 
@@ -311,6 +345,16 @@ export class InscribeMintComponent implements OnInit {
     // routed component leaks the instance (and its captured file bytes).
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      void this.orchestrator.setWallet(
+        w
+          ? {
+              type: w.type,
+              ordinalsAddress: w.ordinalsAddress,
+              paymentAddress: w.paymentAddress,
+              paymentPublicKey: w.paymentPublicKey,
+            }
+          : null,
+      );
       const addr = w?.ordinalsAddress ?? null;
       if (lastWalletAddress !== null && addr !== lastWalletAddress) {
         this.scanner.reset();
@@ -854,11 +898,10 @@ export class InscribeMintComponent implements OnInit {
       // Watch-only (xpub) wallets sign via the export/paste bridge; injected
       // wallets ignore the callback, so it is passed unconditionally.
       const prompt = (unsigned: { base64: string; hex: string }) =>
-        this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt');
-      this.orchestrator.mint(prompt).subscribe({
-        next: () => this.cd.detectChanges(),
-        error: () => this.cd.detectChanges(),
-      });
+        firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt'));
+      this.orchestrator.mint(prompt)
+        .then(() => this.cd.markForCheck())
+        .catch(() => this.cd.markForCheck());
       return;
     }
 

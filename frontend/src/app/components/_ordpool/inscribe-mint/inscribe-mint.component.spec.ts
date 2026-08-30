@@ -33,9 +33,55 @@ jest.mock('ordpool-sdk', () => {
     SMALL_UTXO_WARNING_THRESHOLD_SAT: 10_000,
     INSCRIBE_POSTAGE_SATS: 546,
     Network: { Mainnet: 'mainnet', Testnet3: 'testnet', Regtest: 'regtest' },
-    InscribeMintOrchestrator: class InscribeMintOrchestrator {},
+    // Constructed by the component (`new InscribeMintOrchestrator(deps)`), not
+    // injected: this mock class IS the instance the component drives. Real
+    // subscribe/getSnapshot surface + signal/subject-shaped shims → `_patch`.
+    InscribeMintOrchestrator: class InscribeMintOrchestrator {
+      deps: unknown;
+      _snap: {
+        state: string;
+        feeRate: number | null;
+        selectedUtxo: TxnOutput | null;
+        content: unknown;
+        simulations: unknown[];
+        fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
+        errorMessage: string | null;
+        successResult: unknown;
+      } = {
+        state: 'ready', feeRate: null, selectedUtxo: null, content: null,
+        simulations: [], fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
+        errorMessage: null, successResult: null,
+      };
+      _listeners: Array<(s: unknown) => void> = [];
+      constructor(deps: unknown) { this.deps = deps; }
+      getSnapshot() { return this._snap; }
+      subscribe(l: (s: unknown) => void) {
+        this._listeners.push(l);
+        l(this._snap);
+        return () => { this._listeners = this._listeners.filter((x) => x !== l); };
+      }
+      _patch(p: Record<string, unknown>) {
+        this._snap = { ...this._snap, ...p };
+        this._listeners.slice().forEach((l) => l(this._snap));
+      }
+      setWallet = jest.fn(async () => {});
+      setFeeRate = jest.fn((rate: number) => this._patch({ feeRate: rate }));
+      setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u }));
+      setContent = jest.fn((c: unknown) => this._patch({ content: c }));
+      mint = jest.fn(async () => ({ commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }));
+      reset = jest.fn();
+      // Signal/subject-shaped shims (harness drivers) → `_patch`.
+      state = { set: (v: string) => this._patch({ state: v }) };
+      errorMessage = { set: (v: string | null) => this._patch({ errorMessage: v }) };
+      successResult = { set: (v: unknown) => this._patch({ successResult: v }) };
+      fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
+      selectedUtxo() { return this._snap.selectedUtxo; }
+    },
+    Cat21Service: class Cat21Service {},
     UtxoContentScanner: class UtxoContentScanner {},
     WalletService: class WalletService {},
+    // Wired into the constructed orchestrator's scan port; the mock never calls it.
+    classifyOutpoint: jest.fn(async () => ({ clean: true, inscriptionIds: [], runes: null, catIds: [], catSat: null, rareSat: null })),
     cat21Config: new InjectionToken('cat21Config'),
     bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
     bucketOf: (s: { kind: string }) => {
@@ -80,12 +126,11 @@ jest.mock('ordpool-parser', () => ({
   },
 }));
 
-import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 
 import {
-  InscribeMintOrchestrator,
+  Cat21Service,
   UtxoContentScanner,
   WalletService,
   bitcoinNetwork,
@@ -147,24 +192,10 @@ describe('InscribeMintComponent', () => {
 
     walletSubject = new BehaviorSubject<WalletInfo | null>(null);
 
-    const selectedUtxoSig = signal<TxnOutput | null>(null);
-    const fundingRecommendationSubject = new BehaviorSubject({ status: 'scanning', recommended: null, candidates: [] });
-    orchestrator = {
-      state: signal('ready'),
-      errorMessage: signal(null),
-      successResult: signal(null),
-      selectedUtxo: selectedUtxoSig,
-      simulations$: of([]),
-      recommendedFees$: of({ fastestFee: 5, halfHourFee: 4, hourFee: 3, economyFee: 2, minimumFee: 1 }),
-      fundingRecommendation$: fundingRecommendationSubject.asObservable(),
-      fundingRecommendationSubject,
-      setFeeRate: jest.fn(),
-      setSelectedUtxo: jest.fn((u: TxnOutput | null) => selectedUtxoSig.set(u)),
-      setContent: setContentSpy,
-      mint: () => { mintSpy(); return of({ commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }); },
-      reset: jest.fn(),
+    const cat21 = {
+      getUtxos: jest.fn((_: string) => of([] as TxnOutput[])),
+      postTransaction: jest.fn((_: string) => of('t'.repeat(64))),
     };
-
     const walletService = {
       connectedWallet$: walletSubject.asObservable(),
       requestWalletConnect: jest.fn(),
@@ -176,10 +207,12 @@ describe('InscribeMintComponent', () => {
     await TestBed.configureTestingModule({
       declarations: [InscribeMintComponent],
       providers: [
-        { provide: InscribeMintOrchestrator, useValue: orchestrator },
+        // The orchestrator is constructed by the component (not injected); we
+        // provide its deps + grab the constructed instance off the component.
+        { provide: Cat21Service, useValue: cat21 },
         { provide: UtxoContentScanner, useValue: scanner },
         { provide: WalletService, useValue: walletService },
-        { provide: cat21Config, useValue: { ordApiUrl: 'https://ord.example' } },
+        { provide: cat21Config, useValue: { ordApiUrl: 'https://ord.example', cat21OrdApiUrl: 'https://cat21-ord.example' } },
         { provide: bitcoinNetwork, useValue: 'mainnet' },
         { provide: StateService, useValue: stateService },
         { provide: SeoService, useValue: seo },
@@ -189,6 +222,11 @@ describe('InscribeMintComponent', () => {
 
     fixture = TestBed.createComponent(InscribeMintComponent);
     component = fixture.componentInstance;
+    orchestrator = (component as unknown as { orchestrator: any }).orchestrator;
+    // Alias the constructed orchestrator's setContent + mint to the module spies
+    // the tests assert on (harness IO; construction + ngOnInit call neither).
+    orchestrator.setContent = setContentSpy;
+    orchestrator.mint = jest.fn(async () => { mintSpy(); return { commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }; });
     fixture.detectChanges();
   });
 

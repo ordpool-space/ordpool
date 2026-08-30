@@ -21,9 +21,63 @@ jest.mock('ordpool-sdk', () => {
     // Token-only classes — empty bodies are fine because TestBed
     // replaces them via { provide: X, useValue: stub }.
     Cat21ApiService: class Cat21ApiService {},
-    Cat21MintOrchestrator: class Cat21MintOrchestrator {},
+    Cat21Service: class Cat21Service {},
     UtxoContentScanner: class UtxoContentScanner {},
     WalletService: class WalletService {},
+    // The framework-agnostic orchestrator is CONSTRUCTED by the component
+    // (`new Cat21MintOrchestrator(deps)`), not injected, so this mock class IS
+    // the instance the component drives. It exposes the real subscribe/getSnapshot
+    // surface plus signal/subject-shaped shims (feeRate.set, state.set,
+    // simulationsSubject.next, …) that funnel into `_patch`, so the test bodies
+    // drive the snapshot the same way the old injected stub did. Harness IO, not
+    // the SUT: the component's own logic (clamp, delegate, gate) is what's tested.
+    Cat21MintOrchestrator: class Cat21MintOrchestrator {
+      deps: unknown;
+      _snap: {
+        state: string;
+        feeRate: number | null;
+        selectedUtxo: TxnOutput | null;
+        fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
+        simulations: { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean }[];
+        errorMessage: string | null;
+        successTxId: string | null;
+      } = {
+        state: 'idle', feeRate: null, selectedUtxo: null,
+        fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
+        simulations: [], errorMessage: null, successTxId: null,
+      };
+      _listeners: Array<(s: unknown) => void> = [];
+      constructor(deps: unknown) { this.deps = deps; }
+      getSnapshot() { return this._snap; }
+      subscribe(l: (s: unknown) => void) {
+        this._listeners.push(l);
+        l(this._snap);
+        return () => { this._listeners = this._listeners.filter((x) => x !== l); };
+      }
+      _patch(p: Record<string, unknown>) {
+        this._snap = { ...this._snap, ...p };
+        this._listeners.slice().forEach((l) => l(this._snap));
+      }
+      setWallet = jest.fn(async () => {});
+      setFeeRate = jest.fn((rate: number) => this._patch({ feeRate: rate }));
+      setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u }));
+      mint = jest.fn(async () => ({ txId: 't'.repeat(64) }));
+      reset = jest.fn();
+      // Signal/subject-shaped shims (harness drivers): map to `_patch`.
+      feeRate = { set: (v: number) => this._patch({ feeRate: v }) };
+      state = { set: (v: string) => this._patch({ state: v }) };
+      successTxId = { set: (v: string | null) => this._patch({ successTxId: v }) };
+      errorMessage = { set: (v: string | null) => this._patch({ errorMessage: v }) };
+      connectedWallet = { set: (_v: unknown) => undefined };
+      simulationsSubject = { next: (v: unknown[]) => this._patch({ simulations: v }) };
+      fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
+      selectedUtxo() { return this._snap.selectedUtxo; }
+    },
+    // `classifyOutpoint` is wired into the constructed orchestrator's scan port.
+    // The mock orchestrator never invokes it (it doesn't really scan), so a
+    // permissive clean default is enough for construction.
+    classifyOutpoint: jest.fn(async () => ({ clean: true, inscriptionIds: [], runes: null, catIds: [], catSat: null, rareSat: null })),
+    bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
     // SDK config injection token; the spec provides a stub value via
     // TestBed.
     cat21Config: new InjectionToken('cat21Config'),
@@ -51,25 +105,22 @@ jest.mock('ordpool-sdk', () => {
   };
 });
 
-import { signal, WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { BehaviorSubject, Observable, of, Subject, throwError } from 'rxjs';
+import { BehaviorSubject, of, Subject } from 'rxjs';
 
 import {
   AUTO_SCAN_MAX_VALUE_SAT,
   Cat21ApiService,
-  Cat21MintOrchestrator,
+  Cat21Service,
   KnownOrdinalWalletType,
   UtxoContentScanner,
   WalletService,
+  bitcoinNetwork,
   cat21Config,
-  type AnnotatedFundingUtxo,
-  type FundingRecommendation,
   type RecommendedFees,
   type SimulateTransactionResult,
   type TxnOutput,
   type UtxoScanState,
-  type UtxoSimulation,
   type WalletInfo,
 } from 'ordpool-sdk';
 
@@ -129,32 +180,10 @@ function fees(over: Partial<RecommendedFees> = {}): RecommendedFees {
   };
 }
 
-class OrchestratorStub {
-  readonly connectedWallet: WritableSignal<WalletInfo | null> = signal(null);
-  readonly state: WritableSignal<'idle' | 'loading-utxos' | 'ready' | 'minting' | 'success' | 'error'> = signal('idle');
-  readonly errorMessage: WritableSignal<string | null> = signal(null);
-  readonly successTxId: WritableSignal<string | null> = signal(null);
-  readonly feeRate: WritableSignal<number | null> = signal(null);
-  readonly selectedUtxo: WritableSignal<TxnOutput | null> = signal(null);
-
-  readonly simulationsSubject = new BehaviorSubject<UtxoSimulation[]>([]);
-  readonly simulations$ = this.simulationsSubject.asObservable();
-
-  readonly recommendedFeesSubject = new Subject<RecommendedFees>();
-  readonly recommendedFees$ = this.recommendedFeesSubject.asObservable();
-
-  readonly fundingRecommendationSubject = new BehaviorSubject<
-    FundingRecommendation<TxnOutput & AnnotatedFundingUtxo>
-  >({ status: 'scanning', recommended: null, candidates: [] });
-  readonly fundingRecommendation$ = this.fundingRecommendationSubject.asObservable();
-
-  readonly mintReturn$ = new Subject<{ txId: string }>();
-  mintImpl: () => Observable<{ txId: string }> = () => this.mintReturn$.asObservable();
-
-  setFeeRate = jest.fn((r: number) => this.feeRate.set(r));
-  setSelectedUtxo = jest.fn((u: TxnOutput | null) => this.selectedUtxo.set(u));
-  mint = jest.fn(() => this.mintImpl());
-  reset = jest.fn();
+// Wired as the constructed orchestrator's `getUtxos` + `broadcast` ports.
+class Cat21ServiceStub {
+  getUtxos = jest.fn((_: string) => of([] as TxnOutput[]));
+  postTransaction = jest.fn((_: string) => of('t'.repeat(64)));
 }
 
 class ScannerStub {
@@ -202,7 +231,7 @@ class SeoServiceStub {
 // -------------------------------------------------------------------------
 
 describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
-  let orch: OrchestratorStub;
+  let orch: any; // the Cat21MintOrchestrator mock instance the component constructs
   let scanner: ScannerStub;
   let wallets: WalletServiceStub;
   let stateSvc: StateServiceStub;
@@ -235,7 +264,6 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   `;
 
   async function configure(): Promise<void> {
-    orch = new OrchestratorStub();
     scanner = new ScannerStub();
     wallets = new WalletServiceStub();
     stateSvc = new StateServiceStub();
@@ -243,7 +271,11 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     await TestBed.configureTestingModule({
       declarations: [Cat21MintComponent],
       providers: [
-        { provide: Cat21MintOrchestrator, useValue: orch },
+        // The orchestrator is constructed by the component (not injected); we
+        // provide its deps (Cat21Service ports + network) + grab the constructed
+        // instance off the component after createComponent.
+        { provide: Cat21Service, useValue: new Cat21ServiceStub() },
+        { provide: bitcoinNetwork, useValue: 'mainnet' },
         { provide: UtxoContentScanner, useValue: scanner },
         { provide: WalletService, useValue: wallets },
         { provide: StateService, useValue: stateSvc },
@@ -264,8 +296,9 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       .compileComponents();
     fixture = TestBed.createComponent(Cat21MintComponent);
     component = fixture.componentInstance;
+    orch = (component as unknown as { orchestrator: unknown }).orchestrator;
     // Sync wallet to connectedWallet$ BEFORE first CD so the template
-    // doesn't race the orchestrator's own bridge signal.
+    // doesn't race the wallet bridge.
     wallets.connectedWalletSubject.next(null);
     fixture.detectChanges();
   }
@@ -337,7 +370,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       connectXverse();
       orch.feeRate.set(5);
       pushRows([{ u: utxo(), scan: { kind: 'scanned-clean' } }]);
-      orch.mintImpl = () => throwError(() => new Error('user cancelled'));
+      orch.mint = jest.fn(() => Promise.reject(new Error('user cancelled')));
       component.mintCat21(wallet());
       orch.state.set('error');
       orch.errorMessage.set('user cancelled');
@@ -675,7 +708,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('K2: mintCat21() error is swallowed (no throw)', () => {
-      orch.mintImpl = () => throwError(() => new Error('user cancelled'));
+      orch.mint = jest.fn(() => Promise.reject(new Error('user cancelled')));
       expect(() => component.mintCat21(wallet())).not.toThrow();
     });
 
