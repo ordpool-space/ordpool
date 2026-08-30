@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { sliceOpsBeforeAttestation } from 'ordpool-parser';
+import { DEFAULT_OTS_CALENDARS, sliceOpsBeforeAttestation } from 'ordpool-parser';
 
 /*
 Test cases:
@@ -28,12 +28,7 @@ export interface OtsKnownCalendar {
  * (OtsCalendarPickerService) prefers whatever the backend serves; this is
  * just a safety net.
  */
-export const OTS_FALLBACK_CALENDARS: ReadonlyArray<OtsKnownCalendar> = Object.freeze([
-  Object.freeze({ nickname: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org' }),
-  Object.freeze({ nickname: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org' }),
-  Object.freeze({ nickname: 'finney',    url: 'https://finney.calendar.eternitywall.com' }),
-  Object.freeze({ nickname: 'catallaxy', url: 'https://btc.calendar.catallaxy.com' }),
-]);
+export const OTS_FALLBACK_CALENDARS: ReadonlyArray<OtsKnownCalendar> = DEFAULT_OTS_CALENDARS;
 
 export type OtsStampStatus = 'queued' | 'ready' | 'failed';
 export type OtsCalendarResult = 'pending' | 'published' | 'error' | 'never-checked';

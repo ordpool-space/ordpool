@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { DEFAULT_OTS_CALENDARS } from 'ordpool-parser';
 import logger from '../../../logger';
 
 /**
@@ -26,12 +27,10 @@ interface OtsCalendarsConfigFile {
   calendars: OtsCalendar[];
 }
 
-const FALLBACK_CALENDARS: ReadonlyArray<OtsCalendar> = Object.freeze([
-  Object.freeze({ nickname: 'alice',     url: 'https://alice.btc.calendar.opentimestamps.org' }),
-  Object.freeze({ nickname: 'bob',       url: 'https://bob.btc.calendar.opentimestamps.org' }),
-  Object.freeze({ nickname: 'finney',    url: 'https://finney.calendar.eternitywall.com' }),
-  Object.freeze({ nickname: 'catallaxy', url: 'https://btc.calendar.catallaxy.com' }),
-]);
+// The compiled-in fallback (used only when ots-calendars.json is missing or
+// corrupt) is the parser's canonical list — the single source of truth both
+// fork sides share. Runtime ots-calendars.json still overrides via load().
+const FALLBACK_CALENDARS: ReadonlyArray<OtsCalendar> = DEFAULT_OTS_CALENDARS;
 
 let cached: ReadonlyArray<OtsCalendar> | null = null;
 let cachedHosts: ReadonlySet<string> | null = null;
