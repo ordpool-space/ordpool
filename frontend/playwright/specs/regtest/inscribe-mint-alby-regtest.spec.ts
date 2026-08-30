@@ -242,7 +242,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
   await connectLink.click();
-  await page.getByRole('button', { name: /^alby$/i }).first().click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-alby').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
 
   const paymentCode = page.locator('code.bitcoin', { hasText: /^(bcrt1q|bcrt1p|2)/ }).first();

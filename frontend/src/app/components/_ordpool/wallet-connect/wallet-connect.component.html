@@ -13,7 +13,7 @@
     </p>
 
     <ul class="list-unstyled">
-      <li *ngFor="let row of rows" class="wallet-row">
+      <li *ngFor="let row of rows" class="wallet-row" [attr.data-testid]="'wallet-row-' + row.wallet">
 
         <img [src]="row.logo" width="25" height="25" class="wallet-logo">
         <span class="wallet-name">
@@ -36,10 +36,13 @@
              watch-only = paste an xpub (opens the connect-xpub flow) -->
         <ng-container [ngSwitch]="row.state">
           <button *ngSwitchCase="'installed'" class="btn btn-purple btn-sm action"
+            [attr.data-testid]="'wallet-connect-' + row.wallet"
             [disabled]="connectButtonDisabled" (click)="connectWallet(row.wallet)">Connect</button>
           <a *ngSwitchCase="'not-installed'" class="btn btn-secondary btn-sm action"
+            [attr.data-testid]="'wallet-download-' + row.wallet"
             [href]="row.downloadLink" target="_blank" rel="noopener">Download</a>
           <button *ngSwitchCase="'watch-only'" class="btn btn-purple btn-sm action"
+            data-testid="wallet-connect-xpub"
             (click)="startXpub()">Connect (xpub)</button>
         </ng-container>
 

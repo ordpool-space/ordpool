@@ -163,7 +163,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Leather', 
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectLink.click();
-  await page.getByRole('button', { name: /^leather$/i }).first().click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-leather').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
   await approveLeatherConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();

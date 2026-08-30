@@ -172,7 +172,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectLink.click();
-  await page.getByRole('button', { name: /^okx$/i }).first().click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-okx').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
   await approveOkxConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();

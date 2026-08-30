@@ -183,7 +183,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectLink.click();
-  await page.getByRole('button', { name: /^unisat$/i }).first().click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-unisat').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
 
   await approveUnisatConnect(knownPagesBeforeConnect, 60_000);

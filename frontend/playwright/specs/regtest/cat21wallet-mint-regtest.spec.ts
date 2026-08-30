@@ -200,17 +200,10 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
   await connectLink.click();
 
-  // Picker modal — CAT-21 wallet sits in the "installed" section at
-  // the top of the modal. The wallet card isn't a `<button>` — it's
-  // a clickable container — so `getByRole('button', …)` doesn't find
-  // it (the cat21-indexer cat21wallet artifact at run 27501072445
-  // confirmed this). Match the visible label text instead; the
-  // label wraps across two lines in the modal layout, so use `\s+`.
-  // The ordpool picker renders the wallet name inline with its
-  // description on a single line ("CAT-21 wallet Our own — hot wallet
-  // for active cat trading…"), so the `$`-anchored regex misses
-  // (run 27501318048 screenshot confirmed). Match by substring.
-  const cat21Picker = page.getByText(/CAT-21\s+wallet/i).first();
+  // Picker modal: CAT-21 wallet sits in the "installed" section. Each row's
+  // Connect button carries a stable per-wallet testid, so match that instead
+  // of the visible label text.
+  const cat21Picker = page.getByTestId('wallet-connect-cat21wallet');
   await expect(cat21Picker).toBeVisible({ timeout: 20_000 });
   await cat21Picker.click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');

@@ -205,8 +205,9 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectLink.click();
-  // Picker modal — pick Xverse
-  await page.getByRole('button', { name: /^xverse$/i }).first()
+  // Picker modal: pick Xverse. The matrix-driven picker renders the wallet
+  // name as text with a per-wallet Connect button carrying a stable testid.
+  await page.getByTestId('wallet-connect-xverse')
     .click({ timeout: 20_000 });
   await shot(page, '03-picker-clicked');
 

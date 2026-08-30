@@ -194,7 +194,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectLink.click();
-  await page.getByRole('button', { name: /^xverse$/i }).first()
+  // Picker: pick Xverse via the per-wallet Connect button's stable testid.
+  await page.getByTestId('wallet-connect-xverse')
     .click({ timeout: 20_000 });
   await shot(page, '03-picker-clicked');
 
