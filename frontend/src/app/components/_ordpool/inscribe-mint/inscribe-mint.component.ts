@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { combineLatest, map, shareReplay, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
 import {
+  AnnotatedFundingUtxo,
   AUTO_SCAN_MAX_VALUE_SAT,
   BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE,
   CompressionAssessment,
+  FundingRecommendation,
   INSCRIBE_POSTAGE_SATS,
   InscribeMintOrchestrator,
   InscribeOperationGateResult,
@@ -30,7 +32,6 @@ import {
   cat21Config,
   encodeCborDeterministic,
   encodeInscriptionId,
-  findAutoPickCandidate,
   getDummyKeypair,
   getMinimumUtxoSize,
   prepareInscribeFundingInput,
@@ -151,34 +152,65 @@ export class InscribeMintComponent implements OnInit {
         value: r.paymentOutput.value,
       })));
 
-      if (!rows.length) {
-        this.selectedPaymentOutput = undefined;
-        this.orchestrator.setSelectedUtxo(null);
-        return;
-      }
+      // Funding auto-pick is the SDK orchestrator's job (`fundingRecommendation$`),
+      // not ours: it force-scans covering candidates regardless of size and
+      // never auto-selects an unscanned/asset coin. We leave the orchestrator's
+      // selection unset unless the user MANUALLY picks a row (selectPaymentOutput,
+      // an expert override past the asset warning); it then mints on its
+      // content-clean recommendation. A consumer-side raw pre-pick here would
+      // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
       const current = this.selectedPaymentOutput;
       const stillThere = current && rows.find(
         (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
       if (stillThere) {
+        // Preserve the user's manual pick across re-emissions; refresh the row
+        // reference so its scan state mirrors the current snapshot.
         this.selectedPaymentOutput = stillThere;
         this.orchestrator.setSelectedUtxo(stillThere.paymentOutput);
-        this.cd.detectChanges();
-        return;
+      } else {
+        // No manual pick: defer to the orchestrator's safe auto-recommendation.
+        this.selectedPaymentOutput = undefined;
+        this.orchestrator.setSelectedUtxo(null);
       }
-      const next = findAutoPickCandidate(rows) ?? undefined;
-      this.selectedPaymentOutput = next;
-      this.orchestrator.setSelectedUtxo(next ? next.paymentOutput : null);
       this.cd.detectChanges();
     }),
     // Two async pipes in the template consume this (the row count + the *ngFor).
     // Without shareReplay each opens its own subscription and the tap side
-    // effects (autoScan, auto-pick, setSelectedUtxo, detectChanges) run twice
+    // effects (autoScan, setSelectedUtxo, detectChanges) run twice
     // per emission. Matches cat21-mint's paymentOutputs$.
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
+  // Template-bound field, set ONLY by the user's manual pick
+  // (selectPaymentOutput -> "Use this UTXO"); the `tap` above preserves it
+  // across re-emissions and otherwise leaves it undefined so the orchestrator's
+  // safe auto-recommendation funds the inscription.
   selectedPaymentOutput: ViableInscribeSimulation | undefined;
+
+  /** SDK safe auto-recommendation. `expert-required` means only asset-bearing
+   *  coins cover the fee, so the user must pick a funding UTXO explicitly; the
+   *  template surfaces that so the form is never silently stuck. */
+  readonly fundingRecommendation$ = this.orchestrator.fundingRecommendation$;
+
+  private readonly fundingRecommendationSig = toSignal(this.fundingRecommendation$, {
+    initialValue: { status: 'scanning', recommended: null, candidates: [] } as FundingRecommendation<
+      TxnOutput & AnnotatedFundingUtxo
+    >,
+  });
+
+  /** Current funding status: `auto` (safe-auto covers), `expert-required` (only
+   *  asset coins cover), `insufficient` (nothing covers), `scanning` (deciding). */
+  readonly fundingStatus = computed(() => this.fundingRecommendationSig().status);
+
+  /** The inscription is fundable when the user MANUALLY picked a coin (an explicit
+   *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
+   *  can safe-auto-fund (`status === 'auto'`). `expert-required` / `insufficient`
+   *  / `scanning` leave it unfundable until the user acts. Gates the inscribe
+   *  button so removing the consumer-side auto-pick never leaves it stuck. */
+  readonly hasFundingSource = computed(
+    () => !!this.orchestrator.selectedUtxo() || this.fundingStatus() === 'auto',
+  );
 
   // ---- State-machine projections ------------------------------------------
 

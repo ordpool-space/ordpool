@@ -81,7 +81,14 @@
             </div>
           </div>
 
-          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && !selectedPaymentOutput && !utxoLoading()">
+          <div class="alert alert-warning p-2 mt-4" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
+            We found funds, but every UTXO large enough to cover the fee also carries an asset
+            (an inscription, rune, rare sat, or cat). Minting with one would send that asset to the
+            miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
+            below and pick a coin yourself if you're sure it is safe to spend. 😼
+          </div>
+
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingStatus() === 'insufficient' && !utxoLoading()">
             We are sorry, but we could not find enough funds in your payment address! 😿<br>
             No UTXO has enough value to cover the miner fee plus the 546 sat output at
             <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>.
@@ -210,7 +217,7 @@
           </div>
           <div class="text-center mt-4">
 
-            <button type="submit" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !selectedPaymentOutput"
+            <button type="submit" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !hasFundingSource()"
               class="btn btn-primary mt-4 mb-4 text-white">
 
               <ng-container  *ngIf="!mintCat21Loading()">

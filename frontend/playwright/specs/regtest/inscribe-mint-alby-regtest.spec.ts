@@ -181,6 +181,21 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   test.setTimeout(420_000);
 
   const page = await context.newPage();
+  // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
+  // probes ord `/output/<outpoint>` for every covering candidate, regardless of
+  // size. On regtest those outpoints don't exist at the prod ord hosts baked into
+  // the frontend, so without a mock they 404 -> the funding coin lands in the
+  // `failed` bucket -> the SDK refuses to safe-auto-fund and the Inscribe button
+  // stays disabled. The regtest funding coin is a plain payment, so classify every
+  // outpoint clean. `**/output/*` matches both ord URLs (ord.ordpool.space +
+  // ord.cat21.space) the SDK queries in parallel.
+  await page.route('**/output/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [] }),
+    });
+  });
 
   // Auto-click Connect/Allow/Confirm on any Alby permission popup
   // (alby.enable() + webbtc.getAddress() open these on first call).

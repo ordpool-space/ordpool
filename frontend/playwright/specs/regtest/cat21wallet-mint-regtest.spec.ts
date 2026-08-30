@@ -148,6 +148,23 @@ test.beforeAll(async () => {
     viewport: { width: 1280, height: 900 },
   });
 
+  // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
+  // probes ord `/output/<outpoint>` for every covering candidate, regardless of
+  // size. On regtest those outpoints don't exist at the prod ord hosts baked into
+  // the frontend, so without a mock they 404 -> the funding coin lands in the
+  // `failed` bucket -> the SDK refuses to safe-auto-fund and the Mint button stays
+  // disabled. Every mint-flow test funds with a plain payment, so classify each
+  // outpoint clean at the CONTEXT level. The asset-scanner test registers its own
+  // page-level `**/output/*` route, which Playwright evaluates before this one, so
+  // its cat-bearing outpoint still surfaces the "asset found" warning.
+  await context.route('**/output/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [] }),
+    });
+  });
+
   let [worker] = context.serviceWorkers();
   if (!worker) {
     worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });

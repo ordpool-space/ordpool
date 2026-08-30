@@ -48,8 +48,6 @@ jest.mock('ordpool-sdk', () => {
         default: return 'unscanned';
       }
     },
-    findAutoPickCandidate: <T extends { bucket: string }>(rows: T[]): T | null =>
-      rows.find((r) => r.bucket === 'clean') ?? null,
     runeNamesFromContent: () => [],
     getMinimumUtxoSize: () => 294,
     toScureNetwork: () => ({}),
@@ -92,6 +90,7 @@ import {
   WalletService,
   bitcoinNetwork,
   cat21Config,
+  type TxnOutput,
   type WalletInfo,
 } from 'ordpool-sdk';
 
@@ -148,14 +147,19 @@ describe('InscribeMintComponent', () => {
 
     walletSubject = new BehaviorSubject<WalletInfo | null>(null);
 
+    const selectedUtxoSig = signal<TxnOutput | null>(null);
+    const fundingRecommendationSubject = new BehaviorSubject({ status: 'scanning', recommended: null, candidates: [] });
     orchestrator = {
       state: signal('ready'),
       errorMessage: signal(null),
       successResult: signal(null),
+      selectedUtxo: selectedUtxoSig,
       simulations$: of([]),
       recommendedFees$: of({ fastestFee: 5, halfHourFee: 4, hourFee: 3, economyFee: 2, minimumFee: 1 }),
+      fundingRecommendation$: fundingRecommendationSubject.asObservable(),
+      fundingRecommendationSubject,
       setFeeRate: jest.fn(),
-      setSelectedUtxo: jest.fn(),
+      setSelectedUtxo: jest.fn((u: TxnOutput | null) => selectedUtxoSig.set(u)),
       setContent: setContentSpy,
       mint: () => { mintSpy(); return of({ commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }); },
       reset: jest.fn(),
@@ -494,5 +498,39 @@ describe('InscribeMintComponent', () => {
     await (component as any).handleFile(pngFile());
     component.cfeeRate.setValue(Infinity);
     expect(component.preConnectMintSats).toBeNull();
+  });
+
+  describe('funding-status gating (inscribe-button enable)', () => {
+    const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
+      orchestrator.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });
+
+    it('fundingStatus() mirrors the orchestrator recommendation', () => {
+      rec('expert-required');
+      expect(component.fundingStatus()).toBe('expert-required');
+      rec('insufficient');
+      expect(component.fundingStatus()).toBe('insufficient');
+    });
+
+    it('hasFundingSource() is true on status auto (safe-auto funds, no manual pick)', () => {
+      rec('auto');
+      expect(orchestrator.selectedUtxo()).toBeNull();
+      expect(component.hasFundingSource()).toBe(true);
+    });
+
+    it('hasFundingSource() is false on expert-required / insufficient / scanning with no manual pick', () => {
+      rec('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      rec('insufficient');
+      expect(component.hasFundingSource()).toBe(false);
+      rec('scanning');
+      expect(component.hasFundingSource()).toBe(false);
+    });
+
+    it('hasFundingSource() is true once the user manually picks, even in expert-required', () => {
+      rec('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      orchestrator.setSelectedUtxo({ txid: 'a'.repeat(64), vout: 0, value: 50_000 } as TxnOutput);
+      expect(component.hasFundingSource()).toBe(true);
+    });
   });
 });

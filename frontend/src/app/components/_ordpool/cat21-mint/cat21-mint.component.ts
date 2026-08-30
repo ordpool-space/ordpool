@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { catchError, combineLatest, map, of, shareReplay, take, tap } from 'rxjs';
 
 import {
+  AnnotatedFundingUtxo,
   AUTO_SCAN_MAX_VALUE_SAT,
   BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE,
   Cat21ApiService,
   Cat21MintOrchestrator,
+  FundingRecommendation,
   SimulateTransactionResult,
   SMALL_UTXO_WARNING_THRESHOLD_SAT,
   TxnOutput,
@@ -20,7 +22,6 @@ import {
   bucketOf,
   calculateRecommendedFundingSats,
   cat21Config,
-  findAutoPickCandidate,
   runeNamesFromContent,
 } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
@@ -124,40 +125,61 @@ export class Cat21MintComponent implements OnInit {
         value: r.paymentOutput.value,
       })));
 
-      // Auto-select the largest "safe-enough" entry whenever the list
-      // refreshes, unless the user has already picked one that's still
-      // present. Priority: scanned-clean → unscanned (probably-safe
-      // large UTXO) → scan-failed. NEVER auto-pick scanned-with-assets
-      // — that row requires an explicit "Use anyway" click.
-      if (!rows.length) {
-        this.selectedPaymentOutput = undefined;
-        this.orchestrator.setSelectedUtxo(null);
-        return;
-      }
+      // Funding auto-pick is the SDK orchestrator's job (`fundingRecommendation$`),
+      // not ours: it force-scans covering candidates regardless of size and
+      // never auto-selects an unscanned/asset coin. We leave the orchestrator's
+      // selection unset unless the user MANUALLY picks a row (selectPaymentOutput,
+      // an expert override past the asset warning); it then mints on its
+      // content-clean recommendation. A consumer-side raw pre-pick here would
+      // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
       const current = this.selectedPaymentOutput;
       const stillThere = current && rows.find(
         (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
       if (stillThere) {
-        // Keep the existing pick but refresh the row reference so its
-        // scan state mirrors the current snapshot.
+        // Preserve the user's manual pick across re-emissions; refresh the row
+        // reference so its scan state mirrors the current snapshot.
         this.selectedPaymentOutput = stillThere;
         this.orchestrator.setSelectedUtxo(stillThere.paymentOutput);
-        this.cd.detectChanges();
-        return;
+      } else {
+        // No manual pick: defer to the orchestrator's safe auto-recommendation.
+        this.selectedPaymentOutput = undefined;
+        this.orchestrator.setSelectedUtxo(null);
       }
-      const next = findAutoPickCandidate(rows) ?? undefined;
-      this.selectedPaymentOutput = next;
-      this.orchestrator.setSelectedUtxo(next ? next.paymentOutput : null);
       this.cd.detectChanges();
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
-  // Template-bound field. Mutated in two paths:
-  //   - the `tap` above auto-syncs on every fresh UTXO list
-  //   - selectPaymentOutput(row) when the user clicks "Use this UTXO"
+  // Template-bound field, set ONLY by the user's manual pick
+  // (selectPaymentOutput -> "Use this UTXO"); the `tap` above preserves it
+  // across re-emissions and otherwise leaves it undefined so the orchestrator's
+  // safe auto-recommendation funds the mint.
   selectedPaymentOutput: ViableSimulation | undefined;
+
+  /** SDK safe auto-recommendation. `expert-required` means only asset-bearing
+   *  coins cover the fee, so the user must pick a funding UTXO explicitly; the
+   *  template surfaces that so the form is never silently stuck. */
+  readonly fundingRecommendation$ = this.orchestrator.fundingRecommendation$;
+
+  private readonly fundingRecommendationSig = toSignal(this.fundingRecommendation$, {
+    initialValue: { status: 'scanning', recommended: null, candidates: [] } as FundingRecommendation<
+      TxnOutput & AnnotatedFundingUtxo
+    >,
+  });
+
+  /** Current funding status: `auto` (safe-auto covers), `expert-required` (only
+   *  asset coins cover), `insufficient` (nothing covers), `scanning` (deciding). */
+  readonly fundingStatus = computed(() => this.fundingRecommendationSig().status);
+
+  /** The mint is fundable when the user MANUALLY picked a coin (an explicit
+   *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
+   *  can safe-auto-fund (`status === 'auto'`). `expert-required` / `insufficient`
+   *  / `scanning` leave it unfundable until the user acts. Gates the mint button
+   *  so removing the consumer-side auto-pick never leaves the button stuck. */
+  readonly hasFundingSource = computed(
+    () => !!this.orchestrator.selectedUtxo() || this.fundingStatus() === 'auto',
+  );
 
   // State-machine projections: read-only views of orchestrator.state()
   // shaped to match the template bindings so the HTML stays unchanged.

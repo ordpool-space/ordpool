@@ -41,11 +41,6 @@ jest.mock('ordpool-sdk', () => {
         default: return 'unscanned';
       }
     },
-    findAutoPickCandidate: <T extends { bucket: string }>(rows: T[]): T | null =>
-      rows.find((r) => r.bucket === 'clean')
-      ?? rows.find((r) => r.bucket === 'unscanned')
-      ?? rows.find((r) => r.bucket === 'failed')
-      ?? null,
     // Sentinel, deliberately NOT the SDK's real formula: output = rate * 1000.
     // The SDK measures the true PSBT vsize and owns that number; this mock only
     // makes the component's own job observable (clamp the fee rate, then delegate),
@@ -68,6 +63,8 @@ import {
   UtxoContentScanner,
   WalletService,
   cat21Config,
+  type AnnotatedFundingUtxo,
+  type FundingRecommendation,
   type RecommendedFees,
   type SimulateTransactionResult,
   type TxnOutput,
@@ -145,6 +142,11 @@ class OrchestratorStub {
 
   readonly recommendedFeesSubject = new Subject<RecommendedFees>();
   readonly recommendedFees$ = this.recommendedFeesSubject.asObservable();
+
+  readonly fundingRecommendationSubject = new BehaviorSubject<
+    FundingRecommendation<TxnOutput & AnnotatedFundingUtxo>
+  >({ status: 'scanning', recommended: null, candidates: [] });
+  readonly fundingRecommendation$ = this.fundingRecommendationSubject.asObservable();
 
   readonly mintReturn$ = new Subject<{ txId: string }>();
   mintImpl: () => Observable<{ txId: string }> = () => this.mintReturn$.asObservable();
@@ -373,7 +375,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // E. Bucket-driven auto-pick (clean → unscanned → failed; never assets)
   // -------------------------------------------------------------------
 
-  describe('E. auto-pick priority', () => {
+  describe('E. no consumer-side funding auto-pick (defers to the SDK safe-auto)', () => {
     const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
 
     beforeEach(fakeAsync(() => {
@@ -382,41 +384,40 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       tick();
     }));
 
-    it('E1: all clean → largest clean wins', () => {
+    // Regression guard for the auto-spend footgun: the component must NOT
+    // pre-pick a funding UTXO from the row list, not even a scanned-clean one.
+    // Funding auto-pick is the orchestrator's force-scanned fundingRecommendation$
+    // (which scans regardless of size); a consumer-side pre-pick could auto-spend
+    // a large `unscanned` coin that the size-thresholded row scan skipped.
+    it('E1: does NOT auto-pick when only clean coins are present', () => {
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: big(20_000), scan: { kind: 'scanned-clean' } },
       ]);
-      expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(80_000);
-      expect(orch.selectedUtxo()!.value).toBe(80_000);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
     });
 
-    it('E2: assets is the biggest → clean below it wins', () => {
-      pushRows([
-        { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
-        { u: big(20_000), scan: { kind: 'scanned-clean' } },
-      ]);
-      expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
-    });
-
-    it('E3: all unscanned → largest unscanned', () => {
+    it('E2: does NOT auto-pick an unscanned coin (the exact footgun)', () => {
       pushRows([
         { u: big(80_000), scan: { kind: 'not-scanned' } },
         { u: big(20_000), scan: { kind: 'not-scanned' } },
       ]);
-      expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(80_000);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
     });
 
-    it('E4: mixed clean+unscanned+assets → clean wins', () => {
+    it('E3: does NOT auto-pick across a mixed clean+unscanned+assets list', () => {
       pushRows([
         { u: big(90_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
         { u: big(70_000), scan: { kind: 'not-scanned' } },
         { u: big(5_000), scan: { kind: 'scanned-clean' } },
       ]);
-      expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(5_000);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
     });
 
-    it('E5: all assets → no auto-pick (selectedPaymentOutput undefined)', () => {
+    it('E4: does NOT auto-pick when only asset-bearing coins are present', () => {
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
         { u: big(20_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'b:0', inscriptionIds: [], runes: { RUNE: {} }, catIds: [], catSat: null, rareSat: null } } },
@@ -425,23 +426,18 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(orch.selectedUtxo()).toBeNull();
     });
 
-    it('E6: failed + unscanned → unscanned wins', () => {
+    it('E5: an explicit user pick is honored and forwarded to the orchestrator', () => {
+      const chosen = big(20_000);
       pushRows([
-        { u: big(80_000), scan: { kind: 'scan-failed', message: 'oops' } },
-        { u: big(20_000), scan: { kind: 'not-scanned' } },
+        { u: big(80_000), scan: { kind: 'scanned-clean' } },
+        { u: chosen, scan: { kind: 'scanned-clean' } },
       ]);
+      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
+      expect(orch.selectedUtxo()!.value).toBe(20_000);
     });
 
-    it('E7: only failed → largest failed picked (no safer fallback)', () => {
-      pushRows([
-        { u: big(80_000), scan: { kind: 'scan-failed', message: 'a' } },
-        { u: big(20_000), scan: { kind: 'scan-failed', message: 'b' } },
-      ]);
-      expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(80_000);
-    });
-
-    it('E8: user-explicit pick survives a row re-emit if still present', () => {
+    it('E6: an explicit user pick survives a row re-emit if still present', () => {
       const smaller = big(20_000);
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
@@ -453,9 +449,10 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: smaller, scan: { kind: 'scanned-clean' } },
       ]);
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
+      expect(orch.selectedUtxo()!.value).toBe(20_000);
     });
 
-    it('E9: user pick disappears → re-picks per priority', () => {
+    it('E7: a user pick that disappears is cleared, deferring back to the safe-auto (no re-pick)', () => {
       const gone = big(20_000);
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
@@ -463,18 +460,65 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       ]);
       component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
-      expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(80_000);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
     });
 
-    it('E10: empty row list → selectedPaymentOutput cleared', () => {
+    it('E8: empty row list clears any pick', () => {
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
-      // Drive paymentOutputs$ for the empty re-emit too — the auto-pick
-      // tap also handles the "clear on empty" branch.
       orch.simulationsSubject.next([]);
       component.paymentOutputs$.subscribe().unsubscribe();
       fixture.detectChanges();
       expect(component.selectedPaymentOutput).toBeUndefined();
       expect(orch.selectedUtxo()).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // E-FUND. funding-status gating (mint-button enable + notices)
+  // -------------------------------------------------------------------
+
+  describe('E-FUND. funding-status gating', () => {
+    const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
+      orch.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+      fixture.detectChanges();
+    });
+
+    it('fundingStatus() mirrors the orchestrator recommendation', () => {
+      rec('expert-required');
+      expect(component.fundingStatus()).toBe('expert-required');
+      rec('insufficient');
+      expect(component.fundingStatus()).toBe('insufficient');
+    });
+
+    it('hasFundingSource() is true on status auto (safe-auto funds, no manual pick needed)', () => {
+      rec('auto');
+      expect(orch.selectedUtxo()).toBeNull();
+      expect(component.hasFundingSource()).toBe(true);
+    });
+
+    it('hasFundingSource() is false on expert-required with no manual pick (mint button stays disabled)', () => {
+      rec('expert-required');
+      expect(orch.selectedUtxo()).toBeNull();
+      expect(component.hasFundingSource()).toBe(false);
+    });
+
+    it('hasFundingSource() is false on insufficient / scanning with no manual pick', () => {
+      rec('insufficient');
+      expect(component.hasFundingSource()).toBe(false);
+      rec('scanning');
+      expect(component.hasFundingSource()).toBe(false);
+    });
+
+    it('hasFundingSource() is true once the user manually picks, even in expert-required (Use anyway)', () => {
+      rec('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      orch.setSelectedUtxo(utxo({ value: 50_000 }));
+      expect(component.hasFundingSource()).toBe(true);
     });
   });
 
@@ -525,11 +569,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       ['not-scanned', 'unscanned'],
       ['scanned-clean', 'clean'],
       ['scan-failed', 'failed'],
-    ])('G1: scan kind %s → bucket %s (auto-picked)', (kind, bucket) => {
+    ])('G1: a manual pick of a %s row carries bucket %s (no auto-pick)', (kind, bucket) => {
       const scan = kind === 'scan-failed'
         ? { kind: 'scan-failed' as const, message: 'x' }
         : { kind } as UtxoScanState;
       pushRows([{ u, scan }]);
+      // No consumer-side auto-pick: the user must choose the funding coin.
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: bucket as ViableSimulation['bucket'] });
       expect(component.selectedPaymentOutput!.bucket).toBe(bucket);
     });
 
@@ -798,10 +845,13 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('MATRIX-E1(B): expert panel renders when viableRows > 0 AND a row is selected (baseline)', () => {
-      pushRows([{ u: big(50_000), scan: { kind: 'scanned-clean' } }]);
+      const u1 = big(50_000);
+      pushRows([{ u: u1, scan: { kind: 'scanned-clean' } }]);
       let rows: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
       expect(rows!.length).toBeGreaterThan(0);
+      // No consumer-side auto-pick: the user selects the funding coin explicitly.
+      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput).toBeDefined();
     });
 
