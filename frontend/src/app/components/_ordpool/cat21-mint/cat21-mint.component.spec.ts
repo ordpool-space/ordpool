@@ -73,10 +73,6 @@ jest.mock('ordpool-sdk', () => {
       fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
       selectedUtxo() { return this._snap.selectedUtxo; }
     },
-    // `classifyOutpoint` is wired into the constructed orchestrator's scan port.
-    // The mock orchestrator never invokes it (it doesn't really scan), so a
-    // permissive clean default is enough for construction.
-    classifyOutpoint: jest.fn(async () => ({ clean: true, inscriptionIds: [], runes: null, catIds: [], catSat: null, rareSat: null })),
     bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
     // SDK config injection token; the spec provides a stub value via
     // TestBed.

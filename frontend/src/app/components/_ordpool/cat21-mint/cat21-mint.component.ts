@@ -24,7 +24,6 @@ import {
   bucketOf,
   calculateRecommendedFundingSats,
   cat21Config,
-  classifyOutpoint,
   runeNamesFromContent,
 } from 'ordpool-sdk';
 import { StateService } from '../../../services/state.service';
@@ -63,7 +62,7 @@ export class Cat21MintComponent implements OnInit {
    * here, not an Angular `@Injectable`). The staying Angular/SDK services are
    * wired in as its ports:
    *   - `getUtxos`  → `Cat21Service` (electrs payment-address UTXOs)
-   *   - `scan`      → the SDK's `classifyOutpoint` (ord + cat21-ord content check)
+   *   - `scan`      → `UtxoContentScanner` (fail-closed `ContentScanPort`; shares the UI's per-row scan cache so each coin hits ord/cat21-ord once)
    *   - `broadcast` → `Cat21Service.postTransaction`
    * Signing is wired internally by the orchestrator from the connected wallet's
    * type; the consumer only supplies these IO ports + drives it via `setWallet`
@@ -71,15 +70,7 @@ export class Cat21MintComponent implements OnInit {
    */
   private orchestrator = new Cat21MintOrchestrator({
     getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
-    scan: {
-      classify: async (op) =>
-        (await classifyOutpoint(op, {
-          ordApiUrl: this.config.ordApiUrl,
-          cat21OrdApiUrl: this.config.cat21OrdApiUrl,
-        })).clean
-          ? 'clean'
-          : 'has-assets',
-    },
+    scan: this.scanner,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
   });

@@ -80,8 +80,6 @@ jest.mock('ordpool-sdk', () => {
     Cat21Service: class Cat21Service {},
     UtxoContentScanner: class UtxoContentScanner {},
     WalletService: class WalletService {},
-    // Wired into the constructed orchestrator's scan port; the mock never calls it.
-    classifyOutpoint: jest.fn(async () => ({ clean: true, inscriptionIds: [], runes: null, catIds: [], catSat: null, rareSat: null })),
     cat21Config: new InjectionToken('cat21Config'),
     bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
     bucketOf: (s: { kind: string }) => {

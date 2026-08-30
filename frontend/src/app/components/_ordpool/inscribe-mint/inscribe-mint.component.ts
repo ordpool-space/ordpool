@@ -30,7 +30,6 @@ import {
   bitcoinNetwork,
   bucketOf,
   cat21Config,
-  classifyOutpoint,
   encodeCborDeterministic,
   encodeInscriptionId,
   getDummyKeypair,
@@ -101,21 +100,14 @@ export class InscribeMintComponent implements OnInit {
   /**
    * The framework-agnostic inscribe orchestrator (a plain SDK class, constructed
    * here, not an Angular `@Injectable`). The staying Angular/SDK services are
-   * wired in as its ports (getUtxos → Cat21Service, scan → the SDK's
-   * classifyOutpoint, broadcast → Cat21Service.postTransaction for commit+reveal).
+   * wired in as its ports (getUtxos → Cat21Service, scan → `UtxoContentScanner`
+   * (fail-closed `ContentScanPort`, shares the UI's scan cache), broadcast →
+   * Cat21Service.postTransaction for commit+reveal).
    * Signing is wired internally by the orchestrator from the connected wallet.
    */
   private orchestrator = new InscribeMintOrchestrator({
     getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
-    scan: {
-      classify: async (op) =>
-        (await classifyOutpoint(op, {
-          ordApiUrl: this.config.ordApiUrl,
-          cat21OrdApiUrl: this.config.cat21OrdApiUrl,
-        })).clean
-          ? 'clean'
-          : 'has-assets',
-    },
+    scan: this.scanner,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
   });
