@@ -283,6 +283,12 @@
               "disableHostCheck": true,
               "host": "0.0.0.0",
               "verbose": false
+            },
+            "regtest": {
+              "proxyConfig": "proxy.conf.regtest.js",
+              "disableHostCheck": true,
+              "host": "0.0.0.0",
+              "verbose": false
             }
           }
         },
