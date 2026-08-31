@@ -26,7 +26,6 @@ on:
   push:
     paths:
       - 'e2e/docker-compose.ordpool-backend.yml'
-      - 'e2e/mempool-config.regtest.json'
       - '.github/workflows/e2e-regtest-mint.yml'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
@@ -81,7 +80,21 @@ jobs:
         run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
         working-directory: frontend
 
+      # OUR electrs. The SDK's consumer-environment.yml builds the electrs
+      # service from the ordpool-electrs fork (not the upstream
+      # mempool/electrs image) — ELECTRS_SRC points its build context at
+      # this checkout. Absolute path because compose runs with cwd inside
+      # node_modules/ordpool-sdk/e2e/.
+      - name: Checkout ordpool-electrs (for the electrs container)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/ordpool-electrs
+          ref: ordpool
+          path: ordpool-electrs
+
       - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
+        env:
+          ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
         run: |
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
             > stack.json
