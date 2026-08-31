@@ -268,3 +268,48 @@ describe('getAtomicalContent route handler', () => {
     expect(res.status).toHaveBeenCalledWith(500);
   });
 });
+
+describe('served content carries the ord-compatible Content-Security-Policy', () => {
+  // Attacker-inscribed HTML is served on the cookieless api.ordpool.space
+  // origin; the CSP mirrors ord's content CSP so the content may inline-script
+  // / eval / use data: + blob: (as on ord) but cannot reach an arbitrary
+  // external host. https://ordinals.com is allowed for cross-origin /r/*
+  // recursion (api.ordpool.space 301-redirects /r/* there).
+  const CSP =
+    "default-src 'self' https://ordinals.com 'unsafe-eval' 'unsafe-inline' data: blob:";
+
+  beforeEach(() => jest.resetAllMocks());
+
+  it('sets the CSP when serving inscription content', async () => {
+    (ordpoolInscriptionsApi.$getInscriptionOrDelegeate as jest.Mock).mockResolvedValue(fakeInscription());
+    const req = { params: { inscriptionId: `${TXID}i0` } } as unknown as Request;
+    const res = makeRes();
+    await (generalOrdpoolRoutes as any).getInscriptionContent(req, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Security-Policy', CSP);
+  });
+
+  it('sets the CSP when serving a stamp', async () => {
+    (ordpoolStampsApi.$getStamp as jest.Mock).mockResolvedValue({
+      type: DigitalArtifactType.Stamp,
+      contentType: 'image/png',
+      contentSize: 4,
+      getDataRaw: () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    } as any);
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+    await (generalOrdpoolRoutes as any).getStampContent(req, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Security-Policy', CSP);
+  });
+
+  it('sets the CSP when serving an atomical file', async () => {
+    (ordpoolAtomicalsApi.$getFirstAtomicalImage as jest.Mock).mockResolvedValue({
+      name: 'image.png',
+      contentType: 'image/png',
+      data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    } as any);
+    const req = { params: { txid: TXID } } as unknown as Request;
+    const res = makeRes();
+    await (generalOrdpoolRoutes as any).getAtomicalContent(req, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Security-Policy', CSP);
+  });
+});

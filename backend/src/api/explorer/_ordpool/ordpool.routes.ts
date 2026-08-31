@@ -571,6 +571,19 @@ class GeneralOrdpoolRoutes {
 }
 
 
+// HACK -- Ordpool: Content-Security-Policy for served inscription / stamp /
+// atomical bytes and preview HTML, mirroring ord's content CSP (ord sets
+// `default-src 'self' <csp-origin> 'unsafe-eval' 'unsafe-inline' data: blob:`
+// on /content and /preview). This isolates attacker-inscribed HTML served on
+// the cookieless api.ordpool.space origin: it may use inline script / eval /
+// data: / blob:, exactly as on ord, but can no longer fetch or connect to an
+// arbitrary external host. `https://ordinals.com` is included because recursive
+// `/r/*` references resolve there (api.ordpool.space 301-redirects `/r/*` to
+// ordinals.com), so recursion keeps working. This is strictly more permissive
+// than ord's default, so anything that renders on ord renders here unchanged.
+const INSCRIPTION_CONTENT_SECURITY_POLICY =
+  "default-src 'self' https://ordinals.com 'unsafe-eval' 'unsafe-inline' data: blob:";
+
 function sendInscription(res: Response, inscription: ParsedInscription): void {
 
   const contentType = inscription.contentType;
@@ -601,6 +614,7 @@ function sendInscription(res: Response, inscription: ParsedInscription): void {
   // client decompresses if it can -- which we never do server-side, see
   // `inscription.getDataRaw()` below.
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
+  res.setHeader('Content-Security-Policy', INSCRIPTION_CONTENT_SECURITY_POLICY);
 
   // Send the raw data
   res.status(200).send(Buffer.from(inscription.getDataRaw()));
@@ -616,6 +630,7 @@ function sendPreview(res: Response, previewInstructions: PreviewInstructions): v
   // in a fixed HTML template), so it's safe to mark immutable. no-transform
   // is still useful here so Cloudflare doesn't HTML-minify our preview.
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
+  res.setHeader('Content-Security-Policy', INSCRIPTION_CONTENT_SECURITY_POLICY);
 
   // Send the preview HTML
   res.status(200).send(previewInstructions.previewContent);
@@ -625,12 +640,14 @@ function sendStamp(res: Response, stamp: ParsedStamp): void {
   res.setHeader('Content-Type', stamp.contentType);
   const bytes = stamp.getDataRaw();
   res.setHeader('Content-Length', bytes.length);
+  res.setHeader('Content-Security-Policy', INSCRIPTION_CONTENT_SECURITY_POLICY);
   res.status(200).send(Buffer.from(bytes));
 }
 
 function sendAtomicalFile(res: Response, file: AtomicalFile): void {
   res.setHeader('Content-Type', file.contentType);
   res.setHeader('Content-Length', file.data.length);
+  res.setHeader('Content-Security-Policy', INSCRIPTION_CONTENT_SECURITY_POLICY);
   res.status(200).send(Buffer.from(file.data));
 }
 
