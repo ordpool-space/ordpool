@@ -13,6 +13,7 @@ import {
   mineBlocks,
   getTx,
 } from './sdk-lib/regtest-helpers';
+import { seedAlbyAccount } from './sdk-lib/onboard-alby';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Alby.
@@ -32,9 +33,6 @@ import {
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/inscribe';
-
-const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const TEST_PASSWORD = 'TestPassword123!';
 
 const FUND_AMOUNT_BTC = 0.001;
 const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
@@ -59,44 +57,6 @@ async function shot(p: Page, name: string): Promise<void> {
     path: path.resolve(RESULTS_DIR, `inscribe-alby-regtest-${name}.png`),
     fullPage: true,
   }).catch(() => undefined);
-}
-
-// Fire Alby's three onboard router messages (setPassword → addAccount →
-// setMnemonic) in a single page.evaluate so the React options page
-// doesn't self-navigate between calls. Envelope per Alby's common/lib/msg.
-async function seedAlbyAccount(page: Page): Promise<string> {
-  const result = await page.evaluate(async ({ password, mnemonic }) => {
-    const c = (globalThis as unknown as { chrome: { runtime: {
-      sendMessage: (msg: unknown) => Promise<unknown>;
-    } } }).chrome;
-    const send = (action: string, args: Record<string, unknown>) =>
-      c.runtime.sendMessage({
-        application: 'LBE',
-        prompt: true,
-        action,
-        args,
-        origin: { internal: true },
-      }) as Promise<{ data?: unknown; error?: string } | null>;
-
-    const setPwResp = await send('setPassword', { password });
-    const addAccResp = await send('addAccount', {
-      name: 'ordpool-e2e',
-      connector: 'lndhub',
-      config: { url: 'https://example.invalid', login: 'x', password: 'x' },
-      bitcoinNetwork: 'regtest',
-    }) as { data?: { accountId: string }; error?: string } | null;
-    const accountId = addAccResp?.data?.accountId;
-    const setMnemoResp = accountId
-      ? await send('setMnemonic', { id: accountId, mnemonic })
-      : null;
-    return { setPwResp, addAccResp, accountId, setMnemoResp };
-  }, { password: TEST_PASSWORD, mnemonic: TEST_MNEMONIC });
-
-  console.log(`[inscribe-alby:seed] addAccount resp = ${JSON.stringify(result.addAccResp).slice(0, 200)}`);
-  if (!result.accountId) {
-    throw new Error(`Alby addAccount failed: ${JSON.stringify(result.addAccResp)}`);
-  }
-  return result.accountId;
 }
 
 // Fire Alby's webbtc/signPsbt SW route directly from the seed page

@@ -14,6 +14,7 @@ import {
   getTx,
 } from './sdk-lib/regtest-helpers';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
+import { onboardUnisat } from './sdk-lib/onboard-unisat';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Unisat.
@@ -39,11 +40,6 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/inscribe';
 
-// BIP-39 test vector mnemonic + a zxcvbn-strong password Unisat accepts.
-const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const TEST_MNEMONIC_WORDS = TEST_MNEMONIC.split(' ');
-const TEST_PASSWORD = 'correct-horse-battery-staple-Tr0ub4dor-9876';
-
 const FUND_AMOUNT_BTC = 0.001;
 const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 
@@ -66,47 +62,6 @@ async function shot(p: Page, name: string): Promise<void> {
     path: path.resolve(RESULTS_DIR, `inscribe-unisat-regtest-${name}.png`),
     fullPage: true,
   }).catch(() => undefined);
-}
-
-// Onboard Unisat by importing the known mnemonic. Lifted verbatim from
-// cubes-frontend's unisat-cube-mint-roundtrip spec - every step is
-// testid-anchored, so no text waits.
-async function onboardUnisat(page: Page): Promise<void> {
-  await page.setViewportSize({ width: 400, height: 800 });
-  await page.goto(`chrome-extension://${extensionId}/index.html`, { waitUntil: 'domcontentloaded' });
-
-  await expect(page.getByTestId('welcome-title')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('import-wallet-button').click();
-
-  await expect(page.getByTestId('create-password-input')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('create-password-input').fill(TEST_PASSWORD);
-  await page.getByTestId('create-password-confirm-input').fill(TEST_PASSWORD);
-  await page.getByTestId('create-password-continue-button').click();
-
-  await expect(page.getByTestId('restore-wallet-type-option-0')).toBeVisible({ timeout: 10_000 });
-  await page.getByTestId('restore-wallet-type-option-0').click();
-
-  await expect(page.getByTestId('mnemonic-import-word-0')).toBeVisible({ timeout: 15_000 });
-  for (let i = 0; i < TEST_MNEMONIC_WORDS.length; i++) {
-    await page.getByTestId(`mnemonic-import-word-${i}`).fill(TEST_MNEMONIC_WORDS[i]);
-  }
-  await page.getByTestId('mnemonic-import-continue-button').click();
-
-  const addressTypeContinue = page.getByTestId('address-type-continue-button');
-  if (await addressTypeContinue.isVisible({ timeout: 10_000 }).catch(() => false)) {
-    await addressTypeContinue.click();
-  }
-
-  const noticeCheckbox = page.getByTestId('notice-checkbox-1');
-  if (await noticeCheckbox.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await noticeCheckbox.click();
-    const noticeOk = page.getByTestId('notice-ok-button');
-    if (await noticeOk.isEnabled({ timeout: 3_000 }).catch(() => false)) {
-      await noticeOk.click();
-    }
-  }
-
-  await expect(page.getByTestId('tab-home')).toBeVisible({ timeout: 30_000 });
 }
 
 // Unisat renders its connect + sign approvals at notification.html#/approval.
@@ -161,7 +116,7 @@ test.beforeAll(async () => {
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
-  await onboardUnisat(primer);
+  await onboardUnisat(primer, extensionId, { password: 'correct-horse-battery-staple-Tr0ub4dor-9876' });
   await shot(primer, '00-onboarded');
   await primer.close();
 });

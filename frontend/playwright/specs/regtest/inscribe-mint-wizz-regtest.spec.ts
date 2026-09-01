@@ -14,6 +14,7 @@ import {
   getTx,
 } from './sdk-lib/regtest-helpers';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
+import { onboardWizz } from './sdk-lib/onboard-wizz';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Wizz.
@@ -28,10 +29,6 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/inscribe';
-
-const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const TEST_MNEMONIC_WORDS = TEST_MNEMONIC.split(' ');
-const TEST_PASSWORD = 'correct-horse-battery-staple-Tr0ub4dor-9876';
 
 const FUND_AMOUNT_BTC = 0.001;
 const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
@@ -55,54 +52,6 @@ async function shot(p: Page, name: string): Promise<void> {
     path: path.resolve(RESULTS_DIR, `inscribe-wizz-regtest-${name}.png`),
     fullPage: true,
   }).catch(() => undefined);
-}
-
-// Onboard Wizz by importing the known mnemonic. Lifted from cubes-
-// frontend's wizz-cube-mint spec.
-async function onboardWizz(page: Page): Promise<void> {
-  await page.setViewportSize({ width: 400, height: 800 });
-  await page.goto(`chrome-extension://${extensionId}/index.html`, { waitUntil: 'domcontentloaded' });
-
-  await expect(page.getByText('I already have a wallet', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await page.getByText('I already have a wallet', { exact: true }).click();
-
-  const pwInputs = page.locator('input[type="password"]');
-  await expect(pwInputs.first()).toBeVisible({ timeout: 15_000 });
-  const pwCount = await pwInputs.count();
-  for (let i = 0; i < pwCount; i++) {
-    await pwInputs.nth(i).fill(TEST_PASSWORD);
-  }
-  await page.getByRole('button', { name: /^continue$/i }).first().click();
-
-  await expect(page.getByText('Wizz Wallet', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
-  await page.getByText('Wizz Wallet', { exact: true }).first().click({ force: true });
-
-  const mnemonicInputs = page.locator('input[type="text"], input[type="password"]');
-  await expect(mnemonicInputs.first()).toBeVisible({ timeout: 15_000 });
-  for (let i = 0; i < TEST_MNEMONIC_WORDS.length; i++) {
-    await mnemonicInputs.nth(i).fill(TEST_MNEMONIC_WORDS[i]);
-  }
-  await page.getByRole('button', { name: /^continue$/i }).first().click();
-
-  await expect(page.getByText('Native Segwit (P2WPKH)', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
-  await page.getByText('Native Segwit (P2WPKH)', { exact: true }).first().click({ force: true });
-  const continueBtn = page.getByRole('button', { name: /^continue$/i }).last();
-  await continueBtn.scrollIntoViewIfNeeded();
-  await continueBtn.click();
-
-  await expect(page.getByText('Security Tips', { exact: true })).toBeVisible({ timeout: 10_000 });
-  const checkboxes = page.locator('label.ant-checkbox-wrapper');
-  await expect(checkboxes).toHaveCount(3, { timeout: 10_000 });
-  const cbCount = await checkboxes.count();
-  for (let i = 0; i < cbCount; i++) {
-    await checkboxes.nth(i).click();
-  }
-  await page.getByRole('button', { name: /^ok$/i }).click();
-
-  await page.waitForFunction(() => {
-    const t = (document.body.innerText || '').toLowerCase();
-    return t.includes('receive') || t.includes('send') || t.includes('balance');
-  }, undefined, { timeout: 60_000, polling: 500 });
 }
 
 // Wizz inherits Unisat's connect-approval: a styled "Connect" div at
@@ -188,7 +137,7 @@ test.beforeAll(async () => {
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
-  await onboardWizz(primer);
+  await onboardWizz(primer, extensionId, { password: 'correct-horse-battery-staple-Tr0ub4dor-9876' });
   await shot(primer, '00-onboarded');
   await primer.close();
 });

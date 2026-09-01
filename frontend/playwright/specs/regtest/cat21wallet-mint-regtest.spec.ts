@@ -14,6 +14,7 @@ import {
   waitForTxConfirmed,
 } from './sdk-lib/regtest-helpers';
 import { waitForApprovalPopup } from './sdk-lib/approval-popup';
+import { onboardCat21Wallet } from './sdk-lib/onboard-cat21wallet';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint via CAT-21 wallet
@@ -57,12 +58,6 @@ import { waitForApprovalPopup } from './sdk-lib/approval-popup';
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4200';
 const MINT_PATH = '/cat21-mint';
 
-const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-// CAT-21 wallet's password-strength meter (zxcvbn) rates the shared
-// `TestPassword123!` as "Poor" and refuses to enable Continue. Use a
-// longer high-entropy passphrase per the SDK onboard spec.
-const TEST_PASSWORD = 'correct-horse-battery-staple-Tr0ub4dor-9876';
-
 const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.CAT21WALLET_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/cat21wallet');
 
@@ -97,36 +92,6 @@ async function shot(p: Page, name: string): Promise<void> {
     path: path.resolve(RESULTS_DIR, `cat21wallet-mint-regtest-${name}.png`),
     fullPage: true,
   }).catch(() => undefined);
-}
-
-async function onboardCat21Wallet(page: Page): Promise<void> {
-  await page.goto(`chrome-extension://${extensionId}/index.html`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('sign-in-link')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('sign-in-link').click();
-
-  // The restore screen renders 12 text inputs in order; fill each
-  // with the matching mnemonic word.
-  const inputs = page.locator('input[type="text"], input[type="password"]');
-  await expect(inputs.first()).toBeVisible({ timeout: 15_000 });
-  const words = TEST_MNEMONIC.split(' ');
-  for (let i = 0; i < 12; i++) {
-    await inputs.nth(i).fill(words[i]);
-  }
-  await page.getByRole('button', { name: /continue|sign in|restore|confirm/i }).first().click();
-
-  // Set password screen — testid `set-or-enter-password-input` per
-  // OnboardingSelectors enum in the bundle.
-  const pwInput = page.getByTestId('set-or-enter-password-input');
-  await expect(pwInput).toBeVisible({ timeout: 15_000 });
-  await pwInput.click();
-  await pwInput.pressSequentially(TEST_PASSWORD, { delay: 15 });
-  await page.getByTestId('set-password-btn').click();
-
-  // Dashboard rendered when these strings show up.
-  await page.waitForFunction(() => {
-    const t = (document.body.innerText || '').toLowerCase();
-    return t.includes('send') || t.includes('receive') || t.includes('balance') || t.includes('bitcoin');
-  }, undefined, { timeout: 30_000, polling: 250 });
 }
 
 test.beforeAll(async () => {
@@ -189,7 +154,7 @@ test.beforeAll(async () => {
   // popup when there's no other extension page to anchor the SW
   // session.
   const primer = await context.newPage();
-  await onboardCat21Wallet(primer);
+  await onboardCat21Wallet(primer, extensionId);
   await shot(primer, '00-onboarded');
 });
 

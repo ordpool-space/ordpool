@@ -78,7 +78,7 @@ jobs:
         run: |
           cd frontend
           ELECTRS_URL=http://localhost:3000 PORT=8999 WS_ENABLED=1 \
-            nohup node ../e2e/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
+            nohup node node_modules/ordpool-sdk/e2e/regtest/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
           echo $! > ../fees-stub.pid
           cd ..
           for i in $(seq 1 30); do
@@ -268,7 +268,7 @@ jobs:
         run: |
           mkdir -p playwright/specs/regtest/sdk-lib
           cp node_modules/ordpool-sdk/e2e/regtest/regtest-helpers.ts playwright/specs/regtest/sdk-lib/
-          cp node_modules/ordpool-sdk/e2e/playwright/approval-popup.ts playwright/specs/regtest/sdk-lib/
+          cp node_modules/ordpool-sdk/e2e/playwright/*.ts playwright/specs/regtest/sdk-lib/
           ls -la playwright/specs/regtest/sdk-lib/
 
       - name: Run the cat21-wallet regtest spec
