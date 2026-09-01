@@ -82,11 +82,6 @@ playwright-report/
 playwright/.cache/
 test-results/
 
-# CI-generated: SDK e2e helpers copied out of node_modules/ordpool-sdk for the
-# regtest specs (Playwright / Node 24 won't transpile .ts under node_modules).
-# Regenerated every run by the "Lift SDK e2e helpers" workflow step.
-playwright/specs/regtest/sdk-lib/
-
 # Base index
 src/index.html
 

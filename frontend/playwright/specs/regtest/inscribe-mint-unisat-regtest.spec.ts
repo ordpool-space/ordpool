@@ -12,9 +12,9 @@ import {
   rpc,
   mineBlocks,
   getTx,
-} from './sdk-lib/regtest-helpers';
-import { waitForApprovalPopup } from './sdk-lib/approval-popup';
-import { onboardUnisat } from './sdk-lib/onboard-unisat';
+  waitForApprovalPopup,
+  onboardUnisat,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Unisat.

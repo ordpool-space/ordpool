@@ -12,9 +12,9 @@ import {
   rpc,
   mineBlocks,
   waitForTxConfirmed,
-} from './sdk-lib/regtest-helpers';
-import { waitForApprovalPopup } from './sdk-lib/approval-popup';
-import { onboardCat21Wallet } from './sdk-lib/onboard-cat21wallet';
+  waitForApprovalPopup,
+  onboardCat21Wallet,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint via CAT-21 wallet

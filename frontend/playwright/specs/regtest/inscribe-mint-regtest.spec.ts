@@ -5,9 +5,8 @@ import * as fs from 'node:fs';
 
 import { InscriptionParserService } from 'ordpool-parser';
 
-// Reused verbatim from the SDK's published e2e/ helpers - the workflow
-// copies them into ./sdk-lib/ before this spec runs (Node 24's built-in
-// type-stripping refuses to compile .ts under node_modules).
+// Shared regtest helpers + approval-popup machinery, single-sourced from
+// the SDK's compiled `ordpool-sdk/e2e` barrel.
 import {
   waitForUtxoAt,
   waitForElectrsSync,
@@ -15,8 +14,8 @@ import {
   rpc,
   mineBlocks,
   getTx,
-} from './sdk-lib/regtest-helpers';
-import { waitForApprovalPopup } from './sdk-lib/approval-popup';
+  waitForApprovalPopup,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe

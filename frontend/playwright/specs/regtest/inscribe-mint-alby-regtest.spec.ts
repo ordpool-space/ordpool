@@ -12,8 +12,8 @@ import {
   rpc,
   mineBlocks,
   getTx,
-} from './sdk-lib/regtest-helpers';
-import { seedAlbyAccount } from './sdk-lib/onboard-alby';
+  seedAlbyAccount,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Alby.

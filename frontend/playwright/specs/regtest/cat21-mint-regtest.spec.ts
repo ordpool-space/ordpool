@@ -5,13 +5,8 @@ import * as fs from 'node:fs';
 
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 
-// All of these live in the SDK's published `e2e/` directory — see the
-// SDK's package.json `files` allowlist. They're reused verbatim so the
-// regtest helpers + the Xverse approval-popup machinery are single-
-// sourced.
-// The SDK ships these helpers as raw .ts under e2e/. Node 24's built-in
-// type-stripping refuses to compile .ts under node_modules, so the
-// workflow copies them out to ./sdk-lib/ before the spec runs.
+// Shared regtest helpers + the Xverse approval-popup machinery, single-
+// sourced from the SDK's compiled `ordpool-sdk/e2e` barrel.
 import {
   getUtxos,
   waitForUtxoAt,
@@ -19,8 +14,8 @@ import {
   rpc,
   mineBlocks,
   waitForTxConfirmed,
-} from './sdk-lib/regtest-helpers';
-import { waitForApprovalPopup } from './sdk-lib/approval-popup';
+  waitForApprovalPopup,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint

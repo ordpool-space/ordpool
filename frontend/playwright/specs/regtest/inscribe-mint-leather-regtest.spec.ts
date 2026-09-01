@@ -12,9 +12,9 @@ import {
   rpc,
   mineBlocks,
   getTx,
-} from './sdk-lib/regtest-helpers';
-import { waitForApprovalPopup } from './sdk-lib/approval-popup';
-import { onboardLeather } from './sdk-lib/onboard-leather';
+  waitForApprovalPopup,
+  onboardLeather,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Leather.

@@ -12,9 +12,9 @@ import {
   rpc,
   mineBlocks,
   getTx,
-} from './sdk-lib/regtest-helpers';
-import { waitForApprovalPopup } from './sdk-lib/approval-popup';
-import { onboardOkx } from './sdk-lib/onboard-okx';
+  waitForApprovalPopup,
+  onboardOkx,
+} from 'ordpool-sdk/e2e';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via OKX.
@@ -24,7 +24,7 @@ import { onboardOkx } from './sdk-lib/onboard-okx';
  * shim. OKX's onboarding is the most involved of the .crx wallets
  * (multi-page, multi-iframe, CDP mouse events to defeat anti-bot; the
  * context must launch with `--disable-blink-features=AutomationControlled`).
- * Onboarding uses the shared `sdk-lib/onboard-okx.ts`;
+ * Onboarding uses the shared SDK `onboardOkx` helper;
  * connect anchors on the "Connect account" header, and OKX REUSES its
  * extension page for the sign popup (poll all pages for "Signature
  * request" / "Confirm Trade"). CI-only.
