@@ -91,11 +91,26 @@ jobs:
           ref: ordpool
           path: ordpool-electrs
 
+      # buildx gha cache: reuse the compiled electrs image across runs
+      # instead of recompiling Rust (~10 min) every run. A docker-container
+      # builder + the Actions runtime env make type=gha work; the
+      # .dockerignore excludes each checkout's volatile .git/ so the COPY
+      # layer (and the compile beneath it) is stable and cache-hits.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Export GitHub Actions runtime for the gha cache backend
+        uses: crazy-max/ghaction-github-runtime@v3
+
+      - name: Stabilise the electrs build context for layer caching
+        run: printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
+
       - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
         env:
           ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
         run: |
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
+            --buildx-cache \
             > stack.json
           cat stack.json
 
