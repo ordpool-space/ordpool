@@ -1,5 +1,5 @@
 import { BrowserModule } from '@angular/platform-browser';
-import { ModuleWithProviders, NgModule } from '@angular/core';
+import { inject, ModuleWithProviders, NgModule } from '@angular/core';
 import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { ZONE_SERVICE } from '@app/injection-tokens';
@@ -33,7 +33,8 @@ import { DatePipe } from '@angular/common';
 import { HttpRetryInterceptor } from '@app/services/http-retry.interceptor';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from '@app/services/ordinals/blockchain-api.service';
-import { Cat21ApiService, Cat21Service, storage, cat21Config, WalletService, Network, bitcoinNetwork } from 'ordpool-sdk';
+import { Cat21ApiService, Cat21Service, WalletService, Network } from 'ordpool-sdk';
+import { cat21Config, bitcoinNetwork } from '@app/services/ordinals/sdk-tokens';
 import { environment } from '@environments/environment';
 import { BlockstreamApiService } from '@app/services/ordinals/blockstream-api.service';
 import { OrdpoolStatsComponent } from '@components/_ordpool/ordpool-stats/ordpool-stats.component';
@@ -70,7 +71,6 @@ const providers = [
   // the frontend's mempool-flavoured StorageService and to the Angular
   // environment. The Cat21Service / WalletService / Cat21ApiService
   // classes themselves live in ordpool-sdk; only the bridging is local.
-  { provide: storage, useExisting: StorageService },
   { provide: bitcoinNetwork, useValue: Network.Mainnet },
   { provide: cat21Config, useValue: {
     mempoolApiUrl: environment.apiBaseUrl,
@@ -82,10 +82,15 @@ const providers = [
     ordApiUrl: environment.ordBaseUrls[0],
     cat21OrdApiUrl: environment.cat21OrdBaseUrl,
   } },
-  Cat21ApiService,
-  WalletService,
+  // The SDK's stateful classes are plain (no @Injectable) — ordpool
+  // registers them here as root singletons, constructing each with the
+  // tokens above. StorageService structurally satisfies the SDK's
+  // StorageLike (getValue/setValue/removeItem). Call sites keep
+  // injecting the classes as before.
+  { provide: Cat21ApiService, useFactory: () => new Cat21ApiService(inject(cat21Config)) },
+  { provide: WalletService, useFactory: () => new WalletService({ storage: inject(StorageService), network: inject(bitcoinNetwork) }) },
   BlockstreamApiService,
-  Cat21Service,
+  { provide: Cat21Service, useFactory: () => new Cat21Service(inject(cat21Config), inject(bitcoinNetwork)) },
   // HACK -- HttpRetryInterceptor
   { provide: HTTP_INTERCEPTORS, useClass: HttpRetryInterceptor, multi: true },
   { provide: HIGHLIGHT_OPTIONS,

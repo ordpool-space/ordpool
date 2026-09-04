@@ -127,15 +127,8 @@ jest.mock('ordpool-parser', () => ({
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 
-import {
-  Cat21Service,
-  UtxoContentScanner,
-  WalletService,
-  bitcoinNetwork,
-  cat21Config,
-  type TxnOutput,
-  type WalletInfo,
-} from 'ordpool-sdk';
+import { Cat21Service, UtxoContentScanner, WalletService, type TxnOutput, type WalletInfo } from 'ordpool-sdk';
+import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { InscribeMintComponent } from './inscribe-mint.component';
 import { SeoService } from '../../../services/seo.service';

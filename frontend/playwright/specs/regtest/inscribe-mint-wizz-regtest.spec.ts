@@ -13,6 +13,7 @@ import {
   mineBlocks,
   getTx,
   waitForApprovalPopup,
+  installWizzOfflineRoutes,
   onboardWizz,
 } from 'ordpool-sdk/e2e';
 
@@ -132,6 +133,13 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  // Hermetic Wizz: stub the wallet's third-party balance/asset backends
+  // (ep.wizz.cash / ordx.wizz.cash / wallet-api.unisat.io / api.rgbpp.io)
+  // so the sign popup can enable Sign without Wizz server uptime — the
+  // same canonical helper the SDK + cubes wizz specs use. Without it the
+  // popup shows "Failed to load balance" and Sign stays disabled.
+  await installWizzOfflineRoutes(context);
+
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
   extensionId = worker.url().split('/')[2];

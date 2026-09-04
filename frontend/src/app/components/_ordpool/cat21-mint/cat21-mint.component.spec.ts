@@ -104,21 +104,8 @@ jest.mock('ordpool-sdk', () => {
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 
-import {
-  AUTO_SCAN_MAX_VALUE_SAT,
-  Cat21ApiService,
-  Cat21Service,
-  KnownOrdinalWalletType,
-  UtxoContentScanner,
-  WalletService,
-  bitcoinNetwork,
-  cat21Config,
-  type RecommendedFees,
-  type SimulateTransactionResult,
-  type TxnOutput,
-  type UtxoScanState,
-  type WalletInfo,
-} from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, UtxoContentScanner, WalletService, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
+import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { Cat21MintComponent, ViableSimulation } from './cat21-mint.component';
 import { SeoService } from '../../../services/seo.service';
