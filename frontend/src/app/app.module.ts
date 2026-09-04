@@ -33,7 +33,7 @@ import { DatePipe } from '@angular/common';
 import { HttpRetryInterceptor } from '@app/services/http-retry.interceptor';
 import { DigitalArtifactsFetcherService } from '@app/services/ordinals/digital-artifacts-fetcher.service';
 import { BlockchainApiService } from '@app/services/ordinals/blockchain-api.service';
-import { Cat21ApiService, Cat21Service, WalletService, Network } from 'ordpool-sdk';
+import { Cat21ApiService, Cat21Service, UtxoContentScanner, WalletService, Network } from 'ordpool-sdk';
 import { cat21Config, bitcoinNetwork } from '@app/services/ordinals/sdk-tokens';
 import { environment } from '@environments/environment';
 import { BlockstreamApiService } from '@app/services/ordinals/blockstream-api.service';
@@ -88,6 +88,7 @@ const providers = [
   // StorageLike (getValue/setValue/removeItem). Call sites keep
   // injecting the classes as before.
   { provide: Cat21ApiService, useFactory: () => new Cat21ApiService(inject(cat21Config)) },
+  { provide: UtxoContentScanner, useFactory: () => new UtxoContentScanner(inject(cat21Config)) },
   { provide: WalletService, useFactory: () => new WalletService({ storage: inject(StorageService), network: inject(bitcoinNetwork) }) },
   BlockstreamApiService,
   { provide: Cat21Service, useFactory: () => new Cat21Service(inject(cat21Config), inject(bitcoinNetwork)) },
