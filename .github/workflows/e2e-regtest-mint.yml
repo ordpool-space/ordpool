@@ -27,6 +27,13 @@ on:
     paths:
       - 'e2e/docker-compose.ordpool-backend.yml'
       - '.github/workflows/e2e-regtest-mint.yml'
+      # An SDK pin bump changes the app bundle these page-driven specs
+      # boot — exactly the breakage vector that produced the NG0201
+      # all-red (b75968990's fix). frontend/src/** stays out (too broad
+      # for this heavy suite; the nightly covers drift), but dep bumps
+      # must trigger it.
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
