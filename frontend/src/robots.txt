@@ -39,6 +39,13 @@ Disallow: /
 User-agent: AhrefsBot
 Disallow: /
 
+# Applebot — Apple's search crawler. It renders the SPA in a Safari engine and
+# fires every API XHR, so it drives the bulk of the api.ordpool.space load.
+# Blocked to cut that load (this also removes ordpool.space from Apple/Siri/
+# Spotlight search — an accepted trade-off).
+User-agent: Applebot
+Disallow: /
+
 # Search engines — allowed
 User-agent: *
 Allow: /
