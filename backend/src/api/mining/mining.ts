@@ -116,14 +116,22 @@ class Mining {
   /**
    * Generate high level overview of the pool ranks and general stats.
    *
-   * HACK -- Ordpool: served through a short-TTL cache + single-flight.
+   * HACK -- Ordpool: served through a short-TTL cache + single-flight +
+   * stale-while-revalidate.
    * $computePoolsStats runs a heavy blocks x pools x blocks_audits aggregation
    * ($getPoolsInfo) with no edge cache, so under steady traffic every request
-   * re-ran it concurrently and stacked ~100 copies of the same ~160s query,
-   * melting shared MariaDB (prod incident 2026-09-07, api.ordpool.space
-   * /mining/pools/:interval). The cache serves the last result for
-   * poolsStatsTtlMs; concurrent misses collapse into ONE in-flight query rather
-   * than a stampede, so the box runs at most one copy at a time.
+   * re-ran it concurrently and stacked ~100 copies of the same query, melting
+   * shared MariaDB (prod incident 2026-09-07, api.ordpool.space
+   * /mining/pools/:interval).
+   *
+   * Three layers now protect the box:
+   *  - Fresh cache (< poolsStatsTtlMs): served instantly.
+   *  - Single-flight: concurrent misses collapse onto ONE in-flight query, so
+   *    at most one copy runs at a time (no stampede).
+   *  - Stale-while-revalidate: once a value exists, an expired entry is served
+   *    immediately while a single background refresh runs. Only the very first
+   *    miss per key (cold start, nothing cached yet) awaits the query, so no
+   *    caller eats the cold-disk recompute latency on every TTL rollover.
    */
   public async $getPoolsStats(interval: string | null): Promise<object> {
     const key = interval ?? 'all';
@@ -131,10 +139,17 @@ class Mining {
     if (cached && (Date.now() - cached.at) < this.poolsStatsTtlMs) {
       return cached.data;
     }
-    const inflight = this.poolsStatsInflight[key];
-    if (inflight) {
-      return inflight;
-    }
+
+    // Expired or absent: ensure exactly one refresh is running for this key.
+    const inflight = this.poolsStatsInflight[key] ?? this.$startPoolsStatsRefresh(interval, key);
+
+    // Stale-while-revalidate: a stale-but-usable value is returned at once; the
+    // refresh above keeps running in the background. Only a true cold start
+    // (no cached value at all) awaits the in-flight query.
+    return cached ? cached.data : inflight;
+  }
+
+  private $startPoolsStatsRefresh(interval: string | null, key: string): Promise<object> {
     const promise = this.$computePoolsStats(interval)
       .then((data) => {
         this.poolsStatsCache[key] = { at: Date.now(), data };
@@ -144,6 +159,13 @@ class Mining {
         delete this.poolsStatsInflight[key];
       });
     this.poolsStatsInflight[key] = promise;
+    // Stale-while-revalidate callers do not await this promise, so a rejection
+    // would surface as an unhandled rejection. Log it here; the stale value
+    // keeps serving and the next request retries. Cold-start callers still
+    // receive the rejection via the returned promise (the route maps it to 500).
+    promise.catch((e) => {
+      logger.err(`Cannot refresh pools stats (${key}). Reason: ` + (e instanceof Error ? e.message : e));
+    });
     return promise;
   }
 

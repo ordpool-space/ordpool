@@ -2,9 +2,10 @@
  * Regression test for the 2026-09-07 prod incident: /api/v1/mining/pools/:interval
  * ran its heavy blocks x pools x blocks_audits aggregation LIVE + uncached, so
  * ~42 req/min stacked ~100 concurrent copies of the same ~160s query and melted
- * shared MariaDB. The fix adds a short-TTL cache + single-flight to
- * `$getPoolsStats`; this pins that behaviour so a regression that drops either
- * (letting the stampede back in) fails loudly.
+ * shared MariaDB. The fix adds a short-TTL cache + single-flight +
+ * stale-while-revalidate to `$getPoolsStats`; this pins that behaviour so a
+ * regression that drops any of them (letting the stampede back in, or making
+ * every TTL rollover await the cold recompute) fails loudly.
  *
  * The SUT is the cache/single-flight WRAPPER; its only DB-touching collaborator,
  * the private `$computePoolsStats`, is stubbed (IO boundary), and mining.ts's
@@ -77,20 +78,33 @@ describe('mining.$getPoolsStats — cache + single-flight (prod-incident regress
     expect(b).toEqual({ pools: ['24h'] });
   });
 
-  it('recomputes after the TTL expires', async () => {
+  it('serves the STALE value immediately after TTL, refreshing in the background (stale-while-revalidate)', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const compute = jest.spyOn(mining as any, '$computePoolsStats')
       .mockResolvedValueOnce({ pools: ['a'] })
       .mockResolvedValueOnce({ pools: ['b'] });
 
-    const first = await mining.$getPoolsStats('1m');
-    jest.setSystemTime(new Date('2026-01-01T00:06:00Z')); // past the 5-min TTL
-    const second = await mining.$getPoolsStats('1m');
-
-    expect(compute).toHaveBeenCalledTimes(2);
+    const first = await mining.$getPoolsStats('1m');       // cold start: awaits -> 'a', cached
     expect(first).toEqual({ pools: ['a'] });
-    expect(second).toEqual({ pools: ['b'] });
+
+    jest.setSystemTime(new Date('2026-01-01T00:06:00Z'));  // past the 5-min TTL
+
+    // The post-TTL call returns the stale value AT ONCE (no cold recompute wait),
+    // while a single background refresh is kicked off.
+    const stale = await mining.$getPoolsStats('1m');
+    expect(stale).toEqual({ pools: ['a'] });               // stale, not 'b' yet
+    expect(compute).toHaveBeenCalledTimes(2);              // but a refresh started
+
+    // Let the background refresh settle (awaiting the in-flight promise runs its
+    // .then that writes the cache and .finally that clears the in-flight slot).
+    const bg = (mining as any).poolsStatsInflight['1m'];
+    if (bg) { await bg; }
+
+    // Now the refreshed value is served from cache, with no further compute.
+    const fresh = await mining.$getPoolsStats('1m');
+    expect(fresh).toEqual({ pools: ['b'] });
+    expect(compute).toHaveBeenCalledTimes(2);
   });
 
   it('does NOT cache a failed computation and retries on the next call', async () => {
