@@ -1,7 +1,21 @@
 #!/usr/bin/env bash
 #
-# Safely install frontend npm dependencies by refreshing the lockfile without
-# running install scripts, auditing it, then doing the real install.
+# Supply-chain guard for frontend npm dependencies: audit the COMMITTED lockfile
+# for install scripts outside the whitelist, then install EXACTLY that lockfile
+# with `npm ci`.
+#
+# The committed package-lock.json is the reviewed source of truth, so this
+# script never regenerates it. A `--package-lock-only` refresh here would let
+# caret ranges drift to newer versions and turn a security check into an
+# unreviewed dependency bump -- exactly what the workspace's lockfile-discipline
+# posture forbids. A genuinely stale lockfile (out of sync with package.json) is
+# caught by `npm ci`, which refuses to install a mismatched tree; the fix for
+# that is a vetted lockfile update via the normal review flow, not a blind
+# regeneration inside a security workflow.
+#
+# `npm ci` intentionally runs install scripts (ignore-scripts=false workspace
+# wide) -- the check-install-scripts.sh whitelist is the control, so the audit
+# runs first and gates the install.
 #
 # Usage (from repo root):
 #   frontend/meta/scripts/safe-install.sh
@@ -11,44 +25,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-LOCKFILE="${FRONTEND_DIR}/package-lock.json"
-RESTORE_LOCKFILE_DONE=0
 
-# Back up the lockfile so we can restore on failure
-if [[ -f "$LOCKFILE" ]]; then
-  cp "$LOCKFILE" "${LOCKFILE}.bak"
-fi
-
-restore_lockfile() {
-  trap - ERR INT TERM
-  if [[ "${RESTORE_LOCKFILE_DONE}" -eq 1 ]]; then
-    return
-  fi
-  RESTORE_LOCKFILE_DONE=1
-
-  if [[ -f "${LOCKFILE}.bak" ]]; then
-    mv "${LOCKFILE}.bak" "$LOCKFILE"
-    echo "Restored original package-lock.json."
-  elif [[ -f "$LOCKFILE" ]]; then
-    rm "$LOCKFILE"
-    echo "Removed generated package-lock.json."
-  fi
-}
-
-trap restore_lockfile ERR INT TERM
-
-echo "==> Refreshing frontend lockfile (--ignore-scripts --package-lock-only)..."
-(cd "$FRONTEND_DIR" && npm install --ignore-scripts --package-lock-only --no-audit --no-fund)
-
-echo ""
-echo "==> Auditing lockfile for install scripts..."
+echo "==> Auditing the committed lockfile for install scripts..."
 bash "${SCRIPT_DIR}/check-install-scripts.sh"
 
-trap - ERR INT TERM
-rm -f "${LOCKFILE}.bak"
-
 echo ""
-echo "==> Installing frontend (npm ci)..."
+echo "==> Installing frontend from the committed lockfile (npm ci)..."
 (cd "$FRONTEND_DIR" && npm ci)
 
 echo ""
