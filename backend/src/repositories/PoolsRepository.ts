@@ -35,6 +35,15 @@ class PoolsRepository {
   public async $getPoolsInfo(interval: string | null = null): Promise<PoolInfo[]> {
     interval = Common.getSqlInterval(interval);
 
+    // HACK -- Ordpool: force the blockTimestamp index for time-windowed queries.
+    // For a bounded interval the optimizer otherwise drives the join off the
+    // pool_id index and scans every block per pool (~654k rows, ~79s cold),
+    // even though a 1-month window is only ~4.5k rows. ANALYZE does not change
+    // its mind, so we point it at the selective range index (drops /1m from
+    // ~79s to ~0.7s). Omitted for the all-time path (interval null), where a
+    // full scan is unavoidable anyway and the range index would only slow it.
+    const forceIndex = interval ? ' FORCE INDEX (blockTimestamp)' : '';
+
     let query = `
       SELECT
         COUNT(blocks.height) As blockCount,
@@ -45,7 +54,7 @@ class PoolsRepository {
           AVG(blocks_audits.match_rate) AS avgMatchRate,
           AVG((CAST(blocks.fees as SIGNED) - CAST(blocks_audits.expected_fees as SIGNED)) / NULLIF(CAST(blocks_audits.expected_fees as SIGNED), 0)) AS avgFeeDelta,
           unique_id as poolUniqueId
-      FROM blocks
+      FROM blocks${forceIndex}
       JOIN pools on pools.id = pool_id
       LEFT JOIN blocks_audits ON blocks_audits.height = blocks.height
       WHERE blocks.stale = 0
