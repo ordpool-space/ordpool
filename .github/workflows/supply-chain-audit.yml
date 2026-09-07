@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize]
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: read
@@ -13,7 +13,7 @@ permissions:
 jobs:
   backend:
     if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
-    runs-on: mempool-ci
+    runs-on: ubuntu-latest
     name: Backend install-script audit
     steps:
       - name: Checkout
@@ -36,7 +36,7 @@ jobs:
 
   frontend:
     if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
-    runs-on: mempool-ci
+    runs-on: ubuntu-latest
     name: Frontend install-script audit
     steps:
       - name: Checkout

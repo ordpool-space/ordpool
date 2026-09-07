@@ -56,3 +56,55 @@ What's been done (this commit + sibling API calls):
 Dependency freshness in this codebase is maintained by human review during
 the planned upstream-mempool merge cycle. That's already the cadence we
 ship at and is the only safe surface for taking new package versions.
+
+## CI workflows: which are REAL, which are inherited-dead
+
+This repo is a `mempool/mempool` fork, so `.github/workflows/` carries both
+our own CI and upstream's. The upstream ones target infrastructure we don't
+run (`runs-on: mempool-ci` — a self-hosted runner pool with **0 runners
+registered** — and/or `push: master`, but our default branch is `main`).
+They therefore CANNOT run: they queue until auto-cancelled, yet appear
+"active" in the Actions tab and read as safety nets they are not.
+
+**REAL CI (ubuntu-latest, main/stage_prod-triggered — trust these):**
+`test-backend`, `test-frontend`, `backend-integration` (MariaDB),
+`check-locktime-framing`, `test-count-floor-{backend,frontend}`,
+`e2e-regtest-mint` + `e2e-regtest-mint-cat21wallet` + `ordpool-e2e-nightly`
+(Playwright/regtest), `build-{backend,frontend}` (deploy → `*-build` repos),
+`dependabot-provenance-check`, and **`supply-chain-audit`** (see below).
+
+**INHERITED-DEAD — DISABLED at the GitHub level, NOT deleted:** `ci.yml`,
+`docker.yml`, `e2e_parameterized.yml`, `get_backend_block_height.yml`,
+`get_backend_hash.yml`, `get_image_digest.yml`. Disable with
+`gh workflow disable <name>`; do NOT `git rm` them (upstream files — deleting
+conflicts on every future mempool merge, per the never-delete-upstream
+convention). Disabling drops them from the "active" list so audits stop
+counting them as live nets, while the files stay mergeable. Re-check on every
+upstream merge (a merge can re-activate them).
+
+**Do NOT chase `mempool-ci` / stand up a self-hosted runner.** Maintainer's
+ruling (HQ `CLAUDE.md` "CI workflows", commit `773d197`): `ci.yml`'s jobs are
+backend/frontend build+lint+test (already green on ubuntu-latest via the REAL
+workflows above) plus a Cypress matrix over `mempool`/`liquid`/`testnet4` —
+Liquid and testnet4 are products v2 does not ship (mainnet-only). So `ci.yml`
+is redundant-or-irrelevant, not a missing net. A runner is the wrong trade:
+the only box is happysrv, which runs the prod node; a GH Actions runner there
+executes arbitrary workflow code = a supply-chain foothold on the node.
+
+**`supply-chain-audit.yml` is the EXCEPTION — revived, never disable it.** It
+runs `backend/meta/scripts/check-install-scripts.sh` (fails the build if any
+package outside a whitelist has `hasInstallScript: true`) + `safe-install.sh`.
+That is the compensating control the workspace `.npmrc` posture depends on
+(`ignore-scripts=false` workspace-wide, "lockfile discipline" as the named
+Shai-Hulud mitigation). It was silently dead since the `master`→`main` rename;
+revived with the two-line fix `master`→`main`, `mempool-ci`→`ubuntu-latest`.
+
+**Lint is NOT enforced in CI.** `npm run lint` runs only in the now-disabled
+`ci.yml`; the backend alone reports 1376 problems (239 errors) of inherited
+mempool-fork debt, so wiring ESLint into required CI needs a baseline-or-fix
+pass on that debt first — a real, disclosed follow-up, not a hidden gap.
+
+**Audit method (how to check green honestly):** never trust HEAD check-runs
+(blind to path-filtered / dead workflows) or a bounded `gh run list --limit N`
+(blind to anything last run outside the window). Enumerate EVERY workflow and
+take ITS OWN latest run.
