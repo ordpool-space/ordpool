@@ -47,9 +47,11 @@ import generalOrdpoolRoutes from './ordpool.routes';
 import bitcoinApi from '../../bitcoin/bitcoin-api-factory';
 
 // A real mainnet reveal (plain text/plain inscription, no content-encoding) so
-// the served bytes equal the decoded content byte-for-byte. Fixture pair lives
-// in ordpool-parser/testdata: the input tx + the known-good decoded content.
-const TESTDATA = path.resolve(__dirname, '../../../../../../ordpool-parser/testdata');
+// the served bytes equal the decoded content byte-for-byte. The fixture pair
+// (input tx + known-good decoded content, captured from ordpool-parser's
+// testdata) is vendored into __fixtures__ so the test is self-contained: in CI
+// ordpool-parser is an installed npm dependency, not a workspace sibling.
+const TESTDATA = path.resolve(__dirname, '__fixtures__');
 const TXID = '430901147831e41111aced3895ee4b9742cf72ac3cffa132624bd38c551ef379';
 const INSCRIPTION_ID = `${TXID}i0`;
 const CSP = "default-src 'self' https://ordinals.com 'unsafe-eval' 'unsafe-inline' data: blob:";
