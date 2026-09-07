@@ -12,6 +12,43 @@ import AccelerationRepository from '../../repositories/AccelerationRepository';
 import accelerationApi from '../services/acceleration';
 import { handleError } from '../../utils/api';
 
+// HACK -- Ordpool: cache the all-time block count used for the /mining/pools
+// X-total-count header. It is interval-independent and changes only ~once per
+// block (~10 min), but BlocksRepository.$blockCount(null, null) runs
+// `count(height) WHERE stale = 0` over ~654k rows (~11s -- a bare COUNT(*) is
+// instant, the stale filter forces a full scan). Uncached it ran on EVERY
+// /mining/pools request and was the residual latency left after the pools-stats
+// cache (prod incident 2026-09-07). Short-TTL cache + single-flight, mirroring
+// mining.$getPoolsStats. Module-scope because the route handlers are registered
+// unbound (they use no `this`).
+let cachedTotalBlockCount: { at: number; value: number } | null = null;
+let totalBlockCountInflight: Promise<number> | null = null;
+export const TOTAL_BLOCK_COUNT_TTL_MS = 5 * 60 * 1000;
+
+/** Reset the cached total block count (test hook). */
+export function __resetTotalBlockCountCache(): void {
+  cachedTotalBlockCount = null;
+  totalBlockCountInflight = null;
+}
+
+/**
+ * All-time block count (stale excluded) for the X-total-count header, served
+ * from a short-TTL cache with single-flight so concurrent /mining/pools requests
+ * share ONE underlying count instead of each running the ~11s scan.
+ */
+export async function getCachedTotalBlockCount(): Promise<number> {
+  if (cachedTotalBlockCount && (Date.now() - cachedTotalBlockCount.at) < TOTAL_BLOCK_COUNT_TTL_MS) {
+    return cachedTotalBlockCount.value;
+  }
+  if (totalBlockCountInflight) {
+    return totalBlockCountInflight;
+  }
+  totalBlockCountInflight = BlocksRepository.$blockCount(null, null)
+    .then((value) => { cachedTotalBlockCount = { at: Date.now(), value }; return value; })
+    .finally(() => { totalBlockCountInflight = null; });
+  return totalBlockCountInflight;
+}
+
 class MiningRoutes {
   public initRoutes(app: Application) {
     app
@@ -160,7 +197,7 @@ class MiningRoutes {
   private async $getPools(req: Request, res: Response) {
     try {
       const stats = await mining.$getPoolsStats(req.params.interval);
-      const blockCount = await BlocksRepository.$blockCount(null, null);
+      const blockCount = await getCachedTotalBlockCount();
       res.header('Pragma', 'public');
       res.header('Cache-control', 'public');
       res.header('X-total-count', blockCount.toString());
