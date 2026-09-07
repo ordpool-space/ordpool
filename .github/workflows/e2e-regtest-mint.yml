@@ -144,7 +144,7 @@ jobs:
         # signal fires.
         run: |
           cd frontend
-          ELECTRS_URL=http://localhost:3000 PORT=8999 WS_ENABLED=1 \
+          ELECTRS_URL=http://localhost:3010 PORT=8999 WS_ENABLED=1 \
             nohup node node_modules/ordpool-sdk/e2e/regtest/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
           echo $! > ../fees-stub.pid
           cd ..
