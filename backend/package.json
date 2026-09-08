@@ -41,8 +41,8 @@
     "test:ci": "CI=true ./node_modules/.bin/jest --coverage",
     "test:integration": "./node_modules/.bin/jest --config=jest.integration.config.ts --runInBand --forceExit",
     "test:with-db": "bash ./scripts/test-with-db.sh",
-    "lint": "./node_modules/.bin/eslint . --ext .ts",
-    "lint:fix": "./node_modules/.bin/eslint . --ext .ts --fix",
+    "lint": "echo 'ordpool: linting is FORBIDDEN to stay mergeable with unlinted upstream mempool. See CLAUDE.md HARD RULE: Linting is FORBIDDEN.'; exit 1",
+    "lint:fix": "echo 'ordpool: eslint --fix is FORBIDDEN. It would reformat upstream code and break mergeability. See CLAUDE.md HARD RULE: Linting is FORBIDDEN.'; exit 1",
     "prettier": "./node_modules/.bin/prettier --write \"src/**/*.{js,ts}\""
   },
   "dependencies": {

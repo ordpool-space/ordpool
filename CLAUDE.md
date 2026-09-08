@@ -130,9 +130,14 @@ Forbidden, concretely:
 - **Do NOT hand-fix lint warnings/errors** to make the linter pass. Leave them.
 - **Do NOT wire `lint` into any CI workflow**, nor into the `build` / `test` /
   `start` npm scripts. It runs in NONE of them today; keep it that way.
-- **Do NOT delete the `lint` / `lint:fix` scripts or the `.eslintrc`** either —
-  those are upstream files, and removing them ALSO conflicts on merge. Leave the
-  tooling dormant and simply never invoke it.
+- **The `lint` / `lint:fix` scripts are NEUTERED to `echo … ; exit 1`** (they
+  print this rule and fail). This is the mechanical backstop: any attempt to run
+  them, locally or from a re-wired CI step, fails loudly with a pointer here,
+  BEFORE eslint can reformat a single line. Do NOT restore their eslint bodies,
+  and do NOT delete them or the `.eslintrc` (deleting upstream files ALSO
+  conflicts on merge). One-line merge note: our neutered value wins cleanly
+  unless upstream edits that exact line (they don't); if it ever conflicts, keep
+  ours.
 
 Our own new code: match the surrounding style by hand (2-space indent, single
 quotes, trailing commas) so it reads consistently. That is a by-eye convention,
