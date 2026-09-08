@@ -27,6 +27,37 @@ import { attachIsOtsCommit } from './api/ordpool-ots-flag';
 // See ORDPOOL-FLAGS-ARCHITECTURE.md §4.
 const TX_DETAIL_PATH = /^\/tx\/[0-9a-f]{64}$/i;
 
+// HACK -- Ordpool: immutable-block edge cache for the esplora surface.
+// A block addressed by hash never changes, so `/block/<hash>` and its
+// sub-resources (txids/txs/header/raw) are cacheable ~forever — the electrs
+// equivalent of the /api/v1/block/ tier and mempool's nginx `cache-forever`.
+// electrs sends its own short Cache-Control, and this proxy passes electrs's
+// headers straight to writeHead, so the cache-policy middleware (which runs
+// BEFORE the proxy sets headers) can't win here — we overwrite the header on
+// the electrs response directly. `req.path` is mount-stripped ('/api' removed),
+// so a request to /api/block/<hash> arrives here as '/block/<hash>'.
+// `/status` is EXCLUDED: a block's in_best_chain / next_best can flip on a reorg.
+const IMMUTABLE_BLOCK_CACHE_CONTROL = 'public, max-age=86400, s-maxage=2592000';
+
+/** True for esplora block resources whose bytes never change (safe to cache 30d). */
+export function isImmutableEsploraBlockPath(reqPath: string): boolean {
+  return reqPath.startsWith('/block/') && !reqPath.endsWith('/status');
+}
+
+/**
+ * If `reqPath` is an immutable esplora block resource and the upstream returned
+ * 2xx, overwrite the electrs Cache-Control (and drop its Expires/Pragma) so the
+ * Cloudflare edge caches it long. Mutates `electrsRes.headers` in place.
+ */
+export function applyImmutableBlockCacheHeader(reqPath: string, electrsRes: http.IncomingMessage): void {
+  const status = electrsRes.statusCode || 0;
+  if (status < 200 || status >= 300) { return; }
+  if (!isImmutableEsploraBlockPath(reqPath)) { return; }
+  electrsRes.headers['cache-control'] = IMMUTABLE_BLOCK_CACHE_CONTROL;
+  delete electrsRes.headers['expires'];
+  delete electrsRes.headers['pragma'];
+}
+
 export function createElectrsProxyMiddleware(electrsBaseUrl: string | undefined): RequestHandler {
   const electrsHost = new URL(electrsBaseUrl || 'http://127.0.0.1:3000');
   const port = electrsHost.port || '80';
@@ -44,6 +75,7 @@ export function createElectrsProxyMiddleware(electrsBaseUrl: string | undefined)
       method: req.method,
       headers: { ...req.headers, host: hostHeader },
     }, (electrsRes) => {
+      applyImmutableBlockCacheHeader(req.path, electrsRes);
       if (!injectOtsCommit) {
         res.writeHead(electrsRes.statusCode || 502, electrsRes.headers);
         electrsRes.pipe(res);

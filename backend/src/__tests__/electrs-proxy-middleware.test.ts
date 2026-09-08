@@ -1,7 +1,7 @@
 import express, { Express } from 'express';
 import * as http from 'http';
 import { AddressInfo } from 'net';
-import { createElectrsProxyMiddleware } from '../electrs-proxy-middleware';
+import { applyImmutableBlockCacheHeader, createElectrsProxyMiddleware, isImmutableEsploraBlockPath } from '../electrs-proxy-middleware';
 
 jest.mock('../logger', () => ({
   __esModule: true,
@@ -263,6 +263,73 @@ describe('electrs-proxy-middleware', () => {
       expect(r.body).toBe('electrs proxy error');
     } finally {
       await close(server);
+    }
+  });
+});
+
+describe('immutable esplora block cache', () => {
+  test('isImmutableEsploraBlockPath — block-by-hash yes, /status + /blocks list no', () => {
+    const h = '0'.repeat(64);
+    expect(isImmutableEsploraBlockPath(`/block/${h}`)).toBe(true);
+    expect(isImmutableEsploraBlockPath(`/block/${h}/txids`)).toBe(true);
+    expect(isImmutableEsploraBlockPath(`/block/${h}/txs/25`)).toBe(true);
+    expect(isImmutableEsploraBlockPath(`/block/${h}/header`)).toBe(true);
+    // reorg-mutable + the changing list + unrelated paths must NOT be immutable
+    expect(isImmutableEsploraBlockPath(`/block/${h}/status`)).toBe(false);
+    expect(isImmutableEsploraBlockPath('/blocks/tip/height')).toBe(false);
+    expect(isImmutableEsploraBlockPath('/block-height/800000')).toBe(false);
+    expect(isImmutableEsploraBlockPath('/address/bc1qxyz')).toBe(false);
+  });
+
+  test('applyImmutableBlockCacheHeader overwrites electrs Cache-Control on a 2xx block, drops Expires', () => {
+    const res = { statusCode: 200, headers: { 'cache-control': 'public, max-age=10', 'expires': 'someday' } } as unknown as http.IncomingMessage;
+    applyImmutableBlockCacheHeader('/block/' + '0'.repeat(64), res);
+    expect(res.headers['cache-control']).toBe('public, max-age=86400, s-maxage=2592000');
+    expect(res.headers['expires']).toBeUndefined();
+  });
+
+  test('applyImmutableBlockCacheHeader leaves a 404 (block-not-found) untouched', () => {
+    const res = { statusCode: 404, headers: { 'cache-control': 'public, max-age=10' } } as unknown as http.IncomingMessage;
+    applyImmutableBlockCacheHeader('/block/' + '0'.repeat(64), res);
+    expect(res.headers['cache-control']).toBe('public, max-age=10');
+  });
+
+  test('end-to-end: proxy overwrites electrs Cache-Control to 30d for /api/block/<hash>', async () => {
+    const h = '0'.repeat(64);
+    const electrs = await startFakeElectrs((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=10', 'expires': 'someday' });
+      res.end(JSON.stringify({ id: h, height: 800000 }));
+    });
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/block/${h}`);
+      expect(r.status).toBe(200);
+      expect(r.headers['cache-control']).toBe('public, max-age=86400, s-maxage=2592000');
+      expect(r.headers['expires']).toBeUndefined();
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('end-to-end: proxy does NOT overwrite Cache-Control for /api/block/<hash>/status (reorg-mutable)', async () => {
+    const h = '0'.repeat(64);
+    const electrs = await startFakeElectrs((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=10' });
+      res.end(JSON.stringify({ in_best_chain: true, height: 800000 }));
+    });
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/block/${h}/status`);
+      expect(r.status).toBe(200);
+      expect(r.headers['cache-control']).toBe('public, max-age=10'); // electrs's own, preserved
+    } finally {
+      await close(server);
+      await close(electrs.server);
     }
   });
 });
