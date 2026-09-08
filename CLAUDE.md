@@ -108,3 +108,42 @@ pass on that debt first — a real, disclosed follow-up, not a hidden gap.
 (blind to path-filtered / dead workflows) or a bounded `gh run list --limit N`
 (blind to anything last run outside the window). Enumerate EVERY workflow and
 take ITS OWN latest run.
+
+## HARD RULE: edge caching is Cloudflare's job — we do NOT run mempool's nginx
+
+**DECISION (do not re-litigate, do not "simplify" away): API edge caching is
+delegated to the Cloudflare edge. We deliberately do NOT run mempool's
+self-hosted nginx `proxy_cache` tier.** mempool front their explorer with a
+multi-region nginx fleet and *refuse* Cloudflare — because they want full
+independence and operate at a scale that justifies it. **Neither applies to
+us:** we don't care about Cloudflare-independence, and our traffic is a few
+hundred req/s (mostly crawlers). Cloudflare gives us the cache tier + Pages +
+TLS/HTTP3 + DDoS absorption for **free, with zero infra to run or patch**.
+Standing up nginx would re-implement what Cloudflare already gives us, plus an
+ops burden, for no benefit here.
+
+**The one nginx feature Cloudflare's FREE plan cannot provide**, and how we
+cover it — memorise this, it is the trap:
+
+> nginx's `proxy_cache_use_stale updating` does concurrent-miss **coalescing**
+> + edge **stale-while-revalidate**. Cloudflare's free plan has **no origin
+> shield**: concurrent edge-misses (per PoP, per TTL rollover) ALL reach the
+> origin. So the edge cache does NOT make the origin stampede-proof by itself.
+> **`backend/src/api/_ordpool/single-flight-cache.ts` (single-flight + SWR) is
+> the in-process stand-in for that one nginx feature. It is NOT redundant with
+> the Cloudflare edge cache. Never delete it because "Cloudflare caches now."**
+
+The three pieces that make up our caching, and where each lives:
+
+| piece | file | role (nginx analogue) |
+|---|---|---|
+| per-endpoint `Cache-Control` (`max-age`/`s-maxage`) | `backend/src/ordpool-cache-policy-middleware.ts` | nginx `expires` |
+| Cloudflare edge Cache Rule (respect-origin, allowlist) | `cloudflare/cache-rules.sh` + `cloudflare/rules/*.json` | nginx `proxy_cache` |
+| single-flight + SWR (origin herd-control) | `backend/src/api/_ordpool/single-flight-cache.ts` | nginx `proxy_cache_use_stale updating` |
+| API path-routing (`/api/v1/*`→backend, `/api/*`→electrs) | `backend/src/electrs-proxy-middleware.ts` | nginx `location` blocks |
+
+TTL tiers are adopted from mempool's own observed prod values / nginx tiers:
+immutable block-by-hash 30d, mining/statistics 120s, fees/tip 10-15s, dynamic
+(address/tx/ws/POST) uncached. Full role-by-role comparison + the measurements
+behind this decision live in the workspace `cloudflare/CACHING-STUDY.md` §0.
+**Read it before changing anything about caching.**
