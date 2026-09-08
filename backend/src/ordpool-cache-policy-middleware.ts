@@ -17,7 +17,7 @@ import { NextFunction, Request, Response } from 'express';
 // so humans stay fresher than the shared edge copy. Values are adopted from
 // mempool's own live prod headers and their nginx proxy_cache tiers, adapted to
 // our lower scale (we widen the 1s fee/tip client TTL so the edge actually
-// collapses crawler bursts). See cloudflare/CACHING-STUDY.md §0.
+// collapses crawler bursts). See cloudflare/CACHING.md §0.
 //
 // The header is set inside a `res.writeHead` hook so it wins over whatever the
 // upstream handler already set, WITHOUT editing any upstream route file — zero

@@ -145,5 +145,5 @@ The three pieces that make up our caching, and where each lives:
 TTL tiers are adopted from mempool's own observed prod values / nginx tiers:
 immutable block-by-hash 30d, mining/statistics 120s, fees/tip 10-15s, dynamic
 (address/tx/ws/POST) uncached. Full role-by-role comparison + the measurements
-behind this decision live in the workspace `cloudflare/CACHING-STUDY.md` §0.
+behind this decision live in the workspace `cloudflare/CACHING.md` §0.
 **Read it before changing anything about caching.**

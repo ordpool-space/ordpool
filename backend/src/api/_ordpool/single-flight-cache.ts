@@ -10,7 +10,7 @@ import logger from '../../logger';
 // not coalesce concurrent edge-misses and has no edge stale-while-revalidate.
 // This is the in-process stand-in for nginx's `proxy_cache_use_stale updating`
 // (mempool gets that from their nginx tier; we don't run nginx). It is NOT
-// redundant with the Cloudflare edge cache. See cloudflare/CACHING-STUDY.md §0.
+// redundant with the Cloudflare edge cache. See cloudflare/CACHING.md §0.
 //
 //   - single-flight: concurrent misses for a key collapse onto ONE computation.
 //   - TTL: a fresh value is served without recomputing.
