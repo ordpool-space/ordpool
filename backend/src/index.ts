@@ -18,6 +18,7 @@ import mempool from './api/mempool';
 import elementsParser from './api/liquid/elements-parser';
 import databaseMigration from './api/database-migration';
 import { createElectrsProxyMiddleware } from './electrs-proxy-middleware';
+import { ordpoolCachePolicy } from './ordpool-cache-policy-middleware';
 import { createInscriptionAssetsProxyMiddleware } from './inscription-assets-proxy-middleware';
 import syncAssets from './sync-assets';
 import icons from './api/liquid/icons';
@@ -180,6 +181,8 @@ class Server {
         res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count,X-Mempool-Auth');
         next();
       })
+      // HACK --- Ordpool: edge/browser cache-policy (see ordpool-cache-policy-middleware.ts).
+      .use(ordpoolCachePolicy)
       // HACK --- Ordpool: cheap nginx replacement (see electrs-proxy-middleware.ts).
       .use('/api', createElectrsProxyMiddleware(config.ESPLORA?.REST_API_URL))
       // HACK --- Ordpool: serve inscription-preview helper assets through the
