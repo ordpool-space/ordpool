@@ -99,15 +99,49 @@ That is the compensating control the workspace `.npmrc` posture depends on
 Shai-Hulud mitigation). It was silently dead since the `master`→`main` rename;
 revived with the two-line fix `master`→`main`, `mempool-ci`→`ubuntu-latest`.
 
-**Lint is NOT enforced in CI.** `npm run lint` runs only in the now-disabled
-`ci.yml`; the backend alone reports 1376 problems (239 errors) of inherited
-mempool-fork debt, so wiring ESLint into required CI needs a baseline-or-fix
-pass on that debt first — a real, disclosed follow-up, not a hidden gap.
+**Lint is NOT enforced in CI, and never will be (see the HARD RULE
+"Linting is FORBIDDEN" below).** `npm run lint` runs in NONE of the active
+workflows and is NOT chained into `build` / `test` / `start` (only the disabled
+`ci.yml` ever ran it). The backend alone trips ~1,376 ESLint problems (239
+errors), all inherited mempool-fork debt. This is deliberate policy, not a
+pending follow-up.
 
 **Audit method (how to check green honestly):** never trust HEAD check-runs
 (blind to path-filtered / dead workflows) or a bounded `gh run list --limit N`
 (blind to anything last run outside the window). Enumerate EVERY workflow and
 take ITS OWN latest run.
+
+## HARD RULE: Linting is FORBIDDEN in this repo (mergeability with upstream)
+
+**Never lint this repo, never auto-format it, never wire lint into CI.** This is
+not "lint debt we will get to" — it is a deliberate, permanent policy.
+
+Why: `ordpool` is a `mempool/mempool` fork and MUST stay mergeable. Upstream
+never linted their TypeScript (the backend alone trips ~1,376 ESLint problems,
+239 of them errors, all inherited, none ours). Running `eslint --fix` /
+`prettier` / any auto-formatter would rewrite thousands of upstream lines to
+satisfy a linter, and every one of those cosmetic edits becomes a merge conflict
+on the next mempool merge. The cost (permanent merge hell) dwarfs the benefit
+(code that is not ours anyway looking tidier).
+
+Forbidden, concretely:
+- **Do NOT run `npm run lint:fix`, `eslint --fix`, `prettier --write`, or any
+  auto-formatter** on this repo — not on upstream code, not on our own.
+- **Do NOT hand-fix lint warnings/errors** to make the linter pass. Leave them.
+- **Do NOT wire `lint` into any CI workflow**, nor into the `build` / `test` /
+  `start` npm scripts. It runs in NONE of them today; keep it that way.
+- **Do NOT delete the `lint` / `lint:fix` scripts or the `.eslintrc`** either —
+  those are upstream files, and removing them ALSO conflicts on merge. Leave the
+  tooling dormant and simply never invoke it.
+
+Our own new code: match the surrounding style by hand (2-space indent, single
+quotes, trailing commas) so it reads consistently. That is a by-eye convention,
+NOT a linter gate — we never run eslint to enforce it.
+
+**On every upstream merge from `mempool/mempool`** (same checklist slot as the
+Dependabot ban): verify the merge did not (a) re-enable or add a lint CI
+workflow, or (b) make `build` / `test` / `start` chain into `lint`. If it did,
+undo that part in the merge commit.
 
 ## HARD RULE: edge caching is Cloudflare's job — we do NOT run mempool's nginx
 
