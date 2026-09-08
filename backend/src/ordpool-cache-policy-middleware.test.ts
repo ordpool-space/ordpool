@@ -14,6 +14,19 @@ describe('findCachePolicy — the path→TTL allowlist', () => {
     expect(findCachePolicy('/api/v1/fees/recommended')).toEqual({ edge: 15, browser: 5 });
   });
 
+  it('maps immutable block-by-hash resources to the 30d "forever" tier', () => {
+    expect(findCachePolicy('/api/v1/block/00000000000000000000abc')).toEqual({ edge: 2592000, browser: 86400 });
+    expect(findCachePolicy('/api/v1/block/00000000000000000000abc/txs')).toEqual({ edge: 2592000, browser: 86400 });
+  });
+
+  it('does NOT confuse /api/v1/blocks (the changing list) with /api/v1/block/ (immutable)', () => {
+    // the trailing-slash distinction is load-bearing: the recent-blocks list and
+    // the tip height must NOT get the 30d tier.
+    expect(findCachePolicy('/api/v1/blocks/tip/height')).toEqual({ edge: 10, browser: 5 });
+    expect(findCachePolicy('/api/v1/blocks')).toBeUndefined();
+    expect(findCachePolicy('/api/v1/blocks/0/15')).toBeUndefined();
+  });
+
   it('returns undefined for paths that must stay DYNAMIC', () => {
     // mutating / broadcast / websocket / per-entity lookups are never cached
     expect(findCachePolicy('/api/tx')).toBeUndefined();

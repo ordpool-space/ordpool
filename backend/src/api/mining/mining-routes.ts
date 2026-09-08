@@ -11,6 +11,7 @@ import PricesRepository from '../../repositories/PricesRepository';
 import AccelerationRepository from '../../repositories/AccelerationRepository';
 import accelerationApi from '../services/acceleration';
 import { handleError } from '../../utils/api';
+import { SingleFlightCache } from '../_ordpool/single-flight-cache';
 
 // HACK -- Ordpool: cache the all-time block count used for the /mining/pools
 // X-total-count header. It is interval-independent and changes only ~once per
@@ -21,14 +22,12 @@ import { handleError } from '../../utils/api';
 // cache (prod incident 2026-09-07). Short-TTL cache + single-flight, mirroring
 // mining.$getPoolsStats. Module-scope because the route handlers are registered
 // unbound (they use no `this`).
-let cachedTotalBlockCount: { at: number; value: number } | null = null;
-let totalBlockCountInflight: Promise<number> | null = null;
 export const TOTAL_BLOCK_COUNT_TTL_MS = 5 * 60 * 1000;
+const totalBlockCountCache = new SingleFlightCache<number>(TOTAL_BLOCK_COUNT_TTL_MS, 'total block count');
 
 /** Reset the cached total block count (test hook). */
 export function __resetTotalBlockCountCache(): void {
-  cachedTotalBlockCount = null;
-  totalBlockCountInflight = null;
+  totalBlockCountCache.clear();
 }
 
 /**
@@ -36,17 +35,8 @@ export function __resetTotalBlockCountCache(): void {
  * from a short-TTL cache with single-flight so concurrent /mining/pools requests
  * share ONE underlying count instead of each running the ~11s scan.
  */
-export async function getCachedTotalBlockCount(): Promise<number> {
-  if (cachedTotalBlockCount && (Date.now() - cachedTotalBlockCount.at) < TOTAL_BLOCK_COUNT_TTL_MS) {
-    return cachedTotalBlockCount.value;
-  }
-  if (totalBlockCountInflight) {
-    return totalBlockCountInflight;
-  }
-  totalBlockCountInflight = BlocksRepository.$blockCount(null, null)
-    .then((value) => { cachedTotalBlockCount = { at: Date.now(), value }; return value; })
-    .finally(() => { totalBlockCountInflight = null; });
-  return totalBlockCountInflight;
+export function getCachedTotalBlockCount(): Promise<number> {
+  return totalBlockCountCache.get('all', () => BlocksRepository.$blockCount(null, null));
 }
 
 class MiningRoutes {

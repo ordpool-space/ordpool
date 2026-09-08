@@ -33,7 +33,15 @@ export interface CachePolicy {
   browser: number;
 }
 
+const DAY = 86_400;
+
 const POLICIES: ReadonlyArray<{ match: (path: string) => boolean; policy: CachePolicy }> = [
+  // Immutable: a block addressed by hash never changes (a reorg changes the tip,
+  // not the data at a given hash). mempool caches this "forever" (30d). Matches
+  // `/api/v1/block/<hash>` and its sub-resources (/txs, /txids, /header, …), but
+  // NOT `/api/v1/blocks` (the recent-blocks list, which changes) — note the
+  // trailing slash. Backend route (res.json), so our header wins cleanly.
+  { match: (p) => p.startsWith('/api/v1/block/'), policy: { edge: 30 * DAY, browser: DAY } },
   // Near-real-time: keep browsers nearly live, let the edge collapse crawler bursts.
   { match: (p) => p === '/api/v1/blocks/tip/height', policy: { edge: 10, browser: 5 } },
   { match: (p) => p === '/api/v1/fees/recommended', policy: { edge: 15, browser: 5 } },

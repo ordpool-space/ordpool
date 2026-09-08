@@ -61,18 +61,25 @@ describe('getCachedTotalBlockCount — cache + single-flight (pools-incident res
     expect(b).toBe(654045);
   });
 
-  it('re-queries after the TTL expires', async () => {
+  it('serves the STALE count after TTL, refreshing in the background (SWR)', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     $blockCount.mockResolvedValueOnce(654045).mockResolvedValueOnce(654050);
 
     const a = await getCachedTotalBlockCount();
-    jest.setSystemTime(new Date('2026-01-01T00:06:00Z')); // past 5-min TTL
-    const b = await getCachedTotalBlockCount();
-
-    expect($blockCount).toHaveBeenCalledTimes(2);
     expect(a).toBe(654045);
-    expect(b).toBe(654050);
+
+    jest.setSystemTime(new Date('2026-01-01T00:06:00Z')); // past 5-min TTL
+    const stale = await getCachedTotalBlockCount();
+    expect(stale).toBe(654045);                    // stale served at once
+    expect($blockCount).toHaveBeenCalledTimes(2);  // background refresh kicked off
+
+    await Promise.resolve();
+    await Promise.resolve();                        // let the refresh settle
+
+    const fresh = await getCachedTotalBlockCount();
+    expect(fresh).toBe(654050);                     // now the refreshed count
+    expect($blockCount).toHaveBeenCalledTimes(2);
   });
 
   it('does NOT cache a failed count and retries next call', async () => {

@@ -29,9 +29,8 @@ describe('mining.$getPoolsStats — cache + single-flight (prod-incident regress
 
   beforeEach(() => {
     jest.restoreAllMocks();
-    // reset the singleton's cache state between tests
-    (mining as any).poolsStatsCache = {};
-    (mining as any).poolsStatsInflight = {};
+    // reset the singleton's cache state between tests (SingleFlightCache instance)
+    (mining as any).poolsStatsCache.clear();
   });
 
   afterEach(() => {
@@ -96,10 +95,10 @@ describe('mining.$getPoolsStats — cache + single-flight (prod-incident regress
     expect(stale).toEqual({ pools: ['a'] });               // stale, not 'b' yet
     expect(compute).toHaveBeenCalledTimes(2);              // but a refresh started
 
-    // Let the background refresh settle (awaiting the in-flight promise runs its
-    // .then that writes the cache and .finally that clears the in-flight slot).
-    const bg = (mining as any).poolsStatsInflight['1m'];
-    if (bg) { await bg; }
+    // Let the background refresh settle (flush microtasks so the cache's .then
+    // writes the new value and .finally clears the in-flight slot).
+    await Promise.resolve();
+    await Promise.resolve();
 
     // Now the refreshed value is served from cache, with no further compute.
     const fresh = await mining.$getPoolsStats('1m');
