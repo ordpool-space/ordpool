@@ -1,5 +1,7 @@
 <div class="modal-header">
-  <h4 class="modal-title">Sign in your own wallet</h4>
+  <!-- ngbAutofocus: land initial focus on the dialog title, not the close X
+       (its focus ring otherwise draws the eye to dismissal). -->
+  <h4 class="modal-title" ngbAutofocus tabindex="-1">Sign in your own wallet</h4>
   <button type="button" class="btn-close" aria-label="Close" (click)="activeModal.dismiss()"></button>
 </div>
 <div class="modal-body">
