@@ -23,9 +23,7 @@ jest.mock('ordpool-sdk', () => ({
   },
   WalletPlatform: { Desktop: 'desktop', Mobile: 'mobile' },
   CapabilitySupport: { Proven: 'proven', Adapter: 'adapter', Unsupported: 'unsupported' },
-  walletsSupporting: jest.fn(() => []),
-  capabilityOf: jest.fn(() => ({ support: 'unsupported' })),
-  walletMatrixEntry: jest.fn(() => undefined),
+  walletPickerRows: jest.fn(() => []),
   scanWatchOnly: jest.fn(),
   makeWatchOnlyProbe: jest.fn(() => jest.fn()),
 }));
@@ -39,13 +37,10 @@ import { Subject, of, throwError } from 'rxjs';
 
 import {
   Cat21Service,
-  KnownOrdinalWallets,
-  WalletPlatform,
+  WalletCapability,
   WalletService,
-  capabilityOf,
   scanWatchOnly,
-  walletMatrixEntry,
-  walletsSupporting,
+  walletPickerRows,
 } from 'ordpool-sdk';
 
 import { WalletConnectComponent } from './wallet-connect.component';
@@ -245,57 +240,45 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
     });
     component = TestBed.runInInjectionContext(() => new WalletConnectComponent());
 
-    // A hidden wallet (Phantom) and a normal one (Xverse), both mint-capable.
-    (KnownOrdinalWallets as Record<string, unknown>).phantom = {
-      label: 'Phantom', logo: 'p.png', downloadLink: 'dl-p', hiddenFromPicker: true,
-    };
-    (KnownOrdinalWallets as Record<string, unknown>).xverse = {
-      label: 'Xverse', logo: 'x.png', downloadLink: 'dl-x', hiddenFromPicker: false,
-    };
-    (walletsSupporting as jest.Mock).mockReturnValue([
-      { wallet: 'phantom', signingMode: 'injected' },
-      { wallet: 'xverse', signingMode: 'injected' },
-    ]);
-    // Non-null matrix entry so buildWalletInfoPopover returns a popover (row kept).
-    (walletMatrixEntry as jest.Mock).mockReturnValue({ label: 'W', platforms: [], signingMode: 'injected', note: undefined });
-    (capabilityOf as jest.Mock).mockReturnValue({ support: 'proven' });
   });
 
-  const setPlatform = (p: WalletPlatform) =>
-    ((component as unknown as { platform: WalletPlatform }).platform = p);
   const buildRows = () =>
-    (component as unknown as { buildPickerRows: () => { wallet: string; state: string }[] }).buildPickerRows();
+    (component as unknown as { buildPickerRows: () => unknown[] }).buildPickerRows();
 
-  it('desktop picker drops hiddenFromPicker wallets', () => {
-    setPlatform(WalletPlatform.Desktop);
-    expect(buildRows().map((r) => r.wallet)).toEqual(['xverse']);
-  });
-
-  it('mobile picker keeps hiddenFromPicker wallets (Phantom/Binance belong there)', () => {
-    setPlatform(WalletPlatform.Mobile);
-    expect(buildRows().map((r) => r.wallet)).toEqual(['phantom', 'xverse']);
-  });
-
-  it('mobile: a DETECTED hidden wallet resolves to installed via the unfiltered getInstalledWallets, not the stripped wallets$', () => {
-    setPlatform(WalletPlatform.Mobile);
-    // Phantom's provider IS injected in its mobile in-app browser:
-    // getInstalledWallets (unfiltered) lists it; wallets$ would have stripped it.
-    getInstalledWallets.mockReturnValue({ installedWallets: [{ type: 'phantom' }], notInstalledWallets: [] });
-    const phantom = buildRows().find((r) => r.wallet === 'phantom');
-    expect(phantom?.state).toBe('installed');
-  });
-
-  it('desktop: an installed normal wallet resolves to installed from getInstalledWallets', () => {
-    setPlatform(WalletPlatform.Desktop);
-    getInstalledWallets.mockReturnValue({ installedWallets: [{ type: 'xverse' }], notInstalledWallets: [] });
-    const xverse = buildRows().find((r) => r.wallet === 'xverse');
-    expect(xverse?.state).toBe('installed');
-  });
-
-  it('the page action follows the route: mint copy on the mint page, inscribe copy on /inscribe', () => {
+  // Row shape, install-state, and the button action+label belong to the SDK's
+  // walletPickerRows (tested there). Platform is the SDK's job too: it reads the
+  // DEVICE from `win`, so the component passes `win` and never a platform. The
+  // component's own logic is (a) hand the SDK's rows back verbatim and (b) scope
+  // the picker to the capability the current route needs.
+  it('delegates the picker rows to the SDK walletPickerRows, passing win and never a platform', () => {
+    const rows = [{ wallet: 'xverse', label: 'Xverse', logo: 'x', installed: true, action: 'connect', actionLabel: 'Connect' }];
+    (walletPickerRows as jest.Mock).mockReturnValue(rows);
     router.url = '/cat21-mint';
-    expect(component.pageActionLabel).toBe('mint a cat');
-    router.url = '/inscribe';
-    expect(component.pageActionLabel).toBe('inscribe a file');
+
+    expect(buildRows()).toBe(rows);
+    const opts = (walletPickerRows as jest.Mock).mock.calls[0][0];
+    expect(opts.win).toBe(window);
+    expect(opts.currentUrl).toBe('/cat21-mint');
+    // No local platform detection: deriving it here (e.g. from a viewport
+    // breakpoint) is exactly what b508ec9's detectWalletPlatform(win) replaces.
+    expect(opts.platform).toBeUndefined();
   });
+
+  const lastCapability = () => {
+    const calls = (walletPickerRows as jest.Mock).mock.calls;
+    return calls[calls.length - 1][0].capability;
+  };
+
+  it('scopes the picker to the route capability: /inscribe needs Inscription, everything else Cat21Mint', () => {
+    (walletPickerRows as jest.Mock).mockReturnValue([]);
+
+    router.url = '/inscribe';
+    buildRows();
+    expect(lastCapability()).toBe(WalletCapability.Inscription);
+
+    router.url = '/cat21-mint';
+    buildRows();
+    expect(lastCapability()).toBe(WalletCapability.Cat21Mint);
+  });
+
 });

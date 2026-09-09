@@ -7,83 +7,34 @@
 
    <ng-container *ngIf="!xpubMode && (pickerRows$ | async) as rows">
 
-    <p class="text-muted small mb-2">
-      Connect a wallet to {{ pageActionLabel }}. Every wallet below supports it;
-      tap the <span aria-hidden="true">&#9432;</span> to see what else it can do here.
-    </p>
+    <!-- Round 2 (wallet-ux-round2.md §7): before a person is connected we ask
+         them to connect, nothing else. One neutral line; each row is logo,
+         name, one enabled button. No capability list, no badge, no popover. -->
+    <p class="text-muted small mb-3">Connect a wallet to use ordpool.</p>
 
     <ul class="list-unstyled">
       <li *ngFor="let row of rows" class="wallet-row" [attr.data-testid]="'wallet-row-' + row.wallet">
 
         <img [src]="row.logo" width="25" height="25" class="wallet-logo">
-        <span class="wallet-name">
-          {{ row.label }}<small class="wallet-sublabel" *ngIf="row.subLabel">&nbsp; {{ row.subLabel }}</small>
-        </span>
+        <span class="wallet-name">{{ row.label }}</span>
 
-        <!-- info icon: full capability list, sourced from the SDK matrix -->
-        <button type="button" class="info-btn"
-          #pop="ngbPopover"
-          [ngbPopover]="infoPop"
-          [popoverTitle]="'What ' + row.label + ' supports'"
-          container="body"
-          popoverClass="walletCapabilityPopover"
-          triggers="manual"
-          [autoClose]="'outside'"
-          (click)="pop.toggle()"
-          [attr.aria-label]="'What does ' + row.label + ' support?'">&#9432;</button>
-
-        <!-- action: reachable now = Connect, not installed = Download,
-             watch-only = paste an xpub (opens the connect-xpub flow) -->
-        <ng-container [ngSwitch]="row.state">
-          <button *ngSwitchCase="'installed'" class="btn btn-purple btn-sm action"
+        <!-- one enabled button per row; the action AND label come from the SDK's
+             walletPickerRows so they cannot drift from the other sites.
+             Capability is surfaced later, on the action, never here (§7.2/§7.3). -->
+        <ng-container [ngSwitch]="row.action">
+          <button *ngSwitchCase="'connect'" class="btn btn-purple btn-sm action"
             [attr.data-testid]="'wallet-connect-' + row.wallet"
-            [disabled]="connectButtonDisabled" (click)="connectWallet(row.wallet)">Connect</button>
-          <a *ngSwitchCase="'not-installed'" class="btn btn-secondary btn-sm action"
-            [attr.data-testid]="'wallet-download-' + row.wallet"
-            [href]="row.downloadLink" target="_blank" rel="noopener">Download</a>
-          <button *ngSwitchCase="'watch-only'" class="btn btn-purple btn-sm action"
+            [disabled]="connectButtonDisabled" (click)="connectWallet(row.wallet)">{{ row.actionLabel }}</button>
+          <a *ngSwitchCase="'install'" class="btn btn-purple btn-sm action"
+            [attr.data-testid]="'wallet-install-' + row.wallet"
+            [href]="row.installUrl" target="_blank" rel="noopener">{{ row.actionLabel }}</a>
+          <a *ngSwitchCase="'open-in-app'" class="btn btn-purple btn-sm action"
+            [attr.data-testid]="'wallet-openinapp-' + row.wallet"
+            [href]="row.deepLink" rel="noopener">{{ row.actionLabel }}</a>
+          <button *ngSwitchCase="'connect-xpub'" class="btn btn-purple btn-sm action"
             data-testid="wallet-connect-xpub"
-            (click)="startXpub()">Connect (xpub)</button>
+            (click)="startXpub()">{{ row.actionLabel }}</button>
         </ng-container>
-
-        <ng-template #infoPop>
-          <div class="wallet-info">
-
-            <!-- 1. header: signing mode + platform badges -->
-            <div class="wi-header">
-              <span class="wi-mode">{{ row.info.signingModeLine }}</span>
-              <span class="wi-badges">
-                <span class="badge bg-secondary ms-1" *ngFor="let b of row.info.platformBadges">{{ b }}</span>
-              </span>
-            </div>
-
-            <!-- 2. what this action (mint) needs -->
-            <div class="wi-action">
-              <strong>{{ row.info.action.name }}</strong>
-              <span class="wi-status">
-                <span class="wi-icon" aria-hidden="true">{{ row.info.action.icon }}</span>
-                {{ row.info.action.wording }}<span *ngIf="row.info.action.caveat">. {{ row.info.action.caveat }}.</span>
-              </span>
-            </div>
-
-            <hr class="my-2">
-
-            <!-- 3. everything this wallet can do here -->
-            <div class="wi-caps">
-              <div class="wi-caps-title text-muted small">Everything this wallet can do here</div>
-              <ul class="list-unstyled mb-0">
-                <li *ngFor="let cap of row.info.capabilities" class="wi-cap">
-                  <span class="wi-icon" aria-hidden="true">{{ cap.icon }}</span>
-                  <span class="wi-cap-name">{{ cap.name }}</span>
-                  <span class="wi-cap-caveat text-muted" *ngIf="cap.caveat">{{ cap.caveat }}</span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- 4. footer: wallet-level note -->
-            <p class="wi-note text-muted small mt-2 mb-0" *ngIf="row.info.note">{{ row.info.note }}</p>
-          </div>
-        </ng-template>
 
       </li>
     </ul>

@@ -13,36 +13,15 @@ import {
 } from 'ordpool-sdk';
 import {
   WalletCapability,
-  WalletPlatform,
+  WalletPickerRow,
   WatchOnlyScanResult,
   WatchOnlyScriptType,
   makeWatchOnlyProbe,
   scanWatchOnly,
-  walletsSupporting,
+  walletPickerRows,
 } from 'ordpool-sdk';
 
 import { environment } from '../../../../environments/environment';
-import { buildWalletInfoPopover, WalletInfoPopover } from './wallet-capability-display';
-
-/**
- * How a mint-capable wallet can be reached right now.
- * - `installed`: provider injected, so offer Connect.
- * - `not-installed`: offer the download link.
- * - `watch-only`: signs out-of-band (xpub); the row opens a paste-key flow
- *   that scans the key (`scanWatchOnly`), lets the user confirm/override the
- *   funding address, then connects the assembled watch-only identity.
- */
-type PickerRowState = 'installed' | 'not-installed' | 'watch-only';
-
-interface PickerRow {
-  wallet: KnownOrdinalWalletType;
-  label: string;
-  subLabel?: string;
-  logo: string;
-  downloadLink: string;
-  state: PickerRowState;
-  info: WalletInfoPopover;
-}
 
 @Component({
   selector: 'app-wallet-connect',
@@ -92,9 +71,10 @@ export class WalletConnectComponent implements OnDestroy {
    * GLOBAL (opened from the header and from any page via
    * `requestWalletConnect()`), so the action is derived from the route:
    * `/inscribe` needs Inscription, everything else (the mint page + the header
-   * CTA) defaults to Cat21Mint. `walletsSupporting` then scopes the picker to
-   * wallets that can do THAT action on this platform, and the info popover's
-   * "what this action needs" row reflects it.
+   * CTA) defaults to Cat21Mint. `walletPickerRows` scopes the picker to wallets
+   * that can do THAT action on this platform, so an incapable wallet never
+   * shows up and the login screen can stay silent about capability
+   * (wallet-ux-round2.md §7.2/§7.3).
    */
   private get pageAction(): WalletCapability {
     return this.router.url.includes('/inscribe')
@@ -102,20 +82,8 @@ export class WalletConnectComponent implements OnDestroy {
       : WalletCapability.Cat21Mint;
   }
 
-  /** Human label for the current page action, used in the modal intro copy. */
-  get pageActionLabel(): string {
-    return this.pageAction === WalletCapability.Inscription ? 'inscribe a file' : 'mint a cat';
-  }
-
-  /** Platform the SDK provider path is reachable on right now. */
-  private readonly platform: WalletPlatform =
-    (typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
-      ? WalletPlatform.Mobile
-      : WalletPlatform.Desktop;
-
-  /** Picker rows, matrix-scoped to Cat21Mint and marked by live detection.
-   *  wallets$ is only the re-emit trigger; install-state comes from the
-   *  UNFILTERED getInstalledWallets() inside buildPickerRows (see there). */
+  // wallets$ is only the re-emit trigger so the list refreshes when a provider
+  // appears/disappears; the rows themselves come from the SDK's walletPickerRows.
   pickerRows$ = this.walletService.wallets$.pipe(
     map(() => this.buildPickerRows()),
   );
@@ -164,51 +132,21 @@ export class WalletConnectComponent implements OnDestroy {
   }
 
   /**
-   * Compose the picker: every wallet the matrix says can mint on this
-   * platform, cross-referenced with runtime detection for install state.
+   * The picker rows, from the SDK's walletPickerRows: it owns provider
+   * detection, platform detection + filtering (a wallet unreachable on this
+   * DEVICE is absent, never badged; the SDK reads the device from `win`, not
+   * the viewport, so resizing a desktop window never changes the list), the
+   * button action + label (so labels cannot drift from the other sites), and
+   * the watch-only row. Scoped to the page's action so an incapable wallet
+   * never appears — which is what makes silence at login safe
+   * (wallet-ux-round2.md §7.2/§7.3).
    */
-  private buildPickerRows(): PickerRow[] {
-    // Install-state comes from the UNFILTERED detection. wallets$ strips
-    // hiddenFromPicker (Phantom/Binance) on every platform, but on a mobile
-    // in-app browser those providers ARE injected and the row must read as
-    // installed; the matrix `platforms` list already governs which rows show.
-    const installed = new Set(
-      this.walletService.getInstalledWallets().installedWallets.map((w) => w.type),
-    );
-    const rows: PickerRow[] = [];
-
-    for (const entry of walletsSupporting(this.pageAction, { platform: this.platform })) {
-      const meta = KnownOrdinalWallets[entry.wallet];
-      // `hiddenFromPicker` (Phantom, Binance) is a DESKTOP-only convenience:
-      // it drops wallets whose desktop binary can't drive the SDK's flows.
-      // On a mobile in-app picker those same wallets DO belong (the shared
-      // UX doc: a mobile picker reads `walletsForPlatform(Mobile)` and must
-      // not consult `hiddenFromPicker`), so the skip is gated on Desktop.
-      if (this.platform === WalletPlatform.Desktop && meta.hiddenFromPicker) {
-        continue;
-      }
-      const info = buildWalletInfoPopover(entry.wallet, this.pageAction);
-      if (!info) {
-        continue;
-      }
-      const state: PickerRowState =
-        entry.signingMode === 'watch-only'
-          ? 'watch-only'
-          : installed.has(entry.wallet)
-            ? 'installed'
-            : 'not-installed';
-
-      rows.push({
-        wallet: entry.wallet,
-        label: meta.label,
-        subLabel: meta.subLabel,
-        logo: meta.logo,
-        downloadLink: meta.downloadLink,
-        state,
-        info,
-      });
-    }
-    return rows;
+  private buildPickerRows(): WalletPickerRow[] {
+    return walletPickerRows({
+      win: typeof window !== 'undefined' ? window : undefined,
+      capability: this.pageAction,
+      currentUrl: this.router.url,
+    });
   }
 
   open(): void {
