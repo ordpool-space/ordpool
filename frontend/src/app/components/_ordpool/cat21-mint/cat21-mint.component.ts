@@ -382,4 +382,19 @@ export class Cat21MintComponent implements OnInit {
   toNumber(n: bigint): number {
     return Number(n);
   }
+
+  /**
+   * The exact sats that leave the wallet for the mint: the miner fee plus the
+   * cat's postage output. Change returns to the payment address (or, if it
+   * would fall below the dust limit, is already folded into
+   * `finalTransactionFee`), so fee + amountToRecipient is the net debit in
+   * both cases. Null until a funding source is auto-picked. Surfaced so the
+   * collapsed default answers "what will this cost" without expanding the
+   * expert picker, matching the inscribe form's total line.
+   */
+  totalMintSpendSats(): number | null {
+    const row = this.selectedPaymentOutput;
+    if (!row) { return null; }
+    return this.toNumber(row.simulation.finalTransactionFee) + this.toNumber(row.simulation.amountToRecipient);
+  }
 }

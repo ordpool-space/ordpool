@@ -727,6 +727,28 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
+  // L. total-spend summary (the number a person needs before opening
+  //    their wallet: miner fee + the cat's 546-sat postage, not a rate)
+  // -------------------------------------------------------------------
+
+  describe('L. total mint spend', () => {
+    it('L1: null until a funding source is picked', () => {
+      expect(component.totalMintSpendSats()).toBeNull();
+    });
+
+    it('L2: once picked, it is the miner fee plus the cat postage, not just one', () => {
+      // simulation(): finalTransactionFee 200n + amountToRecipient 546n
+      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      expect(component.totalMintSpendSats()).toBe(746);
+    });
+
+    it('L3: tracks the fee, so it is a real total and not a hardcoded 546', () => {
+      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      expect(component.totalMintSpendSats()).toBe(2_000); // 1454 fee + 546 cat
+    });
+  });
+
+  // -------------------------------------------------------------------
   // K. Mint command flow
   // -------------------------------------------------------------------
 
