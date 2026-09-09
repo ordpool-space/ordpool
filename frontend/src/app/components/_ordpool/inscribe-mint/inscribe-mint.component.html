@@ -228,7 +228,7 @@
             <strong>{{ totalSpendSats(x.connectedWallet) | number }}</strong>
             <span class="symbol" i18n="shared.sat|sat">sat</span>
             (<app-fiat [value]="totalSpendSats(x.connectedWallet) || 0"></app-fiat>)
-            for commit + reveal miner fees plus the {{ postageSats }} sat inscription output.
+            in total: miner fees plus the {{ postageSats }} sats your inscription lives on.
           </div>
 
           <div class="alert alert-warning p-2 mt-4" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
@@ -257,10 +257,8 @@
                 to the miner as fee.
               </p>
               <p class="mt-2">
-                We auto-pick the safest large source we can find. Each transaction has
-                an inscription output (a {{ postageSats }}-sat dust output sent to your
-                ordinals address) plus change back to your payment address. Change below
-                the dust limit is folded into the miner fee.
+                We auto-pick the safest coin to pay with. Prefer to choose your
+                own? Pick one below.
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let row of paymentOutputs$ | async"
@@ -314,15 +312,15 @@
 
                 - {{ row.simulation.totalFeeSats | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees (commit + reveal)<br>
+                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees<br>
 
                 - {{ postageSats | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="postageSats"></app-fiat> Inscription Output<br>
+                <app-fiat [value]="postageSats"></app-fiat> Your inscription<br>
 
                 = {{ changeSats(row) | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="changeSats(row)"></app-fiat> Change ({{ changeSats(row) === 0 ? 'no ' : '' }}2nd output)<br>
+                <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
               </div>
             </details>
           </div>

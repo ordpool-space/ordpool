@@ -123,14 +123,8 @@
                 to the miner as fee.
               </p>
               <p class="mt-2">
-                We auto-pick the safest large source we can find. If you'd
-                rather pick a specific one, choose it from the list below.
-                Each transaction has two outputs: the first holds the
-                CAT-21 ordinal (a 546-sat dust output sent to your ordinals
-                address), the second returns change to your payment
-                address. If the change would fall below the dust limit, we
-                fold it into the miner fee instead of creating a useless
-                tiny output.
+                We auto-pick the safest coin to pay with. Prefer to choose your
+                own? Pick one below.
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
@@ -204,13 +198,13 @@
                 - {{ toNumber(x.simulation.amountToRecipient) | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
                 <app-fiat [value]="toNumber(x.simulation.amountToRecipient)"></app-fiat>
-                CAT-21 Ordinal (1st Output)
+                Your cat
                 <br>
 
                 = {{ toNumber(x.simulation.changeAmount) | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
                 <app-fiat [value]="toNumber(x.simulation.changeAmount)"></app-fiat>
-                Change Amount ({{toNumber(x.simulation.changeAmount) === 0 ? 'no ' : '' }}2nd output)
+                Change back to you
                 <br>
 
 
