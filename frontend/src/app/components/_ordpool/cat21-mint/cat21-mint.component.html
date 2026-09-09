@@ -46,9 +46,8 @@
 
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
-        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>.
-        The connect dialog lists every wallet that can mint, with an info
-        button showing what each one supports.
+        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+        to mint a cat.
       </p>
 
       <ng-container *ngIf="x.connectedWallet">

@@ -72,6 +72,25 @@
   }
 }
 
+// Button ranking (wallet-ux-round2.md §7.2): "Connect"/"Open in <wallet>"/
+// watch-only are the actionable "use it now" and stay the solid primary
+// (btn-purple); "Install" is "go get this", so it reads as an enabled outline
+// secondary. Both are obviously clickable; the difference lets the one row a
+// person can act on stand out instead of eight identical primaries.
+.btn-wallet-secondary {
+  --bs-btn-color: var(--tertiary);
+  background-color: transparent;
+  border-color: var(--tertiary);
+  color: var(--tertiary);
+
+  &:hover,
+  &:focus {
+    background-color: var(--tertiary);
+    border-color: var(--tertiary);
+    color: #fff;
+  }
+}
+
 // Round 2: the pre-connect capability popover and its info affordance are
 // deleted (wallet-ux-round2.md §7). Nothing is disclosed before login, which
 // also removes the popover-over-modal rendering defect (B2/B3) by construction.

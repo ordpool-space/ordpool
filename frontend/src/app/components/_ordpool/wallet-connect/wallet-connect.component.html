@@ -1,6 +1,8 @@
 <ng-template #connect let-modal>
   <div class="modal-header">
-    <h4 class="modal-title" id="modal-basic-title">Connect Wallet</h4>
+    <!-- ngbAutofocus: land initial focus on the dialog title, not the close X
+         (its focus ring otherwise draws the eye to dismissal, not connecting). -->
+    <h4 class="modal-title" id="modal-basic-title" ngbAutofocus tabindex="-1">Connect Wallet</h4>
     <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body">
@@ -20,12 +22,15 @@
 
         <!-- one enabled button per row; the action AND label come from the SDK's
              walletPickerRows so they cannot drift from the other sites.
-             Capability is surfaced later, on the action, never here (§7.2/§7.3). -->
+             Capability is surfaced later, on the action, never here (§7.2/§7.3).
+             Ranking: an actionable "use it now" (connect / open-in-app /
+             watch-only) is the solid primary; "install" is the enabled outline
+             secondary, so the one row the person can act on reads first. -->
         <ng-container [ngSwitch]="row.action">
           <button *ngSwitchCase="'connect'" class="btn btn-purple btn-sm action"
             [attr.data-testid]="'wallet-connect-' + row.wallet"
             [disabled]="connectButtonDisabled" (click)="connectWallet(row.wallet)">{{ row.actionLabel }}</button>
-          <a *ngSwitchCase="'install'" class="btn btn-purple btn-sm action"
+          <a *ngSwitchCase="'install'" class="btn btn-wallet-secondary btn-sm action"
             [attr.data-testid]="'wallet-install-' + row.wallet"
             [href]="row.installUrl" target="_blank" rel="noopener">{{ row.actionLabel }}</a>
           <a *ngSwitchCase="'open-in-app'" class="btn btn-purple btn-sm action"
