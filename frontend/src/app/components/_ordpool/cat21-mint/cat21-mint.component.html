@@ -215,13 +215,14 @@
 
           <!-- Exact wallet debit, in the collapsed default so a person knows the
                total before they open their wallet (mirrors the inscribe cost line).
-               Shown once a funding source is auto-picked. -->
-          <div class="p-2 mt-3 text-center" *ngIf="selectedPaymentOutput as row" data-testid="mint-total-cost">
+               Uses the auto-recommended source until the user picks their own, so
+               it shows without expanding the picker. -->
+          <div class="p-2 mt-3 text-center" *ngIf="totalMintSpendSats() as total" data-testid="mint-total-cost">
             You'll pay
-            <strong>{{ totalMintSpendSats() | number }}</strong>
+            <strong>{{ total | number }}</strong>
             <span class="symbol" i18n="shared.sat|sat">sat</span>
-            (<app-fiat [value]="totalMintSpendSats() || 0"></app-fiat>)
-            in total: miner fees plus the {{ toNumber(row.simulation.amountToRecipient) | number }} sat your cat lives on.
+            (<app-fiat [value]="total"></app-fiat>)
+            in total: miner fees plus the {{ catPostageSats() | number }} sat your cat lives on.
           </div>
 
           <div class="text-center mt-4">

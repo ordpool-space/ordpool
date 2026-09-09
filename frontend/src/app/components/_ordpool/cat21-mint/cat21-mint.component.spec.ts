@@ -746,6 +746,15 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.totalMintSpendSats()).toBe(2_000); // 1454 fee + 546 cat
     });
+
+    it('L4: uses the AUTO-recommended source when the user has not picked (so it shows in the collapsed default)', () => {
+      const rec = utxo({ txid: 'r'.repeat(64), vout: 1, value: 80_000 });
+      orch.simulationsSubject.next([{ utxo: rec, simulation: simulation(), insufficient: false }]);
+      orch.fundingRecommendationSubject.next({ status: 'auto', recommended: rec, candidates: [rec] });
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(component.totalMintSpendSats()).toBe(746); // no manual pick needed
+      expect(component.catPostageSats()).toBe(546);
+    });
   });
 
   // -------------------------------------------------------------------

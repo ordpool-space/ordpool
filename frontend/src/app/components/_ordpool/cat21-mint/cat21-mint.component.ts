@@ -384,17 +384,39 @@ export class Cat21MintComponent implements OnInit {
   }
 
   /**
+   * The simulation for the funding source the mint will actually use: the
+   * user's explicit pick if they chose one in the expert picker, otherwise the
+   * orchestrator's auto-recommended source. This is why the total below shows
+   * in the collapsed default, before anyone opens the picker.
+   */
+  private activeSimulation(): SimulateTransactionResult | null {
+    if (this.selectedPaymentOutput) { return this.selectedPaymentOutput.simulation; }
+    const rec = this.snap().fundingRecommendation.recommended;
+    if (!rec) { return null; }
+    const match = this.snap().simulations.find(
+      (s) => s.utxo.txid === rec.txid && s.utxo.vout === rec.vout,
+    );
+    return match?.simulation ?? null;
+  }
+
+  /**
    * The exact sats that leave the wallet for the mint: the miner fee plus the
    * cat's postage output. Change returns to the payment address (or, if it
    * would fall below the dust limit, is already folded into
    * `finalTransactionFee`), so fee + amountToRecipient is the net debit in
-   * both cases. Null until a funding source is auto-picked. Surfaced so the
-   * collapsed default answers "what will this cost" without expanding the
-   * expert picker, matching the inscribe form's total line.
+   * both cases. Null until a funding source exists (auto-recommended or
+   * user-picked). Surfaced so the collapsed default answers "what will this
+   * cost" without expanding the expert picker, matching the inscribe form.
    */
   totalMintSpendSats(): number | null {
-    const row = this.selectedPaymentOutput;
-    if (!row) { return null; }
-    return this.toNumber(row.simulation.finalTransactionFee) + this.toNumber(row.simulation.amountToRecipient);
+    const sim = this.activeSimulation();
+    return sim ? this.toNumber(sim.finalTransactionFee) + this.toNumber(sim.amountToRecipient) : null;
+  }
+
+  /** The cat's postage output (the sats the freshly minted cat lives on), from
+   *  the active funding source. Shown in the total line beside the miner fee. */
+  catPostageSats(): number | null {
+    const sim = this.activeSimulation();
+    return sim ? this.toNumber(sim.amountToRecipient) : null;
   }
 }
