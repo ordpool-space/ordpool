@@ -33,24 +33,25 @@ export interface CachePolicy {
   browser: number;
 }
 
-const DAY = 86_400;
-
 const POLICIES: ReadonlyArray<{ match: (path: string) => boolean; policy: CachePolicy }> = [
-  // Immutable: a block addressed by hash never changes (a reorg changes the tip,
-  // not the data at a given hash). mempool caches this "forever" (30d). Matches
-  // `/api/v1/block/<hash>` and its sub-resources (/txs, /txids, /header, …), but
-  // NOT `/api/v1/blocks` (the recent-blocks list, which changes) — note the
-  // trailing slash. Backend route (res.json), so our header wins cleanly.
-  { match: (p) => p.startsWith('/api/v1/block/'), policy: { edge: 30 * DAY, browser: DAY } },
   // Near-real-time: keep browsers nearly live, let the edge collapse crawler bursts.
   { match: (p) => p === '/api/v1/blocks/tip/height', policy: { edge: 10, browser: 5 } },
   { match: (p) => p === '/api/v1/fees/recommended', policy: { edge: 15, browser: 5 } },
   // Heavy aggregations (the crawler magnets); staleness invisible vs ~10 min blocks.
-  // 120s edge matches mempool's observed max-age for pools/hashrate.
-  { match: (p) => p.startsWith('/api/v1/mining/'), policy: { edge: 120, browser: 60 } },
+  // 120s edge matches mempool's observed max-age for pools/hashrate. Excludes the
+  // disabled pool-detail stubs (/api/v1/mining/pool/:slug), which set their own
+  // 1-day client backoff that must not be flattened to 120s.
+  { match: (p) => p.startsWith('/api/v1/mining/') && !p.startsWith('/api/v1/mining/pool/'), policy: { edge: 120, browser: 60 } },
   { match: (p) => p.startsWith('/api/v1/statistics/'), policy: { edge: 120, browser: 60 } },
   { match: (p) => p === '/api/v1/difficulty-adjustment', policy: { edge: 120, browser: 60 } },
 ];
+
+// NOTE: /api/v1/block/<hash> is intentionally NOT here. Unlike the raw-consensus
+// esplora /api/block/<hash> (immutable, handled in electrs-proxy-middleware), the
+// v1 endpoint returns mempool's BlockExtended, whose audit extras (matchRate,
+// expectedFees, pool, CPFP) back-fill AFTER first serve. Its getBlock handler
+// caches graduated by block age (recent 600s, old up to 30d); we let that stand
+// rather than flatten it to a wrong 30d "immutable".
 
 /** Resolve the cache policy for a request path, or undefined if not cacheable. */
 export function findCachePolicy(path: string): CachePolicy | undefined {
@@ -75,8 +76,15 @@ export function ordpoolCachePolicy(req: Request, res: Response, next: NextFuncti
     if (status >= 200 && status < 300) {
       res.setHeader('Cache-Control', `public, max-age=${policy.browser}, s-maxage=${policy.edge}`);
       // Correct for compressed variants; never Vary on Cookie (that disables edge
-      // caching). Our API responses carry no Set-Cookie, so this stays safe.
-      res.setHeader('Vary', 'Accept-Encoding');
+      // caching). Append rather than replace, so we don't drop a Vary an upstream
+      // handler already set (e.g. Origin/Accept from a future merge).
+      const existingVary = res.getHeader('Vary');
+      const vary = new Set(
+        (typeof existingVary === 'string' ? existingVary.split(',') : [])
+          .map((v) => v.trim()).filter(Boolean),
+      );
+      vary.add('Accept-Encoding');
+      res.setHeader('Vary', [...vary].join(', '));
       // Drop upstream's bare `Expires` + `Pragma: public`, which would otherwise
       // fight the max-age we just set.
       res.removeHeader('Expires');

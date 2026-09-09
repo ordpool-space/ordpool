@@ -431,6 +431,13 @@ class BitcoinRoutes {
         cacheDuration = 600;
       }
 
+      // HACK -- Ordpool: also emit an explicit graduated Cache-Control so the
+      // Cloudflare edge (respect-origin rule) caches per block age. Recent blocks
+      // get only 600s because this v1 endpoint's BlockExtended audit extras
+      // (matchRate, expectedFees, pool, CPFP) back-fill AFTER first serve; caching
+      // them long would pin incomplete stats. The cache-policy middleware
+      // deliberately does NOT cover /api/v1/block/ for this reason.
+      res.setHeader('Cache-control', `public, max-age=${cacheDuration}, s-maxage=${cacheDuration}`);
       res.setHeader('Expires', new Date(Date.now() + 1000 * cacheDuration).toUTCString());
       res.json(block);
     } catch (e: any) {

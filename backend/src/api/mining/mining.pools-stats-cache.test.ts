@@ -77,6 +77,20 @@ describe('mining.$getPoolsStats — cache + single-flight (prod-incident regress
     expect(b).toEqual({ pools: ['24h'] });
   });
 
+  it('collapses unknown/rotating intervals onto ONE canonical key (rotating-flood DoS guard)', async () => {
+    const compute = jest.spyOn(mining as any, '$computePoolsStats').mockResolvedValue({ pools: [] });
+
+    // A crawler rotates the path segment; every unknown interval normalizes to
+    // all-time (getSqlInterval → null → key 'all'), so single-flight + the cache
+    // collapse them to ONE computation and the key set stays bounded.
+    await mining.$getPoolsStats('rand1');
+    await mining.$getPoolsStats('rand2');
+    await mining.$getPoolsStats('deadbeef');
+    await mining.$getPoolsStats(null); // explicit all-time is the same key
+
+    expect(compute).toHaveBeenCalledTimes(1);
+  });
+
   it('serves the STALE value immediately after TTL, refreshing in the background (stale-while-revalidate)', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));

@@ -14,17 +14,24 @@ describe('findCachePolicy — the path→TTL allowlist', () => {
     expect(findCachePolicy('/api/v1/fees/recommended')).toEqual({ edge: 15, browser: 5 });
   });
 
-  it('maps immutable block-by-hash resources to the 30d "forever" tier', () => {
-    expect(findCachePolicy('/api/v1/block/00000000000000000000abc')).toEqual({ edge: 2592000, browser: 86400 });
-    expect(findCachePolicy('/api/v1/block/00000000000000000000abc/txs')).toEqual({ edge: 2592000, browser: 86400 });
+  it('does NOT stamp /api/v1/block/<hash> (getBlock owns its graduated cache; extras back-fill)', () => {
+    // v1 block detail is mempool's BlockExtended whose audit extras back-fill after
+    // first serve, so a flat 30d "immutable" would pin incomplete stats. Left to
+    // getBlock's own age-graduated Cache-Control (recent 600s, old up to 30d).
+    expect(findCachePolicy('/api/v1/block/00000000000000000000abc')).toBeUndefined();
+    expect(findCachePolicy('/api/v1/block/00000000000000000000abc/txs')).toBeUndefined();
   });
 
-  it('does NOT confuse /api/v1/blocks (the changing list) with /api/v1/block/ (immutable)', () => {
-    // the trailing-slash distinction is load-bearing: the recent-blocks list and
-    // the tip height must NOT get the 30d tier.
-    expect(findCachePolicy('/api/v1/blocks/tip/height')).toEqual({ edge: 10, browser: 5 });
+  it('excludes the disabled pool-detail stubs from the mining tier (they keep their own backoff)', () => {
+    expect(findCachePolicy('/api/v1/mining/pools/1m')).toEqual({ edge: 120, browser: 60 }); // aggregation: stamped
+    expect(findCachePolicy('/api/v1/mining/pool/foundryusa')).toBeUndefined();               // disabled stub: not stamped
+    expect(findCachePolicy('/api/v1/mining/pool/foundryusa/blocks')).toBeUndefined();
+  });
+
+  it('leaves the recent-blocks list + tip hash DYNAMIC', () => {
     expect(findCachePolicy('/api/v1/blocks')).toBeUndefined();
     expect(findCachePolicy('/api/v1/blocks/0/15')).toBeUndefined();
+    expect(findCachePolicy('/api/v1/blocks/tip/hash')).toBeUndefined();
   });
 
   it('returns undefined for paths that must stay DYNAMIC', () => {
@@ -44,6 +51,7 @@ describe('ordpoolCachePolicy middleware', () => {
       statusCode: 200,
       _headers: headers,
       setHeader: jest.fn((k: string, v: string) => { headers[k.toLowerCase()] = v; return res as Response; }) as any,
+      getHeader: jest.fn((k: string) => headers[k.toLowerCase()]) as any,
       removeHeader: jest.fn((k: string) => { delete headers[k.toLowerCase()]; }) as any,
       writeHead: jest.fn(() => res as Response) as any,
     };
@@ -67,6 +75,18 @@ describe('ordpoolCachePolicy middleware', () => {
     expect(res._headers['cache-control']).toBe('public, max-age=60, s-maxage=120');
     expect(res._headers['vary']).toBe('Accept-Encoding');
     expect(res._headers['expires']).toBeUndefined();
+  });
+
+  it('APPENDS to an existing Vary rather than clobbering it', () => {
+    const req = { method: 'GET', path: '/api/v1/mining/pools/1m' } as Request;
+    const res = mockRes();
+    res._headers['vary'] = 'Origin'; // a Vary a future upstream handler set
+    const next = jest.fn() as NextFunction;
+
+    ordpoolCachePolicy(req, res as unknown as Response, next);
+    (res.writeHead as any)(200, {});
+
+    expect(res._headers['vary']).toBe('Origin, Accept-Encoding'); // preserved + added, not replaced
   });
 
   it('does NOT stamp cache headers on a 5xx (a transient error must not be pinned)', () => {
