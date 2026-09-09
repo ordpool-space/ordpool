@@ -249,13 +249,16 @@
           <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
             <details>
               <summary>Choose a different funding source</summary>
+              <p class="alert alert-warning mt-2 mb-2">
+                <strong>Sources flagged <em>asset found</em> carry an inscription,
+                rune, rare sat, or cat.</strong> Inscribing with one sends that asset
+                to the miner as fee.
+              </p>
               <p class="mt-2">
                 We auto-pick the safest large source we can find. Each transaction has
                 an inscription output (a {{ postageSats }}-sat dust output sent to your
                 ordinals address) plus change back to your payment address. Change below
-                the dust limit is folded into the miner fee. Sources flagged
-                <em>asset found</em> carry an inscription, rune, rare sat, or cat.
-                Inscribing with one sends that asset to the miner as fee.
+                the dust limit is folded into the miner fee.
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let row of paymentOutputs$ | async"
