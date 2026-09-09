@@ -529,6 +529,45 @@ describe('InscribeMintComponent', () => {
     expect(component.preConnectMintSats).toBeNull();
   });
 
+  // The fee input is text (not type=number) so its DISPLAY is always dots,
+  // matching the presets, regardless of the browser locale. onFeeRateInput
+  // coerces the raw string back to the numeric control.
+  describe('fee-rate decimal entry (locale-agnostic)', () => {
+    it('a dot decimal sets the numeric control value', () => {
+      component.onFeeRateInput('0.2');
+      expect(component.cfeeRate.value).toBe(0.2);
+      expect(component.feeRateDisplay).toBe('0.2');
+    });
+
+    it('a comma decimal (non-English browser) yields the same number, raw string preserved', () => {
+      component.onFeeRateInput('0,2');
+      expect(component.cfeeRate.value).toBe(0.2);
+      expect(component.feeRateDisplay).toBe('0,2');
+    });
+
+    it('empty and non-numeric input clear to null and flag required (never NaN)', () => {
+      component.onFeeRateInput('');
+      expect(component.cfeeRate.value).toBeNull();
+      expect(component.cfeeRate.hasError('required')).toBe(true);
+      component.onFeeRateInput('abc');
+      expect(component.cfeeRate.value).toBeNull();
+      expect(component.cfeeRate.hasError('required')).toBe(true);
+    });
+
+    it('below-floor and above-ceiling still validate after text entry', () => {
+      component.onFeeRateInput('0,05');
+      expect(component.cfeeRate.hasError('min')).toBe(true);
+      component.onFeeRateInput('2000');
+      expect(component.cfeeRate.hasError('max')).toBe(true);
+    });
+
+    it('clicking a fee preset syncs the display to a dot string', () => {
+      component.setFeeRate(1.71);
+      expect(component.cfeeRate.value).toBe(1.71);
+      expect(component.feeRateDisplay).toBe('1.71');
+    });
+  });
+
   describe('funding-status gating (inscribe-button enable)', () => {
     const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
       orchestrator.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });

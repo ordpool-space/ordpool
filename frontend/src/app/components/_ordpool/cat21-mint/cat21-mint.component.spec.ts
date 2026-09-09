@@ -675,6 +675,58 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
+  // K. fee-rate text input: locale-agnostic decimal entry
+  //    The input is text (not type=number) so its DISPLAY is always dots,
+  //    matching the fee presets, instead of the browser's locale separator.
+  //    onFeeRateInput coerces the raw string back to a number for the control.
+  // -------------------------------------------------------------------
+
+  describe('K. fee-rate decimal entry', () => {
+    it('K1: a dot decimal sets the numeric control value', () => {
+      orch.setFeeRate.mockClear();
+      component.onFeeRateInput('0.2');
+      expect(component.cfeeRate.value).toBe(0.2);
+      expect(component.feeRateDisplay).toBe('0.2');
+      expect(orch.setFeeRate).toHaveBeenLastCalledWith(0.2);
+    });
+
+    it('K2: a comma decimal (non-English browser) yields the same number, raw string preserved', () => {
+      orch.setFeeRate.mockClear();
+      component.onFeeRateInput('0,2');
+      // control is the real number, so the tx pays 0.2 regardless of locale
+      expect(component.cfeeRate.value).toBe(0.2);
+      expect(orch.setFeeRate).toHaveBeenLastCalledWith(0.2);
+      // the display keeps what the user typed (no cursor-snapping mid-entry)
+      expect(component.feeRateDisplay).toBe('0,2');
+    });
+
+    it('K3: empty input clears to null and flags required', () => {
+      component.onFeeRateInput('');
+      expect(component.cfeeRate.value).toBeNull();
+      expect(component.cfeeRate.hasError('required')).toBe(true);
+    });
+
+    it('K4: non-numeric input clears to null and flags required (never a silent NaN)', () => {
+      component.onFeeRateInput('abc');
+      expect(component.cfeeRate.value).toBeNull();
+      expect(component.cfeeRate.hasError('required')).toBe(true);
+    });
+
+    it('K5: below-floor and above-ceiling still validate after text entry', () => {
+      component.onFeeRateInput('0,05');
+      expect(component.cfeeRate.hasError('min')).toBe(true);
+      component.onFeeRateInput('2000');
+      expect(component.cfeeRate.hasError('max')).toBe(true);
+    });
+
+    it('K6: clicking a fee preset syncs the display to a dot string', () => {
+      component.setFeeRate(1.71);
+      expect(component.cfeeRate.value).toBe(1.71);
+      expect(component.feeRateDisplay).toBe('1.71');
+    });
+  });
+
+  // -------------------------------------------------------------------
   // K. Mint command flow
   // -------------------------------------------------------------------
 

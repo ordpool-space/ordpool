@@ -253,20 +253,33 @@ export class Cat21MintComponent implements OnInit {
     // Floor = the SDK's BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE (Bitcoin Core's
     // default -minrelaytxfee; the constant's doc carries the sourced value +
     // version). Below it a tx won't relay on a default-config node.
-    feeRate: new FormControl(1, {
+    // Nullable on purpose: the fee input is a text field (see feeRateDisplay /
+    // onFeeRateInput), and empty or non-numeric entry sets the control to null
+    // so `required` fires. Never NaN, which would slip past min/max.
+    feeRate: new FormControl<number | null>(1, {
       // Cap at the SDK gate's 1000 sat/vB ceiling and reject non-finite rates
       // (Infinity from a `1e999` input, NaN) before they reach the funding calc
       // or the orchestrator. Mirrors inscribe-mint.
       validators: [Validators.required, Validators.min(BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE), Validators.max(1000)],
-      nonNullable: true,
     }),
   });
   cfeeRate = this.form.controls.feeRate;
 
+  /**
+   * The fee input's DISPLAYED string. The input is `type="text"` rather than
+   * `type="number"` so its separator is always a dot, matching the fee presets,
+   * instead of the browser locale's (a German browser renders type=number 0.2
+   * as "0,2" while the presets stay "0.2"). Holds the raw keystrokes so entry
+   * is never snapped mid-typing; {@link onFeeRateInput} coerces it to the
+   * numeric control value.
+   */
+  feeRateDisplay = '1';
+
   ngOnInit(): void {
     this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee }) => {
       this.cfeeRate.setValue(fastestFee);
-      this.orchestrator.setFeeRate(this.cfeeRate.value);
+      this.feeRateDisplay = String(fastestFee);
+      this.orchestrator.setFeeRate(fastestFee);
       this.cd.markForCheck();
     });
 
@@ -305,6 +318,19 @@ export class Cat21MintComponent implements OnInit {
 
   setFeeRate(feeRate: number): void {
     this.form.patchValue({ feeRate });
+    this.feeRateDisplay = String(feeRate);
+  }
+
+  /**
+   * Fee input handler. Keeps the raw keystrokes in {@link feeRateDisplay} (so
+   * typing is never snapped) and coerces them to the numeric control: a comma
+   * decimal is normalised to a dot, and empty or non-numeric input clears the
+   * control to null so `required` fires (never a NaN that would pass min/max).
+   */
+  onFeeRateInput(raw: string): void {
+    this.feeRateDisplay = raw;
+    const n = parseFloat(raw.replace(',', '.').trim());
+    this.cfeeRate.setValue(Number.isFinite(n) ? n : null);
   }
 
   /** Template handler: user clicked "Use this UTXO" on an expert-mode row. */

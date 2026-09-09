@@ -210,7 +210,9 @@
             <div class="col-md-6 order-md-1 pr-md-5 pt-md-4">
               <div class="input-group input-group-lg mt-3">
                 <span class="input-group-text">Fee rate</span>
-                <input type="number" class="form-control" data-testid="inscribe-fee-rate" [formControl]="cfeeRate">
+                <input type="text" inputmode="decimal" class="form-control" data-testid="inscribe-fee-rate"
+                  [ngModel]="feeRateDisplay" [ngModelOptions]="{ standalone: true }"
+                  (ngModelChange)="onFeeRateInput($event)">
                 <span class="input-group-text">sat/vB</span>
               </div>
               <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">

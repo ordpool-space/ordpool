@@ -227,7 +227,10 @@ export class InscribeMintComponent implements OnInit {
   mintGateError = '';
 
   form = new FormGroup({
-    feeRate: new FormControl(1, {
+    // Nullable on purpose: the fee input is a text field (see feeRateDisplay /
+    // onFeeRateInput), and empty or non-numeric entry sets the control to null
+    // so `required` fires. Never NaN, which would slip past min/max.
+    feeRate: new FormControl<number | null>(1, {
       // min = the SDK's BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE (Bitcoin Core's
       // default -minrelaytxfee; the constant's doc carries the sourced value +
       // version). A lower rate won't relay on a default-config node. max 1000
@@ -235,7 +238,6 @@ export class InscribeMintComponent implements OnInit {
       // Infinity (from a `1e999` input) so the form goes invalid and the mint
       // button disables instead of estimating "Infinity".
       validators: [Validators.required, Validators.min(BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE), Validators.max(1000)],
-      nonNullable: true,
     }),
     // Prefilled watermark so we can measure how many inscriptions came
     // through ordpool; the user can clear it. Empty → no note tag.
@@ -243,6 +245,16 @@ export class InscribeMintComponent implements OnInit {
   });
   cfeeRate = this.form.controls.feeRate;
   noteControl = this.form.controls.note;
+
+  /**
+   * The fee input's DISPLAYED string. The input is `type="text"` rather than
+   * `type="number"` so its separator is always a dot, matching the fee presets,
+   * instead of the browser locale's (a German browser renders type=number 0.2
+   * as "0,2" while the presets stay "0.2"). Holds the raw keystrokes so entry
+   * is never snapped mid-typing; {@link onFeeRateInput} coerces it to the
+   * numeric control value.
+   */
+  feeRateDisplay = '1';
 
   // ---- Compression (content_encoding tag) ---------------------------------
   // assessCompression tries the available codecs and reports the smallest
@@ -278,7 +290,8 @@ export class InscribeMintComponent implements OnInit {
 
     this.recommendedFees$.pipe(take(1)).subscribe(({ fastestFee }) => {
       this.cfeeRate.setValue(fastestFee);
-      this.orchestrator.setFeeRate(this.cfeeRate.value);
+      this.feeRateDisplay = String(fastestFee);
+      this.orchestrator.setFeeRate(fastestFee);
       this.recomputePreConnectCost();
       this.cd.detectChanges();
     });
@@ -762,6 +775,19 @@ export class InscribeMintComponent implements OnInit {
 
   setFeeRate(feeRate: number): void {
     this.form.patchValue({ feeRate });
+    this.feeRateDisplay = String(feeRate);
+  }
+
+  /**
+   * Fee input handler. Keeps the raw keystrokes in {@link feeRateDisplay} (so
+   * typing is never snapped) and coerces them to the numeric control: a comma
+   * decimal is normalised to a dot, and empty or non-numeric input clears the
+   * control to null so `required` fires (never a NaN that would pass min/max).
+   */
+  onFeeRateInput(raw: string): void {
+    this.feeRateDisplay = raw;
+    const n = parseFloat(raw.replace(',', '.').trim());
+    this.cfeeRate.setValue(Number.isFinite(n) ? n : null);
   }
 
   selectPaymentOutput(row: ViableInscribeSimulation): void {
