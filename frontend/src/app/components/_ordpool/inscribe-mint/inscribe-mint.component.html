@@ -232,15 +232,14 @@
           </div>
 
           <div class="alert alert-warning p-2 mt-4" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
-            We found funds, but every UTXO large enough to cover the fee also carries an asset
+            We found funds, but every coin big enough to cover the fee also carries an asset
             (an inscription, rune, rare sat, or cat). Inscribing with one would send that asset to the
             miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
             below and pick a coin yourself if you're sure it is safe to spend.
           </div>
 
           <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingStatus() === 'insufficient' && !utxoLoading()">
-            We could not find enough funds in your payment address.<br>
-            No UTXO can cover the miner fee plus the {{ postageSats }} sat inscription output at
+            There isn't enough Bitcoin in your payment address to cover the inscription at
             <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>.
             Fund <code class="bitcoin">{{ x.connectedWallet.paymentAddress }}</code>
             <app-clipboard [button]="true" [text]="x.connectedWallet.paymentAddress" [class]="'btn btn-sm p-0'"></app-clipboard>
