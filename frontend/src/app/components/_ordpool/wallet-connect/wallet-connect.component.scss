@@ -94,3 +94,34 @@
 // Round 2: the pre-connect capability popover and its info affordance are
 // deleted (wallet-ux-round2.md §7). Nothing is disclosed before login, which
 // also removes the popover-over-modal rendering defect (B2/B3) by construction.
+
+// Single-address custody pill (wallet-ux-round3 §7.6 / §10.1).
+//
+// Measured on OUR ground (--navbar-bg #212121), NOT cat21.space's orange.
+// On a dark navbar the amber FILL carries the shape (fill #ffc107 vs navbar
+// = 9.88:1), where on cat21.space's orange page the same fill was
+// near-invisible (1.03:1) and the dark border carried it: the relationship
+// is inverted on a dark ground. The 2px border STAYS regardless (§10.1 — do
+// not drop it on the reasoning that the fill already says amber): border
+// #b8860b vs navbar = 4.95:1, a defined darker-amber stroke, redundant
+// reinforcement here rather than the sole shape signal. Dark glyph + label
+// on the fill = 9.88:1. The amber is obviously distinct from the normal grey
+// pill (2.88:1 between the two fills) and from the wrong-network red
+// (2.78:1) — the whole design rests on a person noticing that difference.
+.btn.btn-single-address {
+  background-color: #ffc107;
+  border: 2px solid #b8860b;
+  color: #212121;
+
+  &:hover,
+  &:focus {
+    background-color: #ffca2c;
+    border-color: #b8860b;
+    color: #212121;
+  }
+
+  .pill-single-address-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+}

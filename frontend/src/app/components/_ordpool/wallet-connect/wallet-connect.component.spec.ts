@@ -26,6 +26,19 @@ jest.mock('ordpool-sdk', () => ({
   walletPickerRows: jest.fn(() => []),
   scanWatchOnly: jest.fn(),
   makeWatchOnlyProbe: jest.fn(() => jest.fn()),
+  // wallet-ux-round3 single-address custody API (faithful re-implementations;
+  // canonical versions in the SDK's wallet-capabilities.ts).
+  usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
+    !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
+  singleAddressCaveat: (assets = 'cats') =>
+    `This wallet keeps your spending coins and your ${assets} on one address, so a payment `
+    + 'made anywhere else can spend the sat one of them lives on and send it to a miner. Either '
+    + 'use a wallet that keeps the two apart, or start a fresh address here and use it only with '
+    + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, which check a coin for '
+    + 'assets before spending it.',
+  SINGLE_ADDRESS_PILL_LABEL: 'One address',
+  singleAddressPillAccessibleName: (assets = 'cats') =>
+    `This wallet keeps your coins and your ${assets} on one address. Open for details.`,
 }));
 
 import { ChangeDetectorRef } from '@angular/core';
@@ -279,6 +292,24 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
     router.url = '/cat21-mint';
     buildRows();
     expect(lastCapability()).toBe(WalletCapability.Cat21Mint);
+  });
+
+  // wallet-ux-round3 §7.6: the compact single-address indicator that rides the
+  // connected-wallet pill. Its visibility is driven by isSingleAddress (SDK
+  // ground truth) and its strings come from the SDK, never hardcoded. The amber
+  // appearance itself is proven by the mandatory side-by-side pill frame.
+  describe('single-address custody indicator', () => {
+    it('isSingleAddress is true only when the wallet returns one address for both roles', () => {
+      expect(component.isSingleAddress({ ordinalsAddress: 'bc1psame', paymentAddress: 'bc1psame' } as any)).toBe(true);
+      expect(component.isSingleAddress({ ordinalsAddress: 'bc1pord', paymentAddress: '3pay' } as any)).toBe(false);
+      expect(component.isSingleAddress(null)).toBe(false);
+    });
+
+    it('reads its label and accessible name from the SDK, not a local string', () => {
+      expect(component.singleAddressPillLabel).toBe('One address');
+      expect(component.singleAddressPillAria).toContain('Open for details');
+      expect(component.custodyCaveat).toContain('keeps your');
+    });
   });
 
 });

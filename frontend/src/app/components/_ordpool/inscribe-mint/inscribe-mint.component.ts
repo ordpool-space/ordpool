@@ -10,6 +10,7 @@ import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
+import { SingleAddressAckService } from '../single-address-ack.service';
 
 /** One viable funding UTXO joined with its content-scan bucket. */
 export interface ViableInscribeSimulation {
@@ -834,6 +835,23 @@ export class InscribeMintComponent implements OnInit {
    * owns the wording so a refinement is a pin bump, not a copy edit here.
    */
   readonly custodyCaveat = singleAddressCaveat('cats');
+
+  private readonly ackService = inject(SingleAddressAckService);
+
+  /**
+   * Whether this wallet type has acknowledged the single-address caveat
+   * (wallet-ux-round3 §7.6). The prominent caveat collapses once acknowledged;
+   * the header pill's compact indicator stays visible regardless.
+   */
+  isSingleAddressAcknowledged(wallet: WalletInfo | null | undefined): boolean {
+    return this.ackService.isAcknowledged(wallet?.type);
+  }
+
+  /** Record the acknowledgement for this wallet type (collapses the caveat). */
+  acknowledgeSingleAddress(wallet: WalletInfo | null | undefined): void {
+    this.ackService.acknowledge(wallet?.type);
+    this.cd.markForCheck();
+  }
 
   inscriptionId(revealTxId: string): string {
     return `${revealTxId}i0`;

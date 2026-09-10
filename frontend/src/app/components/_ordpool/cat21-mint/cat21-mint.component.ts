@@ -8,6 +8,7 @@ import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
+import { SingleAddressAckService } from '../single-address-ack.service';
 
 export interface ViableSimulation {
   simulation: SimulateTransactionResult;
@@ -250,6 +251,24 @@ export class Cat21MintComponent implements OnInit {
    * bump, not a copy edit here.
    */
   readonly custodyCaveat = singleAddressCaveat('cats');
+
+  private readonly ackService = inject(SingleAddressAckService);
+
+  /**
+   * Whether this wallet type has acknowledged the single-address caveat
+   * (wallet-ux-round3 §7.6). The prominent caveat collapses once acknowledged
+   * and stays collapsed for that wallet; the header pill's compact indicator
+   * is unaffected and stays visible.
+   */
+  isSingleAddressAcknowledged(wallet: WalletInfo | null | undefined): boolean {
+    return this.ackService.isAcknowledged(wallet?.type);
+  }
+
+  /** Record the acknowledgement for this wallet type (collapses the caveat). */
+  acknowledgeSingleAddress(wallet: WalletInfo | null | undefined): void {
+    this.ackService.acknowledge(wallet?.type);
+    this.cd.markForCheck();
+  }
 
   get recommendedFundingSats(): number {
     const rate = this.cfeeRate.value;

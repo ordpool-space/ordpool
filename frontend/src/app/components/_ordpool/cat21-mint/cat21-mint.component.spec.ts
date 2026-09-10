@@ -1081,6 +1081,11 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
   }
 
   async function configureReal(): Promise<void> {
+    // The single-address acknowledgement service persists to localStorage and
+    // is re-created per TestBed reset; clear it so an ack in one test never
+    // hides the caveat in the next (all these tests connect the same 'xverse'
+    // debug type via singleAddr()).
+    try { localStorage.clear(); } catch { /* jsdom */ }
     scanner = new ScannerStub();
     wallets = new WalletServiceStub();
     stateSvc = new StateServiceStub();
@@ -1151,5 +1156,22 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
     // both warnings coexist and are distinct: the prominent caveat is also present
     expect(q('[data-testid="single-address-caveat"]')).toBeTruthy();
+  });
+
+  it('collapses the prominent caveat after acknowledgement, per wallet (wallet-ux-round3 §7.6)', () => {
+    const w = singleAddr();
+    wallets.connectedWalletSubject.next(w);
+    component.selectedPaymentOutput = viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' });
+    fixture.detectChanges();
+    // shown before acknowledgement
+    expect(q('[data-testid="single-address-caveat"]')).toBeTruthy();
+    expect(q('[data-testid="single-address-ack"]')).toBeTruthy();
+
+    // acknowledge, as the "I understand" button does
+    component.acknowledgeSingleAddress(w);
+    fixture.detectChanges();
+
+    // prominent caveat collapses; it does not come back for this wallet type
+    expect(q('[data-testid="single-address-caveat"]')).toBeNull();
   });
 });
