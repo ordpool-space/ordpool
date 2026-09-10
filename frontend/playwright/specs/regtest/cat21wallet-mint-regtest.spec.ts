@@ -283,7 +283,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
 
   // Set fee rate, wait for Mint button enabled.
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
@@ -407,7 +407,7 @@ async function cat21walletMintAtRate(opts: {
     }
 
     const feeRateInput = page.locator(
-      '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+      '[data-testid="cat21-fee-rate"]',
     ).first();
     await feeRateInput.fill(String(opts.rate));
     await feeRateInput.press('Tab');
@@ -547,7 +547,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   // component reads scanStates via combineLatest now — but it's a
   // cheap belt-and-braces.)
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
@@ -638,7 +638,7 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   }
 
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
@@ -708,7 +708,7 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
   }
 
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');

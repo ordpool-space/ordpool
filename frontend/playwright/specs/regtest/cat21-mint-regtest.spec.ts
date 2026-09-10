@@ -302,7 +302,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // (FormControl reference), which doesn't emit a `formControlName`
   // attribute. Pin it by the surrounding input-group label instead.
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
 
   // ─── 5a. Fee picker tier click round-trip ─────────────────────
@@ -750,7 +750,7 @@ test('sign-popup cancel keeps state coherent', async () => {
   // Wait for picker + mint button enabled.
   const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
@@ -821,7 +821,7 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
 
   const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
   const feeRateInput = page.locator(
-    '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+    '[data-testid="cat21-fee-rate"]',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
@@ -971,7 +971,7 @@ async function ordpoolMintAtRate(opts: {
 
     // ─── User-typed override ─────────────────────────────────────
     const feeRateInput = page.locator(
-      '.input-group:has(.input-group-text:text-is("Fee rate")) input[type="number"]',
+      '[data-testid="cat21-fee-rate"]',
     ).first();
     await feeRateInput.fill(String(opts.rate));
     await feeRateInput.press('Tab');

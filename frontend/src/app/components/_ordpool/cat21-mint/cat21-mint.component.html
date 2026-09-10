@@ -83,7 +83,7 @@
 
               <div class="input-group input-group-lg mt-3">
                 <span class="input-group-text">Fee rate</span>
-                <input type="text" inputmode="decimal" class="form-control"
+                <input type="text" inputmode="decimal" class="form-control" data-testid="cat21-fee-rate"
                   [ngModel]="feeRateDisplay" [ngModelOptions]="{ standalone: true }"
                   (ngModelChange)="onFeeRateInput($event)">
                 <span class="input-group-text">sat/vB</span>
