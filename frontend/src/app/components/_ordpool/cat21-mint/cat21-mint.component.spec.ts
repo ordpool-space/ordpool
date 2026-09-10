@@ -98,13 +98,32 @@ jest.mock('ordpool-sdk', () => {
     calculateRecommendedFundingSats: (rate: number) => rate * 1000,
     runeNamesFromContent: (content: { runes: object | null }) =>
       content.runes ? Object.keys(content.runes) : [],
+    // wallet-ux-round3 single-address custody API. Faithful re-implementations
+    // (canonical versions live in the SDK's wallet-capabilities.ts):
+    // usesSingleAddress compares the two returned addresses; singleAddressCaveat
+    // substitutes the asset noun into the approved sentence. Same mock
+    // philosophy as above — the SDK owns the wording, this stand-in makes the
+    // component's use of it observable without the sats-connect ESM chain.
+    usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
+      !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
+    singleAddressCaveat: (assets = 'cats') =>
+      `This wallet keeps your spending coins and your ${assets} on one address, so a payment `
+      + 'made anywhere else can spend the sat one of them lives on and send it to a miner. Either '
+      + 'use a wallet that keeps the two apart, or start a fresh address here and use it only with '
+      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, which check a coin for '
+      + 'assets before spending it.',
   };
 });
 
+import * as fs from 'fs';
+import * as path from 'path';
+import { CommonModule } from '@angular/common';
+import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, UtxoContentScanner, WalletService, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, UtxoContentScanner, WalletService, singleAddressCaveat, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { Cat21MintComponent, ViableSimulation } from './cat21-mint.component';
@@ -1020,5 +1039,117 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         expect(tip.length).toBeGreaterThan(0);
       }
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// wallet-ux-round3 §7.3 / §7.8: the single-address custody caveat, asserted
+// against the REAL production template (read live from the .html), not the
+// sentinel template used above. This is the honest test for the ungating: it
+// renders the actual *ngIf, so a future refactor that re-adds a coin-size gate
+// to the caveat is caught here — the exact regression the SDK flagged as most
+// likely. NO_ERRORS_SCHEMA absorbs the mempool child components (app-fiat,
+// app-clipboard, app-ordpool-fees-box-clickable); only the custom `relativeUrl`
+// pipe needs a stub. usesSingleAddress / singleAddressCaveat come from the
+// jest.mock at the top of this file (faithful re-implementations).
+// ---------------------------------------------------------------------------
+
+@Pipe({ name: 'relativeUrl' })
+class RelativeUrlStubPipe implements PipeTransform {
+  transform(value: unknown): unknown { return value; }
+}
+
+describe('Cat21MintComponent — single-address custody caveat, REAL template (wallet-ux-round3)', () => {
+  const REAL_TEMPLATE = fs.readFileSync(path.join(__dirname, 'cat21-mint.component.html'), 'utf8');
+
+  let orch: any;
+  let scanner: ScannerStub;
+  let wallets: WalletServiceStub;
+  let stateSvc: StateServiceStub;
+  let cat21: Cat21ApiServiceStub;
+  let fixture: ComponentFixture<Cat21MintComponent>;
+  let component: Cat21MintComponent;
+
+  function viable(over: Partial<ViableSimulation> = {}): ViableSimulation {
+    return {
+      paymentOutput: utxo(),
+      simulation: simulation(),
+      scan: { kind: 'scanned-clean' } as UtxoScanState,
+      bucket: 'clean',
+      ...over,
+    } as ViableSimulation;
+  }
+
+  async function configureReal(): Promise<void> {
+    scanner = new ScannerStub();
+    wallets = new WalletServiceStub();
+    stateSvc = new StateServiceStub();
+    cat21 = new Cat21ApiServiceStub();
+    await TestBed.configureTestingModule({
+      declarations: [Cat21MintComponent],
+      imports: [CommonModule, ReactiveFormsModule, FormsModule, RelativeUrlStubPipe],
+      schemas: [NO_ERRORS_SCHEMA],
+      providers: [
+        { provide: Cat21Service, useValue: new Cat21ServiceStub() },
+        { provide: bitcoinNetwork, useValue: 'mainnet' },
+        { provide: UtxoContentScanner, useValue: scanner },
+        { provide: WalletService, useValue: wallets },
+        { provide: StateService, useValue: stateSvc },
+        { provide: Cat21ApiService, useValue: cat21 },
+        { provide: SeoService, useValue: new SeoServiceStub() },
+        {
+          provide: cat21Config,
+          useValue: { mempoolApiUrl: 'http://m', cat21ApiUrl: 'http://c', ordApiUrl: 'http://o', cat21OrdApiUrl: 'http://co' },
+        },
+      ],
+    })
+      .overrideComponent(Cat21MintComponent, { set: { template: REAL_TEMPLATE } })
+      .compileComponents();
+    fixture = TestBed.createComponent(Cat21MintComponent);
+    component = fixture.componentInstance;
+    orch = (component as unknown as { orchestrator: any }).orchestrator;
+    wallets.connectedWalletSubject.next(null);
+    fixture.detectChanges();
+  }
+
+  beforeEach(configureReal);
+
+  const singleAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' });
+  const dualAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-ord', paymentAddress: '3-pay' });
+  const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
+
+  it('renders the caveat for a single-address wallet even with a LARGE CLEAN coin selected (the case the old gate suppressed)', () => {
+    wallets.connectedWalletSubject.next(singleAddr());
+    component.selectedPaymentOutput = viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' });
+    fixture.detectChanges();
+
+    const caveat = q('[data-testid="single-address-caveat"]');
+    expect(caveat).toBeTruthy();
+    expect(caveat!.textContent).toContain(singleAddressCaveat('cats'));
+    // per-UTXO note is a DIFFERENT warning; it must NOT fire for a large clean coin
+    expect(q('[data-testid="per-utxo-unverified"]')).toBeNull();
+  });
+
+  it('does NOT render the caveat for a dual-address wallet (any coin state)', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    component.selectedPaymentOutput = viable({
+      paymentOutput: utxo({ value: 3_000 }), bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState,
+    });
+    fixture.detectChanges();
+    expect(q('[data-testid="single-address-caveat"]')).toBeNull();
+  });
+
+  it('renders the per-UTXO note inside the picker for a single-address wallet with a small unverified coin selected', () => {
+    wallets.connectedWalletSubject.next(singleAddr());
+    // the picker renders only when paymentOutputs$ has rows
+    const u = utxo({ value: 5_000 });
+    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'not-scanned' } as UtxoScanState]]);
+    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
+    component.selectedPaymentOutput = viable({ paymentOutput: u, bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState });
+    fixture.detectChanges();
+
+    expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
+    // both warnings coexist and are distinct: the prominent caveat is also present
+    expect(q('[data-testid="single-address-caveat"]')).toBeTruthy();
   });
 });

@@ -198,6 +198,21 @@
 
       <ng-container *ngIf="x.connectedWallet">
 
+        <!-- Single-address custody caveat (wallet-ux-round3 §7.3): fires the
+             moment a single-address wallet connects, before the first inscribe,
+             because once a cat lands on that one address the remedy costs a
+             transaction and a fee (every inscribe also mints CAT-21 cats via
+             nLockTime=21). Unconditional: a fact about the wallet, not a coin.
+             Amber (§7.4), non-blocking (§7.5), verbatim SDK copy (§7.7). -->
+        <div class="alert alert-warning p-3 mt-4" *ngIf="isSingleAddressWallet(x.connectedWallet)"
+          data-testid="single-address-caveat">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor"
+            class="mt-n1 me-2" viewBox="0 0 16 16" role="img" aria-label="Warning:">
+            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+          </svg>
+          {{ custodyCaveat }}
+        </div>
+
         <form class="validated" [formGroup]="form" (ngSubmit)="inscribe(x.connectedWallet)">
 
           <div class="row mt-4">
@@ -321,6 +336,23 @@
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
                 <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
               </div>
+
+              <!-- Per-UTXO note (wallet-ux-round3 §7.8): a DIFFERENT warning
+                   from the custody caveat above. That one is about the wallet
+                   model and is unfixable by coin choice; this one flags one
+                   specific small coin whose contents we couldn't verify, and
+                   is fixable by picking another. Lives inside the picker where
+                   a coin is being chosen, and stays visually lighter than the
+                   amber caveat so the two never read as one warning repeated. -->
+              <p class="small text-danger mt-2 mb-0"
+                *ngIf="isSingleAddressWallet(x.connectedWallet) && selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold && selectedPaymentOutput.bucket !== 'clean' && selectedPaymentOutput.bucket !== 'assets'"
+                data-testid="per-utxo-unverified">
+                &#9888; We couldn't verify what's on the coin you picked
+                ({{ selectedPaymentOutput.paymentOutput.value | number }} sat). Coins at or below
+                {{ smallUtxoWarningThreshold | number }} sat may hold an inscription, rune, rare sat,
+                or cat, and spending one would send it to the miner as fee. Check it before inscribing.
+              </p>
+
             </details>
           </div>
 
@@ -375,15 +407,6 @@
         <div class="alert alert-danger" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
         <div class="alert alert-danger" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
         <div class="alert alert-danger" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>
-
-        <ng-container *ngIf="isSingleAddressWallet(x.connectedWallet)">
-          <p class="alert alert-warning mt-4" *ngIf="!selectedPaymentOutput || (selectedPaymentOutput && selectedPaymentOutput.paymentOutput.value <= smallUtxoWarningThreshold && selectedPaymentOutput.bucket !== 'clean' && selectedPaymentOutput.bucket !== 'assets')">
-            Your wallet uses a single address for both payments and ordinals.
-            UTXOs at or below {{ smallUtxoWarningThreshold | number }} sats may hold inscriptions,
-            runes, rare sats, or cats. Spending one as an input would send the asset to the miner as fee.
-            Review the UTXO you inscribe with in expert mode above.
-          </p>
-        </ng-container>
 
       </ng-container>
     </ng-container>

@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -231,18 +231,25 @@ export class Cat21MintComponent implements OnInit {
   smallUtxoWarningThreshold = SMALL_UTXO_WARNING_THRESHOLD_SAT;
 
   /**
-   * Whether the connected wallet uses one address for both payments and
-   * ordinals. Detected purely via address equality — no SDK flag for
-   * this. Unisat: same. Xverse / Leather / OKX / Phantom / Magic Eden:
-   * different. The single-address case is the one where every payment
-   * UTXO is also potentially an ordinals-bearing UTXO, so the picker
-   * has to warn before the user accidentally spends an inscription /
-   * rune / cat as transaction change.
+   * Whether the connected wallet hands out one address for both payments and
+   * ordinals. Delegates to the SDK's {@link usesSingleAddress} so the
+   * definition lives in one place and can't drift: it compares the two
+   * addresses actually returned, covering every single-address wallet
+   * (UniSat, Wizz, OKX, Binance, Alby) without a per-wallet list. When it
+   * holds, every payment UTXO is also potentially an asset-bearing UTXO, so
+   * a payment made anywhere can spend the sat a cat lives on.
    */
   isSingleAddressWallet(wallet: WalletInfo | null | undefined): boolean {
-    if (!wallet) return false;
-    return wallet.ordinalsAddress === wallet.paymentAddress;
+    return usesSingleAddress(wallet);
   }
+
+  /**
+   * The approved single-address custody caveat, printed verbatim (never
+   * rewritten). Called with the 'cats' noun because a CAT-21 mint puts a cat
+   * on the single address; the SDK owns the wording so a refinement is a pin
+   * bump, not a copy edit here.
+   */
+  readonly custodyCaveat = singleAddressCaveat('cats');
 
   get recommendedFundingSats(): number {
     const rate = this.cfeeRate.value;

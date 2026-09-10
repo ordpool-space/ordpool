@@ -93,6 +93,16 @@ jest.mock('ordpool-sdk', () => {
       }
     },
     runeNamesFromContent: () => [],
+    // wallet-ux-round3 single-address custody API (faithful re-implementations;
+    // canonical versions in the SDK's wallet-capabilities.ts).
+    usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
+      !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
+    singleAddressCaveat: (assets = 'cats') =>
+      `This wallet keeps your spending coins and your ${assets} on one address, so a payment `
+      + 'made anywhere else can spend the sat one of them lives on and send it to a miner. Either '
+      + 'use a wallet that keeps the two apart, or start a fresh address here and use it only with '
+      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, which check a coin for '
+      + 'assets before spending it.',
     getMinimumUtxoSize: () => 294,
     toScureNetwork: () => ({}),
     getDummyKeypair: () => ({
@@ -127,7 +137,7 @@ jest.mock('ordpool-parser', () => ({
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 
-import { Cat21Service, UtxoContentScanner, WalletService, type TxnOutput, type WalletInfo } from 'ordpool-sdk';
+import { Cat21Service, UtxoContentScanner, WalletService, singleAddressCaveat, type TxnOutput, type WalletInfo } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { InscribeMintComponent } from './inscribe-mint.component';
@@ -599,6 +609,30 @@ describe('InscribeMintComponent', () => {
       expect(component.hasFundingSource()).toBe(false);
       orchestrator.setSelectedUtxo({ txid: 'a'.repeat(64), vout: 0, value: 50_000 } as TxnOutput);
       expect(component.hasFundingSource()).toBe(true);
+    });
+  });
+
+  // wallet-ux-round3 §7.3: the single-address custody caveat, against the REAL
+  // template this spec already renders (NO_ERRORS_SCHEMA, no template override).
+  // Unconditional: it fires the moment a single-address wallet connects, before
+  // any file or coin, because every inscribe also mints CAT-21 cats on the one
+  // address. Mutation-check: re-adding a coin gate to the caveat *ngIf turns the
+  // first test RED.
+  describe('single-address custody caveat (wallet-ux-round3 §7.3)', () => {
+    const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
+
+    it('renders the caveat the moment a single-address wallet connects (no file, no coin selected)', () => {
+      walletSubject.next(wallet({ ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' }));
+      fixture.detectChanges();
+      const caveat = q('[data-testid="single-address-caveat"]');
+      expect(caveat).toBeTruthy();
+      expect(caveat!.textContent).toContain(singleAddressCaveat('cats'));
+    });
+
+    it('does NOT render the caveat for a dual-address wallet', () => {
+      walletSubject.next(wallet()); // default helper: distinct ordinals/payment addresses
+      fixture.detectChanges();
+      expect(q('[data-testid="single-address-caveat"]')).toBeNull();
     });
   });
 });
