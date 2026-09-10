@@ -238,9 +238,9 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   // funding path); now it must start with `bcrt1q…`. Pinning this
   // surfaces a connector regression immediately rather than
   // waiting for a downstream mint to mysteriously fail.
-  const paymentCode = page.locator('code.bitcoin', { hasText: /^bcrt1q/ }).first();
+  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
   await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddr = (await paymentCode.textContent())!.trim();
+  const paymentAddr = (await paymentCode.textContent())!.replace(/\s+/g, '');
   console.log(`[cat21wallet] regtest payment address = ${paymentAddr}`);
   expect(paymentAddr).toMatch(/^bcrt1q/);
   sharedPaymentAddress = paymentAddr;

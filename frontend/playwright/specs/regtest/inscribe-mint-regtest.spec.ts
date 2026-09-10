@@ -237,9 +237,9 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // With no funds yet, the form renders the "We could not find enough
   // funds … Fund <code class="bitcoin">…</code>" hint. Read the address
   // verbatim - no SDK testHooks required.
-  const paymentCode = page.locator('code.bitcoin', { hasText: /^(bcrt1q|bcrt1p|3|tb1q|2)/ }).first();
+  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
   await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.trim();
+  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
   console.log(`[inscribe-page] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1q/);
 

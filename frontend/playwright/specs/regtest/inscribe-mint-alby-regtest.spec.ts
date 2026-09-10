@@ -220,9 +220,9 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   await page.getByTestId('wallet-connect-alby').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
 
-  const paymentCode = page.locator('code.bitcoin', { hasText: /^(bcrt1q|bcrt1p|2)/ }).first();
+  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
   await expect(paymentCode).toBeVisible({ timeout: 90_000 });
-  const paymentAddress = (await paymentCode.textContent())!.trim();
+  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
   console.log(`[inscribe-alby] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 

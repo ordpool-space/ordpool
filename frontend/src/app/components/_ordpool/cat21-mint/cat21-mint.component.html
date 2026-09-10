@@ -101,7 +101,7 @@
                   [class]="'btn btn-sm p-0'"></app-clipboard>
 
               </li>
-              <li>to your address <code
+              <li>to your address <code data-testid="fund-payment-address"
                   class="bitcoin">{{ groupAddress(x.connectedWallet.paymentAddress) }}</code>&nbsp;<app-clipboard
                   [button]="true" [text]="x.connectedWallet.paymentAddress"
                   [class]="'btn btn-sm p-0'"></app-clipboard>
