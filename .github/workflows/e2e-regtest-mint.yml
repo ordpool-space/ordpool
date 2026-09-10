@@ -34,6 +34,16 @@ on:
       # must trigger it.
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+      # The page-driven components these specs actually drive. A template or
+      # formatting change here (e.g. grouping the Fund address into chunks)
+      # breaks the specs WITHOUT touching their files, and frontend/src/**
+      # is deliberately excluded as too broad — so scope to just the mint /
+      # inscribe / wallet-connect surfaces the specs interact with. This is
+      # the blind spot that let a Fund-address format change land unverified
+      # (dcd30a56e) a few commits after its cause.
+      - 'frontend/src/app/components/_ordpool/cat21-mint/**'
+      - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
+      - 'frontend/src/app/components/_ordpool/wallet-connect/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'

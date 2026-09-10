@@ -24,6 +24,14 @@ on:
     paths:
       - 'frontend/playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts'
       - '.github/workflows/e2e-regtest-mint-cat21wallet.yml'
+      # The page-driven components this spec drives. A template or formatting
+      # change here (e.g. grouping the Fund address into chunks) breaks the
+      # spec WITHOUT touching its file, and frontend/src/** is deliberately
+      # excluded as too broad. Scope to just the mint / wallet-connect
+      # surfaces the spec interacts with. Same blind spot that let a
+      # Fund-address format change land unverified (dcd30a56e).
+      - 'frontend/src/app/components/_ordpool/cat21-mint/**'
+      - 'frontend/src/app/components/_ordpool/wallet-connect/**'
 
 permissions:
   contents: read
