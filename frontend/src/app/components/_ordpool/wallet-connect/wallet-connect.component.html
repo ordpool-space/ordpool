@@ -142,14 +142,9 @@
 
   <ng-container *ngIf="x.connectedWallet">
 
-    <!-- HACK -- Ordpool: the connected-wallet pill. Two overlaid states:
-         wrong-network (error, red) and single-address custody (standing
-         condition, amber; wallet-ux-round3 §7.6). Wrong-network is an error
-         you must fix to proceed, so it takes the pill when both are true; the
-         amber single-address marker rides the pill otherwise. The marker is a
-         real button (it already opens the popover) whose accessible name is
-         the whole caveat, with the glyph + "One address" label as the
-         redundant, non-colour channel. -->
+    <!-- HACK -- Ordpool: wrong-network indicator on the wallet button. The
+         single-address custody note lives beside the Mint / Inscribe button,
+         not here — no marker at connect (wallet-ux-round3 §12.1). -->
     <button
       #myPopover="ngbPopover"
       [popoverTitle]="popTitle"
@@ -157,22 +152,12 @@
       [autoClose]="'outside'"
       popoverClass="walletConnectPopover"
       class="btn"
-      [ngClass]="{
-        'btn-danger': (networkMismatch$ | async),
-        'btn-single-address': !(networkMismatch$ | async) && isSingleAddress(x.connectedWallet),
-        'btn-secondary': !(networkMismatch$ | async) && !isSingleAddress(x.connectedWallet)
-      }"
-      [attr.aria-label]="!(networkMismatch$ | async) && isSingleAddress(x.connectedWallet) ? singleAddressPillAria : null"
-      [attr.data-testid]="!(networkMismatch$ | async) && isSingleAddress(x.connectedWallet) ? 'wallet-pill-single-address' : 'wallet-pill'"
+      [ngClass]="(networkMismatch$ | async) ? 'btn-danger' : 'btn-secondary'"
       [title]="(networkMismatch$ | async)
         ? 'Wallet is on the wrong network: expected ' + expectedNetworkGroup
         : 'Your connected ' + knownOrdinalWallets[x.connectedWallet.type].label + ' Wallet'">
       <img [src]="knownOrdinalWallets[x.connectedWallet.type].logo" width="25" height="25">
       <span *ngIf="networkMismatch$ | async" aria-hidden="true" class="ms-1">&#9888;</span>
-      <ng-container *ngIf="!(networkMismatch$ | async) && isSingleAddress(x.connectedWallet)">
-        <span aria-hidden="true" class="ms-1">&#9888;</span>
-        <span class="pill-single-address-label ms-1">{{ singleAddressPillLabel }}</span>
-      </ng-container>
     </button>
 
     <ng-template #popTitle>
@@ -187,14 +172,6 @@
         <code>{{ expectedNetworkGroup }}</code>, but your wallet returned
         an address on a different network. Switch the network in your
         wallet, then reconnect.
-      </div>
-
-      <!-- Single-address custody caveat (wallet-ux-round3 §7.6): the full
-           sentence + both ways out, at the top of the popover the pill opens,
-           above the address rows. Verbatim SDK copy (§7.7). -->
-      <div *ngIf="isSingleAddress(x.connectedWallet)" class="single-address-caveat alert alert-warning p-2 mb-2"
-        data-testid="pill-single-address-caveat">
-        {{ custodyCaveat }}
       </div>
 
       <ul class="list-unstyled my-flex-container">

@@ -61,3 +61,9 @@
 .no-cursor {
   cursor: default;
 }
+
+// wallet-ux-round3 §12: the single-address note is INFO in a quiet register,
+// full body colour (--fg) at help-text size — not fine print (§9 / §12.3).
+.single-address-note {
+  color: var(--fg);
+}

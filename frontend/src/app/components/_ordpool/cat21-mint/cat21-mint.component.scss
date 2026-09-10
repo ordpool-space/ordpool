@@ -58,3 +58,11 @@
     display: block;
   }
 }
+
+// wallet-ux-round3 §12: the single-address note is INFO in a quiet register,
+// never fine print. Full body colour (--fg, the same white as the paragraph
+// copy above it) at help-text size — "quiet" is the absence of alert chrome
+// (no amber, no triangle, no banner), NOT a contrast reduction (§9 / §12.3).
+.single-address-note {
+  color: var(--fg);
+}

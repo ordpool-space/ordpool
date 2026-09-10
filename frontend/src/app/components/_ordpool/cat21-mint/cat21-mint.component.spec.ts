@@ -109,11 +109,12 @@ jest.mock('ordpool-sdk', () => {
     usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
       !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
     singleAddressCaveat: (assets = 'cats') =>
-      `This wallet keeps your spending coins and your ${assets} on one address, so a payment `
-      + 'made anywhere else can spend the sat one of them lives on and send it to a miner. Either '
-      + 'use a wallet that keeps the two apart, or start a fresh address here and use it only with '
-      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, which check a coin for '
-      + 'assets before spending it.',
+      `This wallet keeps your coins and your ${assets} at one address. That is fine here, because `
+      + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
+      + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
+      + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
+      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, or use a wallet that '
+      + `keeps your coins and your ${assets} apart.`,
   };
 });
 
@@ -1125,25 +1126,25 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
   const dualAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-ord', paymentAddress: '3-pay' });
   const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
 
-  it('renders the caveat for a single-address wallet even with a LARGE CLEAN coin selected (the case the old gate suppressed)', () => {
+  it('renders the single-address note for a single-address wallet even with a LARGE CLEAN coin selected (info beside the mint button, not gated on coin)', () => {
     wallets.connectedWalletSubject.next(singleAddr());
     component.selectedPaymentOutput = viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' });
     fixture.detectChanges();
 
-    const caveat = q('[data-testid="single-address-caveat"]');
-    expect(caveat).toBeTruthy();
-    expect(caveat!.textContent).toContain(singleAddressCaveat('cats'));
-    // per-UTXO note is a DIFFERENT warning; it must NOT fire for a large clean coin
+    const note = q('[data-testid="single-address-note"]');
+    expect(note).toBeTruthy();
+    expect(note!.textContent).toContain(singleAddressCaveat('cats'));
+    // the per-UTXO note is a DIFFERENT, coin-specific note; not for a large clean coin
     expect(q('[data-testid="per-utxo-unverified"]')).toBeNull();
   });
 
-  it('does NOT render the caveat for a dual-address wallet (any coin state)', () => {
+  it('does NOT render the single-address note for a dual-address wallet', () => {
     wallets.connectedWalletSubject.next(dualAddr());
     component.selectedPaymentOutput = viable({
       paymentOutput: utxo({ value: 3_000 }), bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState,
     });
     fixture.detectChanges();
-    expect(q('[data-testid="single-address-caveat"]')).toBeNull();
+    expect(q('[data-testid="single-address-note"]')).toBeNull();
   });
 
   it('renders the per-UTXO note inside the picker for a single-address wallet with a small unverified coin selected', () => {
@@ -1156,24 +1157,7 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     fixture.detectChanges();
 
     expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
-    // both warnings coexist and are distinct: the prominent caveat is also present
-    expect(q('[data-testid="single-address-caveat"]')).toBeTruthy();
-  });
-
-  it('collapses the prominent caveat after acknowledgement, per wallet (wallet-ux-round3 §7.6)', () => {
-    const w = singleAddr();
-    wallets.connectedWalletSubject.next(w);
-    component.selectedPaymentOutput = viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' });
-    fixture.detectChanges();
-    // shown before acknowledgement
-    expect(q('[data-testid="single-address-caveat"]')).toBeTruthy();
-    expect(q('[data-testid="single-address-ack"]')).toBeTruthy();
-
-    // acknowledge, as the "I understand" button does
-    component.acknowledgeSingleAddress(w);
-    fixture.detectChanges();
-
-    // prominent caveat collapses; it does not come back for this wallet type
-    expect(q('[data-testid="single-address-caveat"]')).toBeNull();
+    // the single-address info note also shows, distinct from the per-coin one
+    expect(q('[data-testid="single-address-note"]')).toBeTruthy();
   });
 });

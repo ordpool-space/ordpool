@@ -100,11 +100,12 @@ jest.mock('ordpool-sdk', () => {
     usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
       !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
     singleAddressCaveat: (assets = 'cats') =>
-      `This wallet keeps your spending coins and your ${assets} on one address, so a payment `
-      + 'made anywhere else can spend the sat one of them lives on and send it to a miner. Either '
-      + 'use a wallet that keeps the two apart, or start a fresh address here and use it only with '
-      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, which check a coin for '
-      + 'assets before spending it.',
+      `This wallet keeps your coins and your ${assets} at one address. That is fine here, because `
+      + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
+      + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
+      + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
+      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, or use a wallet that '
+      + `keeps your coins and your ${assets} apart.`,
     getMinimumUtxoSize: () => 294,
     toScureNetwork: () => ({}),
     getDummyKeypair: () => ({
@@ -614,27 +615,25 @@ describe('InscribeMintComponent', () => {
     });
   });
 
-  // wallet-ux-round3 §7.3: the single-address custody caveat, against the REAL
-  // template this spec already renders (NO_ERRORS_SCHEMA, no template override).
-  // Unconditional: it fires the moment a single-address wallet connects, before
-  // any file or coin, because every inscribe also mints CAT-21 cats on the one
-  // address. Mutation-check: re-adding a coin gate to the caveat *ngIf turns the
-  // first test RED.
-  describe('single-address custody caveat (wallet-ux-round3 §7.3)', () => {
+  // wallet-ux-round3 §12: the single-address INFO note beside the Inscribe
+  // button, against the REAL template this spec renders (NO_ERRORS_SCHEMA).
+  // Shown whenever a single-address wallet is connected; absent otherwise. No
+  // acknowledgement, no amber — info, not a warning.
+  describe('single-address note (wallet-ux-round3 §12)', () => {
     const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
 
-    it('renders the caveat the moment a single-address wallet connects (no file, no coin selected)', () => {
+    it('renders the note when a single-address wallet is connected', () => {
       walletSubject.next(wallet({ ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' }));
       fixture.detectChanges();
-      const caveat = q('[data-testid="single-address-caveat"]');
-      expect(caveat).toBeTruthy();
-      expect(caveat!.textContent).toContain(singleAddressCaveat('cats'));
+      const note = q('[data-testid="single-address-note"]');
+      expect(note).toBeTruthy();
+      expect(note!.textContent).toContain(singleAddressCaveat('cats'));
     });
 
-    it('does NOT render the caveat for a dual-address wallet', () => {
+    it('does NOT render the note for a dual-address wallet', () => {
       walletSubject.next(wallet()); // default helper: distinct ordinals/payment addresses
       fixture.detectChanges();
-      expect(q('[data-testid="single-address-caveat"]')).toBeNull();
+      expect(q('[data-testid="single-address-note"]')).toBeNull();
     });
   });
 });

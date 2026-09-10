@@ -12,16 +12,12 @@ import {
   WalletInfo,
 } from 'ordpool-sdk';
 import {
-  SINGLE_ADDRESS_PILL_LABEL,
   WalletCapability,
   WalletPickerRow,
   WatchOnlyScanResult,
   WatchOnlyScriptType,
   makeWatchOnlyProbe,
   scanWatchOnly,
-  singleAddressCaveat,
-  singleAddressPillAccessibleName,
-  usesSingleAddress,
   walletPickerRows,
 } from 'ordpool-sdk';
 
@@ -117,24 +113,6 @@ export class WalletConnectComponent implements OnDestroy {
   );
 
   knownOrdinalWallets = KnownOrdinalWallets;
-
-  // Single-address custody indicator (wallet-ux-round3 §7.6). The compact
-  // indicator rides this connected-wallet pill: amber state + glyph + label,
-  // shown whenever the connected wallet hands out one address for both roles.
-  // Strings are hosted in the SDK so they cannot drift across the three sites;
-  // read verbatim, never rewritten.
-  readonly singleAddressPillLabel = SINGLE_ADDRESS_PILL_LABEL;
-  readonly singleAddressPillAria = singleAddressPillAccessibleName('cats');
-  readonly custodyCaveat = singleAddressCaveat('cats');
-
-  /**
-   * Whether the connected wallet uses one address for both payments and
-   * ordinals (SDK ground truth). Drives the amber pill state + the caveat at
-   * the top of the popover.
-   */
-  isSingleAddress(wallet: WalletInfo | null | undefined): boolean {
-    return usesSingleAddress(wallet);
-  }
 
   @ViewChild('connect') connectTemplateRef: TemplateRef<any>;
   modalRef: NgbModalRef | undefined;
