@@ -4,7 +4,7 @@ import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, combineLatest, firstValueFrom, map, shareReplay, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { StateService } from '../../../services/state.service';
@@ -830,10 +830,14 @@ export class InscribeMintComponent implements OnInit {
   /**
    * The approved single-address custody caveat, printed verbatim (never
    * rewritten). Called with the 'cats' noun because every inscribe through the
-   * SDK also mints CAT-21 cats on the single address (nLockTime=21); the SDK
-   * owns the wording so a refinement is a pin bump, not a copy edit here.
+   * SDK also mints CAT-21 cats on the single address (nLockTime=21), and with
+   * the connected wallet's display label so the sentence names it ("Your
+   * UniSat wallet keeps..."). The SDK owns the wording and the opener grammar,
+   * so a refinement is a pin bump, not a copy edit here.
    */
-  readonly custodyCaveat = singleAddressCaveat('cats');
+  custodyCaveat(wallet: WalletInfo | null | undefined): string {
+    return singleAddressCaveat('cats', wallet ? KnownOrdinalWallets[wallet.type]?.label : undefined);
+  }
 
   /**
    * Four-character chunks of an address for verification (SDK helper). Used on

@@ -18,6 +18,14 @@ jest.mock('ordpool-sdk', () => {
       leather: 'leather' as const,
       unisat: 'unisat' as const,
     },
+    // Display labels keyed by type — the component reads
+    // KnownOrdinalWallets[wallet.type].label to name the wallet in the
+    // single-address caveat. Only the types the specs construct are needed.
+    KnownOrdinalWallets: {
+      xverse: { label: 'Xverse' },
+      leather: { label: 'Leather' },
+      unisat: { label: 'UniSat' },
+    },
     // Token-only classes — empty bodies are fine because TestBed
     // replaces them via { provide: X, useValue: stub }.
     Cat21ApiService: class Cat21ApiService {},
@@ -103,18 +111,25 @@ jest.mock('ordpool-sdk', () => {
     // wallet-ux-round3 single-address custody API. Faithful re-implementations
     // (canonical versions live in the SDK's wallet-capabilities.ts):
     // usesSingleAddress compares the two returned addresses; singleAddressCaveat
-    // substitutes the asset noun into the approved sentence. Same mock
-    // philosophy as above — the SDK owns the wording, this stand-in makes the
-    // component's use of it observable without the sats-connect ESM chain.
+    // substitutes the asset noun into the approved sentence and, given a wallet
+    // label, names the wallet in the opener ("Your UniSat wallet keeps..."),
+    // mirroring the SDK's opener grammar (a label already ending in "wallet",
+    // e.g. "Binance Web3 Wallet", is not doubled). Same mock philosophy as
+    // above — the SDK owns the wording, this stand-in makes the component's use
+    // of it observable without the sats-connect ESM chain.
     usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
       !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
-    singleAddressCaveat: (assets = 'cats') =>
-      `This wallet keeps your coins and your ${assets} at one address. That is fine here, because `
+    singleAddressCaveat: (assets = 'cats', walletName?: string) => {
+      const opener = !walletName
+        ? 'This wallet'
+        : /\bwallet$/i.test(walletName.trim()) ? `Your ${walletName.trim()}` : `Your ${walletName.trim()} wallet`;
+      return `${opener} keeps your coins and your ${assets} at one address. That is fine here, because `
       + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
       + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
       + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
       + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, or use a wallet that '
-      + `keeps your coins and your ${assets} apart.`,
+      + `keeps your coins and your ${assets} apart.`;
+    },
   };
 });
 
@@ -1122,7 +1137,10 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
 
   beforeEach(configureReal);
 
-  const singleAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' });
+  // A real single-address wallet type (UniSat), so the caveat names it. Xverse
+  // is genuinely dual-address; single-address wallets are unisat/wizz/okx/
+  // binance/alby. usesSingleAddress still keys on the two equal addresses.
+  const singleAddr = (): WalletInfo => wallet({ type: KnownOrdinalWalletType.unisat, ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' });
   const dualAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-ord', paymentAddress: '3-pay' });
   const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
 
@@ -1133,7 +1151,11 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
 
     const note = q('[data-testid="single-address-note"]');
     expect(note).toBeTruthy();
-    expect(note!.textContent).toContain(singleAddressCaveat('cats'));
+    // Names the connected wallet: the component passes KnownOrdinalWallets[type].label
+    // through to the caveat. Mutation-worthy — if it dropped the label the note would
+    // open "This wallet keeps..." and fail to contain the UniSat-named sentence.
+    expect(note!.textContent).toContain(singleAddressCaveat('cats', 'UniSat'));
+    expect(note!.textContent).toContain('Your UniSat wallet keeps');
     // the per-UTXO note is a DIFFERENT, coin-specific note; not for a large clean coin
     expect(q('[data-testid="per-utxo-unverified"]')).toBeNull();
   });

@@ -95,17 +95,31 @@ jest.mock('ordpool-sdk', () => {
     runeNamesFromContent: () => [],
     // Four-character grouping for the "Fund <addr>" verification instruction.
     addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
+    // Display labels keyed by type — the component reads
+    // KnownOrdinalWallets[wallet.type].label to name the wallet in the caveat.
+    KnownOrdinalWallets: {
+      xverse: { label: 'Xverse' },
+      leather: { label: 'Leather' },
+      unisat: { label: 'UniSat' },
+    },
     // wallet-ux-round3 single-address custody API (faithful re-implementations;
-    // canonical versions in the SDK's wallet-capabilities.ts).
+    // canonical versions in the SDK's wallet-capabilities.ts). singleAddressCaveat
+    // names the wallet in the opener when given a label ("Your UniSat wallet
+    // keeps..."), mirroring the SDK's opener grammar (a label already ending in
+    // "wallet" is not doubled).
     usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
       !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
-    singleAddressCaveat: (assets = 'cats') =>
-      `This wallet keeps your coins and your ${assets} at one address. That is fine here, because `
+    singleAddressCaveat: (assets = 'cats', walletName?: string) => {
+      const opener = !walletName
+        ? 'This wallet'
+        : /\bwallet$/i.test(walletName.trim()) ? `Your ${walletName.trim()}` : `Your ${walletName.trim()} wallet`;
+      return `${opener} keeps your coins and your ${assets} at one address. That is fine here, because `
       + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
       + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
       + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
       + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, or use a wallet that '
-      + `keeps your coins and your ${assets} apart.`,
+      + `keeps your coins and your ${assets} apart.`;
+    },
     getMinimumUtxoSize: () => 294,
     toScureNetwork: () => ({}),
     getDummyKeypair: () => ({
@@ -622,12 +636,17 @@ describe('InscribeMintComponent', () => {
   describe('single-address note (wallet-ux-round3 §12)', () => {
     const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
 
-    it('renders the note when a single-address wallet is connected', () => {
-      walletSubject.next(wallet({ ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' }));
+    it('renders the note, naming the wallet, when a single-address wallet is connected', () => {
+      // A real single-address wallet type (UniSat) so the caveat names it; Xverse
+      // is genuinely dual-address. usesSingleAddress keys on the two equal addresses.
+      walletSubject.next(wallet({ type: 'unisat' as WalletInfo['type'], ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' }));
       fixture.detectChanges();
       const note = q('[data-testid="single-address-note"]');
       expect(note).toBeTruthy();
-      expect(note!.textContent).toContain(singleAddressCaveat('cats'));
+      // Mutation-worthy on the wallet name: if the component dropped the label the
+      // note would open "This wallet keeps..." and not contain the UniSat sentence.
+      expect(note!.textContent).toContain(singleAddressCaveat('cats', 'UniSat'));
+      expect(note!.textContent).toContain('Your UniSat wallet keeps');
     });
 
     it('does NOT render the note for a dual-address wallet', () => {
