@@ -47,6 +47,14 @@ import {
  * The spec is intentionally CI-only (the workflow downloads the
  * unverified Xverse .crx into a runner that gets torn down). The
  * config refuses to run it locally — see `playwright.regtest.config.ts`.
+ *
+ * COVERAGE TRIGGER: this spec boots the real `/cat21-mint` page, so the
+ * regtest lane must fire when the components it renders change. Because
+ * `frontend/src/**` is too broad for this ~20-min lane, the workflow's
+ * `push.paths` names the specific `_ordpool` component dirs instead. If
+ * this spec starts booting another `_ordpool` component, add that dir to
+ * the `paths` block in `.github/workflows/e2e-regtest-mint.yml` - a
+ * component the filter omits can break this spec with no lane to catch it.
  */
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';

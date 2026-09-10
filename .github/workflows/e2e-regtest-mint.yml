@@ -34,13 +34,16 @@ on:
       # must trigger it.
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
-      # The page-driven components these specs actually drive. A template or
+      # The page-driven components these specs actually boot. A template or
       # formatting change here (e.g. grouping the Fund address into chunks)
       # breaks the specs WITHOUT touching their files, and frontend/src/**
       # is deliberately excluded as too broad — so scope to just the mint /
       # inscribe / wallet-connect surfaces the specs interact with. This is
       # the blind spot that let a Fund-address format change land unverified
       # (dcd30a56e) a few commits after its cause.
+      # MAINTENANCE: this list must name every _ordpool component the specs
+      # below boot. When a new spec boots another component, add its dir here
+      # or the same silent-drift break returns for that component.
       - 'frontend/src/app/components/_ordpool/cat21-mint/**'
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
