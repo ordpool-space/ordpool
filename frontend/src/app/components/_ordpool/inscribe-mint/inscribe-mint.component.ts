@@ -4,7 +4,7 @@ import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, combineLatest, firstValueFrom, map, shareReplay, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, groupAddressForVerification, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { StateService } from '../../../services/state.service';
@@ -836,13 +836,14 @@ export class InscribeMintComponent implements OnInit {
   readonly custodyCaveat = singleAddressCaveat('cats');
 
   /**
-   * Group an address into four-character runs for verification (SDK helper).
-   * Used only for the "Fund this address" instruction, where the address is
-   * something a person reads and checks; the clipboard button still copies the
-   * ungrouped address.
+   * Four-character chunks of an address for verification (SDK helper). Used on
+   * the "Fund this address" instruction so a careful person can compare it
+   * against what their wallet shows before funding it. The chunks render as
+   * inline spans with NO space character between them (the gap is CSS), so a
+   * dragged selection or the copy button both yield the raw address.
    */
-  groupAddress(address: string | null | undefined): string {
-    return address ? groupAddressForVerification(address) : '';
+  addressChunks(address: string | null | undefined): string[] {
+    return address ? addressVerificationChunks(address) : [];
   }
 
   inscriptionId(revealTxId: string): string {

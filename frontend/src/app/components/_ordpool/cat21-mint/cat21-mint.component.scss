@@ -66,3 +66,20 @@
 .single-address-note {
   color: var(--fg);
 }
+
+// wallet-ux-round3 §12.4 / SDK addressVerificationChunks: the "Fund this
+// address" instruction renders the address as four-character chunks so a
+// careful person can compare it against their wallet, while a copy still
+// yields the RAW address (no space character is in the DOM; the gap is the
+// margin below).
+//
+// display: inline is LOAD-BEARING — do NOT make these flex or grid items or
+// inline-block. The browser's copy serialiser inserts line breaks by LAYOUT,
+// so flex/grid/inline-block chunks reach the clipboard newline-separated
+// ("bc1p\n3z9k\n…") — a broken address a person pastes into a send field —
+// even though the DOM never held a newline and textContent reports it clean.
+// Verified by actually copying in a browser, not by textContent.
+.addr-chunk {
+  display: inline;
+  margin-right: 0.35em;
+}

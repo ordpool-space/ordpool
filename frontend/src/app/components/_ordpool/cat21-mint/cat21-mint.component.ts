@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, bucketOf, calculateRecommendedFundingSats, groupAddressForVerification, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -252,13 +252,14 @@ export class Cat21MintComponent implements OnInit {
   readonly custodyCaveat = singleAddressCaveat('cats');
 
   /**
-   * Group an address into four-character runs for verification (SDK helper).
-   * Used only for the "Fund this address" instruction, where the address is
-   * something a person reads and checks; the clipboard button still copies the
-   * ungrouped address.
+   * Four-character chunks of an address for verification (SDK helper). Used on
+   * the "Fund this address" instruction so a careful person can compare it
+   * against what their wallet shows before funding it. The chunks render as
+   * inline spans with NO space character between them (the gap is CSS), so a
+   * dragged selection or the copy button both yield the raw address.
    */
-  groupAddress(address: string | null | undefined): string {
-    return address ? groupAddressForVerification(address) : '';
+  addressChunks(address: string | null | undefined): string[] {
+    return address ? addressVerificationChunks(address) : [];
   }
 
   get recommendedFundingSats(): number {

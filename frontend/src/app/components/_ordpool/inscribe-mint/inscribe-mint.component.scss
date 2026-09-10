@@ -67,3 +67,17 @@
 .single-address-note {
   color: var(--fg);
 }
+
+// wallet-ux-round3 §12.4 / SDK addressVerificationChunks: the "Fund this
+// address" instruction renders four-character chunks so a person can compare
+// against their wallet, while a copy still yields the RAW address.
+//
+// display: inline is LOAD-BEARING — do NOT make these flex/grid items or
+// inline-block. The browser's copy serialiser inserts line breaks by LAYOUT,
+// so flex/grid/inline-block chunks reach the clipboard newline-separated even
+// though the DOM holds no newline and textContent reports it clean. Verified
+// by copying in a browser, not by textContent.
+.addr-chunk {
+  display: inline;
+  margin-right: 0.35em;
+}

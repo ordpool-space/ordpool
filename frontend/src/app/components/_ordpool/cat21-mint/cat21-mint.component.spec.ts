@@ -99,7 +99,7 @@ jest.mock('ordpool-sdk', () => {
     runeNamesFromContent: (content: { runes: object | null }) =>
       content.runes ? Object.keys(content.runes) : [],
     // Four-character grouping for the "Fund <addr>" verification instruction.
-    groupAddressForVerification: (a: string) => (a.match(/.{1,4}/g) ?? []).join(' '),
+    addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
     // wallet-ux-round3 single-address custody API. Faithful re-implementations
     // (canonical versions live in the SDK's wallet-capabilities.ts):
     // usesSingleAddress compares the two returned addresses; singleAddressCaveat
