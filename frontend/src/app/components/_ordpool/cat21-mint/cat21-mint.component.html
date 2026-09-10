@@ -122,7 +122,7 @@
 
               </li>
               <li>to your address <code
-                  class="bitcoin">{{ x.connectedWallet.paymentAddress }}</code>&nbsp;<app-clipboard
+                  class="bitcoin">{{ groupAddress(x.connectedWallet.paymentAddress) }}</code>&nbsp;<app-clipboard
                   [button]="true" [text]="x.connectedWallet.paymentAddress"
                   [class]="'btn btn-sm p-0'"></app-clipboard>
               </li>

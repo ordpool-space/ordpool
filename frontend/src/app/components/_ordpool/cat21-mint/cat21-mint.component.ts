@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, bucketOf, calculateRecommendedFundingSats, groupAddressForVerification, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -268,6 +268,16 @@ export class Cat21MintComponent implements OnInit {
   acknowledgeSingleAddress(wallet: WalletInfo | null | undefined): void {
     this.ackService.acknowledge(wallet?.type);
     this.cd.markForCheck();
+  }
+
+  /**
+   * Group an address into four-character runs for verification (SDK helper).
+   * Used only for the "Fund this address" instruction, where the address is
+   * something a person reads and checks; the clipboard button still copies the
+   * ungrouped address.
+   */
+  groupAddress(address: string | null | undefined): string {
+    return address ? groupAddressForVerification(address) : '';
   }
 
   get recommendedFundingSats(): number {

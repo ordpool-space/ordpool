@@ -4,7 +4,7 @@ import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, combineLatest, firstValueFrom, map, shareReplay, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, groupAddressForVerification, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { StateService } from '../../../services/state.service';
@@ -851,6 +851,16 @@ export class InscribeMintComponent implements OnInit {
   acknowledgeSingleAddress(wallet: WalletInfo | null | undefined): void {
     this.ackService.acknowledge(wallet?.type);
     this.cd.markForCheck();
+  }
+
+  /**
+   * Group an address into four-character runs for verification (SDK helper).
+   * Used only for the "Fund this address" instruction, where the address is
+   * something a person reads and checks; the clipboard button still copies the
+   * ungrouped address.
+   */
+  groupAddress(address: string | null | undefined): string {
+    return address ? groupAddressForVerification(address) : '';
   }
 
   inscriptionId(revealTxId: string): string {

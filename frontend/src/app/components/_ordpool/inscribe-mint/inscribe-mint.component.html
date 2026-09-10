@@ -261,7 +261,7 @@
           <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingStatus() === 'insufficient' && !utxoLoading()">
             There isn't enough Bitcoin in your payment address to cover the inscription at
             <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>.
-            Fund <code class="bitcoin">{{ x.connectedWallet.paymentAddress }}</code>
+            Fund <code class="bitcoin">{{ groupAddress(x.connectedWallet.paymentAddress) }}</code>
             <app-clipboard [button]="true" [text]="x.connectedWallet.paymentAddress" [class]="'btn btn-sm p-0'"></app-clipboard>
             or pick a lower fee rate.
           </div>
