@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { ORDPOOL_FAMILY, ORDPOOL_FAMILY_HEADING, ORDPOOL_FAMILY_LEDE, OrdpoolFamilyMember } from 'ordpool-sdk';
+import { ORDPOOL_FAMILY, ORDPOOL_FAMILY_HEADING, ordpoolFamilyLede, OrdpoolFamilyMember } from 'ordpool-sdk';
 
 /**
  * The Ordpool-family strip: one row per sibling product (ordpool.space,
@@ -29,7 +29,10 @@ export class FamilyFooterComponent {
   readonly currentKey: OrdpoolFamilyMember['key'] = 'ordpool';
 
   readonly heading = ORDPOOL_FAMILY_HEADING;
-  readonly lede = ORDPOOL_FAMILY_LEDE;
+  // Per-site lede: names this site's own medium ("a JPEG"). The footer
+  // introduces the family and carries no safety claim; the coin-check promise
+  // lives in the single-address caveat, at the action, where it can be acted on.
+  readonly lede = ordpoolFamilyLede('ordpool');
   readonly members = ORDPOOL_FAMILY;
 
   isCurrent(member: OrdpoolFamilyMember): boolean {
