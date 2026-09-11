@@ -1,0 +1,151 @@
+// The family strip belongs to the site: it paints on the footer's own ground
+// (--bg) and uses the site's brand orange (--orange) and box surface
+// (--box-bg), so it reads as part of ordpool, not a pasted-in ad band.
+
+.family-footer {
+  background-color: var(--bg);
+  border-top: 1px solid var(--border-subtle);
+  padding: 40px 0 4px;
+}
+
+.family-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 15px;
+}
+
+.family-head {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.family-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.family-mark {
+  display: inline-block;
+  margin-top: -2px;
+}
+
+// The lede sits under the heading. Muted a touch below the member lines so the
+// members lead the eye, but kept well above AA (measured on the dark ground),
+// because a family block nobody can read produces no network effect.
+.family-lede {
+  max-width: 620px;
+  margin: 0 auto;
+  color: var(--fg);
+  opacity: 0.82;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.family-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+// Each member is a card so the strip reads as four invitations, not a nav row.
+.family-member {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  background-color: var(--box-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.member-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--orange);
+  text-decoration: none;
+}
+
+.member-go {
+  transition: transform 0.15s ease;
+}
+
+// The claim line is the invitation; full-weight body colour, not fine print.
+.member-line {
+  color: var(--fg);
+  opacity: 0.9;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+// Hover lifts a linkable card and nudges its arrow, so the whole card reads as
+// clickable, not just the name.
+.family-member:not(.is-current):hover {
+  border-color: var(--orange);
+  transform: translateY(-2px);
+
+  a.member-name {
+    text-decoration: underline;
+  }
+
+  .member-go {
+    transform: translateX(3px);
+  }
+}
+
+// The self-row reads as "you are here": a dashed border and the current name in
+// plain foreground rather than the orange link colour, so it is clearly the
+// site you are on, not a disabled or broken link.
+.family-member.is-current {
+  border-style: dashed;
+
+  .member-name {
+    color: var(--fg);
+  }
+}
+
+.you-are-here {
+  align-self: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: var(--active-bg);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+// Two columns on tablets, one on phones. Cards get tighter so four stacked
+// members are not a scroll tax between the reader and the real footer.
+@media (max-width: 991px) {
+  .family-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 575px) {
+  .family-footer {
+    padding-top: 32px;
+  }
+
+  .family-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .family-member {
+    padding: 12px 14px;
+  }
+}

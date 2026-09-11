@@ -173,6 +173,7 @@ import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wall
 import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
 import { PsbtExportPromptComponent } from '@components/_ordpool/psbt-export-prompt/psbt-export-prompt.component';
 import { InscribeMintComponent } from '@components/_ordpool/inscribe-mint/inscribe-mint.component';
+import { FamilyFooterComponent } from '@components/_ordpool/family-footer/family-footer.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
 import { SafeResourceUrlPipe } from '@components/_ordpool/safe-url.pipe';
 import { AtomicalViewerComponent } from '@components/_ordpool/digital-artifact-viewer/atomical-viewer/atomical-viewer.component';
@@ -340,6 +341,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     Cat21MintComponent,
     PsbtExportPromptComponent,
     InscribeMintComponent,
+    FamilyFooterComponent,
     CounterpartyViewerComponent,
     StampViewerComponent,
     Src721ViewerComponent,
@@ -485,6 +487,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     MiningPoolComponent,
     PreviewTitleComponent,
     GlobalFooterComponent,
+    FamilyFooterComponent,
     MempoolErrorComponent,
     AccelerationsListComponent,
     AccelerationStatsComponent,

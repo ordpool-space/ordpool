@@ -1,0 +1,35 @@
+<!-- HACK: Ordpool family strip (sits above app-global-footer) -->
+<section class="family-footer" aria-labelledby="family-footer-heading">
+  <div class="family-inner">
+
+    <header class="family-head">
+      <h2 id="family-footer-heading" class="family-heading">
+        <img src="/resources/ordpool-cube-logo.svg" width="22" height="22" alt="" class="family-mark">
+        {{ heading }}
+      </h2>
+      <p class="family-lede">{{ lede }}</p>
+    </header>
+
+    <ul class="family-grid">
+      <li *ngFor="let member of members" class="family-member" [class.is-current]="isCurrent(member)">
+
+        <ng-container *ngIf="isCurrent(member); else linkedMember">
+          <span class="member-name">
+            {{ member.name }}
+            <span class="you-are-here">You’re here</span>
+          </span>
+          <span class="member-line">{{ member.line }}</span>
+        </ng-container>
+
+        <ng-template #linkedMember>
+          <a class="member-name" [href]="member.url" target="_blank" rel="noopener">
+            {{ member.name }}<span class="member-go" aria-hidden="true">→</span>
+          </a>
+          <span class="member-line">{{ member.line }}</span>
+        </ng-template>
+
+      </li>
+    </ul>
+
+  </div>
+</section>
