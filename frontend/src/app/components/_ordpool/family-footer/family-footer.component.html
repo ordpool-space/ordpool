@@ -26,9 +26,10 @@
         </ng-container>
 
         <!-- The WHOLE card is the link, not just the name, so the entire card
-             is a single click target. -->
+             is a single click target. Same-tab (no target="_blank"): inside the
+             family we link directly so clicking through does not open many tabs. -->
         <ng-template #linkedMember>
-          <a class="member-body member-link" [href]="member.url" target="_blank" rel="noopener">
+          <a class="member-body member-link" [href]="member.url">
             <span class="member-name">{{ member.name }}<span class="member-go" aria-hidden="true">→</span></span>
             <span class="member-line">{{ member.line }}</span>
           </a>

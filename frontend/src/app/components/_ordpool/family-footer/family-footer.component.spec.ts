@@ -77,8 +77,10 @@ describe('FamilyFooterComponent', () => {
       const link = row.querySelector('a.member-link') as HTMLAnchorElement | null;
       expect(link).toBeTruthy();
       expect(link!.getAttribute('href')).toBe(url);
-      expect(link!.getAttribute('target')).toBe('_blank');
-      expect(link!.getAttribute('rel')).toContain('noopener');
+      // Same-tab: inside the family we link directly so clicking through does
+      // not open a new tab per member.
+      expect(link!.getAttribute('target')).toBeNull();
+      expect(link!.getAttribute('rel')).toBeNull();
       // The whole card is inside the single anchor: both the name AND the claim
       // line are descendants of the link, so a click anywhere on the card follows
       // it (not just on the name).
