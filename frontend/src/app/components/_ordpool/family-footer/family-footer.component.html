@@ -14,18 +14,22 @@
       <li *ngFor="let member of members" class="family-member" [class.is-current]="isCurrent(member)">
 
         <ng-container *ngIf="isCurrent(member); else linkedMember">
-          <span class="member-name">
-            {{ member.name }}
-            <span class="you-are-here">You’re here</span>
-          </span>
-          <span class="member-line">{{ member.line }}</span>
+          <div class="member-body">
+            <span class="member-name">
+              {{ member.name }}
+              <span class="you-are-here">You’re here</span>
+            </span>
+            <span class="member-line">{{ member.line }}</span>
+          </div>
         </ng-container>
 
+        <!-- The WHOLE card is the link, not just the name, so the entire card
+             is a single click target. -->
         <ng-template #linkedMember>
-          <a class="member-name" [href]="member.url" target="_blank" rel="noopener">
-            {{ member.name }}<span class="member-go" aria-hidden="true">→</span>
+          <a class="member-body member-link" [href]="member.url" target="_blank" rel="noopener">
+            <span class="member-name">{{ member.name }}<span class="member-go" aria-hidden="true">→</span></span>
+            <span class="member-line">{{ member.line }}</span>
           </a>
-          <span class="member-line">{{ member.line }}</span>
         </ng-template>
 
       </li>

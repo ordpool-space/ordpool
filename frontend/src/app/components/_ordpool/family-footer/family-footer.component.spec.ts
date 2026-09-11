@@ -59,16 +59,17 @@ describe('FamilyFooterComponent', () => {
     }
   });
 
-  it('marks ONLY ordpool as the current row: no link, a "You’re here" marker', () => {
+  it('marks ONLY ordpool as the current row: no link at all, a "You’re here" marker', () => {
     const own = memberByName('ordpool.space')!;
     expect(own.classList).toContain('is-current');
-    // The current row is a span, not an anchor, so it is not a link to itself.
-    expect(own.querySelector('a.member-name')).toBeNull();
+    // The current row has NO anchor anywhere: it is not a link to the site
+    // you are already on.
+    expect(own.querySelector('a')).toBeNull();
     expect(own.querySelector('span.member-name')).toBeTruthy();
     expect(own.querySelector('.you-are-here')?.textContent).toContain('here');
   });
 
-  it('renders the other three members as external links to their url, and NOT as current', () => {
+  it('makes the WHOLE card a link for each of the other three members, not just the name', () => {
     for (const { name, url } of [
       { name: 'cat21.space', url: 'https://cat21.space' },
       { name: 'cubes.haushoppe.art', url: 'https://cubes.haushoppe.art' },
@@ -76,11 +77,16 @@ describe('FamilyFooterComponent', () => {
     ]) {
       const row = memberByName(name)!;
       expect(row.classList).not.toContain('is-current');
-      const link = row.querySelector('a.member-name') as HTMLAnchorElement | null;
+      const link = row.querySelector('a.member-link') as HTMLAnchorElement | null;
       expect(link).toBeTruthy();
       expect(link!.getAttribute('href')).toBe(url);
       expect(link!.getAttribute('target')).toBe('_blank');
       expect(link!.getAttribute('rel')).toContain('noopener');
+      // The whole card is inside the single anchor: both the name AND the claim
+      // line are descendants of the link, so a click anywhere on the card follows
+      // it (not just on the name).
+      expect(link!.querySelector('.member-name')).toBeTruthy();
+      expect(link!.querySelector('.member-line')?.textContent).toBe(row.querySelector('.member-line')?.textContent);
       // No "You're here" marker on a sibling row.
       expect(row.querySelector('.you-are-here')).toBeNull();
     }
