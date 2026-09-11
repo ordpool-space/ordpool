@@ -1515,7 +1515,13 @@ class Blocks {
     // Check the memory cache
     if (!skipMemoryCache) {
       const blockByHash = this.getBlocks().find((b) => b.id === hash);
-      if (blockByHash) {
+      // HACK -- Ordpool: only trust the in-memory cache when the entry already
+      // carries ordpool stats. A reorg-replacement block can be cached before
+      // its ordpool stats are computed and backfilled into `ordpool_stats`;
+      // returning that entry then pins the block on a perpetual "indexing…"
+      // even though the DB later has the stats. Falling through to $indexBlock
+      // reads them from the DB by hash (via $getBlockByHash) and attaches them.
+      if (blockByHash && blockByHash.extras?.ordpoolStats) {
         return blockByHash;
       }
     }
