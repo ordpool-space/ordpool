@@ -36,6 +36,17 @@
   gap: 0.4rem;
   color: #fff;
 
+  // On narrow phones the navbar cannot fit the brand, a labelled Connect button
+  // and the burger on one row, so the labelled button overflowed the bar by ~21px.
+  // Below 480px the button goes icon-only: the wallet icon still names it and the
+  // aria-label carries the full "Connect a wallet", so the connect affordance stays
+  // visible on mobile (never hidden in the burger) without overflowing the bar.
+  @media (max-width: 480px) {
+    .connect-label {
+      display: none;
+    }
+  }
+
   fa-icon {
     font-size: 1em; // inline with the label, not the larger nav-icon size
   }
