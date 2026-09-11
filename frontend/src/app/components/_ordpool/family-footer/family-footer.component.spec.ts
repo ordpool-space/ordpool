@@ -11,7 +11,7 @@ jest.mock('ordpool-sdk', () => ({
     return `Sometimes Bitcoin is hard money. Sometimes Bitcoin is ${tail}.`;
   },
   ORDPOOL_FAMILY: [
-    { key: 'ordpool', name: 'ordpool.space', url: 'https://ordpool.space', line: 'The best MEMEpool explorer on Bitcoin.' },
+    { key: 'ordpool', name: 'ordpool.space', url: 'https://ordpool.space', line: 'See inside every Bitcoin block.' },
     { key: 'cat21', name: 'cat21.space', url: 'https://cat21.space', line: 'Everything CAT-21, a meme protocol from the Creator of Ordpool.' },
     { key: 'cubes', name: 'cubes.haushoppe.art', url: 'https://cubes.haushoppe.art', line: 'Everything cubes, an art project from the Creator of Ordpool.' },
     { key: 'wallet', name: 'CAT-21 wallet', url: 'https://github.com/ordpool-space/cat21-wallet', line: 'A hot wallet for high frequency trading of CAT-21, made for AI agents and their humans.' },
@@ -96,6 +96,6 @@ describe('FamilyFooterComponent', () => {
     expect(memberByName('cat21.space')!.querySelector('.member-line')?.textContent)
       .toContain('a meme protocol from the Creator of Ordpool');
     expect(memberByName('ordpool.space')!.querySelector('.member-line')?.textContent)
-      .toContain('The best MEMEpool explorer on Bitcoin');
+      .toContain('See inside every Bitcoin block');
   });
 });
