@@ -103,6 +103,28 @@ li.nav-item {
 // mix a cat21 <img> with fa-icons of different widths, so each label's text
 // started at a different x. Give every leading icon one fixed-width, centred
 // slot so all three labels line up cleanly.
+// HACK -- Ordpool: when the "Write to Bitcoin" dropdown is open, the whole nav
+// item becomes a full-height block in the popup's colour (like the other active
+// nav items, e.g. MEMEpool), and the popup attaches flush below it with its top
+// border dropped, so the toggle and its popup read as ONE connected surface:
+// the popup is clearly open because THIS item was clicked. The dropdown caret is
+// dropped too; the "+" plus the open-state block already signal it opens a menu.
+#btn-mint .dropdown-toggle::after {
+  display: none;
+}
+
+#btn-mint.show {
+  background-color: var(--bg);
+}
+
+#btn-mint .dropdown-menu {
+  margin-top: 0;
+}
+
+#btn-mint.show .dropdown-menu {
+  border-top: none;
+}
+
 #btn-mint .dropdown-menu a {
   display: flex;
   align-items: center;
