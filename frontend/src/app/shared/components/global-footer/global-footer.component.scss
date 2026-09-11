@@ -1,6 +1,6 @@
 footer {
   background-color: var(--bg);
-  margin-top: 30px;
+  margin-top: 40px;
   &.services {
     @media (min-width: 768px) {
       padding-left: 240px;
@@ -348,20 +348,15 @@ footer .nowrap {
 }
 
 // Divider between the family block (top of the footer) and the site footer
-// below. Room above and below so the two halves read as distinct sections of
-// one footer; square and subtle, matching the flat aesthetic.
+// below. Spans the full screen width (it is a direct child of <footer>, outside
+// the container), with generous room above and below so the two halves read as
+// distinct sections of one footer; square and subtle, matching the flat look.
 .footer-divider {
-  max-width: 1140px;
-  margin: 44px auto;
+  width: 100%;
+  margin: 48px 0;
   border: 0;
   border-top: 1px solid var(--border-subtle);
   opacity: 1;
-}
-
-@media (max-width: 1200px) {
-  .footer-divider {
-    max-width: 90%;
-  }
 }
 
 // Tools column: a leading icon then the label, echoing the "Write to Bitcoin"

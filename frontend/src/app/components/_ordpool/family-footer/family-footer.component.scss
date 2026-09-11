@@ -2,11 +2,18 @@
 // (--bg) and uses the site's brand orange (--orange) and box surface
 // (--box-bg), so it reads as part of ordpool, not a pasted-in ad band.
 
-// Sits at the top of the footer (same --bg ground), so it carries no border or
-// gap of its own; the footer's own divider separates it from the rest below.
+// Sits at the top of the footer (same --bg ground), so it carries no border of
+// its own; the footer's own divider separates it from the rest below. Generous
+// top padding gives the family heading clear air above it.
 .family-footer {
   background-color: var(--bg);
-  padding: 8px 0 0;
+  padding: 52px 0 0;
+}
+
+@media (max-width: 575px) {
+  .family-footer {
+    padding-top: 40px;
+  }
 }
 
 .family-inner {

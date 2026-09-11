@@ -1,11 +1,14 @@
 <!-- HACK: Ordpool footer (replaces upstream mempool footer entirely) -->
 <footer [class]="{'services': isServicesPage}">
-  <div class="container-fluid">
 
-    <!-- The Ordpool family sits at the top of the footer; a divider (with room
-         above and below) separates it from the site footer below. -->
-    <app-family-footer></app-family-footer>
-    <hr class="footer-divider">
+  <!-- The Ordpool family sits at the top of the footer, then a full-bleed
+       divider (with room above and below) separates it from the site footer.
+       The family block and the divider live OUTSIDE the container so the rule
+       spans the whole screen width. -->
+  <app-family-footer></app-family-footer>
+  <hr class="footer-divider">
+
+  <div class="container-fluid">
 
     <div class="row col-md-12 link-tree pt-4" [class]="{'services': isServicesPage}">
 
