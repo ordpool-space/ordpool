@@ -22,6 +22,18 @@ fa-icon {
   background-color: var(--nav-bg);
 }
 
+// HACK: Ordpool - below xl keep the bar on ONE row (brand on the left, the
+// Connect + burger group on the right). Tighter side padding buys the width so
+// the group does not wrap under the brand. The open burger panel overlays
+// (absolute) below, so nowrap here never fights the menu.
+@media (max-width: 1199.98px) {
+  .navbar {
+    flex-wrap: nowrap;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+}
+
 li.nav-item {
   margin: auto 10px;
   padding-left: 10px;

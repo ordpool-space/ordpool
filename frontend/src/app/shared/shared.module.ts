@@ -488,6 +488,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     PreviewTitleComponent,
     GlobalFooterComponent,
     FamilyFooterComponent,
+    WalletConnectComponent,
     MempoolErrorComponent,
     AccelerationsListComponent,
     AccelerationStatsComponent,

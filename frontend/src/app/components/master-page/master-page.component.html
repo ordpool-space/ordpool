@@ -70,12 +70,20 @@
     -->
   </a>
 
-  <!-- HACK: burger toggle - shown below xl; opens the nav + search panel -->
-  <button class="navbar-toggler ms-auto d-xl-none" type="button"
-          (click)="navCollapsed = !navCollapsed"
-          [attr.aria-expanded]="!navCollapsed" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-  </button>
+  <!-- HACK: Ordpool - Connect wallet + burger grouped on the right of the bar
+       on mobile, so Connect is not hidden behind the burger. The group is a
+       single nowrap flex item so the two stay together on one row; desktop
+       hides it (d-xl-none) and keeps Connect inside the search form. -->
+  <div class="d-flex align-items-center ms-auto d-xl-none">
+    <app-wallet-connect class="me-2"></app-wallet-connect>
+
+    <!-- HACK: burger toggle - shown below xl; opens the nav + search panel -->
+    <button class="navbar-toggler" type="button"
+            (click)="navCollapsed = !navCollapsed"
+            [attr.aria-expanded]="!navCollapsed" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+  </div>
 
   <!-- HACK: Network dropdown commented out for ordpool
   <div (window:resize)="onResize()" ngbDropdown class="dropdown-container" *ngIf="isDropdownVisible">

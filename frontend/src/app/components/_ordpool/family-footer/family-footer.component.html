@@ -7,7 +7,9 @@
         <img src="/resources/ordpool-cube-logo.svg" width="22" height="22" alt="" class="family-mark">
         {{ heading }}
       </h2>
-      <p class="family-lede">{{ lede }}</p>
+      <p class="family-lede">
+        <span *ngFor="let line of ledeLines" class="lede-line">{{ line }}</span>
+      </p>
     </header>
 
     <ul class="family-grid">

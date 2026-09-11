@@ -4,12 +4,9 @@
 // SAME SHAPE the SDK ships (verified against src/family/ordpool-family.ts).
 jest.mock('ordpool-sdk', () => ({
   ORDPOOL_FAMILY_HEADING: 'The Ordpool family',
-  // Per-site lede, no safety claim in the footer. Mirrors the SDK: base
-  // sentence + this site's own medium tail ('a JPEG' for ordpool).
-  ordpoolFamilyLede: (site: string) => {
-    const tail = { ordpool: 'a JPEG', cat21: 'a pixelated cat', cubes: 'an artsy rotating cube' }[site];
-    return `Sometimes Bitcoin is hard money. Sometimes Bitcoin is ${tail}.`;
-  },
+  // The lede is written locally in the component now (not from the SDK), so the
+  // mock only needs the heading + members. ordpoolFamilyLede is deliberately
+  // absent to prove the component no longer depends on it.
   ORDPOOL_FAMILY: [
     { key: 'ordpool', name: 'ordpool.space', url: 'https://ordpool.space', line: 'See inside every Bitcoin block.' },
     { key: 'cat21', name: 'cat21.space', url: 'https://cat21.space', line: 'Everything CAT-21, a meme protocol from the Creator of Ordpool.' },
@@ -41,15 +38,15 @@ describe('FamilyFooterComponent', () => {
   const memberByName = (name: string) =>
     members().find((m) => (m.querySelector('.member-name')?.textContent || '').includes(name));
 
-  it('renders the heading and this site\'s per-site lede, with NO coin-safety claim', () => {
+  it('renders the heading and this site\'s two-line local lede, with NO coin-safety claim', () => {
     expect(el.querySelector('.family-heading')?.textContent).toContain('The Ordpool family');
-    const lede = el.querySelector('.family-lede')?.textContent || '';
-    // ordpool's own medium in the tail.
-    expect(lede).toContain('Sometimes Bitcoin is hard money. Sometimes Bitcoin is a JPEG.');
+    // Two lines, each in its own .lede-line span, ordpool's medium ("a JPEG").
+    const lines = Array.from(el.querySelectorAll('.family-lede .lede-line')).map((s) => (s.textContent || '').trim());
+    expect(lines).toEqual(['Sometimes Bitcoin is hard money.', 'Sometimes Bitcoin is a JPEG.']);
     // The footer introduces the family; the "frightening" coin-check clause was
     // removed from it (it lives in the single-address caveat instead). Guard its
     // absence so it cannot creep back into the footer lede.
-    expect(lede).not.toContain('checks what a coin is carrying');
+    expect((el.querySelector('.family-lede')?.textContent || '')).not.toContain('checks what a coin is carrying');
   });
 
   it('renders every one of the four family members, including this site', () => {

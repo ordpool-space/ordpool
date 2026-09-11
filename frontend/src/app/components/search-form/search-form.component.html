@@ -13,12 +13,10 @@
       </button>
     </div>
 
-    <!-- HACK: ordpool wallet connect button -->
-    <!--
-      this is definitely not the nicest place to add the connect button,
-      but the responsive design looks fine here!
-    -->
-    <app-wallet-connect></app-wallet-connect>
+    <!-- HACK: ordpool wallet connect button. Desktop only (d-xl-*): on mobile
+         the Connect button lives in the always-visible navbar bar instead, so
+         it is not hidden behind the burger. -->
+    <app-wallet-connect class="d-none d-xl-inline-block"></app-wallet-connect>
 
   </div>
 </form>

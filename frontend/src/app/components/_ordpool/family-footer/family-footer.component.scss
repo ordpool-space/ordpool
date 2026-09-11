@@ -46,6 +46,11 @@
   line-height: 1.5;
 }
 
+// Two-line lede schema: each sentence on its own line.
+.lede-line {
+  display: block;
+}
+
 .family-grid {
   list-style: none;
   margin: 0;
