@@ -202,8 +202,8 @@
     </main>
 
     <div class="flex-grow-1"></div>
-    <!-- HACK: Ordpool family strip, above the site footer -->
-    <app-family-footer *ngIf="footerVisible"></app-family-footer>
+    <!-- HACK: Ordpool footer. The family block lives at the top of it (inside
+         <footer>), so it reads as one footer, not a pasted-on strip. -->
     <app-global-footer *ngIf="footerVisible"></app-global-footer>
   </div>
 </div>

@@ -2,10 +2,11 @@
 // (--bg) and uses the site's brand orange (--orange) and box surface
 // (--box-bg), so it reads as part of ordpool, not a pasted-in ad band.
 
+// Sits at the top of the footer (same --bg ground), so it carries no border or
+// gap of its own; the footer's own divider separates it from the rest below.
 .family-footer {
   background-color: var(--bg);
-  border-top: 1px solid var(--border-subtle);
-  padding: 40px 0 4px;
+  padding: 8px 0 0;
 }
 
 .family-inner {
@@ -68,7 +69,6 @@
   display: flex;
   background-color: var(--box-bg);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
   overflow: hidden;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
@@ -139,7 +139,6 @@
 .you-are-here {
   align-self: center;
   padding: 1px 8px;
-  border-radius: 999px;
   background: var(--orange);
   color: var(--active-bg);
   font-size: 0.65rem;
@@ -157,10 +156,6 @@
 }
 
 @media (max-width: 575px) {
-  .family-footer {
-    padding-top: 32px;
-  }
-
   .family-grid {
     grid-template-columns: 1fr;
     gap: 10px;

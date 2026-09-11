@@ -346,3 +346,43 @@ footer .nowrap {
 .bitcoin {
   color: #FF9900 !important;
 }
+
+// Divider between the family block (top of the footer) and the site footer
+// below. Room above and below so the two halves read as distinct sections of
+// one footer; square and subtle, matching the flat aesthetic.
+.footer-divider {
+  max-width: 1140px;
+  margin: 44px auto;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  opacity: 1;
+}
+
+@media (max-width: 1200px) {
+  .footer-divider {
+    max-width: 90%;
+  }
+}
+
+// Tools column: a leading icon then the label, echoing the "Write to Bitcoin"
+// nav dropdown. A fixed-width icon slot lines every label up at the same x.
+footer .links p a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-icon {
+  flex: 0 0 20px;
+  width: 20px;
+  text-align: center;
+}
+
+img.tool-icon {
+  height: 16px;
+  object-fit: contain;
+}
+
+fa-icon.tool-icon {
+  font-size: 0.95rem;
+}

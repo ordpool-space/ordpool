@@ -20,6 +20,8 @@ import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, fa
   faShieldHalved,
   // HACK -- Ordpool: plus icon for the "Write to Bitcoin" nav dropdown trigger.
   faPlus,
+  // HACK -- Ordpool: calculator icon for the BTC/Fiat Converter footer tool.
+  faCalculator,
 } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollModule } from 'ngx-infinite-scroll';
 import { MenuComponent } from '@components/menu/menu.component';
@@ -615,6 +617,7 @@ export class SharedModule {
     library.addIcons(faPlay);
     library.addIcons(faShieldHalved);
     library.addIcons(faPlus);
+    library.addIcons(faCalculator);
     // HACK -- Ordpool: post-upstream-merge missing registrations. See import comment.
     library.addIcons(faCubes);
     library.addIcons(faBook);

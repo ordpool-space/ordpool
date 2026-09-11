@@ -2,6 +2,11 @@
 <footer [class]="{'services': isServicesPage}">
   <div class="container-fluid">
 
+    <!-- The Ordpool family sits at the top of the footer; a divider (with room
+         above and below) separates it from the site footer below. -->
+    <app-family-footer></app-family-footer>
+    <hr class="footer-divider">
+
     <div class="row col-md-12 link-tree pt-4" [class]="{'services': isServicesPage}">
 
       <div class="main-logo mb-5" [class]="{'services': isServicesPage}">
@@ -13,11 +18,13 @@
         <div class="links"  *ngIf="{ val: network$ | async } as network">
           <p class="category">Tools</p>
 
-          <p><a [routerLink]="['/inscribe']">Inscribe a file</a></p>
-          <p><a [routerLink]="['/cat21-mint']">Mint a CAT-21 cat <img src="/resources/cat21-logo.svg" style="margin-top: -4px;" title="Mint a CAT-21 ordinal" height="30"></a></p>
-          <!-- <p><a href="https://cubes.haushoppe.art/" target="_blank"><fa-icon [icon]="['fas', 'external-link-alt']" title="Mint an Ordinal Cube"></fa-icon> Mint an Ordinal Cube</a></p> -->
-          <p><a [routerLink]="['/tools/calculator']">BTC/Fiat Converter</a></p>
-          <p><a [routerLink]="['/open-timestamps']">OpenTimestamps</a></p>
+          <!-- The three write-to-Bitcoin tools, in the same icon + label form as
+               the "Write to Bitcoin" nav dropdown, then Stats and the converter. -->
+          <p><a [routerLink]="['/cat21-mint']"><img src="/resources/cat21-logo.svg" class="tool-icon" height="20" alt="">Mint a CAT-21 cat</a></p>
+          <p><a [routerLink]="['/inscribe']"><fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true" class="tool-icon"></fa-icon>Inscribe a file</a></p>
+          <p><a [routerLink]="['/open-timestamps']"><fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" class="tool-icon"></fa-icon>Timestamp a file</a></p>
+          <p><a [routerLink]="['/ordpool-stats', 'mints', '24h', 'hour']"><fa-icon [icon]="['fas', 'chart-area']" [fixedWidth]="true" class="tool-icon"></fa-icon>Stats</a></p>
+          <p><a [routerLink]="['/tools/calculator']"><fa-icon [icon]="['fas', 'calculator']" [fixedWidth]="true" class="tool-icon"></fa-icon>BTC/Fiat Converter</a></p>
 
           <p *ngIf="env.TESTNET_ENABLED">
             <a *ngIf="network.val !== ''" class="mainnet" [routerLink]="networkPaths['mainnet'] || '/'">Switch to Mainnet</a>
