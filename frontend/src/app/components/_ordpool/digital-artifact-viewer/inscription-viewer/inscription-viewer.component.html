@@ -102,9 +102,12 @@
               <td>Title</td>
               <td>{{ properties.title }}</td>
             </tr>
-            <tr *ngFor="let trait of properties.traits | keyvalue">
-              <td><code>{{ trait.key }}</code></td>
-              <td>{{ trait.value }}</td>
+            <!-- HACK -- Ordpool: traits are ordered [name, value] pairs in the
+                 creator's byte order (as ord renders them). Iterate the array
+                 directly; the keyvalue pipe would re-sort them alphabetically. -->
+            <tr *ngFor="let trait of properties.traits">
+              <td><code>{{ trait[0] }}</code></td>
+              <td>{{ trait[1] }}</td>
             </tr>
           </tbody>
         </table>
