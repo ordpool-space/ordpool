@@ -99,6 +99,37 @@ li.nav-item {
   }
 }
 
+// HACK -- Ordpool: align the "Write to Bitcoin" dropdown item labels. The rows
+// mix a cat21 <img> with fa-icons of different widths, so each label's text
+// started at a different x. Give every leading icon one fixed-width, centred
+// slot so all three labels line up cleanly.
+#btn-mint .dropdown-menu a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  // Fixed PIXEL slot (not em): the cat21 <img> renders at the item's 1em while
+  // fa-icon carries its own 1.2em, so an em basis produced two different widths
+  // and the labels started 5px apart. A shared 24px slot lands every label at
+  // the same x.
+  > img,
+  > fa-icon {
+    flex: 0 0 24px;
+    width: 24px;
+    margin: 0 !important;
+    text-align: center;
+  }
+
+  > img {
+    height: 18px;
+    object-fit: contain;
+  }
+
+  > fa-icon {
+    font-size: 1rem;
+  }
+}
+
 // HACK -- Ordpool: below xl the burger panel OVERLAYS the page instead of
 // expanding the sticky header in flow and pushing every content element down.
 // Taking the open panel out of flow (absolute, anchored under the navbar bar)

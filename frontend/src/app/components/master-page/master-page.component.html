@@ -143,7 +143,7 @@
         </a>
         <div ngbDropdownMenu aria-labelledby="btn-mint">
           <a ngbDropdownItem id="btn-cat21-mint" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()">
-            <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="24" alt="">Mint a CAT-21 😺
+            <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="24" alt="">Mint a CAT-21 cat 😺
           </a>
           <a ngbDropdownItem id="btn-inscribe" [routerLink]="['/inscribe' | relativeUrl]" (click)="collapse()">
             <fa-icon [icon]="['fas', 'paperclip']" [fixedWidth]="true"></fa-icon> Inscribe a file
@@ -157,8 +157,8 @@
       <!-- HACK: CAT-21 + Inscribe as separate icon items on mobile only -->
       <li class="nav-item d-xl-none" id="btn-cat21-mint-mobile"
           [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(cat21-mint).*' }">
-        <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()" title="Mint a CAT-21">
-          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="26" alt="">Mint a CAT-21
+        <a class="nav-link" [routerLink]="['/cat21-mint' | relativeUrl]" (click)="collapse()" title="Mint a CAT-21 cat">
+          <img src="/resources/cat21-logo.svg" style="margin-top: -4px; margin-right: 6px" height="26" alt="">Mint a CAT-21 cat
         </a>
       </li>
       <li class="nav-item d-xl-none" id="btn-inscribe-mobile"
@@ -168,19 +168,19 @@
         </a>
       </li>
 
+      <!-- HACK: OpenTimestamps - mobile only (d-xl-none). On desktop it lives
+           inside the "Write to Bitcoin" dropdown above; on mobile the three
+           write tools render as separate items, grouped before Stats. -->
+      <li class="nav-item d-xl-none" id="btn-open-timestamps" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(open-timestamps).*' }">
+        <a class="nav-link" [routerLink]="['/open-timestamps' | relativeUrl]" (click)="collapse()">
+          <fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" title="OpenTimestamps calendars"></fa-icon> OpenTimestamps
+        </a>
+      </li>
+
       <!-- HACK: ordpool-stats nav item -->
       <li class="nav-item" id="btn-ordpool-stats" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(ordpool-stats)/.*' }">
         <a class="nav-link" [routerLink]="['/ordpool-stats' | relativeUrl, 'mints', '24h', 'hour']" (click)="collapse()">
           <fa-icon [icon]="['fas', 'chart-area']" [fixedWidth]="true" i18n-title="master-page.graphs" title="Ordpool Stats"></fa-icon> Stats
-        </a>
-      </li>
-
-      <!-- HACK: OpenTimestamps - mobile only (d-xl-none). On desktop it lives
-           inside the "Write to Bitcoin" dropdown above; on mobile the three
-           write tools render as separate items. -->
-      <li class="nav-item d-xl-none" id="btn-open-timestamps" [activeClassMatch]="{ class: 'active', pattern: '^/(?:[a-zA-Z0-9-]+/)?(open-timestamps).*' }">
-        <a class="nav-link" [routerLink]="['/open-timestamps' | relativeUrl]" (click)="collapse()">
-          <fa-icon [icon]="['fas', 'calendar-check']" [fixedWidth]="true" title="OpenTimestamps calendars"></fa-icon> OpenTimestamps
         </a>
       </li>
 
