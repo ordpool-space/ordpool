@@ -18,6 +18,8 @@ import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, fa
   faCubes, faBook, faChartArea, faFaucetDrip, faHammer, faCheckCircle, faTimesCircle,
   // HACK -- Ordpool: shield icon used by the privacy section on the OTS page.
   faShieldHalved,
+  // HACK -- Ordpool: plus icon for the "Write to Bitcoin" nav dropdown trigger.
+  faPlus,
 } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollModule } from 'ngx-infinite-scroll';
 import { MenuComponent } from '@components/menu/menu.component';
@@ -612,6 +614,7 @@ export class SharedModule {
     library.addIcons(faPause);
     library.addIcons(faPlay);
     library.addIcons(faShieldHalved);
+    library.addIcons(faPlus);
     // HACK -- Ordpool: post-upstream-merge missing registrations. See import comment.
     library.addIcons(faCubes);
     library.addIcons(faBook);
