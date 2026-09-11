@@ -55,7 +55,12 @@
                section and the General Block Data thead) so it lands as
                the last "digital artifact" section. -->
 
+          <!-- Stale (reorged-out) blocks carry no ordpool stats and never will:
+               the winning block replaces them. Skip the whole ordpool section
+               for them so a stale block renders cleanly without the perpetual
+               "indexing…" state (and without any stats-dependent work). -->
           <app-block-ordpool-stats
+            *ngIf="!block?.stale"
             [ordpoolStats]="block?.extras?.ordpoolStats"
             [blockId]="block?.id"
             [blockHeight]="block?.height"
