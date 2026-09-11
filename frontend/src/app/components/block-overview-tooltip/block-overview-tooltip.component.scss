@@ -10,7 +10,10 @@
   color: var(--tooltip-grey);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  // HACK -- Ordpool: content-height, top-aligned. `space-between` on a taller
+  // frame pushed the rows and the artifact preview apart, leaving a large empty
+  // gap; the panel should hug its content.
+  justify-content: flex-start;
   padding: 10px 15px;
   text-align: left;
   min-width: 340px;
@@ -126,4 +129,22 @@ th, td {
   left: 0;
   right: 0;
   border-top: 1px solid var(--panel-border);
+}
+
+// HACK -- Ordpool: keep the inscription preview compact inside the hover
+// tooltip. A full-size artifact makes the panel taller than the screen and
+// forces the placement logic into its clamp/scroll path; a bounded thumbnail
+// keeps the whole tooltip a stable, manageable size that fits above or below the
+// cursor without clamping. Only applies inside the tooltip -- the tx page still
+// renders artifacts full-size.
+.block-overview-tooltip ::ng-deep app-digital-artifact-viewer {
+  img,
+  iframe,
+  canvas,
+  video,
+  svg {
+    max-height: 180px;
+    max-width: 100%;
+    object-fit: contain;
+  }
 }

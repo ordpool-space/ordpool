@@ -26,14 +26,14 @@ describe('computeTooltipPosition', () => {
       expect(r.y).toBe(60);
     });
 
-    it('reports maxWidth/maxHeight equal to the available space after cursor', () => {
+    it('applies NO max-size clamp when the tooltip fits (so it does not resize as the cursor moves)', () => {
       const r = computeTooltipPosition({
         cursor: { x: 50, y: 100 },
         tooltip: { width: 300, height: 200 },
         viewport: { width: 1200, height: 800 },
       });
-      expect(r.maxWidth).toBe(1200 - 50 - 10);  // 1140
-      expect(r.maxHeight).toBe(800 - 100 - 10); // 690
+      expect(r.maxWidth).toBeNull();
+      expect(r.maxHeight).toBeNull();
     });
 
     it('stays east+south as cursor moves across the viewport', () => {
@@ -57,10 +57,10 @@ describe('computeTooltipPosition', () => {
         viewport: { width: 1200, height: 800 },
       });
       // afterSpace  = 1200 - 1000 - 10 = 190 (tooltip 300 doesn't fit)
-      // beforeSpace = 1000 - 10 = 990    (more than after, flip)
+      // beforeSpace = 1000 - 10 = 990    (fits before, flip, no clamp)
       // position    = 1000 - 300 - 10 = 690
       expect(r.x).toBe(690);
-      expect(r.maxWidth).toBe(990);
+      expect(r.maxWidth).toBeNull();
     });
 
     it('flips north when south overflows viewport and north has more room', () => {
@@ -70,9 +70,9 @@ describe('computeTooltipPosition', () => {
         viewport: { width: 1200, height: 800 },
       });
       // afterSpace  = 800 - 700 - 10 = 90 (tooltip 200 doesn't fit)
-      // beforeSpace = 700 - 10 = 690     (more than after, flip)
+      // beforeSpace = 700 - 10 = 690     (fits before, flip, no clamp)
       expect(r.y).toBe(490);
-      expect(r.maxHeight).toBe(690);
+      expect(r.maxHeight).toBeNull();
     });
   });
 

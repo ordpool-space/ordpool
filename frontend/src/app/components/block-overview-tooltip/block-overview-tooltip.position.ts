@@ -20,17 +20,21 @@
  *      opposite side, same gap.
  *
  *   2. If the tooltip fits in `afterSpace`, place it there (east/south
- *      of cursor with the preferred 10 px gap). Report
- *      `maxSize = afterSpace`.
+ *      of cursor) at its NATURAL size, `maxSize = null` (no clamp).
  *
- *   3. If it doesn't fit AND `beforeSpace` has more room, flip: place
- *      before the cursor (west/north). `maxSize = beforeSpace`.
+ *   3. Else if it fits in `beforeSpace`, flip before the cursor
+ *      (west/north) at natural size, `maxSize = null` (no clamp).
  *
- *   4. If `afterSpace` has more room than `beforeSpace` but neither side
- *      fits, stay on the after side and let the caller cap `maxSize`.
- *      This is the "tooltip is too tall to fit anywhere" case --
- *      staying near the cursor with a clipped/scrollable tooltip is
- *      better than flipping far away.
+ *   4. Else (larger than both sides -- rare): use the side with more
+ *      room, pin the position to the viewport edge so it stays on-screen
+ *      without covering the cursor, and clamp `maxSize` to that room so
+ *      it scrolls internally.
+ *
+ * The key property: a tooltip that fits gets NO max-size clamp, so it
+ * keeps a stable size as the cursor moves (it simply flips between
+ * below/above at a threshold). Clamping to the shrinking after-space --
+ * the previous behaviour -- made the panel visibly resize on every mouse
+ * move, which is worse than an occasional flip.
  *
  * Floating UI's `shift` middleware isn't needed: shift slides the tooltip
  * along its main axis -- with a 0×0 reference, any shift toward the
@@ -52,12 +56,14 @@ export interface TooltipPositionResult {
   x: number;
   /** Viewport-relative `top` (consumed with `position: fixed`). */
   y: number;
-  /** Available width on the chosen X side. Caller may apply as `max-width`. */
-  maxWidth: number;
-  /** Available height on the chosen Y side. Caller may apply as
-   *  `max-height` (with `overflow-y: auto`) so the tooltip shrinks
-   *  instead of flipping far from the cursor when too tall. */
-  maxHeight: number;
+  /** `max-width` to apply, or null for no clamp. Non-null only when the tooltip
+   *  is wider than the room on both sides of the cursor. */
+  maxWidth: number | null;
+  /** `max-height` to apply (with `overflow-y: auto`), or null for no clamp.
+   *  Non-null only when the tooltip is taller than the room on both sides of the
+   *  cursor -- so a tooltip that fits is placed at its natural size and does NOT
+   *  resize as the cursor moves. */
+  maxHeight: number | null;
 }
 
 const GAP = 10;
@@ -69,23 +75,29 @@ export function computeTooltipPosition(input: TooltipPositionInputs): TooltipPos
   return { x: x.position, y: y.position, maxWidth: x.maxSize, maxHeight: y.maxSize };
 }
 
-interface AxisResult { position: number; maxSize: number; }
+interface AxisResult { position: number; maxSize: number | null; }
 
 function pickAxis(cursor: number, tooltipSize: number, viewportEnd: number): AxisResult {
   const afterSpace  = viewportEnd - cursor - GAP;
   const beforeSpace = cursor - GAP;
 
-  // (1) Fits after cursor with the preferred gap.
+  // (1) Fits after the cursor: place there at natural size, no clamp. Placing
+  // without a clamp is what keeps the tooltip a STABLE size as the cursor moves
+  // -- clamping to the shrinking after-space is what made it resize.
   if (tooltipSize <= afterSpace) {
-    return { position: cursor + GAP, maxSize: afterSpace };
+    return { position: cursor + GAP, maxSize: null };
   }
 
-  // (2) Doesn't fit after. If before has more room, flip.
+  // (2) Doesn't fit after but fits before: flip there at natural size, no clamp.
+  if (tooltipSize <= beforeSpace) {
+    return { position: cursor - tooltipSize - GAP, maxSize: null };
+  }
+
+  // (3) Larger than both sides (rare, and made rarer by capping the artifact
+  // preview): keep the cursor uncovered by placing on the side with more room
+  // and clamp `maxSize` to that room so the panel scrolls internally.
   if (beforeSpace > afterSpace) {
     return { position: cursor - tooltipSize - GAP, maxSize: beforeSpace };
   }
-
-  // (3) After has more room (or equal) but still not enough.
-  // Stay after; let the caller clamp via maxSize.
   return { position: cursor + GAP, maxSize: afterSpace };
 }
