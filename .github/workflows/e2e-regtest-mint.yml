@@ -47,6 +47,11 @@ on:
       - 'frontend/src/app/components/_ordpool/cat21-mint/**'
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
+      # The page shell every one of these specs boots. A change here (e.g.
+      # adding the family-footer strip) alters the rendered page without
+      # touching any component dir above, so the shell must trigger the lane
+      # too.
+      - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'

@@ -24,6 +24,14 @@ on:
     paths:
       - 'frontend/playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts'
       - '.github/workflows/e2e-regtest-mint-cat21wallet.yml'
+      # An SDK pin bump changes the app bundle this page-driven spec boots,
+      # so dep bumps must trigger it (matches the sibling mint lane).
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      # The page shell this spec boots. A change here (e.g. adding the
+      # family-footer strip) alters the rendered page without touching the
+      # component dirs below, so the shell must trigger the lane too.
+      - 'frontend/src/app/components/master-page/**'
       # The page-driven components this spec boots. A template or formatting
       # change here (e.g. grouping the Fund address into chunks) breaks the
       # spec WITHOUT touching its file, and frontend/src/** is deliberately
