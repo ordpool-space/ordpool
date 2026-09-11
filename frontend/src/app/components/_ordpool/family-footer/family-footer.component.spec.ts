@@ -14,7 +14,7 @@ jest.mock('ordpool-sdk', () => ({
     { key: 'ordpool', name: 'ordpool.space', url: 'https://ordpool.space', line: 'The best MEMEpool explorer on Bitcoin.' },
     { key: 'cat21', name: 'cat21.space', url: 'https://cat21.space', line: 'Everything CAT-21, a meme protocol from the Creator of Ordpool.' },
     { key: 'cubes', name: 'cubes.haushoppe.art', url: 'https://cubes.haushoppe.art', line: 'Everything cubes, an art project from the Creator of Ordpool.' },
-    { key: 'wallet', name: 'Cat21 Wallet', url: 'https://github.com/ordpool-space/cat21-wallet', line: 'A hot wallet for high frequency trading of CAT-21, made for AI agents and their humans.' },
+    { key: 'wallet', name: 'CAT-21 wallet', url: 'https://github.com/ordpool-space/cat21-wallet', line: 'A hot wallet for high frequency trading of CAT-21, made for AI agents and their humans.' },
   ],
 }));
 
@@ -54,7 +54,7 @@ describe('FamilyFooterComponent', () => {
 
   it('renders every one of the four family members, including this site', () => {
     expect(members().length).toBe(4);
-    for (const name of ['ordpool.space', 'cat21.space', 'cubes.haushoppe.art', 'Cat21 Wallet']) {
+    for (const name of ['ordpool.space', 'cat21.space', 'cubes.haushoppe.art', 'CAT-21 wallet']) {
       expect(memberByName(name)).toBeTruthy();
     }
   });
@@ -73,7 +73,7 @@ describe('FamilyFooterComponent', () => {
     for (const { name, url } of [
       { name: 'cat21.space', url: 'https://cat21.space' },
       { name: 'cubes.haushoppe.art', url: 'https://cubes.haushoppe.art' },
-      { name: 'Cat21 Wallet', url: 'https://github.com/ordpool-space/cat21-wallet' },
+      { name: 'CAT-21 wallet', url: 'https://github.com/ordpool-space/cat21-wallet' },
     ]) {
       const row = memberByName(name)!;
       expect(row.classList).not.toContain('is-current');

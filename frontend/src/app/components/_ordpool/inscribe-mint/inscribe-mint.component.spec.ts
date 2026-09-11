@@ -117,7 +117,7 @@ jest.mock('ordpool-sdk', () => {
       + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
       + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
       + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
-      + 'cat21.space, ordpool.space, cubes.haushoppe.art and Cat21 Wallet, or use a wallet that '
+      + 'cat21.space, ordpool.space, cubes.haushoppe.art and CAT-21 wallet, or use a wallet that '
       + `keeps your coins and your ${assets} apart.`;
     },
     getMinimumUtxoSize: () => 294,
