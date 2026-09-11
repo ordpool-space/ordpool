@@ -300,3 +300,24 @@ body .time-ltr .bitcoin-block.bitcoin-block {
 
 @import "./styles_highlightjs_solarized-dark";
 @import "./styles_form-control";
+
+// HACK -- Ordpool: central elevation for every floating overlay surface.
+// On the dark theme, dropdowns, modals and popovers inherit Bootstrap's
+// near-invisible dark border (rgba(0,0,0,.176)) and no shadow, so each renders
+// dark-on-dark against the page and loses its edge (the connect modal is the
+// exact same colour as the page behind it). One shared treatment, a hairline
+// light border plus a soft drop shadow and a small radius, makes every popup
+// read as a surface floating above the page without changing the colour
+// language. Loaded last, so it wins over the Bootstrap defaults by cascade.
+.dropdown-menu,
+.modal-content,
+.popover {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+// Keep the full-width item hover backgrounds inside the rounded corners.
+.dropdown-menu {
+  overflow: hidden;
+}
