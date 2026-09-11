@@ -103,26 +103,43 @@ li.nav-item {
 // mix a cat21 <img> with fa-icons of different widths, so each label's text
 // started at a different x. Give every leading icon one fixed-width, centred
 // slot so all three labels line up cleanly.
-// HACK -- Ordpool: when the "Write to Bitcoin" dropdown is open, the whole nav
-// item becomes a full-height block in the popup's colour (like the other active
-// nav items, e.g. MEMEpool), and the popup attaches flush below it with its top
-// border dropped, so the toggle and its popup read as ONE connected surface:
-// the popup is clearly open because THIS item was clicked. The dropdown caret is
-// dropped too; the "+" plus the open-state block already signal it opens a menu.
+// HACK -- Ordpool: when the "Write to Bitcoin" dropdown is open, the toggle and
+// its popup read as ONE bordered unit, so it is obvious the popup is open
+// because THIS item was clicked. The open toggle becomes a "tab": the popup's
+// colour, the same 1px outline down its left and right, and the popup attached
+// below carrying the outline on. The popup keeps its top line (it shows on the
+// overhang past the tab); a 1px cover in the background colour, painted above
+// the popup, erases that line under the tab so the seam disappears and the two
+// look like a single bordered shape. The caret is dropped; the "+" plus the
+// open-state block already signal it opens a menu.
 #btn-mint .dropdown-toggle::after {
   display: none;
 }
 
 #btn-mint.show {
   background-color: var(--bg);
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
 }
 
+// The popup's left edge already aligns with the toggle; overlap it 1px onto the
+// tab's bottom so the seam cover can sit over the join.
 #btn-mint .dropdown-menu {
-  margin-top: 0;
+  margin-top: -1px;
 }
 
-#btn-mint.show .dropdown-menu {
-  border-top: none;
+// The seam cover: 1px of background colour at the tab's bottom, painted above
+// the popup (z-index over the menu's 1000), so the popup's top line is hidden
+// exactly under the tab while it still shows on the overhang beyond it.
+#btn-mint.show::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background-color: var(--bg);
+  z-index: 1001;
 }
 
 #btn-mint .dropdown-menu a {
