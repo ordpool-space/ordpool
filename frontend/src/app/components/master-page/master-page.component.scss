@@ -122,10 +122,13 @@ li.nav-item {
   border-right: 1px solid rgba(255, 255, 255, 0.25);
 }
 
-// The popup's left edge already aligns with the toggle; overlap it 1px onto the
-// tab's bottom so the seam cover can sit over the join.
+// Overlap the popup 1px onto the tab's bottom so the seam cover can sit over the
+// join. The tab's 1px left border nudges the toggle content (and the popup
+// aligned to it) 1px right, so pull the popup back 1px to line its left border
+// up flush with the tab's.
 #btn-mint .dropdown-menu {
   margin-top: -1px;
+  margin-left: -1px;
 }
 
 // The seam cover: 1px of background colour at the tab's bottom, painted above
