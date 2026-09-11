@@ -26,6 +26,9 @@ jest.mock('ordpool-sdk', () => ({
   walletPickerRows: jest.fn(() => []),
   scanWatchOnly: jest.fn(),
   makeWatchOnlyProbe: jest.fn(() => jest.fn()),
+  CONNECT_BUTTON_LABEL: 'Connect',
+  CONNECT_BUTTON_ACCESSIBLE_NAME: 'Connect a wallet',
+  CONNECT_PANEL_HEADING: 'Connect a wallet',
 }));
 
 import { ChangeDetectorRef } from '@angular/core';

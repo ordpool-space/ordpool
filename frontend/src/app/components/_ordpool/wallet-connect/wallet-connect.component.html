@@ -2,7 +2,7 @@
   <div class="modal-header">
     <!-- ngbAutofocus: land initial focus on the dialog title, not the close X
          (its focus ring otherwise draws the eye to dismissal, not connecting). -->
-    <h4 class="modal-title" id="modal-basic-title" ngbAutofocus tabindex="-1">Connect Wallet</h4>
+    <h4 class="modal-title" id="modal-basic-title" ngbAutofocus tabindex="-1">{{ connectPanelHeading }}</h4>
     <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body">
@@ -137,8 +137,19 @@
 
 <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
-  <button *ngIf="!x.connectedWallet" class="btn btn-purple" (click)="open()" title="Connect your Wallet"
-    [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }">Connect</button>
+  <!-- Round 5 (connect-button-round5.md): wallet icon + the bare verb. The icon
+       carries the noun for sighted users and is aria-hidden; the button's
+       accessible name is the full "Connect a wallet" (distinct from the visible
+       label). Quiet ghost weight on the dark navbar ground: white text/icon on
+       a thin border, no fill, so it reads calm but stays well above the contrast
+       floor (white on #1d1f31 is far past 4.5:1). Colours/weight may vary per
+       site (§7); the icon+verb shape, the strings, and the a11y wiring may not. -->
+  <button *ngIf="!x.connectedWallet" class="btn btn-connect-quiet" (click)="open()"
+    [attr.aria-label]="connectButtonAccessibleName" [title]="connectButtonAccessibleName"
+    [ngClass]="{ 'btn-testnet': !(isMainnet$ | async) }">
+    <fa-icon [icon]="['fas', 'wallet']" [fixedWidth]="true" aria-hidden="true"></fa-icon>
+    <span class="connect-label">{{ connectButtonLabel }}</span>
+  </button>
 
   <ng-container *ngIf="x.connectedWallet">
 

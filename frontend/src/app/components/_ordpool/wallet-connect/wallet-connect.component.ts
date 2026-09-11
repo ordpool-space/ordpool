@@ -20,6 +20,11 @@ import {
   scanWatchOnly,
   walletPickerRows,
 } from 'ordpool-sdk';
+import {
+  CONNECT_BUTTON_ACCESSIBLE_NAME,
+  CONNECT_BUTTON_LABEL,
+  CONNECT_PANEL_HEADING,
+} from 'ordpool-sdk';
 
 import { environment } from '../../../../environments/environment';
 
@@ -36,6 +41,16 @@ export class WalletConnectComponent implements OnDestroy {
   showFakeWallet = false;
 
   connectButtonDisabled = false;
+
+  // Round 5 (connect-button-round5.md): the button's visible label, its
+  // accessible name, and the panel heading are shared family strings from the
+  // SDK, so they cannot drift across cat21.space / cubes / ordpool. The visible
+  // label is the bare verb ("Connect") because the wallet icon beside it carries
+  // the noun; the accessible name is the full "Connect a wallet" (a screen
+  // reader gets no icon), and the two must stay DISTINCT.
+  readonly connectButtonLabel = CONNECT_BUTTON_LABEL;
+  readonly connectButtonAccessibleName = CONNECT_BUTTON_ACCESSIBLE_NAME;
+  readonly connectPanelHeading = CONNECT_PANEL_HEADING;
 
   modalService = inject(NgbModal);
   walletService = inject(WalletService);

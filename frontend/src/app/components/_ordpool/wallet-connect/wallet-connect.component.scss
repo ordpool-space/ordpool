@@ -25,6 +25,38 @@
   background-color: #5fd15c;
 }
 
+// Round 5 (connect-button-round5.md §7): quiet ghost connect button for the
+// dark navbar ground. No fill, thin border, white icon + label: a calm register
+// rather than a filled block, while white on the navy nav (#1d1f31) sits far
+// above the 4.5:1 text floor and the 3:1 icon floor. The filled testnet variant
+// (.btn-testnet) still wins its background when present.
+.btn-connect-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #fff;
+
+  fa-icon {
+    font-size: 1em; // inline with the label, not the larger nav-icon size
+  }
+
+  &:not(.btn-testnet) {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+
+  &:hover,
+  &:focus {
+    color: #fff;
+  }
+
+  &:not(.btn-testnet):hover,
+  &:not(.btn-testnet):focus {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
 .xpub-connect .xpub-input {
   font-family: monospace;
   font-size: 0.8rem;
