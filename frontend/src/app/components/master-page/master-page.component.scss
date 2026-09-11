@@ -131,16 +131,19 @@ li.nav-item {
   margin-left: -1px;
 }
 
-// The seam cover: 1px of background colour at the tab's bottom, painted above
-// the popup (z-index over the menu's 1000), so the popup's top line is hidden
-// exactly under the tab while it still shows on the overhang beyond it.
+// The seam cover: a band of background colour straddling the join, painted
+// above the popup (z-index over the menu's 1000), so the popup's top line is
+// hidden exactly under the tab while it still shows on the overhang beyond it.
+// The popup overlaps up 1px (margin-top: -1px), so its top border sits at
+// [li.bottom-1, li.bottom]; the band spans [li.bottom-2, li.bottom+1] to cover
+// it with a pixel of slack on each side (both over background, so invisible).
 #btn-mint.show::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   bottom: -1px;
-  height: 1px;
+  height: 3px;
   background-color: var(--bg);
   z-index: 1001;
 }
