@@ -1,4 +1,6 @@
-import { Component, ElementRef, ViewChild, Input, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
+// HACK -- Ordpool: OnDestroy, AfterViewInit and NgZone are added for the
+// tooltip-re-placement ResizeObserver (see the HACK blocks below).
+import { Component, ElementRef, ViewChild, Input, OnChanges, OnDestroy, AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, NgZone, inject } from '@angular/core';
 import { Position } from '@components/block-overview-graph/sprite-types.js';
 import { Price } from '@app/services/price.service';
 import { TransactionStripped } from '@interfaces/node-api.interface.js';
@@ -15,7 +17,9 @@ import { computeTooltipPosition } from './block-overview-tooltip.position';
   styleUrls: ['./block-overview-tooltip.component.scss'],
   standalone: false,
 })
-export class BlockOverviewTooltipComponent implements OnChanges {
+// HACK -- Ordpool: AfterViewInit + OnDestroy are added for the ResizeObserver
+// that re-places the tooltip when its async Digital Artifacts preview grows it.
+export class BlockOverviewTooltipComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() tx: TransactionStripped | void;
   @Input() relativeTime?: number;
   @Input() cursorPosition: Position;
@@ -54,34 +58,54 @@ export class BlockOverviewTooltipComponent implements OnChanges {
 
   @ViewChild('tooltip') tooltipElement: ElementRef<HTMLCanvasElement>;
 
+  // HACK -- Ordpool: START tooltip re-placement on async growth.
+  // The Digital Artifacts inscription preview loads asynchronously and grows the
+  // tooltip downward after it is first placed. lastCursor + a ResizeObserver let
+  // us re-run placement on that growth so the tooltip flips above the cursor
+  // instead of running off the bottom of the viewport.
+  /** Last cursor position, so the ResizeObserver can re-place the tooltip
+   *  against the same cursor when its content grows. */
+  private lastCursor: Position | null = null;
+  private resizeObserver?: ResizeObserver;
+  // HACK -- Ordpool: END
+
   constructor(
     private cd: ChangeDetectorRef,
+    // HACK -- Ordpool: NgZone, so the ResizeObserver callback re-enters Angular.
+    private zone: NgZone,
   ) {}
+
+  // HACK -- Ordpool: START ResizeObserver lifecycle for tooltip re-placement.
+  ngAfterViewInit(): void {
+    // The tooltip reaches its final height AFTER placement: the current tx's
+    // rows render after this change-detection pass, and the Digital Artifacts
+    // inscription preview loads asynchronously and grows the tooltip downward.
+    // Re-run placement whenever the rendered size changes so a tooltip that no
+    // longer fits below the cursor flips above it (where there is room) instead
+    // of overflowing the viewport bottom.
+    if (typeof ResizeObserver === 'undefined' || !this.tooltipElement) {
+      return;
+    }
+    this.resizeObserver = new ResizeObserver(() => {
+      this.zone.run(() => this.placeAgainstCursor());
+    });
+    this.resizeObserver.observe(this.tooltipElement.nativeElement);
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+  }
+  // HACK -- Ordpool: END
 
   ngOnChanges(changes): void {
     if (changes.cursorPosition && changes.cursorPosition.currentValue) {
-      const cursorX = changes.cursorPosition.currentValue.x;
-      const cursorY = changes.cursorPosition.currentValue.y;
-      let x = cursorX + 10;
-      let y = cursorY + 10;
-      if (this.tooltipElement) {
-        const elementBounds = this.tooltipElement.nativeElement.getBoundingClientRect();
-        // HACK -- Ordpool: cursor x/y are viewport-relative (set by the
-        // canvas parent via canvas.getBoundingClientRect()), the tooltip
-        // is `position: fixed`, so the algorithm operates purely in
-        // viewport space. No offsetParent reads (which return null for
-        // fixed-positioned elements).
-        const placed = computeTooltipPosition({
-          cursor: { x: cursorX, y: cursorY },
-          tooltip: { width: elementBounds.width, height: elementBounds.height },
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-        });
-        x = placed.x;
-        y = placed.y;
-        this.tooltipMaxWidth = placed.maxWidth;
-        this.tooltipMaxHeight = placed.maxHeight;
-      }
-      this.tooltipPosition = { x, y };
+      // HACK -- Ordpool: remember the cursor and delegate to placeAgainstCursor,
+      // which the ResizeObserver also calls when the tooltip grows.
+      this.lastCursor = {
+        x: changes.cursorPosition.currentValue.x,
+        y: changes.cursorPosition.currentValue.y,
+      };
+      this.placeAgainstCursor();
     }
 
     if (this.tx && (changes.tx || changes.filterFlags || changes.filterMode)) {
@@ -135,6 +159,51 @@ export class BlockOverviewTooltipComponent implements OnChanges {
         this.digitalArtifacts$ = of([]);
       }
     }
+  }
+
+  /**
+   * HACK -- Ordpool: place the tooltip against {@link lastCursor} using its
+   * CURRENT rendered size. Called both when the cursor moves (ngOnChanges) and
+   * when the tooltip grows (ResizeObserver). Uses `scrollHeight` for the height
+   * so the flip decision sees the natural content height even while a
+   * `max-height` clamp is applied, and only writes when the result changes, so
+   * re-clamping the box does not feed a ResizeObserver loop.
+   */
+  private placeAgainstCursor(): void {
+    if (!this.lastCursor) {
+      return;
+    }
+    const { x: cursorX, y: cursorY } = this.lastCursor;
+
+    if (!this.tooltipElement) {
+      this.tooltipPosition = { x: cursorX + 10, y: cursorY + 10 };
+      return;
+    }
+
+    const el = this.tooltipElement.nativeElement;
+    // HACK -- Ordpool: cursor x/y are viewport-relative (set by the canvas
+    // parent via canvas.getBoundingClientRect()), the tooltip is
+    // `position: fixed`, so the algorithm operates purely in viewport space.
+    // No offsetParent reads (which return null for fixed-positioned elements).
+    const placed = computeTooltipPosition({
+      cursor: { x: cursorX, y: cursorY },
+      tooltip: { width: el.getBoundingClientRect().width, height: el.scrollHeight },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    });
+
+    if (
+      placed.x === this.tooltipPosition.x &&
+      placed.y === this.tooltipPosition.y &&
+      placed.maxWidth === this.tooltipMaxWidth &&
+      placed.maxHeight === this.tooltipMaxHeight
+    ) {
+      return;
+    }
+
+    this.tooltipPosition = { x: placed.x, y: placed.y };
+    this.tooltipMaxWidth = placed.maxWidth;
+    this.tooltipMaxHeight = placed.maxHeight;
+    this.cd.markForCheck();
   }
 
   getTooltipLeftPosition(): string {
