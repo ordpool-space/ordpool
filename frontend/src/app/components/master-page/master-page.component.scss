@@ -87,6 +87,30 @@ li.nav-item {
   }
 }
 
+// HACK -- Ordpool: below xl the burger panel OVERLAYS the page instead of
+// expanding the sticky header in flow and pushing every content element down.
+// Taking the open panel out of flow (absolute, anchored under the navbar bar)
+// keeps the header at its bar height; the sticky-header's own stacking context
+// (z-index 100) already renders it above page content. `collapsing` is included
+// so the ngbCollapse open/close height animation also plays as an overlay.
+@media (max-width: 1199.98px) {
+  .navbar {
+    position: relative;
+  }
+  #navbarCollapse.navbar-collapse.show,
+  #navbarCollapse.navbar-collapse.collapsing {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--nav-bg);
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 0 1rem 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+  }
+}
+
 .navbar {
   .dropdown {
     .dropdown-toggle {
