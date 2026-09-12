@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, Input, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnDestroy, ViewEncapsulation } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { feeLevels } from '@app/app.constants';
 import { ThemeService } from '@app/services/theme.service';
 
@@ -29,7 +30,7 @@ import { ThemeService } from '@app/services/theme.service';
   standalone: true,
   host: { '[style.--iso-top]': 'topColor', '[style.--iso-ink]': 'ink' },
 })
-export class IsoCubeComponent {
+export class IsoCubeComponent implements OnDestroy {
   private static nextUid = 0;
   /** Suffix for this instance's SVG gradient ids (SVG ids are document-global). */
   uid = IsoCubeComponent.nextUid++;
@@ -45,15 +46,10 @@ export class IsoCubeComponent {
    * brand orange.
    */
   @Input() set feeRate(rate: number | undefined | null) {
-    if (rate == null) {
-      this.topColor = null;
-      this.ink = null;
-      return;
-    }
-    const lifted = IsoCubeComponent.lift(this.feeColor(rate));
-    this.topColor = lifted.hex;
-    this.ink = lifted.luminance > 0.35 ? null : '#fff';
+    this.rate = rate;
+    this.applyColour();
   }
+  private rate: number | undefined | null = null;
   topColor: string | null = null;
   /** Top-label colour: null keeps the dark default, white on dark faces. */
   ink: string | null = null;
@@ -63,7 +59,35 @@ export class IsoCubeComponent {
   /** OKLCH chroma gain on a palette colour. */
   private static readonly chromaGain = 1.2;
 
-  constructor(private themeService: ThemeService) {}
+  private themeSubscription: Subscription;
+
+  constructor(private themeService: ThemeService, private cd: ChangeDetectorRef) {
+    // The palette colours are read once per render, so a theme switch has
+    // to re-resolve them: the [feeRate] input does not change, and a mined
+    // block's cube would otherwise keep the old theme's colour until the
+    // next block arrives.
+    this.themeSubscription = this.themeService.themeState$.subscribe((state) => {
+      if (!state.loading) {
+        this.applyColour();
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.themeSubscription.unsubscribe();
+  }
+
+  private applyColour(): void {
+    if (this.rate == null) {
+      this.topColor = null;
+      this.ink = null;
+      return;
+    }
+    const lifted = IsoCubeComponent.lift(this.feeColor(this.rate));
+    this.topColor = lifted.hex;
+    this.ink = lifted.luminance > 0.35 ? null : '#fff';
+  }
 
   private feeColor(rate: number): string {
     // fee-level lookup as in mempool-blocks.component.ts getStyleForMempoolBlock

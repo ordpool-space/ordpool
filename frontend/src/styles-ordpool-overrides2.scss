@@ -137,10 +137,32 @@ body .bitcoin-block .block-height {
 // tooltips, data-cy hooks and click targets keep working.
 body .bitcoin-block:has(app-iso-cube) {
   background: transparent !important;
-  // stale-list draws a red / green glow as a box-shadow around the
-  // square block; the drop-shadow filter it also sets follows the
-  // hexagon's alpha and is the one that should remain.
+}
+// Every box-shadow on a block is a rectangle around a hexagon now, so
+// none of them survive: stale-list's red / green ring (its drop-shadow
+// filter follows the hexagon's alpha and stays) and the taproot glow of
+// `.blink-bg` below.
+body .bitcoin-block:has(app-iso-cube) {
   box-shadow: none !important;
+  animation: none !important;
+}
+
+// Special blocks (halvings, upstream's `specialBlocks`) and accelerated
+// mempool blocks carry `.blink-bg`, whose taproot gradient and pulsing
+// glow painted the flat front we just made transparent. Move the signal
+// onto the cube: the hexagon turns taproot gold and its own glow pulses.
+// Targets the cube itself, not the block: the cube writes its fee colour
+// into its own inline --iso-top, and an inherited value (however
+// important) never outranks an element's own declaration.
+body .bitcoin-block.blink-bg app-iso-cube {
+  --iso-top: var(--taproot) !important;
+}
+body .bitcoin-block.blink-bg app-iso-cube .iso-shape {
+  animation: ordpool-cube-special 1s infinite;
+}
+@keyframes ordpool-cube-special {
+  0%, 100% { filter: drop-shadow(0 0 1.4em var(--taproot)); }
+  50% { filter: drop-shadow(0 0 0.7em color-mix(in srgb, var(--taproot) 35%, transparent)); }
 }
 body .bitcoin-block:has(app-iso-cube)::after,
 body .bitcoin-block:has(app-iso-cube)::before {

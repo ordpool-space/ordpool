@@ -116,8 +116,11 @@
               class="block-size" [innerHTML]="'&lrm;' + (block.size | bytes: 2)"></div>
             </ng-template>
             -->
-            <!-- HACK: display degen stuff in the blocks -->
-
+            <!-- HACK: display degen stuff in the blocks -- the artifact
+                 preview moved onto the cube's left face above. This copy is
+                 gone rather than hidden: .block-body is only invisible, so a
+                 second app-mini-inscription-viewer here would still load its
+                 sandboxed /preview/ iframe for every block on screen.
             <div class="digital-artifact-area mx-auto">
               @if (block.height < firstInscriptionHeight) {
 
@@ -143,6 +146,7 @@
                 <div class="pt-3">?</div>
               }
             </div>
+            -->
 
             <!-- HACK: standard tx count commented out, ordpool shows inscription/rune counts instead
             <div [attr.data-cy]="'bitcoin-block-' + i + '-transactions'" class="transaction-count">
