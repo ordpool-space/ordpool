@@ -66,10 +66,15 @@ jest.mock('ordpool-sdk', () => {
         fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
         errorMessage: string | null;
         successResult: unknown;
+        signing: unknown;
+        padding: unknown;
+        parents: unknown;
+        userMessage: string | null;
       } = {
         state: 'ready', feeRate: null, selectedUtxo: null, content: null,
         simulations: [], fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
         errorMessage: null, successResult: null,
+        signing: null, padding: null, parents: null, userMessage: null,
       };
       _listeners: Array<(s: unknown) => void> = [];
       constructor(deps: unknown) { this.deps = deps; }
@@ -956,20 +961,23 @@ describe('InscribeMintComponent', () => {
       expect(component.selectedRareSat).toBeNull();
     });
 
-    it('padding is required when the offset is below the sat coin\'s dust floor', async () => {
-      // taproot coin (bc1p) floor 330; offset 100 -> needs 230 padding
+    it('a below-floor sat is no longer blocked: the orchestrator sources padding, satTarget still builds', async () => {
+      walletSubject.next(wallet());
+      fixture.detectChanges();
       findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 1, offset: 100, rarity: 'epic' } })];
       await component.scanForRareSats('bc1p-ord');
       component.pickRareSat(component.rareSatCandidates[0]);
-      expect(component.rareSatPadding).toEqual({ needsPadding: true, shortfallSats: 230, dustLimitSats: 330 });
+      expect(component.rareSatBlocked).toBe(false);              // padding is not a block anymore
+      expect((component as any).satTarget?.kind).toBe('in-utxo'); // target still built
     });
 
-    it('no padding when the offset is at or above the dust floor, and null when nothing is picked', async () => {
-      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 1, offset: 900, rarity: 'legendary' } })];
-      await component.scanForRareSats('bc1p-ord');
-      expect(component.rareSatPadding).toBeNull(); // nothing picked yet
-      component.pickRareSat(component.rareSatCandidates[0]);
-      expect(component.rareSatPadding).toEqual({ needsPadding: false, shortfallSats: 0, dustLimitSats: 330 });
+    it('rareSatPadding surfaces the padding coin the orchestrator sourced (snapshot.padding)', () => {
+      expect(component.rareSatPadding()).toBeNull(); // none by default
+      orchestrator._patch({ padding: { utxo: { txid: 'p'.repeat(64), vout: 2, value: 546, status: { confirmed: true } }, shortfallSats: 230, automatic: true } });
+      const pad = component.rareSatPadding();
+      expect(pad.automatic).toBe(true);
+      expect(pad.utxo.vout).toBe(2);
+      expect(pad.shortfallSats).toBe(230);
     });
 
     it('a scan failure sets an error and leaves no rows', async () => {
@@ -1016,14 +1024,13 @@ describe('InscribeMintComponent', () => {
       expect(lastContent()?.satTarget).toBeUndefined();
     });
 
-    it('a sat below the dust floor is blocked (needs a padding coin) with no satTarget', async () => {
+    it('a sat below the dust floor still threads a satTarget (orchestrator pads it, no block)', async () => {
       withWalletAndContent();
       findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 5, offset: 100, rarity: 'epic' } })];
       await component.scanForRareSats('bc1p-ord');
       component.pickRareSat(component.rareSatCandidates[0]);
-      expect(component.rareSatBlocked).toBe(true);
-      expect(component.rareSatBlockReason).toContain('padding');
-      expect(lastContent()?.satTarget).toBeUndefined();
+      expect(component.rareSatBlocked).toBe(false);            // padding is the orchestrator's job now
+      expect(lastContent()?.satTarget?.kind).toBe('in-utxo');  // target still threaded
     });
   });
 
