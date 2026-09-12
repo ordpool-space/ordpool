@@ -29,6 +29,14 @@ interface PickedFile {
   sizeBytes: number;
 }
 
+/** One batch entry: a picked file plus its optional per-inscription options. */
+interface BatchEntry extends PickedFile {
+  /** ord's per-entry title; empty omits it. */
+  title: string;
+  /** Where THIS inscription goes (separate-outputs); empty = the shared recipient. */
+  destination: string;
+}
+
 /**
  * On-chain body-size ceiling for a single inscription. Matches the SDK
  * gate's DEFAULT_MAX_CONTENT_BYTES, which keeps the reveal under standard
@@ -350,7 +358,7 @@ export class InscribeMintComponent implements OnInit {
   // and commit-fee apply to the whole batch; per-entry title/traits are a
   // later refinement. With no parents this signs once, like a single inscribe.
   batchMode = false;
-  batchFiles: PickedFile[] = [];
+  batchFiles: BatchEntry[] = [];
   batchError = '';
 
   ngOnInit(): void {
@@ -521,7 +529,7 @@ export class InscribeMintComponent implements OnInit {
           this.batchError = `Skipped ${file.name}: over the ${MAX_CONTENT_BYTES / 1000} KB per-inscription cap.`;
           continue;
         }
-        this.batchFiles = [...this.batchFiles, { name: file.name, bytes, contentType, sizeBytes: bytes.length }];
+        this.batchFiles = [...this.batchFiles, { name: file.name, bytes, contentType, sizeBytes: bytes.length, title: '', destination: '' }];
       } catch {
         this.batchError = `Skipped ${file.name}: could not read it.`;
       }
@@ -534,6 +542,31 @@ export class InscribeMintComponent implements OnInit {
     this.batchFiles = this.batchFiles.filter((_, i) => i !== index);
     this.syncContent();
     this.cd.markForCheck();
+  }
+
+  /** Set one entry's per-inscription title. */
+  setBatchEntryTitle(index: number, title: string): void {
+    this.batchFiles = this.batchFiles.map((e, i) => i === index ? { ...e, title } : e);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Set one entry's destination address (empty = the shared recipient). */
+  setBatchEntryDestination(index: number, destination: string): void {
+    this.batchFiles = this.batchFiles.map((e, i) => i === index ? { ...e, destination } : e);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** A destination that is set but not a plausible bitcoin address (blocks mint). */
+  batchEntryDestinationInvalid(destination: string): boolean {
+    const d = destination.trim();
+    return d.length > 0 && !/^(bc1[a-z0-9]{20,}|[13][a-km-zA-HJ-NP-Z1-9]{20,})$/.test(d);
+  }
+
+  /** `true` while any batch entry has an invalid destination (blocks mint). */
+  get batchInvalid(): boolean {
+    return this.batchMode && this.batchFiles.some((e) => this.batchEntryDestinationInvalid(e.destination));
   }
 
   clearBatch(): void {
@@ -557,6 +590,8 @@ export class InscribeMintComponent implements OnInit {
       mode: 'separate-outputs',
       inscriptions: this.batchFiles.map((f) => ({
         source: { kind: 'file' as const, body: f.bytes, contentType: f.contentType },
+        ...(f.title.trim() ? { title: f.title.trim() } : {}),
+        ...(f.destination.trim() ? { destination: f.destination.trim() } : {}),
       })),
       ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
       ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),

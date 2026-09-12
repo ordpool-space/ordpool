@@ -1098,5 +1098,27 @@ describe('InscribeMintComponent', () => {
       expect(component.mintGateError).toContain('refused');
       expect(mintSpy).not.toHaveBeenCalled();
     });
+
+    it('per-entry title and destination thread onto that batch inscription', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png'), pngFile(8, 'b.png')]);
+      component.setBatchEntryTitle(0, 'Cat #1');
+      component.setBatchEntryDestination(1, 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
+      const batch = lastBatch();
+      expect(batch.inscriptions[0].title).toBe('Cat #1');
+      expect(batch.inscriptions[0].destination).toBeUndefined();       // entry 0 has no destination
+      expect(batch.inscriptions[1].destination).toBe('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
+      expect(batch.inscriptions[1].title).toBeUndefined();             // entry 1 has no title
+    });
+
+    it('an invalid destination flags the row and blocks the mint; a valid one clears it', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      component.setBatchEntryDestination(0, 'not-an-address');
+      expect(component.batchEntryDestinationInvalid('not-an-address')).toBe(true);
+      expect(component.batchInvalid).toBe(true);
+      component.setBatchEntryDestination(0, 'bc1p64fa7mjsvlfcutnfapwhxyuvchxgk22l4at7xsh4z02tuuqwaj5syt6x2e');
+      expect(component.batchInvalid).toBe(false);
+    });
   });
 });

@@ -120,14 +120,32 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="inscribe-batch-clear" (click)="clearBatch()">Clear all</button>
           </div>
           <div *ngFor="let f of batchFiles; let i = index"
-               class="d-flex justify-content-between align-items-center ps-2 pe-2 pt-1 pb-1 shape-border mb-1"
+               class="ps-2 pe-2 pt-1 pb-1 shape-border mb-1"
                [attr.data-testid]="'inscribe-batch-row-' + i">
-            <span class="text-truncate">
-              {{ f.name }}
-              <span class="text-muted small">· {{ f.contentType }} · {{ f.sizeBytes | number }} bytes</span>
-            </span>
-            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" title="Remove"
-                    [attr.data-testid]="'inscribe-batch-remove-' + i" (click)="removeBatchFile(i)">&#10005;</button>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-truncate">
+                {{ f.name }}
+                <span class="text-muted small">· {{ f.contentType }} · {{ f.sizeBytes | number }} bytes</span>
+              </span>
+              <button type="button" class="btn btn-sm btn-outline-secondary ms-2" title="Remove"
+                      [attr.data-testid]="'inscribe-batch-remove-' + i" (click)="removeBatchFile(i)">&#10005;</button>
+            </div>
+            <!-- Per-entry options: this inscription's own title + destination -->
+            <details class="mt-1">
+              <summary class="small text-muted">Options for this inscription</summary>
+              <div class="mt-2">
+                <input type="text" class="form-control form-control-sm mb-2" placeholder="title (optional)" spellcheck="false"
+                       [attr.data-testid]="'inscribe-batch-title-' + i"
+                       [value]="f.title" (input)="setBatchEntryTitle(i, $any($event.target).value)">
+                <input type="text" class="form-control form-control-sm" placeholder="destination address (optional, defaults to your ordinals address)" spellcheck="false"
+                       [attr.data-testid]="'inscribe-batch-destination-' + i"
+                       [value]="f.destination" (input)="setBatchEntryDestination(i, $any($event.target).value)">
+                <div class="feedback-error p-1 small mt-1" *ngIf="batchEntryDestinationInvalid(f.destination)"
+                     [attr.data-testid]="'inscribe-batch-destination-error-' + i">
+                  That does not look like a bitcoin address. Leave it empty to send this inscription to your ordinals address.
+                </div>
+              </div>
+            </details>
           </div>
           <p class="text-muted small mt-2 mb-0">
             Every file mints in one commit and reveal to your ordinals address.
@@ -600,7 +618,7 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid || rareSatBlocked"
+              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid || rareSatBlocked || batchInvalid"
               class="btn btn-primary mt-4 mb-4 text-white">
               <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>
