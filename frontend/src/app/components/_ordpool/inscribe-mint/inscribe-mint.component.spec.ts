@@ -979,6 +979,20 @@ describe('InscribeMintComponent', () => {
       expect(component.rareSatRows).toBeNull();
     });
 
+    it('getDedupedUtxos collapses electrs double-listing of the same outpoint', async () => {
+      // electrs transiently lists the same outpoint twice around confirmation
+      // (one confirmed, one unconfirmed, same value) -> would double-count.
+      const A = 'a'.repeat(64), B = 'b'.repeat(64);
+      const confirmed = { txid: A, vout: 0, value: 500_000, status: { confirmed: true } };
+      const unconf = { txid: A, vout: 0, value: 500_000, status: { confirmed: false } };
+      const other = { txid: B, vout: 1, value: 100_000, status: { confirmed: true } };
+      (component as any).cat21.getUtxos = jest.fn(() => of([confirmed, unconf, other]));
+      const result = await (component as any).getDedupedUtxos('bc1p-x');
+      expect(result.length).toBe(2); // the A:0 duplicate collapsed to one
+      expect(result.map((u: any) => `${u.txid}:${u.vout}`)).toEqual([`${A}:0`, `${B}:1`]);
+      expect(result.reduce((s: number, u: any) => s + u.value, 0)).toBe(600_000); // not 1,100,000
+    });
+
     // --- satTarget construction (needs a connected wallet + content) ---
     const VALID_DELEGATE = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0';
     const withWalletAndContent = () => {
