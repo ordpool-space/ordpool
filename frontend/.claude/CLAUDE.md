@@ -222,11 +222,12 @@ mempool.space styling.
 
    - **Perspective: up-RIGHT Necker vanishing.** Cube depth recedes
      toward the upper-right (viewer at lower-left). The Necker
-     default. Upstream's flat-front Necker cube survives only where
-     the overlay is off (minimal-mode strips in block-view and
-     clockchain, stale ghosts, the api-docs demo strip); mempool
-     draws those up-LEFT and we reverse them via pure CSS overrides
-     in `styles-ordpool-overrides2.scss` (no upstream files touched).
+     default. Upstream's flat-front Necker cube survives only as the
+     stale-ghost stack behind a block; mempool draws it up-LEFT and
+     we reverse it via pure CSS overrides in
+     `styles-ordpool-overrides2.scss` (no upstream files touched).
+     Minimal-mode strips (the clock page) render the bare iso cube,
+     fee-coloured, without the content slots.
      Mempool's hidden `.time-ltr` toggle (an opt-in opposite-direction
      mode for RTL locales) is killed there too — the `time-toggle`
      button is `display: none` and any leftover `.time-ltr` class is
@@ -258,8 +259,10 @@ mempool.space styling.
 
    The Necker depth pseudo-elements (`::after` for the top face,
    `::before` for the side face) are overridden globally in
-   `styles-ordpool-overrides2.scss` for the fallback cases above;
-   don't add per-component CSS for cube depth. A new cube-bearing
+   `styles-ordpool-overrides2.scss` for the stale ghosts; don't add
+   per-component CSS for cube depth. The mempool strip's pending
+   pulse is softened there too (opacity 0.85 to 1.0 instead of
+   upstream's 0.7 to 1.0). A new cube-bearing
    component gets the iso cube by placing `<app-iso-cube>` with its
    three `ngProjectAs` slots inside its `.bitcoin-block`; the global
    `:has(app-iso-cube)` rules retire the upstream rendering

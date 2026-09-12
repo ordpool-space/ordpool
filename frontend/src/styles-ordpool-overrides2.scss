@@ -167,16 +167,18 @@ body .bitcoin-block:has(app-iso-cube) .block-height {
 // scrolls. Paint the same hexagon silhouette in CSS instead: ::after
 // becomes the cube (clip-path hexagon, conic-gradient = the three faces
 // in the neutral panel grays, sector edges on the centre-to-vertex
-// angles 60 / 180 / 300 deg), ::before is dropped. Scoped to the main
-// timeline; minimal-mode strips (block-view, clockchain) keep
-// upstream's small Necker cubes.
-app-blockchain .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block) {
+// angles 60 / 180 / 300 deg), ::before is dropped. Applies to every
+// block strip (main timeline, clock, api-docs demo).
+.blocks-container .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block),
+.mempool-blocks-container .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block) {
   background: transparent !important;
 }
-app-blockchain .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::before {
+.blocks-container .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::before,
+.mempool-blocks-container .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::before {
   display: none !important;
 }
-app-blockchain .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::after {
+.blocks-container .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::after,
+.mempool-blocks-container .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::after {
   content: '';
   position: absolute;
   top: -15% !important;
@@ -193,6 +195,22 @@ app-blockchain .bitcoin-block:not(:has(app-iso-cube)):not(.placeholder-block)::a
     var(--panel-bg) 120deg 240deg,
     var(--panel-border) 240deg 360deg
   ) !important;
+}
+
+// ─── Pending pulse ─────────────────────────────────────────────────
+// Upstream breathes the mempool strip (and loading blocks) between
+// opacity 0.7 and 1.0, dimming the whole pending side by a third every
+// two seconds. With the cubes' own glow a lighter breath is enough to
+// read as "pending". !important because upstream's `.flashing` is a
+// view-encapsulated selector we can't outrank from here.
+@keyframes ordpool-cube-pulse {
+  0% { opacity: 0.85; }
+  50% { opacity: 1; }
+  100% { opacity: 0.85; }
+}
+app-mempool-blocks .flashing,
+app-blockchain-blocks .flashing {
+  animation-name: ordpool-cube-pulse !important;
 }
 
 // Neutralize the .time-ltr toggle path so it can't double-flip our

@@ -14,12 +14,14 @@
                TOP = median fee rate, LEFT = fee span + size, RIGHT = tx count + ETA.
                The upstream `.block-body` below stays in the DOM (hidden via
                styles-ordpool-overrides2.scss) so data-cy hooks keep working. -->
-          <app-iso-cube *ngIf="!minimal" [feeRate]="projectedBlock.medianFee">
+          <app-iso-cube [feeRate]="projectedBlock.medianFee">
             <ng-container ngProjectAs="[iso-top]">
-              ~<app-fee-rate [fee]="projectedBlock.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
+              <ng-container *ngIf="!minimal">
+                ~<app-fee-rate [fee]="projectedBlock.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
+              </ng-container>
             </ng-container>
             <ng-container ngProjectAs="[iso-left]">
-              <div class="iso-screen">
+              <div class="iso-screen" *ngIf="!minimal">
                 <div class="iso-lines">
                   <span class="num big" *ngIf="blockDisplayMode === 'fees'; else isoBlockSize">
                     <app-amount [satoshis]="projectedBlock.totalFees" digitsInfo="1.2-3" [noFiat]="true"></app-amount>
@@ -36,7 +38,7 @@
               </div>
             </ng-container>
             <ng-container ngProjectAs="[iso-right]">
-              <div class="iso-lines">
+              <div class="iso-lines" *ngIf="!minimal">
                 <span class="num big">{{ projectedBlock.nTx | number }}</span>
                 <span class="lbl">{{ projectedBlock.nTx === 1 ? 'transaction' : 'transactions' }}</span>
                 <span class="lbl" *ngIf="projectedBlock.blockVSize <= stateService.blockVSize; else isoMergedBlock">

@@ -38,14 +38,14 @@
              The upstream `.block-body` below stays in the DOM (hidden via
              styles-ordpool-overrides2.scss) so tooltips, data-cy hooks and
              click handlers keep working against the same bindings. -->
-        <app-iso-cube *ngIf="!minimal" [feeRate]="block.extras?.medianFee">
+        <app-iso-cube [feeRate]="block.extras?.medianFee">
           <ng-container ngProjectAs="[iso-top]">
-            <ng-container *ngIf="block?.extras">
+            <ng-container *ngIf="!minimal && block?.extras">
               ~<app-fee-rate [fee]="block.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
             </ng-container>
           </ng-container>
           <ng-container ngProjectAs="[iso-left]">
-            @if (block.height >= firstInscriptionHeight && block.extras?.ordpoolStats) {
+            @if (!minimal && block.height >= firstInscriptionHeight && block.extras?.ordpoolStats) {
               @if (block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId &&
                    (!cubeShowsRunes || block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint)) {
                 <div class="iso-screen">
@@ -59,7 +59,8 @@
             }
           </ng-container>
           <ng-container ngProjectAs="[iso-right]">
-            @if (block.height < firstInscriptionHeight) {
+            @if (minimal) {
+            } @else if (block.height < firstInscriptionHeight) {
               <div class="iso-lines"><span class="lbl">Pre-Ordinals Era</span></div>
             } @else if (block.extras?.ordpoolStats) {
               <div class="iso-stats">
