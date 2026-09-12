@@ -88,6 +88,13 @@ export class BlockchainBlocksComponent implements OnInit, OnChanges, OnDestroy {
   // HACK -- ordpool: first inscription height for ordinals support
   firstInscriptionHeight = getFirstInscriptionHeight(this.stateService.network || 'mainnet');
 
+  // HACK -- Ordpool: whether the cube's preview face may show the block's
+  // most active rune instead of its largest inscription. Off: the open
+  // UNCOMMON•GOODS mint wins the rune slot in every block, so the face
+  // would read the same everywhere; an inscription preview is the more
+  // interesting picture. Flip to true to bring the rune ticker back.
+  readonly cubeShowsRunes = false;
+
   ngOnInit() {
     this.dynamicBlocksAmount = Math.min(8, this.stateService.env.KEEP_BLOCKS_AMOUNT);
 

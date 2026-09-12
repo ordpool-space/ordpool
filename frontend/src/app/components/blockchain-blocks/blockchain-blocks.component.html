@@ -46,12 +46,12 @@
           </ng-container>
           <ng-container ngProjectAs="[iso-left]">
             @if (block.height >= firstInscriptionHeight && block.extras?.ordpoolStats) {
-              @if (block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint &&
-                   block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId) {
+              @if (block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId &&
+                   (!cubeShowsRunes || block.extras.ordpoolStats.amounts.inscriptionMint > block.extras.ordpoolStats.amounts.runeMint)) {
                 <div class="iso-screen">
                   <app-mini-inscription-viewer [inscriptionId]="block.extras.ordpoolStats.inscriptions.largestEnvelopeInscriptionId" />
                 </div>
-              } @else if (block.extras.ordpoolStats.runes.mostActiveMint) {
+              } @else if (cubeShowsRunes && block.extras.ordpoolStats.runes.mostActiveMint) {
                 <div class="iso-screen">
                   <app-runestone-id-to-text [runeId]="block.extras.ordpoolStats.runes.mostActiveMint" />
                 </div>
