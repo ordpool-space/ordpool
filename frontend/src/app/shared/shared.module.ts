@@ -187,6 +187,7 @@ import { Src721ViewerComponent } from '@components/_ordpool/digital-artifact-vie
 import { Src101ViewerComponent } from '@components/_ordpool/digital-artifact-viewer/src101-viewer/src101-viewer.component';
 import { LabitbuViewerComponent } from '@components/_ordpool/digital-artifact-viewer/labitbu-viewer/labitbu-viewer.component';
 import { MiniInscriptionViewerComponent } from '@components/_ordpool/digital-artifact-viewer/inscription-viewer/mini-inscription-viewer.component';
+import { IsoCubeComponent } from '@components/_ordpool/iso-cube/iso-cube.component';
 import { OrdpoolFeesBoxClickableComponent } from '@components/_ordpool/ordpool-fees-box-clickable/ordpool-fees-box-clickable.component';
 import { HighlightModule } from 'ngx-highlightjs';
 
@@ -373,6 +374,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     PreviewViewerComponent,
     AtomicalViewerComponent,
     MiniInscriptionViewerComponent,
+    IsoCubeComponent,
     CapitalizeFirstPipe,
     SafeResourceUrlPipe,
   ],
@@ -389,6 +391,7 @@ import { HighlightModule } from 'ngx-highlightjs';
   ],
   exports: [
     MenuComponent,
+    IsoCubeComponent,
     RouterModule,
     ReactiveFormsModule,
     NgbNavModule,

@@ -131,7 +131,11 @@ mempool.space styling.
    shadow) for dimensional shading on the three visible faces. Those
    are NOT additional accent colours — they're internal tonal
    variations of the same brand orange, only ever applied to cube
-   faces. See rule 6 below for the full spec.
+   faces. The block-timeline cubes are the one surface that carries
+   another palette: their colour is the block's median fee rate
+   through the theme's fee-level palette, the same colours the fee
+   charts and upstream's projected-block gradient use. That is
+   information, not decoration. See rule 6 below for the full spec.
 
 2. **No rounded corners.** Upstream mempool uses `border-radius` on
    cards, buttons, dropzones, badges. Ordpool deliberately ships
@@ -169,9 +173,8 @@ mempool.space styling.
 6. **Cube iconography — perspective + lighting are brand rules.**
 
    Every cube on ordpool shares two non-negotiable conventions
-   (perspective + lighting), and one preferred geometric style
-   (isometric corner-on, unless the cube needs a content-bearing
-   front face).
+   (perspective + lighting) and one geometric style (isometric
+   corner-on).
 
    - **Preferred geometry: isometric corner-on.** One cube vertex
      points at the viewer, three rhombus faces meet there, outer
@@ -182,43 +185,85 @@ mempool.space styling.
      images, hero illustrations) MUST also use this variant unless
      there's a specific reason not to.
 
-     The one allowed exception is the block-timeline cube
-     (`.bitcoin-block` in blockchain-blocks / mempool-blocks /
-     stale-list). It's a 3-face Necker variant with a flat FRONT
-     face plus top + side because the front carries content (fee
-     rate, MB, cat21 avatar, tx count) that an iso corner-on view
-     has no flat surface for. The same perspective + lighting rules
-     below still apply.
+     The block-timeline cubes (`.bitcoin-block` in blockchain-blocks,
+     mempool-blocks and stale-list) use it through the `app-iso-cube`
+     overlay (`components/_ordpool/iso-cube`): the upstream block
+     markup stays in the DOM for tooltips, data-cy hooks and click
+     targets, the overlay paints the hexagon over it and carries the
+     content on three slots. TOP keeps an upright label (median fee
+     rate); LEFT and RIGHT are mapped onto their faces with the exact
+     iso affine (`matrix(0.866, ±0.5, 0, 1)`), so vertical strokes
+     stay vertical and baselines run parallel to the slanted edges:
+     the text reads as painted on the face. LEFT is the black
+     `.iso-screen` filling the whole face (inscription iframe or rune
+     ticker on confirmed blocks; size + fee span on projected and
+     stale ones), RIGHT is the stats slot, flush left against the
+     centre edge (`.iso-stats` list of mint counts, `.iso-lines` stack
+     for tx count + ETA). Type is set in em off `--block-size` (1em =
+     8 % of the block). The block size itself is one number,
+     `timelineBlockSize` in `iso-cube.constants.ts`; stride, container
+     offset, divider, wrapper height and the height label all derive
+     from it. Blocks that are still loading get the same hexagon as a
+     CSS-only placeholder in the neutral panel grays
+     (`styles-ordpool-overrides2.scss`), so the strip never shows a
+     differently shaped block while scrolling.
+
+     Timeline cubes are coloured by information, not by brand: the host
+     passes the block's median fee rate (`[feeRate]`) and the cube
+     takes its colour from the theme's fee-level palette, the same one
+     the fee charts use, so a magenta cube means "expensive block"
+     anywhere on the site. The palette is tuned for flat fills and
+     sits dark, so the top face gets it lifted in OKLCH (lightness up,
+     chroma up a little, hue untouched): brighter without the wash-out
+     that mixing with white causes. The
+     top label's ink follows the face luminance (page-background navy
+     above 0.35, white below). Without a fee rate the cube falls back
+     to brand orange.
 
    - **Perspective: up-RIGHT Necker vanishing.** Cube depth recedes
      toward the upper-right (viewer at lower-left). The Necker
-     default. Mempool upstream uses up-LEFT for the block timeline;
-     we reverse it via pure CSS overrides in
-     `styles-ordpool-overrides2.scss` (no upstream files touched).
+     default. Upstream's flat-front Necker cube survives only where
+     the overlay is off (minimal-mode strips in block-view and
+     clockchain, stale ghosts, the api-docs demo strip); mempool
+     draws those up-LEFT and we reverse them via pure CSS overrides
+     in `styles-ordpool-overrides2.scss` (no upstream files touched).
      Mempool's hidden `.time-ltr` toggle (an opt-in opposite-direction
      mode for RTL locales) is killed there too — the `time-toggle`
      button is `display: none` and any leftover `.time-ltr` class is
      transformed to a no-op, so the orientation stays consistent
      even for users who toggled it on in a past session.
 
-   - **Lighting: sun-from-upper-LEFT.** TOP face is brightest (full
-     bitcoin orange `#FF9900`), LEFT face is mid (`#C07300`, lifted
-     from the bitmap-3d viewer palette), RIGHT face is the deepest
-     shadow (`#7E4B00`, also from the viewer palette). Brand orange
-     ALWAYS sits on the sun-lit face — it's the identity anchor;
-     the shaded faces are derived tones.
+   - **Lighting: sun-from-upper-LEFT.** TOP face is brightest, LEFT
+     face is mid, RIGHT face is the deepest shadow. The logo and the
+     bitmap-3d viewer cubes use the fixed cascade `#FF9900` /
+     `#C07300` / `#7E4B00`; brand orange ALWAYS sits on the sun-lit
+     face there, it's the identity anchor, the shaded faces are
+     derived tones. The timeline cube shades whatever colour its top
+     face carries: sides at 84 % and 66 % of it towards black (kept
+     gentle, the fee palette is dark already), a gloss gradient from
+     the lit corner on the top face, an ambient-occlusion gradient
+     towards the ground on the sides, lit edges on top, dark edges at
+     the ground. It casts no dark shadow (invisible on the navy page)
+     but a soft glow in its own colour; on hover it lifts 4px and the
+     glow deepens.
 
-   The brand logo SVG is used everywhere a logo appears: master-page
-   header (desktop + mobile), global-footer, and the OTS web-
-   notification icon (where it brand-identifies the source in the
+   The logo in the master-page header (desktop + mobile), the
+   global-footer and the family-footer is the same `app-iso-cube` in
+   inline mode (`class="inline"`, sized through `--block-size`), so
+   logo and timeline cubes share one look and one code path; the
+   header logo is the colour reference (brand orange, no fee rate).
+   The static `/resources/ordpool-cube-logo.svg` remains for the OTS
+   web-notification icon (where it brand-identifies the source in the
    OS notification centre).
 
-   The timeline-cube depth pseudo-elements (`::after` for the top
-   face, `::before` for the side face) are overridden globally in
-   `styles-ordpool-overrides2.scss` — don't add per-component CSS
-   for cube depth. If a new cube-bearing component lands, it
-   inherits the rule for free as long as it uses the `.bitcoin-block`
-   class hook.
+   The Necker depth pseudo-elements (`::after` for the top face,
+   `::before` for the side face) are overridden globally in
+   `styles-ordpool-overrides2.scss` for the fallback cases above;
+   don't add per-component CSS for cube depth. A new cube-bearing
+   component gets the iso cube by placing `<app-iso-cube>` with its
+   three `ngProjectAs` slots inside its `.bitcoin-block`; the global
+   `:has(app-iso-cube)` rules retire the upstream rendering
+   underneath it automatically.
 
 When you're unsure, check `cat21-mint`'s component for the canonical
 ordpool look — it's the reference page for typography + spacing +

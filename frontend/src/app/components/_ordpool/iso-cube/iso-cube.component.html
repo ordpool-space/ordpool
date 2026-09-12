@@ -1,0 +1,30 @@
+<svg class="iso-shape" viewBox="0 0 160 160" aria-hidden="true">
+  <defs>
+    <!-- lighting overlays; ids are per instance because SVG ids are document-global -->
+    <!-- both gradients average out to zero over their face, so the flat
+         face colours stay the cube's mean colours -->
+    <linearGradient [attr.id]="'iso-gloss-' + uid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.4"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient [attr.id]="'iso-shade-' + uid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.16"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.28"/>
+    </linearGradient>
+  </defs>
+  <polygon class="face-top" points="80,80 149.28,40 80,0 10.72,40"/>
+  <polygon class="face-left" points="80,80 10.72,40 10.72,120 80,160"/>
+  <polygon class="face-right" points="80,80 149.28,40 149.28,120 80,160"/>
+  <polygon points="80,80 149.28,40 80,0 10.72,40" [attr.fill]="'url(#iso-gloss-' + uid + ')'"/>
+  <polygon points="80,80 10.72,40 10.72,120 80,160" [attr.fill]="'url(#iso-shade-' + uid + ')'"/>
+  <polygon points="80,80 149.28,40 149.28,120 80,160" [attr.fill]="'url(#iso-shade-' + uid + ')'"/>
+  <polyline class="edge edge-lit" points="10.72,40 80,0 149.28,40" vector-effect="non-scaling-stroke"/>
+  <polyline class="edge edge-ridge" points="10.72,40 80,80 149.28,40" vector-effect="non-scaling-stroke"/>
+  <line class="edge edge-ridge" x1="80" y1="80" x2="80" y2="160" vector-effect="non-scaling-stroke"/>
+  <polyline class="edge edge-dark" points="10.72,120 80,160 149.28,120" vector-effect="non-scaling-stroke"/>
+</svg>
+<div class="iso-face iso-top"><ng-content select="[iso-top]"></ng-content></div>
+<div class="iso-face iso-left"><ng-content select="[iso-left]"></ng-content></div>
+<div class="iso-face iso-right"><ng-content select="[iso-right]"></ng-content></div>

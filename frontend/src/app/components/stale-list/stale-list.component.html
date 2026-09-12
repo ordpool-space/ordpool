@@ -25,7 +25,14 @@
             <div class="block-column stale">
               <div class="block-label" i18n="chain-tips.stale-block"><span class="badge bg-secondary">Stale</span></div>
               <div class="block-wrapper">
-                <div class="bitcoin-block mined-block stale-block" [style.background]="getBlockGradient(chainTip.stale)" [routerLink]="[('/block/' + chainTip.stale.id) | relativeUrl]"></div>
+                <div class="bitcoin-block mined-block stale-block" [style.background]="getBlockGradient(chainTip.stale)" [routerLink]="[('/block/' + chainTip.stale.id) | relativeUrl]">
+                  <!-- HACK -- Ordpool: isometric cube overlay, faces from #isoTop / #isoLeft / #isoRight below -->
+                  <app-iso-cube [feeRate]="chainTip.stale?.extras?.medianFee">
+                    <ng-container ngProjectAs="[iso-top]"><ng-container *ngTemplateOutlet="isoTop; context: { $implicit: chainTip.stale }"></ng-container></ng-container>
+                    <ng-container ngProjectAs="[iso-left]"><ng-container *ngTemplateOutlet="isoLeft; context: { $implicit: chainTip.stale }"></ng-container></ng-container>
+                    <ng-container ngProjectAs="[iso-right]"><ng-container *ngTemplateOutlet="isoRight; context: { $implicit: chainTip.stale }"></ng-container></ng-container>
+                  </app-iso-cube>
+                </div>
                 <div class="block-body">
                   <div *ngIf="chainTip.stale?.extras; else emptyStaleBlockFees" class="fees">
                     ~<app-fee-rate [fee]="chainTip.stale.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
@@ -72,6 +79,12 @@
             <div class="block-column canonical">
               <div class="block-label" i18n="chain-tips.winning-block"><span class="badge bg-success">Winning</span></div>
               <div class="bitcoin-block mined-block canonical-block" [style.background]="getBlockGradient(chainTip.canonical)" [routerLink]="[('/block/' + chainTip.canonical.id) | relativeUrl]">
+                <!-- HACK -- Ordpool: isometric cube overlay, faces from #isoTop / #isoLeft / #isoRight below -->
+                <app-iso-cube [feeRate]="chainTip.canonical?.extras?.medianFee">
+                  <ng-container ngProjectAs="[iso-top]"><ng-container *ngTemplateOutlet="isoTop; context: { $implicit: chainTip.canonical }"></ng-container></ng-container>
+                  <ng-container ngProjectAs="[iso-left]"><ng-container *ngTemplateOutlet="isoLeft; context: { $implicit: chainTip.canonical }"></ng-container></ng-container>
+                  <ng-container ngProjectAs="[iso-right]"><ng-container *ngTemplateOutlet="isoRight; context: { $implicit: chainTip.canonical }"></ng-container></ng-container>
+                </app-iso-cube>
                 <div class="block-body">
                   <div *ngIf="chainTip.canonical?.extras; else emptyCanonicalBlockFees" class="fees">
                     ~<app-fee-rate [fee]="chainTip.canonical.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
@@ -121,5 +134,35 @@
       </div>
     </ng-container>
   </div>
-  
+
 </div>
+
+<!-- HACK -- Ordpool: iso cube faces shared by the stale and the winning block above -->
+<ng-template #isoTop let-b>
+  <ng-container *ngIf="b?.extras">
+    ~<app-fee-rate [fee]="b.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
+  </ng-container>
+</ng-template>
+<ng-template #isoLeft let-b>
+  <div class="iso-screen">
+    <div class="iso-lines">
+      <span class="num big" *ngIf="b?.size" [innerHTML]="'&lrm;' + (b.size | bytes: 2)"></span>
+      <span class="lbl" *ngIf="b?.extras?.minFee != null && b?.extras?.maxFee != null">
+        <app-fee-rate [fee]="b.extras.minFee" [showUnit]="false" unitClass=""></app-fee-rate>
+        -
+        <app-fee-rate [fee]="b.extras.maxFee" unitClass=""></app-fee-rate>
+      </span>
+    </div>
+  </div>
+</ng-template>
+<ng-template #isoRight let-b>
+  <div class="iso-lines">
+    <ng-container *ngIf="b?.tx_count">
+      <span class="num big">{{ b.tx_count | number }}</span>
+      <span class="lbl">{{ b.tx_count === 1 ? 'transaction' : 'transactions' }}</span>
+    </ng-container>
+    <span class="lbl" *ngIf="b?.timestamp">
+      <app-time kind="since" [time]="b.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
+    </span>
+  </div>
+</ng-template>

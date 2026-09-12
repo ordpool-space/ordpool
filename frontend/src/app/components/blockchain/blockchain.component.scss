@@ -1,8 +1,11 @@
+// HACK -- Ordpool: wrapper, divider and strip position scale with
+// --block-size (set on .blockchain-wrapper); the factors are upstream's
+// px values divided by its 125 px block.
 #divider {
   width: 2px;
-  height: 200px;
+  height: calc(var(--block-size, 125px) * 1.6);
   left: 0;
-  top: -50px;
+  top: calc(var(--block-size, 125px) * -0.4);
   position: absolute;
   margin-bottom: 120px;
 }
@@ -14,7 +17,7 @@
 }
 
 .blockchain-wrapper {
-  height: 260px;
+  height: calc(var(--block-size, 125px) * 2.08);
   -webkit-user-select: none; /* Safari */
   -moz-user-select: none; /* Firefox */
   -ms-user-select: none; /* IE10+/Edge */
@@ -24,7 +27,7 @@
 .position-container {
   position: absolute;
   left: 0;
-  top: 75px;
+  top: calc(var(--block-size, 125px) * 0.6);
   transform: translateX(1280px);
 }
 

@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, Input, Output, E
 import { firstValueFrom, Subscription } from 'rxjs';
 import { StateService } from '@app/services/state.service';
 import { StorageService } from '@app/services/storage.service';
+import { timelineBlockSize } from '@components/_ordpool/iso-cube/iso-cube.constants';
 
 @Component({
   selector: 'app-blockchain',
@@ -19,6 +20,10 @@ export class BlockchainComponent implements OnInit, OnDestroy, OnChanges {
   @Input() containerWidth: number;
 
   @Output() mempoolOffsetChange: EventEmitter<number> = new EventEmitter();
+
+  // HACK -- Ordpool: one block size for both strips and the wrapper
+  // geometry, see iso-cube.constants.ts.
+  blockSize = timelineBlockSize;
 
   network: string;
   timeLtrSubscription: Subscription;

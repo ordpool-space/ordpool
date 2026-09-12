@@ -1,0 +1,241 @@
+// Isometric corner-on cube overlay for `.bitcoin-block` timeline blocks.
+//
+// ViewEncapsulation.None on purpose: the face rules must also reach the
+// projected content (rune ticker, inscription iframe, fee-rate spans)
+// that belongs to the host component's view.
+//
+// Geometry, in % of this element (a square, 130 % of its block):
+//
+//              top (50, 0)
+//    UL (6.7, 25)        UR (93.3, 25)
+//              centre (50, 50)
+//    LL (6.7, 75)        LR (93.3, 75)
+//              bottom (50, 100)
+//
+// Each visible face is a 3D square whose vertical edge projects to 50 %
+// of this box. A 50 % x 50 % "face-space" box run through the iso affine
+// therefore lands exactly on its rhombus:
+//   left  face: origin UL,     x-axis -> (cos 30, +sin 30), y-axis -> down
+//   right face: origin centre, x-axis -> (cos 30, -sin 30), y-axis -> down
+// Content laid out in that box keeps vertical strokes vertical and its
+// baselines parallel to the face's slanted edges, so it reads as painted
+// on the face, with a uniform margin to every edge.
+//
+// The top face keeps its label upright, centred on the rhombus' centroid:
+// a 30-degree rotated and sheared 10 px label is not legible.
+
+app-iso-cube {
+  // Colour of the sun-lit top face: brand orange unless the host passes
+  // a [feeRate], which swaps in the fee-level palette colour.
+  --iso-top: #FF9900;
+
+  position: absolute;
+  inset: -15%;
+  display: block;
+  pointer-events: none;
+  z-index: 2;
+  transition: transform 0.2s ease;
+  // 1em = 8 % of the block (10 px on a 125 px block); every face's type
+  // is set in em so it scales with the cube.
+  font-size: calc(var(--block-size, 125px) * 0.08);
+  line-height: 1.15;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  text-align: center;
+
+  .iso-shape {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    // A dark shadow is invisible on the navy page, so the cube casts a
+    // soft glow in its own colour instead, following the hexagon
+    // silhouette. Sized in em so it scales with the cube (header logo
+    // down to 32 px).
+    filter: drop-shadow(0 0 0.7em color-mix(in srgb, var(--iso-top) 45%, transparent));
+    transition: filter 0.2s ease;
+
+    // Lighting, sun from the upper left: the top face carries the cube's
+    // colour, the left and right faces are the same hue mixed towards
+    // black at 76 % and 50 %. For brand orange that is exactly the logo
+    // cascade #FF9900 / #C07300 / #7E4B00. The gradient overlays in the
+    // SVG (gloss on the top face, light-to-dark on the sides) are built
+    // to average out to these flat colours, so the header logo keeps
+    // the reference colours and every screenshot of it stays valid.
+    .face-top { fill: var(--iso-top); }
+    .face-left { fill: color-mix(in srgb, var(--iso-top) 76%, black); }
+    .face-right { fill: color-mix(in srgb, var(--iso-top) 50%, black); }
+
+    // Edge lines: lit on the two upper edges, a faint ridge where the
+    // faces meet, dark along the ground edges. They also cover the
+    // antialiasing seams between the face polygons.
+    .edge {
+      fill: none;
+      stroke-width: 1px;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+    .edge-lit { stroke: rgba(255, 255, 255, 0.55); }
+    .edge-ridge { stroke: rgba(255, 255, 255, 0.22); }
+    .edge-dark { stroke: rgba(0, 0, 0, 0.4); }
+  }
+
+  .iso-face {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  // Label ink follows the face: the page-background navy on light faces
+  // (brand orange, the bright fee levels; white on #FF9900 sits at ~2:1
+  // contrast, navy at ~7:1), white on the dark fee levels. The component
+  // sets --iso-ink from the face colour's luminance.
+  .iso-top {
+    left: 6.7%;
+    top: 0;
+    width: 86.6%;
+    height: 50%;
+    font-size: 1.15em;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--iso-ink, var(--bg));
+    text-shadow: none;
+  }
+
+  .iso-left,
+  .iso-right {
+    width: 50%;
+    height: 50%;
+    transform-origin: 0 0;
+  }
+  .iso-left {
+    left: 6.7%;
+    top: 25%;
+    transform: matrix(0.866, 0.5, 0, 1, 0, 0);
+  }
+  // Right face content sits flush left, i.e. against the cube's centre
+  // edge; the inset is resolved in face space so it follows the slant.
+  .iso-right {
+    left: 50%;
+    top: 50%;
+    transform: matrix(0.866, -0.5, 0, 1, 0, 0);
+    justify-content: flex-start;
+    padding-left: 6%;
+    text-align: left;
+
+    .iso-lines {
+      align-items: flex-start;
+    }
+  }
+
+  // Content helpers for the hosts (blockchain-blocks, mempool-blocks,
+  // stale-list).
+
+  // Black "screen" that fills the whole left face on every cube, so the
+  // square preview IS the left face. Confirmed blocks show the artifact
+  // there (inscription iframe or rune ticker, both render on black:
+  // upstream's `.rune-ticker` does, and the iframe's own backdrop is the
+  // intended ground for transparent or dark-themed inscriptions);
+  // projected and stale blocks show their size + fee span on it, white
+  // on black being the one combination that survives the mempool
+  // strip's opacity pulse.
+  .iso-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+    text-shadow: none;
+
+    app-mini-inscription-viewer,
+    app-mini-inscription-viewer > div {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      aspect-ratio: auto;
+    }
+    app-runestone-id-to-text {
+      display: block;
+      padding: 0 0.3em;
+      font-size: 0.85em;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  // Stat list: one "number label" line per stat, ragged right. (A
+  // column-aligned table does not fit "inscriptions" next to a four
+  // digit count on a 100 px block.)
+  .iso-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15em;
+    white-space: nowrap;
+    font-size: 0.95em;
+
+    .stat {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.3em;
+    }
+    .num {
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  // Centred stack of lines.
+  .iso-lines {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15em;
+    white-space: nowrap;
+  }
+
+  .num {
+    font-weight: 600;
+  }
+  .lbl {
+    font-size: 0.8em;
+    opacity: 0.85;
+  }
+  .big {
+    font-size: 1.25em;
+  }
+}
+
+// Inline mode (header + footer logo): a normal inline-block box of
+// --block-size instead of the block overlay. The hexagon fills the box
+// height, exactly like the static logo SVG did at the same size.
+app-iso-cube.inline {
+  position: relative;
+  inset: auto;
+  display: inline-block;
+  width: var(--block-size, 32px);
+  height: var(--block-size, 32px);
+  vertical-align: middle;
+}
+
+// Hover: the cube lifts and its glow intensifies. On the timeline the
+// hover state comes from the block (its .blockLink covers the whole
+// cube), for the logo from the link around it.
+.bitcoin-block:hover app-iso-cube,
+a:hover app-iso-cube.inline {
+  transform: translateY(-0.4em);
+
+  .iso-shape {
+    filter: drop-shadow(0 0 1.4em color-mix(in srgb, var(--iso-top) 80%, transparent));
+  }
+}
