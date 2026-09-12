@@ -9,6 +9,7 @@ let gateResult: { ok: true; resources: object } | { ok: false; reason: string; d
   resources: {},
 };
 const setContentSpy = jest.fn();
+const setBatchSpy = jest.fn();
 const mintSpy = jest.fn();
 const validateSpy = jest.fn();
 const simulateSpy = jest.fn();
@@ -86,6 +87,7 @@ jest.mock('ordpool-sdk', () => {
       setFeeRate = jest.fn((rate: number) => this._patch({ feeRate: rate }));
       setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u }));
       setContent = jest.fn((c: unknown) => this._patch({ content: c }));
+      setBatch = jest.fn((b: unknown) => this._patch({ batch: b }));
       mint = jest.fn(async () => ({ commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }));
       reset = jest.fn();
       // Signal/subject-shaped shims (harness drivers) → `_patch`.
@@ -248,6 +250,7 @@ describe('InscribeMintComponent', () => {
     inscribeSatSourceFromRowImpl = (row: PickerRow) =>
       row.rareSat ? { txid: (row.utxo as { txid: string }).txid, vout: 0, value: 10_000, scriptPubKey: new Uint8Array(34), tapInternalKey: new Uint8Array(32), address: row.address, offset: row.rareSat.offset } : null;
     setContentSpy.mockClear();
+    setBatchSpy.mockClear();
     mintSpy.mockClear();
     validateSpy.mockClear();
     simulateSpy.mockClear();
@@ -288,6 +291,7 @@ describe('InscribeMintComponent', () => {
     // Alias the constructed orchestrator's setContent + mint to the module spies
     // the tests assert on (harness IO; construction + ngOnInit call neither).
     orchestrator.setContent = setContentSpy;
+    orchestrator.setBatch = setBatchSpy;
     orchestrator.mint = jest.fn(async () => { mintSpy(); return { commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }; });
     fixture.detectChanges();
   });
@@ -1019,6 +1023,80 @@ describe('InscribeMintComponent', () => {
       expect(component.rareSatBlocked).toBe(true);
       expect(component.rareSatBlockReason).toContain('padding');
       expect(lastContent()?.satTarget).toBeUndefined();
+    });
+  });
+
+  describe('Batch mode (several files in one commit)', () => {
+    const lastBatch = () => {
+      const calls = setBatchSpy.mock.calls;
+      return calls.length ? calls[calls.length - 1][0] : undefined;
+    };
+
+    it('toggling batch on clears single content; off clears the batch', () => {
+      component.toggleBatchMode(true);
+      expect(component.batchMode).toBe(true);
+      expect(setContentSpy).toHaveBeenCalledWith(null);
+      component.toggleBatchMode(false);
+      expect(component.batchMode).toBe(false);
+      expect(setBatchSpy).toHaveBeenCalledWith(null);
+    });
+
+    it('adding files builds a separate-outputs batch, one file inscription each', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png'), pngFile(8, 'b.png')]);
+      expect(component.batchFiles.length).toBe(2);
+      expect(component.hasContent).toBe(true);
+      const batch = lastBatch();
+      expect(batch.mode).toBe('separate-outputs');
+      expect(batch.inscriptions.length).toBe(2);
+      expect(batch.inscriptions[0].source.kind).toBe('file');
+      expect(batch.inscriptions[0].source.contentType).toBe('image/png');
+    });
+
+    it('a JavaScript file is skipped from the batch with a note', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([jsFile(), pngFile(8, 'ok.png')]);
+      expect(component.batchFiles.length).toBe(1);          // only the png
+      expect(component.batchError).toContain('Skipped');
+      expect(lastBatch().inscriptions.length).toBe(1);
+    });
+
+    it('removeBatchFile and clearBatch shrink / empty the batch', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png'), pngFile(8, 'b.png')]);
+      component.removeBatchFile(0);
+      expect(component.batchFiles.length).toBe(1);
+      component.clearBatch();
+      expect(component.batchFiles.length).toBe(0);
+      expect(setBatchSpy).toHaveBeenCalledWith(null);
+    });
+
+    it('postage and commit-fee thread onto the batch when set', async () => {
+      component.toggleBatchMode(true);
+      component.postageControl.setValue(3000);
+      component.commitFeeRateControl.setValue(4);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      const batch = lastBatch();
+      expect(batch.postageSats).toBe(3000);
+      expect(batch.commitFeeRatePerVbyte).toBe(4);
+    });
+
+    it('inscribeBatch gates every entry: minting proceeds when the gate passes', async () => {
+      gateResult = { ok: true, resources: {} };
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      component.inscribe(wallet());
+      expect(mintSpy).toHaveBeenCalled();
+    });
+
+    it('inscribeBatch blocks with an error and does not mint when the gate fails', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      gateResult = { ok: false, reason: 'blocked-content-type', detail: 'nope' };
+      mintSpy.mockClear();
+      component.inscribe(wallet());
+      expect(component.mintGateError).toContain('refused');
+      expect(mintSpy).not.toHaveBeenCalled();
     });
   });
 });

@@ -17,6 +17,21 @@
   <div class="box mt-4">
     <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
+      <!-- Single vs batch -->
+      <div class="btn-group w-100 mb-2" role="group" data-testid="inscribe-batch-mode">
+        <button type="button" class="btn"
+                [class.btn-primary]="!batchMode"
+                [class.btn-outline-secondary]="batchMode"
+                data-testid="inscribe-batch-mode-single"
+                (click)="toggleBatchMode(false)">Single</button>
+        <button type="button" class="btn"
+                [class.btn-primary]="batchMode"
+                [class.btn-outline-secondary]="!batchMode"
+                data-testid="inscribe-batch-mode-batch"
+                (click)="toggleBatchMode(true)">Batch (several files)</button>
+      </div>
+
+      <ng-container *ngIf="!batchMode">
       <!-- Mode: inscribe a file, or delegate to an existing inscription -->
       <div class="btn-group w-100 mb-2" role="group" data-testid="inscribe-mode">
         <button type="button" class="btn"
@@ -83,9 +98,46 @@
       <div class="feedback-error p-2 mt-2" *ngIf="fileError" data-testid="inscribe-file-error">
         {{ fileError }}
       </div>
+      </ng-container><!-- /!batchMode -->
 
-      <!-- Advanced options (compression, note, metadata) -->
-      <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent" data-testid="inscribe-advanced">
+      <!-- Batch: several files in one commit -->
+      <ng-container *ngIf="batchMode">
+        <label class="dropzone d-block text-center p-4 mt-2"
+               [class.dragging]="isDragging"
+               (dragover)="onDragOver($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onBatchDrop($event)">
+          <input type="file" class="dropzone-input" multiple data-testid="inscribe-batch-input" (change)="onBatchPick($event)">
+          <div class="fs-5">Drag files here, or <span class="link-like">click to choose</span></div>
+          <div class="text-muted small mt-2">Each file becomes its own inscription in one transaction. Max {{ 350000 / 1000 }} KB each.</div>
+        </label>
+
+        <div class="feedback-error p-2 mt-2" *ngIf="batchError" data-testid="inscribe-batch-error">{{ batchError }}</div>
+
+        <div *ngIf="batchFiles.length" class="mt-3 text-start" data-testid="inscribe-batch-list">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small text-muted">{{ batchFiles.length }} file{{ batchFiles.length === 1 ? '' : 's' }}, {{ batchTotalBytes | number }} bytes total</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="inscribe-batch-clear" (click)="clearBatch()">Clear all</button>
+          </div>
+          <div *ngFor="let f of batchFiles; let i = index"
+               class="d-flex justify-content-between align-items-center ps-2 pe-2 pt-1 pb-1 shape-border mb-1"
+               [attr.data-testid]="'inscribe-batch-row-' + i">
+            <span class="text-truncate">
+              {{ f.name }}
+              <span class="text-muted small">· {{ f.contentType }} · {{ f.sizeBytes | number }} bytes</span>
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" title="Remove"
+                    [attr.data-testid]="'inscribe-batch-remove-' + i" (click)="removeBatchFile(i)">&#10005;</button>
+          </div>
+          <p class="text-muted small mt-2 mb-0">
+            Every file mints in one commit and reveal to your ordinals address.
+            You also get two free CAT-21 cats. 😺
+          </p>
+        </div>
+      </ng-container>
+
+      <!-- Advanced options (compression, note, metadata) - single mode only -->
+      <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent && !batchMode" data-testid="inscribe-advanced">
         <summary>Advanced options</summary>
 
         <!-- Title (ord --title) -->
@@ -474,8 +526,9 @@
 
           <!-- Rare-sat picker (ord --sat): optional, opt-in. Inscribe onto a
                notable sat the ordinals address already holds instead of a fresh
-               common one. Scan is lazy (one ord lookup per coin). -->
-          <div class="mt-3" data-testid="inscribe-raresat">
+               common one. Scan is lazy (one ord lookup per coin). Single mode
+               only: a rare-sat target is one inscription's, not a batch's. -->
+          <div class="mt-3" *ngIf="!batchMode" data-testid="inscribe-raresat">
             <details>
               <summary>Inscribe onto a rare sat (optional)</summary>
               <p class="mt-2 mb-2 small text-muted">

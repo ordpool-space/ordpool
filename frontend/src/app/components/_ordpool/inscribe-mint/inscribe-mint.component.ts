@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, satPaddingRequirement, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, satPaddingRequirement, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -343,6 +343,16 @@ export class InscribeMintComponent implements OnInit {
   delegateId = '';
   delegateIdError = '';
 
+  // ---- Batch mode: inscribe several files in one commit --------------------
+  // Additive to the single flow (default off). A batch is N file inscriptions
+  // built into one commit + reveal (ord's batch, `separate-outputs`: each lands
+  // at its own output on the ordinals address). The shared fee rate, postage,
+  // and commit-fee apply to the whole batch; per-entry title/traits are a
+  // later refinement. With no parents this signs once, like a single inscribe.
+  batchMode = false;
+  batchFiles: PickedFile[] = [];
+  batchError = '';
+
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
     this.seoService.setDescription('Inscribe any file onto Bitcoin directly from your own wallet. No service fee, non-custodial, and every inscription mints two free CAT-21 cats.');
@@ -461,6 +471,97 @@ export class InscribeMintComponent implements OnInit {
     this.resetMetadata();
     this.orchestrator.setContent(null);
     this.cd.markForCheck();
+  }
+
+  // ---- Batch mode ---------------------------------------------------------
+  /** Switch between the single inscribe flow and the multi-file batch flow. */
+  toggleBatchMode(on: boolean): void {
+    if (on === this.batchMode) { return; }
+    this.batchMode = on;
+    this.batchError = '';
+    this.mintGateError = '';
+    if (on) {
+      // Entering batch: drop any pending single content so only the batch mints.
+      this.orchestrator.setContent(null);
+    } else {
+      this.batchFiles = [];
+      this.orchestrator.setBatch(null);
+    }
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  onBatchPick(ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    void this.addBatchFiles(files);
+    input.value = '';
+  }
+
+  onBatchDrop(ev: DragEvent): void {
+    ev.preventDefault();
+    this.isDragging = false;
+    const files = ev.dataTransfer?.files ? Array.from(ev.dataTransfer.files) : [];
+    void this.addBatchFiles(files);
+  }
+
+  /** Read + validate dropped/picked files and append the good ones to the batch. */
+  private async addBatchFiles(files: File[]): Promise<void> {
+    this.batchError = '';
+    for (const file of files) {
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const contentType = detectMimeType(bytes) ?? (file.type || 'application/octet-stream');
+        if (BLOCKED_CONTENT_TYPES.includes(contentType.toLowerCase().split(';')[0].trim())) {
+          this.batchError = `Skipped ${file.name}: JavaScript files can’t be inscribed here.`;
+          continue;
+        }
+        if (bytes.length > MAX_CONTENT_BYTES) {
+          this.batchError = `Skipped ${file.name}: over the ${MAX_CONTENT_BYTES / 1000} KB per-inscription cap.`;
+          continue;
+        }
+        this.batchFiles = [...this.batchFiles, { name: file.name, bytes, contentType, sizeBytes: bytes.length }];
+      } catch {
+        this.batchError = `Skipped ${file.name}: could not read it.`;
+      }
+    }
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  removeBatchFile(index: number): void {
+    this.batchFiles = this.batchFiles.filter((_, i) => i !== index);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  clearBatch(): void {
+    this.batchFiles = [];
+    this.batchError = '';
+    this.orchestrator.setBatch(null);
+    this.cd.markForCheck();
+  }
+
+  /** Total on-chain body bytes across the batch (for the size readout). */
+  get batchTotalBytes(): number {
+    return this.batchFiles.reduce((sum, f) => sum + f.sizeBytes, 0);
+  }
+
+  /** Build the batch (separate-outputs) and hand it to the orchestrator. */
+  private syncBatch(): void {
+    const postage = this.postageControl.value;
+    const commitFee = this.commitFeeRateControl.value;
+    if (!this.batchFiles.length) { this.orchestrator.setBatch(null); return; }
+    const batch: InscribeBatchContent = {
+      mode: 'separate-outputs',
+      inscriptions: this.batchFiles.map((f) => ({
+        source: { kind: 'file' as const, body: f.bytes, contentType: f.contentType },
+      })),
+      ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
+      ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),
+    };
+    this.orchestrator.setBatch(batch);
   }
 
   private async handleFile(file: File): Promise<void> {
@@ -703,8 +804,9 @@ export class InscribeMintComponent implements OnInit {
     return this.inscribeMode === 'delegate' && !this.delegatePreviewId;
   }
 
-  /** Is there something to inscribe? A picked file, or a valid delegate id. */
+  /** Is there something to inscribe? A picked file, a valid delegate id, or batch files. */
   get hasContent(): boolean {
+    if (this.batchMode) { return this.batchFiles.length > 0; }
     return this.inscribeMode === 'delegate' ? !!this.delegatePreviewId : !!this.pickedFile;
   }
 
@@ -741,6 +843,7 @@ export class InscribeMintComponent implements OnInit {
 
   /** Push the current content into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
+    if (this.batchMode) { this.syncBatch(); return; }
     const note = this.noteControl.value.trim();
     const title = this.titleControl.value.trim();
     const traits = this.buildTraits();
@@ -1070,6 +1173,9 @@ export class InscribeMintComponent implements OnInit {
 
   private recomputePreConnectCost(): void {
     this.preConnectMintSats = null;
+    // Batch pre-connect cost isn't estimated here; the funding simulation
+    // prices the batch once a wallet connects.
+    if (this.batchMode) { return; }
     const feeRate = this.cfeeRate.value;
     // Reject non-finite rates (Infinity from a `1e999` input, NaN) so the
     // estimate never renders "Infinity sat".
@@ -1216,6 +1322,7 @@ export class InscribeMintComponent implements OnInit {
   }
 
   inscribe(wallet: WalletInfo): void {
+    if (this.batchMode) { this.inscribeBatch(wallet); return; }
     // The gate + orchestrator see the exact bytes that land on-chain
     // (compressed when the box is ticked, or empty for a delegate), so the
     // size check is accurate.
@@ -1288,6 +1395,46 @@ export class InscribeMintComponent implements OnInit {
     this.cd.detectChanges();
   }
 
+  /**
+   * Mint a batch: gate every entry with the same safety check as a single
+   * inscribe (JS-MIME block, size cap, self-send guard), then build + broadcast
+   * the whole batch through the orchestrator. With no parents the wallet signs
+   * once, exactly like a single inscribe.
+   */
+  private inscribeBatch(wallet: WalletInfo): void {
+    this.mintGateError = '';
+    this.mintAttempted = true;
+    if (!this.batchFiles.length) { return; }
+    for (const f of this.batchFiles) {
+      const gate = validateInscribeOperation({
+        config: {
+          network: this.network,
+          maxFeeRatePerVbyte: 1000,
+          maxContentBytes: MAX_CONTENT_BYTES,
+          blockedContentTypes: BLOCKED_CONTENT_TYPES,
+          ownPaymentAddress: wallet.paymentAddress === wallet.ordinalsAddress ? undefined : wallet.paymentAddress,
+        },
+        operation: {
+          kind: 'inscribe',
+          intent: { recipient: wallet.ordinalsAddress, feeRate: this.cfeeRate.value, body: f.bytes, contentType: f.contentType },
+        },
+      });
+      if (!gate.ok) {
+        const failure = gate as Extract<InscribeOperationGateResult, { ok: false }>;
+        const detail = failure.detail ? ': ' + failure.detail : '';
+        this.mintGateError = `${f.name} refused (${failure.reason}${detail}). This is a safety check.`;
+        this.cd.detectChanges();
+        return;
+      }
+    }
+    this.syncContent(); // belt-and-braces: rebuild the batch in case a debounce hadn't fired
+    const prompt = (unsigned: { base64: string; hex: string }) =>
+      firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt'));
+    this.orchestrator.mint(prompt)
+      .then(() => this.cd.markForCheck())
+      .catch(() => this.cd.markForCheck());
+  }
+
   inscribeAnother(): void {
     this.orchestrator.reset();
     this.pickedFile = null;
@@ -1315,6 +1462,10 @@ export class InscribeMintComponent implements OnInit {
     this.rareSatError = '';
     this.rareSatTargetError = '';
     this.satTarget = undefined;
+    this.batchMode = false;
+    this.batchFiles = [];
+    this.batchError = '';
+    this.orchestrator.setBatch(null);
     this.cd.detectChanges();
   }
 }
