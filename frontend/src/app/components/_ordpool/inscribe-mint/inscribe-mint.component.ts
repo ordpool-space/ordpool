@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, satPaddingRequirement, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -317,6 +317,17 @@ export class InscribeMintComponent implements OnInit {
   galleryRows: { id: string }[] = [];
   private galleryExistence = new Map<string, InscriptionExistence>();
   private galleryCheck$ = new Subject<void>();
+
+  // ---- Rare-sat targeting (ord --sat / --satpoint) -------------------------
+  // Post-connect only: scan the ordinals address's coins for a notable sat and
+  // let the user inscribe onto it instead of a fresh common sat. The scan is
+  // one ord /output lookup per coin (needs a sat index), so it is lazy (a
+  // button), not automatic. 'unknown' rows (a failed lookup) are kept distinct
+  // from scanned-but-common: only the latter means "no rare sat here".
+  rareSatRows: SatPickerRow<TxnOutput>[] | null = null;
+  rareSatLoading = false;
+  rareSatError = '';
+  selectedRareSat: SatPickerRow<TxnOutput> | null = null;
 
   // ---- Mode: inscribe a file, or delegate to an existing inscription -------
   // A delegate inscription carries an EMPTY body and a tag-11 pointer to
@@ -882,6 +893,72 @@ export class InscribeMintComponent implements OnInit {
       const status = this.galleryItemStatus(r.id);
       return status === 'invalid' || status === 'missing';
     });
+  }
+
+  // ---- Rare-sat picker -----------------------------------------------------
+  /**
+   * Scan the ordinals address's coins for notable sats. One ord `/output`
+   * lookup per coin (via `findRareSatsInOutputs`, needs a sat index), so it is
+   * lazy: the user asks for it. A whole-scan failure sets `rareSatError`; a
+   * per-coin lookup failure comes back as a `status: 'unknown'` row, never as
+   * "this coin holds nothing".
+   */
+  async scanForRareSats(ordinalsAddress: string): Promise<void> {
+    this.rareSatLoading = true;
+    this.rareSatError = '';
+    this.cd.markForCheck();
+    try {
+      const utxos = await firstValueFrom(this.cat21.getUtxos(ordinalsAddress));
+      this.rareSatRows = await findRareSatsInOutputs(utxos, { ordBaseUrl: environment.ordBaseUrls[0] });
+    } catch {
+      this.rareSatError = 'Could not scan for rare sats. Please try again.';
+      this.rareSatRows = null;
+    } finally {
+      this.rareSatLoading = false;
+      this.cd.markForCheck();
+    }
+  }
+
+  /** Coins the scan found a rare sat on (the only ones the picker offers). */
+  get rareSatCandidates(): SatPickerRow<TxnOutput>[] {
+    return (this.rareSatRows ?? []).filter((r) => r.status === 'scanned' && r.rareSat !== null);
+  }
+
+  /** Coins whose lookup failed (shown as "couldn't check", NOT "no rare sat"). */
+  get rareSatUnknownCount(): number {
+    return (this.rareSatRows ?? []).filter((r) => r.status === 'unknown').length;
+  }
+
+  /** A scan ran and returned rows, but none carry a rare sat (all common / unknown). */
+  get rareSatScannedEmpty(): boolean {
+    return this.rareSatRows !== null && this.rareSatCandidates.length === 0;
+  }
+
+  /** Toggle a rare-sat row as the inscribe target (re-click clears it). */
+  pickRareSat(row: SatPickerRow<TxnOutput>): void {
+    this.selectedRareSat = this.selectedRareSat === row ? null : row;
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Clear the rare-sat target (inscribe onto a fresh common sat again). */
+  clearRareSat(): void {
+    if (!this.selectedRareSat) { return; }
+    this.selectedRareSat = null;
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /**
+   * Whether the selected rare sat needs a padding coin, and the shortfall.
+   * The floor is the SAT COIN'S OWN address (the padding output returns there),
+   * not the payment address; `satPaddingRequirement` applies the per-address
+   * dust rule (taproot 330, p2wpkh 294). `null` when nothing is selected.
+   */
+  get rareSatPadding(): { needsPadding: boolean; shortfallSats: number; dustLimitSats: number } | null {
+    const row = this.selectedRareSat;
+    if (!row || !row.rareSat || !row.address) { return null; }
+    return satPaddingRequirement(row.rareSat.offset, row.address);
   }
 
   /**

@@ -32,6 +32,12 @@ type Existence = 'exists' | 'missing' | 'invalid' | 'unknown';
 let checkInscriptionsExistImpl = async (ids: ReadonlyArray<string>): Promise<Map<string, Existence>> =>
   new Map(ids.map((id) => [id, 'exists' as Existence]));
 
+// Swappable rare-sat scan stub. Default: every coin is scanned-but-common (no
+// rare sat). Tests override to plant a rare sat or a failed lookup on a coin.
+type PickerRow = { utxo: unknown; address: string | null; rareSat: { sat: number; offset: number; rarity: string } | null; status: 'scanned' | 'unknown' };
+let findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number }>): Promise<PickerRow[]> =>
+  outputs.map((u) => ({ utxo: u, address: 'bc1p-ord', rareSat: null, status: 'scanned' as const }));
+
 jest.mock('ordpool-sdk', () => {
   const { InjectionToken } = jest.requireActual('@angular/core');
   return {
@@ -140,6 +146,14 @@ jest.mock('ordpool-sdk', () => {
     validateInscribeOperation: (args: unknown) => { validateSpy(args); return gateResult; },
     assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
     checkInscriptionsExist: (ids: ReadonlyArray<string>) => checkInscriptionsExistImpl(ids),
+    findRareSatsInOutputs: (outputs: ReadonlyArray<{ txid: string; vout: number }>) => findRareSatsInOutputsImpl(outputs),
+    // Faithful stand-in for the SDK's per-address dust rule: taproot (bc1p)
+    // floor 330, else p2wpkh 294. The real one is unit-tested in the SDK.
+    satPaddingRequirement: (satOffset: number, paddingAddress: string) => {
+      const dustLimitSats = paddingAddress.startsWith('bc1p') ? 330 : 294;
+      const needsPadding = satOffset > 0 && satOffset < dustLimitSats;
+      return { needsPadding, shortfallSats: needsPadding ? dustLimitSats - satOffset : 0, dustLimitSats };
+    },
     // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
     // The real deterministic-CBOR encoder is unit-tested in the SDK.
     encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
@@ -220,6 +234,8 @@ describe('InscribeMintComponent', () => {
     });
     checkInscriptionsExistImpl = async (ids: ReadonlyArray<string>) =>
       new Map(ids.map((id) => [id, 'exists' as Existence]));
+    findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number }>) =>
+      outputs.map((u) => ({ utxo: u, address: 'bc1p-ord', rareSat: null, status: 'scanned' as const }));
     setContentSpy.mockClear();
     mintSpy.mockClear();
     validateSpy.mockClear();
@@ -875,6 +891,77 @@ describe('InscribeMintComponent', () => {
       expect(component.form.invalid).toBe(true);
       component.commitFeeRateControl.setValue(null); // empty is valid (defaults to reveal rate)
       expect(component.commitFeeRateControl.invalid).toBe(false);
+    });
+  });
+
+  describe('Rare-sat picker (ord --sat targeting)', () => {
+    const coin = (txid: string, vout = 0) => ({ txid, vout, value: 10_000, status: { confirmed: true } });
+    const row = (over: Partial<PickerRow>): PickerRow => ({
+      utxo: coin('a'.repeat(64)), address: 'bc1p-ord', rareSat: null, status: 'scanned', ...over,
+    });
+
+    it('scan splits rows into rare candidates, common, and unknown', async () => {
+      findRareSatsInOutputsImpl = async () => [
+        row({ utxo: coin('a'.repeat(64)), rareSat: { sat: 5_000_000_000, offset: 0, rarity: 'uncommon' } }),
+        row({ utxo: coin('b'.repeat(64)), rareSat: null, status: 'scanned' }),       // common
+        row({ utxo: coin('c'.repeat(64)), rareSat: null, status: 'unknown', address: null }), // couldn't check
+      ];
+      await component.scanForRareSats('bc1p-ord');
+      expect(component.rareSatCandidates.length).toBe(1);
+      expect(component.rareSatCandidates[0].rareSat?.rarity).toBe('uncommon');
+      expect(component.rareSatUnknownCount).toBe(1);
+      expect(component.rareSatScannedEmpty).toBe(false);
+    });
+
+    it('a coin that is scanned-but-common is not a candidate and reads as empty', async () => {
+      findRareSatsInOutputsImpl = async () => [row({ rareSat: null, status: 'scanned' })];
+      await component.scanForRareSats('bc1p-ord');
+      expect(component.rareSatCandidates.length).toBe(0);
+      expect(component.rareSatUnknownCount).toBe(0);
+      expect(component.rareSatScannedEmpty).toBe(true);
+    });
+
+    it('an unknown row is counted separately, never as a rare-sat candidate', async () => {
+      findRareSatsInOutputsImpl = async () => [row({ status: 'unknown', address: null, rareSat: null })];
+      await component.scanForRareSats('bc1p-ord');
+      expect(component.rareSatCandidates.length).toBe(0);
+      expect(component.rareSatUnknownCount).toBe(1);
+    });
+
+    it('pickRareSat selects, re-pick and clearRareSat both clear', async () => {
+      findRareSatsInOutputsImpl = async () => [row({ rareSat: { sat: 1, offset: 0, rarity: 'rare' } })];
+      await component.scanForRareSats('bc1p-ord');
+      const r = component.rareSatCandidates[0];
+      component.pickRareSat(r);
+      expect(component.selectedRareSat).toBe(r);
+      component.pickRareSat(r);                 // re-pick toggles off
+      expect(component.selectedRareSat).toBeNull();
+      component.pickRareSat(r);
+      component.clearRareSat();
+      expect(component.selectedRareSat).toBeNull();
+    });
+
+    it('padding is required when the offset is below the sat coin\'s dust floor', async () => {
+      // taproot coin (bc1p) floor 330; offset 100 -> needs 230 padding
+      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 1, offset: 100, rarity: 'epic' } })];
+      await component.scanForRareSats('bc1p-ord');
+      component.pickRareSat(component.rareSatCandidates[0]);
+      expect(component.rareSatPadding).toEqual({ needsPadding: true, shortfallSats: 230, dustLimitSats: 330 });
+    });
+
+    it('no padding when the offset is at or above the dust floor, and null when nothing is picked', async () => {
+      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 1, offset: 900, rarity: 'legendary' } })];
+      await component.scanForRareSats('bc1p-ord');
+      expect(component.rareSatPadding).toBeNull(); // nothing picked yet
+      component.pickRareSat(component.rareSatCandidates[0]);
+      expect(component.rareSatPadding).toEqual({ needsPadding: false, shortfallSats: 0, dustLimitSats: 330 });
+    });
+
+    it('a scan failure sets an error and leaves no rows', async () => {
+      findRareSatsInOutputsImpl = async () => { throw new Error('ord down'); };
+      await component.scanForRareSats('bc1p-ord');
+      expect(component.rareSatError).toBeTruthy();
+      expect(component.rareSatRows).toBeNull();
     });
   });
 });
