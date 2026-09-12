@@ -100,13 +100,26 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
       providers: [
         { provide: WalletService, useValue: walletService },
         { provide: Cat21Service, useValue: { pendingMints$: jest.fn(() => of([])) } },
-        { provide: NgbModal, useValue: { open: jest.fn() } },
+        { provide: NgbModal, useValue: { open: jest.fn(), hasOpenModals: jest.fn(() => false) } },
         { provide: HttpClient, useValue: http },
         { provide: ChangeDetectorRef, useValue: { markForCheck: jest.fn(), detectChanges: jest.fn() } },
         { provide: Router, useValue: { url: '/cat21-mint' } },
       ],
     });
     component = TestBed.runInInjectionContext(() => new WalletConnectComponent());
+  });
+
+  it('open() shows one dialog only: skips when a modal is already open (two header instances)', () => {
+    const modal = TestBed.inject(NgbModal) as unknown as { open: jest.Mock; hasOpenModals: jest.Mock };
+    modal.open.mockReturnValue({ result: Promise.resolve() });
+    // First instance reacting to requestWalletConnect(): nothing open yet -> opens.
+    modal.hasOpenModals.mockReturnValue(false);
+    component.open();
+    expect(modal.open).toHaveBeenCalledTimes(1);
+    // Second header instance reacting to the same emission: a modal is now open -> skips.
+    modal.hasOpenModals.mockReturnValue(true);
+    component.open();
+    expect(modal.open).toHaveBeenCalledTimes(1); // still 1, not 2 stacked dialogs
   });
 
   it('startXpub opens the paste form; cancelXpub returns to the list', () => {
@@ -235,7 +248,7 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
           },
         },
         { provide: Cat21Service, useValue: { pendingMints$: jest.fn(() => of([])) } },
-        { provide: NgbModal, useValue: { open: jest.fn() } },
+        { provide: NgbModal, useValue: { open: jest.fn(), hasOpenModals: jest.fn(() => false) } },
         { provide: HttpClient, useValue: { get: jest.fn() } },
         { provide: ChangeDetectorRef, useValue: { markForCheck: jest.fn(), detectChanges: jest.fn() } },
         { provide: Router, useValue: router },

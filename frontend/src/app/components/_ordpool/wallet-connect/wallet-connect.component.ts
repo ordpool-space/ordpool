@@ -165,6 +165,12 @@ export class WalletConnectComponent implements OnDestroy {
   }
 
   open(): void {
+    // Two <app-wallet-connect> live in the header (the nav and the search bar),
+    // and both subscribe to the shared requestWalletConnect(), so a programmatic
+    // connect request fires open() on each. Without this guard two identical
+    // connect dialogs stack, and any getByTestId('wallet-connect-<x>') then
+    // matches twice. Skip when a modal is already open so exactly one shows.
+    if (this.modalService.hasOpenModals()) { return; }
     this.connectButtonDisabled = false;
     this.resetXpub();
 
