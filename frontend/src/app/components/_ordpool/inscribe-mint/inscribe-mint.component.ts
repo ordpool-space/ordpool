@@ -92,11 +92,10 @@ export class InscribeMintComponent implements OnInit {
    * The address's UTXOs, deduped by outpoint. electrs transiently lists the
    * SAME outpoint twice around the moment a tx confirms (one confirmed, one
    * unconfirmed, same value); summing that list double-counts a coin's sats
-   * and the rare-sat scan would show the coin twice. The SDK's getUtxos is a
-   * thin electrs wrapper that leaves this to the caller ("caller-side dedup is
-   * the consumer's responsibility"), so both the funding pick and the rare-sat
-   * scan fetch through here. Same outpoint = same output = same value, so
-   * keeping the first entry is correct.
+   * and the rare-sat scan would show the coin twice. `Cat21Service.getUtxos`
+   * returns electrs's list unchanged, so both the funding pick and the
+   * rare-sat scan fetch through here. Same outpoint = same output = same
+   * value, so keeping the first entry is correct.
    */
   private async getDedupedUtxos(address: string): Promise<TxnOutput[]> {
     const utxos = await firstValueFrom(this.cat21.getUtxos(address));
