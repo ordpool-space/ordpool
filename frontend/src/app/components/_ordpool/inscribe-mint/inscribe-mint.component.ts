@@ -136,7 +136,7 @@ export class InscribeMintComponent implements OnInit {
   ]).pipe(
     map(([rows, scanMap]): ViableInscribeSimulation[] => {
       return (rows as InscribeUtxoSimulation[])
-        .filter((r): r is { utxo: TxnOutput; simulation: SimulateInscribeFeesResult; insufficient: false } =>
+        .filter((r): r is InscribeUtxoSimulation & { simulation: SimulateInscribeFeesResult; insufficient: false } =>
           !r.insufficient && r.simulation !== null,
         )
         .sort((a, b) => b.utxo.value - a.utxo.value)
@@ -242,9 +242,13 @@ export class InscribeMintComponent implements OnInit {
     // Prefilled watermark so we can measure how many inscriptions came
     // through ordpool; the user can clear it. Empty → no note tag.
     note: new FormControl('ordpool.space', { nonNullable: true }),
+    // The inscription's title (ord's --title), shown by ord under the number.
+    // Empty → no title.
+    title: new FormControl('', { nonNullable: true }),
   });
   cfeeRate = this.form.controls.feeRate;
   noteControl = this.form.controls.note;
+  titleControl = this.form.controls.title;
 
   /**
    * The fee input's DISPLAYED string. The input is `type="text"` rather than
@@ -276,6 +280,14 @@ export class InscribeMintComponent implements OnInit {
   metadataModeHint = '';     // transient note when a JSON->KV switch is refused
   metadataBytes: Uint8Array | null = null;   // encoded CBOR, null when empty
 
+  // ---- Traits (ord properties tag 17, ordered name/value pairs) ------------
+  // Ordered [name, value] pairs in the creator's order, exactly as ord renders
+  // them. The row order is the on-chain order. Values are strings here (the
+  // common case); empty-named rows are dropped on the way to the orchestrator.
+  // ord rejects a duplicate name (it drops the whole properties field), so the
+  // editor flags a duplicate before the mint does.
+  traitRows: { name: string; value: string }[] = [];
+
   // ---- Mode: inscribe a file, or delegate to an existing inscription -------
   // A delegate inscription carries an EMPTY body and a tag-11 pointer to
   // another inscription's id; ord renders the target's content. Note +
@@ -306,6 +318,12 @@ export class InscribeMintComponent implements OnInit {
     // Editing the note re-synths the tag on the pending content and
     // refreshes the cost estimate (the note bytes count on-chain).
     this.noteControl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.syncContent();
+      this.recomputePreConnectCost();
+    });
+
+    // Editing the title re-synths the tag-17 properties and refreshes the cost.
+    this.titleControl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncContent();
       this.recomputePreConnectCost();
     });
@@ -654,27 +672,82 @@ export class InscribeMintComponent implements OnInit {
   /** Push the current content into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
     const note = this.noteControl.value.trim();
+    const title = this.titleControl.value.trim();
+    const traits = this.buildTraits();
     const common = {
       note: note || undefined,
       metadata: this.metadataBytes ?? undefined,
+      ...(title ? { title } : {}),
+      ...(traits.length ? { traits } : {}),
     };
 
     if (this.inscribeMode === 'delegate') {
       const id = this.delegatePreviewId;
       if (!id) {this.orchestrator.setContent(null); return;}
-      // A delegate carries an empty body and no content_type of its own.
-      this.orchestrator.setContent({ body: new Uint8Array(0), delegate: id, ...common });
+      // A delegate carries no body of its own; ord serves the target's content.
+      this.orchestrator.setContent({ source: { kind: 'delegate', delegate: id }, ...common });
       return;
     }
 
     const body = this.finalBody();
     if (!this.pickedFile || !body) {this.orchestrator.setContent(null); return;}
     this.orchestrator.setContent({
-      body,
-      contentType: this.pickedFile.contentType,
+      source: { kind: 'file', body, contentType: this.pickedFile.contentType },
       contentEncoding: this.activeContentEncoding,
       ...common,
     });
+  }
+
+  // ---- Traits editor -------------------------------------------------------
+  addTraitRow(): void {
+    this.traitRows = [...this.traitRows, { name: '', value: '' }];
+    this.cd.markForCheck();
+  }
+
+  removeTraitRow(index: number): void {
+    this.traitRows = this.traitRows.filter((_, i) => i !== index);
+    this.onTraitsChanged();
+  }
+
+  onTraitNameChange(index: number, name: string): void {
+    this.traitRows = this.traitRows.map((r, i) => i === index ? { ...r, name } : r);
+    this.onTraitsChanged();
+  }
+
+  onTraitValueChange(index: number, value: string): void {
+    this.traitRows = this.traitRows.map((r, i) => i === index ? { ...r, value } : r);
+    this.onTraitsChanged();
+  }
+
+  private onTraitsChanged(): void {
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  /**
+   * Ordered [name, value] pairs from the editor, dropping empty-named rows.
+   * Values stay strings (the common trait shape); the row order is preserved,
+   * so it is the on-chain order.
+   */
+  private buildTraits(): Array<[string, string]> {
+    return this.traitRows
+      .map((r) => [r.name.trim(), r.value] as [string, string])
+      .filter(([name]) => name.length > 0);
+  }
+
+  /**
+   * The first trait name that appears more than once (case-sensitive, matching
+   * ord), or '' if none. ord drops the whole properties field on a duplicate,
+   * so the editor warns before the mint's `duplicate-trait` error.
+   */
+  get traitDuplicateName(): string {
+    const seen = new Set<string>();
+    for (const [name] of this.buildTraits()) {
+      if (seen.has(name)) { return name; }
+      seen.add(name);
+    }
+    return '';
   }
 
   /**

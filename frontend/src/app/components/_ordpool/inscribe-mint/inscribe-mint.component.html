@@ -88,6 +88,48 @@
       <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent" data-testid="inscribe-advanced">
         <summary>Advanced options</summary>
 
+        <!-- Title (ord --title) -->
+        <div class="mt-3" data-testid="inscribe-title">
+          <label class="small text-muted" for="inscribe-title-input">Title</label>
+          <input type="text" class="form-control" id="inscribe-title-input"
+                 data-testid="inscribe-title-input" [formControl]="titleControl"
+                 placeholder="A name for this inscription">
+          <div class="text-muted small mt-1">
+            Shown by ord under the inscription number. Leave empty to omit it.
+          </div>
+        </div>
+
+        <!-- Traits (ord properties, tag 17, ordered) -->
+        <div class="mt-4" data-testid="inscribe-traits">
+          <label class="small text-muted mb-0">Traits</label>
+          <div class="text-muted small mb-2">
+            Named values shown with the inscription, in the order you add them.
+          </div>
+
+          <div *ngFor="let row of traitRows; let i = index"
+               class="d-flex gap-2 mb-2 align-items-start"
+               [attr.data-testid]="'inscribe-trait-row-' + i">
+            <input type="text" class="form-control" placeholder="name" spellcheck="false"
+                   [attr.data-testid]="'inscribe-trait-name-' + i"
+                   [value]="row.name" (input)="onTraitNameChange(i, $any($event.target).value)">
+            <input type="text" class="form-control" placeholder="value" spellcheck="false"
+                   [attr.data-testid]="'inscribe-trait-value-' + i"
+                   [value]="row.value" (input)="onTraitValueChange(i, $any($event.target).value)">
+            <button type="button" class="btn btn-outline-secondary" title="Remove trait"
+                    [attr.data-testid]="'inscribe-trait-remove-' + i"
+                    (click)="removeTraitRow(i)">&#10005;</button>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-outline-secondary"
+                  data-testid="inscribe-trait-add" (click)="addTraitRow()">+ Add trait</button>
+
+          <div class="feedback-error p-1 small mt-1" *ngIf="traitDuplicateName as dup"
+               data-testid="inscribe-trait-dup-error">
+            Duplicate trait name &ldquo;{{ dup }}&rdquo;. ord rejects duplicate names and would
+            drop all properties, so remove or rename one.
+          </div>
+        </div>
+
         <!-- Compression (content_encoding tag) - file mode only -->
         <div class="mt-3" *ngIf="inscribeMode === 'file'" data-testid="inscribe-compression">
           <div class="form-check">

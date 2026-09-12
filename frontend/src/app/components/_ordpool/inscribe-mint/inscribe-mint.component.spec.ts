@@ -251,7 +251,7 @@ describe('InscribeMintComponent', () => {
   it('reads a PNG file → content-type image/png and sets orchestrator content', async () => {
     await (component as any).handleFile(pngFile());
     expect(component.pickedFile?.contentType).toBe('image/png');
-    expect(setContentSpy).toHaveBeenCalledWith(expect.objectContaining({ contentType: 'image/png' }));
+    expect(setContentSpy).toHaveBeenCalledWith(expect.objectContaining({ source: expect.objectContaining({ kind: 'file', contentType: 'image/png' }) }));
     expect(component.fileError).toBe('');
   });
 
@@ -336,7 +336,7 @@ describe('InscribeMintComponent', () => {
     expect(component.isCompressed).toBe(true);
     expect(component.activeContentEncoding).toBe('gzip');
     const last = lastContent();
-    expect(last.body).toBe(compressed);
+    expect(last.source.body).toBe(compressed);
     expect(last.contentEncoding).toBe('gzip');
   });
 
@@ -346,7 +346,7 @@ describe('InscribeMintComponent', () => {
     expect(component.activeContentEncoding).toBeUndefined();
     const last = lastContent();
     expect(last.contentEncoding).toBeUndefined();
-    expect(last.body).toBe(component.pickedFile?.bytes);
+    expect(last.source.body).toBe(component.pickedFile?.bytes);
   });
 
   it('toggleCompression(false) after a worthIt pick → falls back to the raw body', async () => {
@@ -360,7 +360,7 @@ describe('InscribeMintComponent', () => {
     const last = lastContent();
     expect(component.isCompressed).toBe(false);
     expect(last.contentEncoding).toBeUndefined();
-    expect(last.body).toBe(component.pickedFile?.bytes);
+    expect(last.source.body).toBe(component.pickedFile?.bytes);
   });
 
   // ---- Note ---------------------------------------------------------------
@@ -483,9 +483,10 @@ describe('InscribeMintComponent', () => {
     expect(component.delegateIdError).toBe('');
     expect(component.hasContent).toBe(true);
     const c = lastContent();
-    expect(c.delegate).toBe(DELEGATE_ID);
-    expect(c.body.length).toBe(0);
-    expect(c.contentType).toBeUndefined();
+    expect(c.source.kind).toBe('delegate');
+    expect(c.source.delegate).toBe(DELEGATE_ID);
+    expect(c.source.body).toBeUndefined();
+    expect(c.source.contentType).toBeUndefined();
   });
 
   it('invalid delegate id → error, blocked, no content', () => {
@@ -502,7 +503,7 @@ describe('InscribeMintComponent', () => {
     component.setMetadataRow(0, 'k', 'v');
     component.onDelegateIdChange(DELEGATE_ID);
     const c = lastContent();
-    expect(c.delegate).toBe(DELEGATE_ID);
+    expect(c.source.delegate).toBe(DELEGATE_ID);
     expect(c.note).toBe('ordpool.space');
     expect(decodeMeta(c.metadata)).toEqual({ k: 'v' });
   });
@@ -653,6 +654,68 @@ describe('InscribeMintComponent', () => {
       walletSubject.next(wallet()); // default helper: distinct ordinals/payment addresses
       fixture.detectChanges();
       expect(q('[data-testid="single-address-note"]')).toBeNull();
+    });
+  });
+
+  describe('Title + Traits (tag-17 properties)', () => {
+    // Delegate mode with a valid id lets syncContent produce content without a
+    // file, so setContentSpy carries whatever title/traits the editor built.
+    const VALID_DELEGATE = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0';
+    function enterDelegate(): void {
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange(VALID_DELEGATE);
+    }
+    const lastContent = () => {
+      const calls = setContentSpy.mock.calls;
+      return calls.length ? calls[calls.length - 1][0] : undefined;
+    };
+
+    it('sends the title on the content, and omits it when empty', () => {
+      enterDelegate();
+      component.titleControl.setValue('My inscription');
+      expect(lastContent()?.title).toBe('My inscription');
+      component.titleControl.setValue('');
+      expect(lastContent()?.title).toBeUndefined();
+    });
+
+    it('sends traits as ordered [name, value] pairs in row order, dropping empty-named rows', () => {
+      enterDelegate();
+      component.addTraitRow();
+      component.addTraitRow();
+      component.addTraitRow();
+      component.onTraitNameChange(0, 'zeta');  component.onTraitValueChange(0, '1');
+      component.onTraitNameChange(1, '   ');   component.onTraitValueChange(1, 'dropped'); // empty name
+      component.onTraitNameChange(2, 'alpha'); component.onTraitValueChange(2, '2');
+      // row order preserved (zeta before alpha), empty-named row dropped
+      expect(lastContent()?.traits).toEqual([['zeta', '1'], ['alpha', '2']]);
+    });
+
+    it('omits traits entirely when no named rows remain', () => {
+      enterDelegate();
+      component.addTraitRow();
+      component.onTraitValueChange(0, 'value with no name');
+      expect(lastContent()?.traits).toBeUndefined();
+    });
+
+    it('flags the first duplicate trait name (ord drops all properties on a dup)', () => {
+      component.addTraitRow();
+      component.addTraitRow();
+      component.addTraitRow();
+      component.onTraitNameChange(0, 'Color');
+      component.onTraitNameChange(1, 'Rank');
+      component.onTraitNameChange(2, 'Color');
+      expect(component.traitDuplicateName).toBe('Color');
+      // rename the duplicate away -> no warning
+      component.onTraitNameChange(2, 'Shade');
+      expect(component.traitDuplicateName).toBe('');
+    });
+
+    it('removeTraitRow drops the row', () => {
+      component.addTraitRow();
+      component.onTraitNameChange(0, 'keep');
+      expect(component.traitRows.length).toBe(1);
+      component.removeTraitRow(0);
+      expect(component.traitRows.length).toBe(0);
     });
   });
 });
