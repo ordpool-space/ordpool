@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -247,10 +247,28 @@ export class InscribeMintComponent implements OnInit {
     // The inscription's title (ord's --title), shown by ord under the number.
     // Empty → no title.
     title: new FormControl('', { nonNullable: true }),
+    // Metaprotocol identifier (ord tag 7, UTF-8), e.g. a protocol name the
+    // inscription participates in. Empty → no metaprotocol tag.
+    metaprotocol: new FormControl('', { nonNullable: true }),
+    // The inscription output's value in sats (ord's --postage). Default 546
+    // (INSCRIBE_POSTAGE_SATS). Min 546 keeps the output above the p2tr dust
+    // floor; useful direction is up (a chunkier inscription UTXO).
+    postage: new FormControl<number>(INSCRIBE_POSTAGE_SATS, {
+      nonNullable: true,
+      validators: [Validators.min(INSCRIBE_POSTAGE_SATS), Validators.max(1_000_000)],
+    }),
+    // The commit tx's own fee rate (ord's --commit-fee-rate). Null → the commit
+    // pays the same rate as the reveal (the fee-rate field). Same relay floor.
+    commitFeeRate: new FormControl<number | null>(null, {
+      validators: [Validators.min(BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE), Validators.max(1000)],
+    }),
   });
   cfeeRate = this.form.controls.feeRate;
   noteControl = this.form.controls.note;
   titleControl = this.form.controls.title;
+  metaprotocolControl = this.form.controls.metaprotocol;
+  postageControl = this.form.controls.postage;
+  commitFeeRateControl = this.form.controls.commitFeeRate;
 
   /**
    * The fee input's DISPLAYED string. The input is `type="text"` rather than
@@ -339,6 +357,16 @@ export class InscribeMintComponent implements OnInit {
       this.syncContent();
       this.recomputePreConnectCost();
     });
+
+    // Metaprotocol / postage / commit-fee-rate all change the on-chain shape or
+    // cost, so each re-synths the content and refreshes the estimate.
+    const advancedCtrls: AbstractControl[] = [this.metaprotocolControl, this.postageControl, this.commitFeeRateControl];
+    for (const ctrl of advancedCtrls) {
+      ctrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+        this.syncContent();
+        this.recomputePreConnectCost();
+      });
+    }
 
     // Debounced gallery existence check: a burst of keystrokes collapses into
     // one lookup against our ord instance once the user pauses typing.
@@ -693,12 +721,20 @@ export class InscribeMintComponent implements OnInit {
     const title = this.titleControl.value.trim();
     const traits = this.buildTraits();
     const gallery = this.buildGallery();
+    const metaprotocol = this.metaprotocolControl.value.trim();
+    const postage = this.postageControl.value;
+    const commitFee = this.commitFeeRateControl.value;
     const common = {
       note: note || undefined,
       metadata: this.metadataBytes ?? undefined,
       ...(title ? { title } : {}),
       ...(traits.length ? { traits } : {}),
       ...(gallery.length ? { gallery } : {}),
+      ...(metaprotocol ? { metaprotocol } : {}),
+      // Omit at the default (546): the SDK already defaults postageSats to it.
+      ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
+      // Omit when empty: the commit then pays the reveal's fee rate.
+      ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),
     };
 
     if (this.inscribeMode === 'delegate') {
@@ -849,11 +885,11 @@ export class InscribeMintComponent implements OnInit {
   }
 
   /**
-   * The envelope fields (delegate OR content_encoding, plus note + metadata)
-   * the orchestrator emits for the current form. The pre-connect estimate
-   * feeds these to `simulateInscribeFees` so it matches the exact
-   * post-connect figure instead of undercounting by the note + metadata
-   * bytes (the note default 'ordpool.space' is always present).
+   * The envelope fields (delegate OR content_encoding, note, metadata,
+   * metaprotocol, and tag-17 properties) the orchestrator emits for the
+   * current form. The pre-connect estimate feeds these to
+   * `simulateInscribeFees` so it matches the exact post-connect figure instead
+   * of undercounting by the note + metadata + metaprotocol + properties bytes.
    */
   private simEnvelopeFields(): OrdEnvelopeField[] {
     const enc = new TextEncoder();
@@ -867,6 +903,16 @@ export class InscribeMintComponent implements OnInit {
     const note = this.noteControl.value.trim();
     if (note) {fields.push({ tag: ORD_TAGS.note, value: enc.encode(note) });}
     if (this.metadataBytes) {fields.push({ tag: ORD_TAGS.metadata, value: this.metadataBytes });}
+    const metaprotocol = this.metaprotocolControl.value.trim();
+    if (metaprotocol) {fields.push({ tag: ORD_TAGS.metaprotocol, value: enc.encode(metaprotocol) });}
+    // Tag-17 properties (title + traits + gallery), encoded exactly as ord
+    // (and the orchestrator) does, so the estimate counts them too.
+    const props = encodeInscriptionProperties({
+      title: this.titleControl.value.trim() || undefined,
+      traits: this.buildTraits().length ? this.buildTraits() : undefined,
+      gallery: this.buildGallery().length ? this.buildGallery() : undefined,
+    });
+    if (props) {fields.push({ tag: ORD_TAGS.properties, value: props.properties });}
     return fields;
   }
 
@@ -911,8 +957,11 @@ export class InscribeMintComponent implements OnInit {
         isSimulation: true,
         network: this.network,
       });
+      const commitFee = this.commitFeeRateControl.value;
       const sim = simulateInscribeFees({
         feeRatePerVbyte: feeRate,
+        commitFeeRatePerVbyte: commitFee && commitFee > 0 ? commitFee : undefined,
+        postageSats: this.postageControl.value,
         body,
         contentType,
         envelopeFields: envelopeFields.length ? envelopeFields : undefined,
@@ -1112,6 +1161,14 @@ export class InscribeMintComponent implements OnInit {
     this.delegateId = '';
     this.delegateIdError = '';
     this.noteControl.setValue('ordpool.space');
+    // Clear the Advanced options back to their defaults for the next inscription.
+    this.titleControl.setValue('');
+    this.traitRows = [];
+    this.galleryRows = [];
+    this.galleryExistence.clear();
+    this.metaprotocolControl.setValue('');
+    this.postageControl.setValue(INSCRIBE_POSTAGE_SATS);
+    this.commitFeeRateControl.setValue(null);
     this.cd.detectChanges();
   }
 }

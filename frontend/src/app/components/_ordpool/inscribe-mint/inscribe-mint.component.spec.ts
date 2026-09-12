@@ -143,6 +143,13 @@ jest.mock('ordpool-sdk', () => {
     // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
     // The real deterministic-CBOR encoder is unit-tested in the SDK.
     encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
+    // Stand-in properties encoder: returns bytes when there is anything to
+    // encode, else undefined (matching ord). The real min-size dance is
+    // unit-tested in the SDK.
+    encodeInscriptionProperties: (input: { title?: unknown; traits?: unknown; gallery?: unknown }) => {
+      const has = input && (input.title !== undefined || input.traits !== undefined || input.gallery !== undefined);
+      return has ? { properties: new TextEncoder().encode(JSON.stringify(input)) } : undefined;
+    },
     ORD_TAGS: {
       content_type: 1, pointer: 2, parent: 3, metadata: 5, metaprotocol: 7,
       content_encoding: 9, delegate: 11, rune: 13, note: 15, properties: 17, property_encoding: 19,
@@ -818,6 +825,56 @@ describe('InscribeMintComponent', () => {
       expect(component.galleryRows.length).toBe(1);
       component.removeGalleryRow(0);
       expect(component.galleryRows.length).toBe(0);
+    });
+  });
+
+  describe('Metaprotocol / postage / commit-fee-rate (tag-7 + output economics)', () => {
+    function enterDelegate(): void {
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange('6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0');
+    }
+    const lastContent = () => {
+      const calls = setContentSpy.mock.calls;
+      return calls.length ? calls[calls.length - 1][0] : undefined;
+    };
+
+    it('sends metaprotocol on the content, and omits it when empty', () => {
+      enterDelegate();
+      component.metaprotocolControl.setValue('brc-20');
+      expect(lastContent()?.metaprotocol).toBe('brc-20');
+      component.metaprotocolControl.setValue('');
+      expect(lastContent()?.metaprotocol).toBeUndefined();
+    });
+
+    it('omits postageSats at the 546 default, sends it when changed', () => {
+      enterDelegate();
+      // default 546 -> omitted (SDK defaults to it)
+      expect(lastContent()?.postageSats).toBeUndefined();
+      component.postageControl.setValue(10_000);
+      expect(lastContent()?.postageSats).toBe(10_000);
+    });
+
+    it('omits commitFeeRatePerVbyte when empty, sends it when set', () => {
+      enterDelegate();
+      expect(lastContent()?.commitFeeRatePerVbyte).toBeUndefined();
+      component.commitFeeRateControl.setValue(5);
+      expect(lastContent()?.commitFeeRatePerVbyte).toBe(5);
+    });
+
+    it('a below-minimum postage makes the form invalid (blocks the mint)', () => {
+      component.postageControl.setValue(100);
+      expect(component.postageControl.invalid).toBe(true);
+      expect(component.form.invalid).toBe(true);
+      component.postageControl.setValue(546);
+      expect(component.postageControl.invalid).toBe(false);
+    });
+
+    it('a below-floor commit fee rate makes the form invalid (blocks the mint)', () => {
+      component.commitFeeRateControl.setValue(0.05);
+      expect(component.commitFeeRateControl.invalid).toBe(true);
+      expect(component.form.invalid).toBe(true);
+      component.commitFeeRateControl.setValue(null); // empty is valid (defaults to reveal rate)
+      expect(component.commitFeeRateControl.invalid).toBe(false);
     });
   });
 });
