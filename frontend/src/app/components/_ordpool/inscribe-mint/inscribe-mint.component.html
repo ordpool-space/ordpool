@@ -130,6 +130,46 @@
           </div>
         </div>
 
+        <!-- Gallery (ord --gallery, tag 17 properties) -->
+        <div class="mt-4" data-testid="inscribe-gallery">
+          <label class="small text-muted mb-0">Gallery</label>
+          <div class="text-muted small mb-2">
+            Other inscriptions this one is a gallery of, in the order you add
+            them. Each id must be an inscription that already exists.
+          </div>
+
+          <div *ngFor="let row of galleryRows; let i = index"
+               class="mb-2"
+               [attr.data-testid]="'inscribe-gallery-row-' + i">
+            <div class="d-flex gap-2 align-items-start">
+              <input type="text" class="form-control" placeholder="inscription id (abcd…i0)" spellcheck="false"
+                     [attr.data-testid]="'inscribe-gallery-id-' + i"
+                     [value]="row.id" (input)="onGalleryIdChange(i, $any($event.target).value)">
+              <span class="gallery-status align-self-center small"
+                    [ngSwitch]="galleryItemStatus(row.id)"
+                    [attr.data-testid]="'inscribe-gallery-status-' + i">
+                <span *ngSwitchCase="'exists'" class="text-success" title="Inscription found">&#10003;</span>
+                <span *ngSwitchCase="'checking'" class="text-muted" title="Checking">&#8230;</span>
+              </span>
+              <button type="button" class="btn btn-outline-secondary" title="Remove gallery item"
+                      [attr.data-testid]="'inscribe-gallery-remove-' + i"
+                      (click)="removeGalleryRow(i)">&#10005;</button>
+            </div>
+            <div class="feedback-error p-1 small mt-1" *ngIf="galleryItemStatus(row.id) === 'invalid'"
+                 [attr.data-testid]="'inscribe-gallery-invalid-' + i">
+              Enter a valid inscription id: 64 hex characters, then &ldquo;i&rdquo;, then an index (e.g. abcd&hellip;i0).
+            </div>
+            <div class="feedback-error p-1 small mt-1" *ngIf="galleryItemStatus(row.id) === 'missing'"
+                 [attr.data-testid]="'inscribe-gallery-missing-' + i">
+              No inscription with this id exists. ord would refuse to inscribe a
+              gallery that points at it.
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-outline-secondary"
+                  data-testid="inscribe-gallery-add" (click)="addGalleryRow()">+ Add gallery item</button>
+        </div>
+
         <!-- Compression (content_encoding tag) - file mode only -->
         <div class="mt-3" *ngIf="inscribeMode === 'file'" data-testid="inscribe-compression">
           <div class="form-check">
@@ -396,7 +436,7 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid"
+              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid"
               class="btn btn-primary mt-4 mb-4 text-white">
               <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>

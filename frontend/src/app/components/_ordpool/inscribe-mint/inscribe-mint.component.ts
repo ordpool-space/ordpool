@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, combineLatest, firstValueFrom, map, shareReplay, take, tap } from 'rxjs';
+import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
+
+import { environment } from '../../../../environments/environment';
 
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -288,6 +290,16 @@ export class InscribeMintComponent implements OnInit {
   // editor flags a duplicate before the mint does.
   traitRows: { name: string; value: string }[] = [];
 
+  // ---- Gallery (ord --gallery, tag 17 properties) --------------------------
+  // Ordered list of inscription ids this inscription is a gallery of, in the
+  // creator's order (the on-chain order). Each id is checked for existence
+  // against our ord instance, because ord refuses to inscribe a gallery that
+  // points at an inscription its index does not have. 'missing'/'invalid'
+  // surface as a per-row error; 'unknown' (a failed lookup) never does.
+  galleryRows: { id: string }[] = [];
+  private galleryExistence = new Map<string, InscriptionExistence>();
+  private galleryCheck$ = new Subject<void>();
+
   // ---- Mode: inscribe a file, or delegate to an existing inscription -------
   // A delegate inscription carries an EMPTY body and a tag-11 pointer to
   // another inscription's id; ord renders the target's content. Note +
@@ -326,6 +338,12 @@ export class InscribeMintComponent implements OnInit {
     this.titleControl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncContent();
       this.recomputePreConnectCost();
+    });
+
+    // Debounced gallery existence check: a burst of keystrokes collapses into
+    // one lookup against our ord instance once the user pauses typing.
+    this.galleryCheck$.pipe(debounceTime(400), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      void this.checkGalleryExistence();
     });
 
     // Wipe the scanner cache when one wallet swaps out for another.
@@ -674,11 +692,13 @@ export class InscribeMintComponent implements OnInit {
     const note = this.noteControl.value.trim();
     const title = this.titleControl.value.trim();
     const traits = this.buildTraits();
+    const gallery = this.buildGallery();
     const common = {
       note: note || undefined,
       metadata: this.metadataBytes ?? undefined,
       ...(title ? { title } : {}),
       ...(traits.length ? { traits } : {}),
+      ...(gallery.length ? { gallery } : {}),
     };
 
     if (this.inscribeMode === 'delegate') {
@@ -748,6 +768,84 @@ export class InscribeMintComponent implements OnInit {
       seen.add(name);
     }
     return '';
+  }
+
+  // ---- Gallery editor ------------------------------------------------------
+  addGalleryRow(): void {
+    this.galleryRows = [...this.galleryRows, { id: '' }];
+    this.cd.markForCheck();
+  }
+
+  removeGalleryRow(index: number): void {
+    this.galleryRows = this.galleryRows.filter((_, i) => i !== index);
+    this.onGalleryChanged();
+  }
+
+  onGalleryIdChange(index: number, id: string): void {
+    this.galleryRows = this.galleryRows.map((r, i) => i === index ? { id } : r);
+    this.onGalleryChanged();
+  }
+
+  private onGalleryChanged(): void {
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.galleryCheck$.next();
+    this.cd.markForCheck();
+  }
+
+  /**
+   * Ordered inscription ids from the editor, dropping empty rows. Row order is
+   * preserved, so it is the on-chain gallery order. Malformed ids are passed
+   * through: the mint gate (and the per-row status) is the backstop.
+   */
+  private buildGallery(): string[] {
+    return this.galleryRows
+      .map((r) => r.id.trim())
+      .filter((id) => id.length > 0);
+  }
+
+  /**
+   * Look up every well-formed gallery id we have not resolved yet against our
+   * ord instance, caching the result. 'unknown' (a failed lookup) is not
+   * cached as definitive, so it is retried on the next change. A whole-batch
+   * failure is swallowed: the rows just stay in the 'checking' state.
+   */
+  private async checkGalleryExistence(): Promise<void> {
+    const ids = this.buildGallery().filter((id) => this.isValidInscriptionId(id));
+    const toCheck = ids.filter((id) => {
+      const s = this.galleryExistence.get(id);
+      return s === undefined || s === 'unknown';
+    });
+    if (!toCheck.length) { return; }
+    try {
+      const result = await checkInscriptionsExist(toCheck, { ordBaseUrl: environment.ordBaseUrls[0] });
+      for (const [id, state] of result) { this.galleryExistence.set(id, state); }
+    } catch {
+      // Leave the rows in 'checking'; a failed lookup is never shown as missing.
+    }
+    this.cd.markForCheck();
+  }
+
+  /**
+   * The display status of one gallery row, for the template. 'unknown' from
+   * the server (a failed lookup) maps to 'checking', never 'missing'.
+   */
+  galleryItemStatus(id: string): 'empty' | 'invalid' | 'checking' | 'exists' | 'missing' {
+    const trimmed = id.trim();
+    if (!trimmed) { return 'empty'; }
+    if (!this.isValidInscriptionId(trimmed)) { return 'invalid'; }
+    const state = this.galleryExistence.get(trimmed);
+    if (state === undefined || state === 'unknown') { return 'checking'; }
+    if (state === 'exists') { return 'exists'; }
+    return 'missing';
+  }
+
+  /** `true` while any gallery row is malformed or points at a missing inscription (blocks mint). */
+  get galleryInvalid(): boolean {
+    return this.galleryRows.some((r) => {
+      const status = this.galleryItemStatus(r.id);
+      return status === 'invalid' || status === 'missing';
+    });
   }
 
   /**

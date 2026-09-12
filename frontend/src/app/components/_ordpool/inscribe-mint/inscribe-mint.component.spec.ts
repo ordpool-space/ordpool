@@ -25,6 +25,13 @@ let assessCompressionImpl = async (bytes: Uint8Array): Promise<Assessment> => ({
   savedBytes: 0, savedPercent: 0, compressed: bytes,
 });
 
+// Swappable gallery-existence stub. Default: every id passed in exists. Tests
+// override to return 'missing'/'unknown' for specific ids. The component
+// pre-filters to well-formed ids, so the stub only sees valid shapes.
+type Existence = 'exists' | 'missing' | 'invalid' | 'unknown';
+let checkInscriptionsExistImpl = async (ids: ReadonlyArray<string>): Promise<Map<string, Existence>> =>
+  new Map(ids.map((id) => [id, 'exists' as Existence]));
+
 jest.mock('ordpool-sdk', () => {
   const { InjectionToken } = jest.requireActual('@angular/core');
   return {
@@ -132,6 +139,7 @@ jest.mock('ordpool-sdk', () => {
     simulateInscribeFees: (...args: unknown[]) => { simulateSpy(...args); return { fundingRequirementSats: 4321, totalFeeSats: 3000 }; },
     validateInscribeOperation: (args: unknown) => { validateSpy(args); return gateResult; },
     assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
+    checkInscriptionsExist: (ids: ReadonlyArray<string>) => checkInscriptionsExistImpl(ids),
     // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
     // The real deterministic-CBOR encoder is unit-tested in the SDK.
     encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
@@ -203,6 +211,8 @@ describe('InscribeMintComponent', () => {
       worthIt: false, bestEncoding: 'none', originalSize: bytes.length, compressedSize: bytes.length,
       savedBytes: 0, savedPercent: 0, compressed: bytes,
     });
+    checkInscriptionsExistImpl = async (ids: ReadonlyArray<string>) =>
+      new Map(ids.map((id) => [id, 'exists' as Existence]));
     setContentSpy.mockClear();
     mintSpy.mockClear();
     validateSpy.mockClear();
@@ -716,6 +726,98 @@ describe('InscribeMintComponent', () => {
       expect(component.traitRows.length).toBe(1);
       component.removeTraitRow(0);
       expect(component.traitRows.length).toBe(0);
+    });
+  });
+
+  describe('Gallery (ord --gallery, tag-17 properties)', () => {
+    // Two well-formed inscription ids for the gallery rows.
+    const ID_A = 'a'.repeat(64) + 'i0';
+    const ID_B = 'b'.repeat(64) + 'i1';
+
+    // Delegate mode so setContentSpy carries whatever gallery the editor built,
+    // with no dependence on a picked file.
+    function enterDelegate(): void {
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange('6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0');
+    }
+    const lastContent = () => {
+      const calls = setContentSpy.mock.calls;
+      return calls.length ? calls[calls.length - 1][0] : undefined;
+    };
+    // Run the debounced existence check now (bypass the 400ms), then flush.
+    const runCheck = async () => {
+      await (component as any).checkGalleryExistence();
+    };
+
+    it('sends gallery ids as an ordered array in row order, dropping empty rows', () => {
+      enterDelegate();
+      component.addGalleryRow();
+      component.addGalleryRow();
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, ID_A);
+      component.onGalleryIdChange(1, '   ');   // empty -> dropped
+      component.onGalleryIdChange(2, ID_B);
+      expect(lastContent()?.gallery).toEqual([ID_A, ID_B]);
+    });
+
+    it('omits gallery entirely when no non-empty rows remain', () => {
+      enterDelegate();
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, '   ');
+      expect(lastContent()?.gallery).toBeUndefined();
+    });
+
+    it('marks a well-formed id that exists as "exists"', async () => {
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, ID_A);
+      await runCheck();
+      expect(component.galleryItemStatus(ID_A)).toBe('exists');
+    });
+
+    it('marks a well-formed id the server does not have as "missing"', async () => {
+      checkInscriptionsExistImpl = async (ids) => new Map(ids.map((id) => [id, 'missing' as Existence]));
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, ID_A);
+      await runCheck();
+      expect(component.galleryItemStatus(ID_A)).toBe('missing');
+    });
+
+    it('marks a malformed id as "invalid" without any lookup', async () => {
+      const seen: string[] = [];
+      checkInscriptionsExistImpl = async (ids) => { seen.push(...ids); return new Map(ids.map((id) => [id, 'exists' as Existence])); };
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, 'not-an-id');
+      await runCheck();
+      expect(component.galleryItemStatus('not-an-id')).toBe('invalid');
+      expect(seen).toEqual([]); // never sent to the server
+    });
+
+    it('shows a failed lookup ("unknown") as "checking", never "missing"', async () => {
+      checkInscriptionsExistImpl = async (ids) => new Map(ids.map((id) => [id, 'unknown' as Existence]));
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, ID_A);
+      await runCheck();
+      expect(component.galleryItemStatus(ID_A)).toBe('checking');
+    });
+
+    it('galleryInvalid is true for a missing/invalid row and false when all exist', async () => {
+      // one missing id blocks
+      checkInscriptionsExistImpl = async (ids) => new Map(ids.map((id) => [id, 'missing' as Existence]));
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, ID_A);
+      await runCheck();
+      expect(component.galleryInvalid).toBe(true);
+      // resolve it to exists -> no longer blocks
+      (component as any).galleryExistence.set(ID_A, 'exists');
+      expect(component.galleryInvalid).toBe(false);
+    });
+
+    it('removeGalleryRow drops the row', () => {
+      component.addGalleryRow();
+      component.onGalleryIdChange(0, ID_A);
+      expect(component.galleryRows.length).toBe(1);
+      component.removeGalleryRow(0);
+      expect(component.galleryRows.length).toBe(0);
     });
   });
 });
