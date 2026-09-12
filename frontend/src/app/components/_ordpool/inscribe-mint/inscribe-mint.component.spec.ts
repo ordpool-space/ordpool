@@ -177,6 +177,13 @@ jest.mock('ordpool-sdk', () => {
     // encode, else undefined (matching ord). The real min-size dance is
     // unit-tested in the SDK.
     encodeInscriptionProperties: (input: { title?: unknown; traits?: unknown; gallery?: unknown }) => {
+      // Match the real encoder: throw on a duplicate trait name (ord rejects it).
+      const traits = input?.traits as Array<[string, unknown]> | undefined;
+      if (Array.isArray(traits)) {
+        const names = traits.map((t) => t[0]);
+        const dup = names.find((n, i) => names.indexOf(n) !== i);
+        if (dup !== undefined) { throw new Error('duplicate trait: ' + dup); }
+      }
       const has = input && (input.title !== undefined || input.traits !== undefined || input.gallery !== undefined);
       return has ? { properties: new TextEncoder().encode(JSON.stringify(input)) } : undefined;
     },
@@ -1172,6 +1179,73 @@ describe('InscribeMintComponent', () => {
       (component as any).mintAttempted = true;
       orchestrator._patch({ state: 'error', errorMessage: 'sat-offset-needs-padding', userMessage: 'No single coin covers the padding shortfall.' });
       expect(component.mintError()).toBe('No single coin covers the padding shortfall.');
+    });
+  });
+
+  describe('Code-review fixes', () => {
+    const VALID_DELEGATE = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0';
+    const TAPROOT = 'bc1p64fa7mjsvlfcutnfapwhxyuvchxgk22l4at7xsh4z02tuuqwaj5syt6x2e';
+
+    it('a duplicate trait name disables the inscribe button (was warn-only)', () => {
+      // everything else valid: delegate content + auto funding + a valid form
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange(VALID_DELEGATE);
+      orchestrator._patch({ fundingRecommendation: { status: 'auto', recommended: null, candidates: [] } });
+      expect(component.mintDisabled).toBe(false);                 // baseline
+      component.addTraitRow(); component.addTraitRow();
+      component.onTraitNameChange(0, 'Color'); component.onTraitNameChange(1, 'Color');
+      expect(component.traitDuplicateName).toBe('Color');
+      expect(component.mintDisabled).toBe(true);                  // now blocked
+    });
+
+    it('inscribeBatch gates each entry with its OWN destination, not the ordinals address', async () => {
+      gateResult = { ok: true, resources: {} };
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      component.setBatchEntryDestination(0, TAPROOT);
+      validateSpy.mockClear();
+      component.inscribe(wallet());
+      const intent = validateSpy.mock.calls[validateSpy.mock.calls.length - 1][0].operation.intent;
+      expect(intent.recipient).toBe(TAPROOT);                    // the entry's destination, gated
+    });
+
+    it('inscribeBatch gates the ordinals address when an entry has no destination', async () => {
+      gateResult = { ok: true, resources: {} };
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      validateSpy.mockClear();
+      component.inscribe(wallet({ ordinalsAddress: 'bc1p-ord-default' }));
+      const intent = validateSpy.mock.calls[validateSpy.mock.calls.length - 1][0].operation.intent;
+      expect(intent.recipient).toBe('bc1p-ord-default');
+    });
+
+    it('batchEntryDestinationInvalid is network-agnostic and rejects bad charset/garbage', () => {
+      expect(component.batchEntryDestinationInvalid('')).toBe(false);                 // empty ok
+      expect(component.batchEntryDestinationInvalid(TAPROOT)).toBe(false);            // mainnet bech32
+      expect(component.batchEntryDestinationInvalid('bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080')).toBe(false); // regtest no longer rejected
+      expect(component.batchEntryDestinationInvalid('not-an-address')).toBe(true);    // garbage
+      expect(component.batchEntryDestinationInvalid('bc1' + 'b'.repeat(30))).toBe(true); // 'b' not in bech32 charset
+    });
+
+    it('a duplicate trait does not throw in the pre-connect estimate (simEnvelopeFields catches)', async () => {
+      await (component as any).handleFile(pngFile()); // a file so recomputePreConnectCost runs the sim
+      component.addTraitRow(); component.addTraitRow();
+      component.onTraitNameChange(0, 'Color');
+      expect(() => component.onTraitNameChange(1, 'Color')).not.toThrow(); // dup would throw in the encoder
+    });
+
+    it('clearFile resets the Advanced options so they do not ride onto the next file', async () => {
+      await (component as any).handleFile(pngFile());
+      component.titleControl.setValue('Stale');
+      component.addTraitRow(); component.onTraitNameChange(0, 'x');
+      component.addGalleryRow(); component.onGalleryIdChange(0, 'a'.repeat(64) + 'i0');
+      component.postageControl.setValue(9000);
+      component.clearFile();
+      expect(component.titleControl.value).toBe('');
+      expect(component.traitRows.length).toBe(0);
+      expect(component.galleryRows.length).toBe(0);
+      expect(component.postageControl.value).toBe(546);
+      expect(component.selectedRareSat).toBeNull();
     });
   });
 });

@@ -132,6 +132,10 @@ export class WalletConnectComponent implements OnDestroy {
   @ViewChild('connect') connectTemplateRef: TemplateRef<any>;
   modalRef: NgbModalRef | undefined;
 
+  /** True while a wallet-connect dialog is open, across all instances, so the
+   *  second header instance suppresses its duplicate (see open()). */
+  private static connectModalOpen = false;
+
   constructor() {
     // takeUntilDestroyed (constructor injection context): this component is the
     // header's persistent <app-wallet-connect>, so the subscription to the root
@@ -167,10 +171,14 @@ export class WalletConnectComponent implements OnDestroy {
   open(): void {
     // Two <app-wallet-connect> live in the header (the nav and the search bar),
     // and both subscribe to the shared requestWalletConnect(), so a programmatic
-    // connect request fires open() on each. Without this guard two identical
+    // connect request fires open() on each. Without a guard two identical
     // connect dialogs stack, and any getByTestId('wallet-connect-<x>') then
-    // matches twice. Skip when a modal is already open so exactly one shows.
-    if (this.modalService.hasOpenModals()) { return; }
+    // matches twice. A static wallet-connect-specific flag suppresses the
+    // second, scoped to THIS dialog: an unrelated open modal (e.g. the PSBT
+    // export prompt) must not block a legitimate connect, which an app-global
+    // hasOpenModals() check would.
+    if (WalletConnectComponent.connectModalOpen) { return; }
+    WalletConnectComponent.connectModalOpen = true;
     this.connectButtonDisabled = false;
     this.resetXpub();
 
@@ -178,10 +186,12 @@ export class WalletConnectComponent implements OnDestroy {
       ariaLabelledBy: 'modal-basic-title',
       centered: true
     });
-    // Tear down any in-flight watch-only scan on BOTH modal outcomes: result
-    // resolves on close, rejects on dismiss (X button, ESC, backdrop click).
-    // Without this a scan started then dismissed leaves scanAbort un-aborted.
-    this.modalRef.result.then(() => this.resetXpub(), () => this.resetXpub());
+    // On BOTH modal outcomes: clear the open flag (so a later connect works) and
+    // tear down any in-flight watch-only scan. result resolves on close, rejects
+    // on dismiss (X button, ESC, backdrop click); without this a scan started
+    // then dismissed leaves scanAbort un-aborted.
+    const onClosed = () => { WalletConnectComponent.connectModalOpen = false; this.resetXpub(); };
+    this.modalRef.result.then(onClosed, onClosed);
   }
 
   private resetXpub(): void {

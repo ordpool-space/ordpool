@@ -662,7 +662,7 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid || rareSatBlocked || batchInvalid || batchParentsInvalid"
+              [disabled]="mintDisabled"
               class="btn btn-primary mt-4 mb-4 text-white">
               <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> {{ signingMessage() }}</ng-container>

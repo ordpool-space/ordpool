@@ -109,17 +109,17 @@ describe('WalletConnectComponent watch-only (xpub) flow', () => {
     component = TestBed.runInInjectionContext(() => new WalletConnectComponent());
   });
 
-  it('open() shows one dialog only: skips when a modal is already open (two header instances)', () => {
-    const modal = TestBed.inject(NgbModal) as unknown as { open: jest.Mock; hasOpenModals: jest.Mock };
-    modal.open.mockReturnValue({ result: Promise.resolve() });
-    // First instance reacting to requestWalletConnect(): nothing open yet -> opens.
-    modal.hasOpenModals.mockReturnValue(false);
+  it('open() shows one dialog only: the static flag suppresses the second header instance', () => {
+    (WalletConnectComponent as unknown as { connectModalOpen: boolean }).connectModalOpen = false; // isolate
+    const modal = TestBed.inject(NgbModal) as unknown as { open: jest.Mock };
+    modal.open.mockReturnValue({ result: new Promise<void>(() => { /* pending: flag stays set */ }) });
+    // First header instance reacting to requestWalletConnect(): opens + sets the flag.
     component.open();
     expect(modal.open).toHaveBeenCalledTimes(1);
-    // Second header instance reacting to the same emission: a modal is now open -> skips.
-    modal.hasOpenModals.mockReturnValue(true);
+    // Second header instance reacting to the same emission: flag set -> skips.
     component.open();
     expect(modal.open).toHaveBeenCalledTimes(1); // still 1, not 2 stacked dialogs
+    (WalletConnectComponent as unknown as { connectModalOpen: boolean }).connectModalOpen = false; // reset for other tests
   });
 
   it('startXpub opens the paste form; cancelXpub returns to the list', () => {

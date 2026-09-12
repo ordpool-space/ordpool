@@ -294,11 +294,13 @@ export class InscribeMintComponent implements OnInit {
   feeRateDisplay = '1';
 
   // ---- Compression (content_encoding tag) ---------------------------------
-  // assessCompression tries the available codecs and reports the smallest
-  // (native gzip today via CompressionStream; the SDK reserves 'br' for a
-  // future brotli encoder). It never decides for us. We default the toggle ON
-  // iff `worthIt`; the user can override. ord serves the content_encoding tag
-  // through as the HTTP header, so the browser decodes it on the way out.
+  // assessCompression tries the available codecs and reports the smallest:
+  // brotli (via the brotli wasm this component passes) and native gzip, the two
+  // in INSCRIPTION_CONTENT_ENCODINGS. activeContentEncoding emits whichever won
+  // ('br' or 'gzip') as the content_encoding tag. It never decides for us: we
+  // default the toggle ON iff `worthIt`; the user can override. ord serves the
+  // content_encoding tag through as the HTTP header, so the browser decodes it
+  // on the way out.
   compression: CompressionAssessment | null = null;
   compressEnabled = false;
 
@@ -490,6 +492,10 @@ export class InscribeMintComponent implements OnInit {
     this.compression = null;
     this.compressEnabled = false;
     this.resetMetadata();
+    // The Advanced options are hidden while no file is picked, so without this
+    // they would reappear on the NEXT file still carrying this file's traits,
+    // gallery, postage and rare-sat pick.
+    this.resetAdvancedOptions();
     this.orchestrator.setContent(null);
     this.cd.markForCheck();
   }
@@ -575,7 +581,15 @@ export class InscribeMintComponent implements OnInit {
   /** A destination that is set but not a plausible bitcoin address (blocks mint). */
   batchEntryDestinationInvalid(destination: string): boolean {
     const d = destination.trim();
-    return d.length > 0 && !/^(bc1[a-z0-9]{20,}|[13][a-km-zA-HJ-NP-Z1-9]{20,})$/.test(d);
+    if (!d) { return false; }
+    // Instant shape feedback only, across ANY network (bech32 bc1/tb1/bcrt1 with
+    // the bech32 data charset — no 1/b/i/o; or legacy base58 — no 0/O/I/l). The
+    // authoritative address + network + self-send check runs in the per-entry
+    // gate (validateInscribeOperation) at mint time, which also verifies the
+    // checksum this cannot.
+    const bech32 = /^(bc|tb|bcrt)1[ac-hj-np-z02-9]{25,}$/;
+    const legacy = /^[123mn][a-km-zA-HJ-NP-Z1-9]{25,}$/;
+    return !bech32.test(d) && !legacy.test(d);
   }
 
   /** `true` while any batch entry has an invalid destination (blocks mint). */
@@ -921,6 +935,24 @@ export class InscribeMintComponent implements OnInit {
     return this.inscribeMode === 'delegate' ? !!this.delegatePreviewId : !!this.pickedFile;
   }
 
+  /**
+   * Whether the inscribe button is disabled. Centralised here (not spelled out
+   * in the template) so every validity check is in one place and a new one
+   * can't be added to a getter but forgotten in the button's `[disabled]`.
+   */
+  get mintDisabled(): boolean {
+    return this.form.invalid
+      || !this.hasFundingSource()
+      || !this.hasContent
+      || this.metadataInvalid
+      || this.delegateInvalid
+      || this.galleryInvalid
+      || this.rareSatBlocked
+      || this.batchInvalid
+      || this.batchParentsInvalid
+      || !!this.traitDuplicateName;
+  }
+
   /** Switch between the file dropzone and the delegate-id input. */
   switchInscribeMode(mode: 'file' | 'delegate'): void {
     if (mode === this.inscribeMode) {return;}
@@ -1249,13 +1281,20 @@ export class InscribeMintComponent implements OnInit {
     const metaprotocol = this.metaprotocolControl.value.trim();
     if (metaprotocol) {fields.push({ tag: ORD_TAGS.metaprotocol, value: enc.encode(metaprotocol) });}
     // Tag-17 properties (title + traits + gallery), encoded exactly as ord
-    // (and the orchestrator) does, so the estimate counts them too.
-    const props = encodeInscriptionProperties({
-      title: this.titleControl.value.trim() || undefined,
-      traits: this.buildTraits().length ? this.buildTraits() : undefined,
-      gallery: this.buildGallery().length ? this.buildGallery() : undefined,
-    });
-    if (props) {fields.push({ tag: ORD_TAGS.properties, value: props.properties });}
+    // (and the orchestrator) does, so the estimate counts them too. The encoder
+    // throws on invalid input (e.g. a duplicate trait name mid-typing); that is
+    // a transient state the mint blocks (traitDuplicateName), so here we just
+    // skip the properties bytes rather than let the estimate throw.
+    try {
+      const props = encodeInscriptionProperties({
+        title: this.titleControl.value.trim() || undefined,
+        traits: this.buildTraits().length ? this.buildTraits() : undefined,
+        gallery: this.buildGallery().length ? this.buildGallery() : undefined,
+      });
+      if (props) {fields.push({ tag: ORD_TAGS.properties, value: props.properties });}
+    } catch {
+      // invalid properties (e.g. duplicate trait) — omit from the estimate
+    }
     return fields;
   }
 
@@ -1515,7 +1554,10 @@ export class InscribeMintComponent implements OnInit {
         },
         operation: {
           kind: 'inscribe',
-          intent: { recipient: wallet.ordinalsAddress, feeRate: this.cfeeRate.value, body: f.bytes, contentType: f.contentType },
+          // Gate this entry's ACTUAL destination (its own, or the shared
+          // recipient), so the SDK's address + network + self-send validation
+          // covers a per-entry destination too, not just the ordinals address.
+          intent: { recipient: f.destination.trim() || wallet.ordinalsAddress, feeRate: this.cfeeRate.value, body: f.bytes, contentType: f.contentType },
         },
       });
       if (!gate.ok) {
@@ -1548,7 +1590,22 @@ export class InscribeMintComponent implements OnInit {
     this.delegateId = '';
     this.delegateIdError = '';
     this.noteControl.setValue('ordpool.space');
-    // Clear the Advanced options back to their defaults for the next inscription.
+    this.resetAdvancedOptions();
+    this.batchMode = false;
+    this.batchFiles = [];
+    this.batchParentRows = [];
+    this.batchError = '';
+    this.orchestrator.setBatch(null);
+    this.cd.detectChanges();
+  }
+
+  /**
+   * Reset the single-inscription Advanced options (title, traits, gallery,
+   * metaprotocol, postage, commit-fee, rare-sat) to their defaults so they
+   * never ride from one file onto the next — an inscription is immutable, so
+   * stale cross-file trait/gallery/postage/sat state must not leak.
+   */
+  private resetAdvancedOptions(): void {
     this.titleControl.setValue('');
     this.traitRows = [];
     this.galleryRows = [];
@@ -1561,11 +1618,5 @@ export class InscribeMintComponent implements OnInit {
     this.rareSatError = '';
     this.rareSatTargetError = '';
     this.satTarget = undefined;
-    this.batchMode = false;
-    this.batchFiles = [];
-    this.batchParentRows = [];
-    this.batchError = '';
-    this.orchestrator.setBatch(null);
-    this.cd.detectChanges();
   }
 }
