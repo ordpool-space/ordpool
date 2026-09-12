@@ -472,6 +472,68 @@
             </details>
           </div>
 
+          <!-- Rare-sat picker (ord --sat): optional, opt-in. Inscribe onto a
+               notable sat the ordinals address already holds instead of a fresh
+               common one. Scan is lazy (one ord lookup per coin). -->
+          <div class="mt-3" data-testid="inscribe-raresat">
+            <details>
+              <summary>Inscribe onto a rare sat (optional)</summary>
+              <p class="mt-2 mb-2 small text-muted">
+                Scan the sats your ordinals address already holds and inscribe
+                onto a notable one. Leave this closed to inscribe onto a fresh
+                sat as usual.
+              </p>
+
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-testid="inscribe-raresat-scan"
+                      [disabled]="rareSatLoading"
+                      (click)="scanForRareSats(x.connectedWallet.ordinalsAddress)">
+                {{ rareSatLoading ? 'Scanning…' : (rareSatRows ? 'Scan again' : 'Scan my wallet for rare sats') }}
+              </button>
+
+              <div class="feedback-error p-1 small mt-2" *ngIf="rareSatError"
+                   data-testid="inscribe-raresat-error">{{ rareSatError }}</div>
+
+              <!-- Candidates -->
+              <div *ngFor="let row of rareSatCandidates; let i = index"
+                   class="mt-3 ps-2 pe-2 pt-1 pb-1 shape-border"
+                   [ngClass]="{ selected: row === selectedRareSat }"
+                   [attr.data-testid]="'inscribe-raresat-row-' + i">
+                <button type="button" class="btn float-end mt-1"
+                        [class.btn-primary]="row !== selectedRareSat"
+                        [class.btn-outline-secondary]="row === selectedRareSat"
+                        [attr.data-testid]="'inscribe-raresat-pick-' + i"
+                        (click)="pickRareSat(row)">
+                  {{ row === selectedRareSat ? 'Selected' : 'Inscribe here' }}
+                </button>
+                <span class="badge bg-info text-dark text-capitalize" [attr.data-testid]="'inscribe-raresat-rarity-' + i">{{ row.rareSat.rarity }}</span>
+                sat {{ row.rareSat.sat | number }}
+                <br>
+                <span class="small text-muted">on {{ row.utxo.txid }}:{{ row.utxo.vout }}, offset {{ row.rareSat.offset | number }}</span>
+              </div>
+
+              <!-- Block reason for a selected-but-unbuildable sat -->
+              <div class="feedback-error p-1 small mt-2" *ngIf="rareSatBlocked"
+                   data-testid="inscribe-raresat-blocked">{{ rareSatBlockReason }}</div>
+
+              <!-- Empty + unknown notes -->
+              <p class="small text-muted mt-2 mb-0" *ngIf="rareSatScannedEmpty && rareSatUnknownCount === 0"
+                 data-testid="inscribe-raresat-empty">
+                No rare sats on this wallet’s coins. Your inscription will land on a fresh sat.
+              </p>
+              <p class="small text-muted mt-2 mb-0" *ngIf="rareSatUnknownCount > 0"
+                 data-testid="inscribe-raresat-unknown">
+                Couldn’t check {{ rareSatUnknownCount | number }} coin{{ rareSatUnknownCount === 1 ? '' : 's' }}
+                (ord didn’t answer). They aren’t ruled out; scan again to retry.
+              </p>
+
+              <button type="button" class="btn btn-sm btn-link ps-0 mt-2" *ngIf="selectedRareSat"
+                      data-testid="inscribe-raresat-clear" (click)="clearRareSat()">
+                Clear selection (inscribe onto a fresh sat)
+              </button>
+            </details>
+          </div>
+
           <!-- Single-address info note (wallet-ux-round3 §12): beside the
                Inscribe button. INFO, not a warning — no amber, no triangle, no
                acknowledgement. Full body-colour text at help-text size ("quiet"
@@ -485,7 +547,7 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid"
+              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid || rareSatBlocked"
               class="btn btn-primary mt-4 mb-4 text-white">
               <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>

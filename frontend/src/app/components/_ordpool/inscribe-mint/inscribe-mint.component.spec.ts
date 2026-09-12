@@ -38,6 +38,11 @@ type PickerRow = { utxo: unknown; address: string | null; rareSat: { sat: number
 let findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number }>): Promise<PickerRow[]> =>
   outputs.map((u) => ({ utxo: u, address: 'bc1p-ord', rareSat: null, status: 'scanned' as const }));
 
+// Swappable sat-source builder. Default: return a plausible source for a row
+// with a rare sat, null otherwise. Tests override to throw a key mismatch.
+let inscribeSatSourceFromRowImpl = (row: PickerRow): unknown =>
+  row.rareSat ? { txid: (row.utxo as { txid: string }).txid, vout: 0, value: 10_000, scriptPubKey: new Uint8Array(34), tapInternalKey: new Uint8Array(32), address: row.address, offset: row.rareSat.offset } : null;
+
 jest.mock('ordpool-sdk', () => {
   const { InjectionToken } = jest.requireActual('@angular/core');
   return {
@@ -147,6 +152,10 @@ jest.mock('ordpool-sdk', () => {
     assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
     checkInscriptionsExist: (ids: ReadonlyArray<string>) => checkInscriptionsExistImpl(ids),
     findRareSatsInOutputs: (outputs: ReadonlyArray<{ txid: string; vout: number }>) => findRareSatsInOutputsImpl(outputs),
+    // Stand-in: build a plausible InscribeSatSource from a rare-sat row, or
+    // null when the row has no rare sat. Tests override to throw (key mismatch).
+    inscribeSatSourceFromRow: (row: PickerRow, _args: unknown) => inscribeSatSourceFromRowImpl(row),
+    inscribeUserMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
     // Faithful stand-in for the SDK's per-address dust rule: taproot (bc1p)
     // floor 330, else p2wpkh 294. The real one is unit-tested in the SDK.
     satPaddingRequirement: (satOffset: number, paddingAddress: string) => {
@@ -236,6 +245,8 @@ describe('InscribeMintComponent', () => {
       new Map(ids.map((id) => [id, 'exists' as Existence]));
     findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number }>) =>
       outputs.map((u) => ({ utxo: u, address: 'bc1p-ord', rareSat: null, status: 'scanned' as const }));
+    inscribeSatSourceFromRowImpl = (row: PickerRow) =>
+      row.rareSat ? { txid: (row.utxo as { txid: string }).txid, vout: 0, value: 10_000, scriptPubKey: new Uint8Array(34), tapInternalKey: new Uint8Array(32), address: row.address, offset: row.rareSat.offset } : null;
     setContentSpy.mockClear();
     mintSpy.mockClear();
     validateSpy.mockClear();
@@ -962,6 +973,52 @@ describe('InscribeMintComponent', () => {
       await component.scanForRareSats('bc1p-ord');
       expect(component.rareSatError).toBeTruthy();
       expect(component.rareSatRows).toBeNull();
+    });
+
+    // --- satTarget construction (needs a connected wallet + content) ---
+    const VALID_DELEGATE = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0';
+    const withWalletAndContent = () => {
+      walletSubject.next(wallet());        // ordinalsPublicKey present on the default helper
+      fixture.detectChanges();
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange(VALID_DELEGATE); // content for the satTarget to ride on
+    };
+    const lastContent = () => {
+      const calls = setContentSpy.mock.calls;
+      return calls.length ? calls[calls.length - 1][0] : undefined;
+    };
+
+    it('picking a no-padding rare sat threads an in-utxo satTarget onto the content', async () => {
+      withWalletAndContent();
+      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 5, offset: 900, rarity: 'rare' } })];
+      await component.scanForRareSats('bc1p-ord');
+      component.pickRareSat(component.rareSatCandidates[0]);
+      expect(component.rareSatBlocked).toBe(false);
+      expect(lastContent()?.satTarget?.kind).toBe('in-utxo');
+      // clearing removes the satTarget again
+      component.clearRareSat();
+      expect(lastContent()?.satTarget).toBeUndefined();
+    });
+
+    it('a key mismatch blocks the mint with a reason and no satTarget', async () => {
+      withWalletAndContent();
+      inscribeSatSourceFromRowImpl = () => { throw new Error('ordinals key does not derive this coin address'); };
+      findRareSatsInOutputsImpl = async () => [row({ rareSat: { sat: 5, offset: 900, rarity: 'rare' } })];
+      await component.scanForRareSats('bc1p-ord');
+      component.pickRareSat(component.rareSatCandidates[0]);
+      expect(component.rareSatBlocked).toBe(true);
+      expect(component.rareSatBlockReason).toContain('key');
+      expect(lastContent()?.satTarget).toBeUndefined();
+    });
+
+    it('a sat below the dust floor is blocked (needs a padding coin) with no satTarget', async () => {
+      withWalletAndContent();
+      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 5, offset: 100, rarity: 'epic' } })];
+      await component.scanForRareSats('bc1p-ord');
+      component.pickRareSat(component.rareSatCandidates[0]);
+      expect(component.rareSatBlocked).toBe(true);
+      expect(component.rareSatBlockReason).toContain('padding');
+      expect(lastContent()?.satTarget).toBeUndefined();
     });
   });
 });

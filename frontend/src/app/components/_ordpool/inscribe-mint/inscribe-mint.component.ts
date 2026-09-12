@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, satPaddingRequirement, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, satPaddingRequirement, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -328,6 +328,12 @@ export class InscribeMintComponent implements OnInit {
   rareSatLoading = false;
   rareSatError = '';
   selectedRareSat: SatPickerRow<TxnOutput> | null = null;
+  /** Set from a failed inscribeSatSourceFromRow (e.g. a wrong-key mismatch). */
+  rareSatTargetError = '';
+  /** The satTarget the picked rare sat produces, threaded onto the content. */
+  private satTarget: InscribeSatTarget | undefined;
+  /** The connected wallet, for the ordinals public key the sat-source derivation needs. */
+  private currentWallet: WalletInfo | null = null;
 
   // ---- Mode: inscribe a file, or delegate to an existing inscription -------
   // A delegate inscription carries an EMPTY body and a tag-11 pointer to
@@ -391,6 +397,7 @@ export class InscribeMintComponent implements OnInit {
     // routed component leaks the instance (and its captured file bytes).
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      this.currentWallet = w ?? null;
       void this.orchestrator.setWallet(
         w
           ? {
@@ -404,6 +411,12 @@ export class InscribeMintComponent implements OnInit {
       const addr = w?.ordinalsAddress ?? null;
       if (lastWalletAddress !== null && addr !== lastWalletAddress) {
         this.scanner.reset();
+        // A rare-sat pick belongs to the wallet that owns the sat; drop it when
+        // the wallet changes so a stale sat never rides onto a new wallet's tx.
+        this.rareSatRows = null;
+        this.selectedRareSat = null;
+        this.rareSatError = '';
+        this.syncContent();
       }
       lastWalletAddress = addr;
     });
@@ -746,6 +759,8 @@ export class InscribeMintComponent implements OnInit {
       ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
       // Omit when empty: the commit then pays the reveal's fee rate.
       ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),
+      // The picked rare sat, when one is selected and buildable (see updateSatTarget).
+      ...(this.satTarget ? { satTarget: this.satTarget } : {}),
     };
 
     if (this.inscribeMode === 'delegate') {
@@ -937,6 +952,7 @@ export class InscribeMintComponent implements OnInit {
   /** Toggle a rare-sat row as the inscribe target (re-click clears it). */
   pickRareSat(row: SatPickerRow<TxnOutput>): void {
     this.selectedRareSat = this.selectedRareSat === row ? null : row;
+    this.updateSatTarget();
     this.syncContent();
     this.cd.markForCheck();
   }
@@ -945,8 +961,56 @@ export class InscribeMintComponent implements OnInit {
   clearRareSat(): void {
     if (!this.selectedRareSat) { return; }
     this.selectedRareSat = null;
+    this.updateSatTarget();
     this.syncContent();
     this.cd.markForCheck();
+  }
+
+  /**
+   * Derive the satTarget for the picked rare sat, once per pick (not per
+   * keystroke). Built via the SDK's inscribeSatSourceFromRow, which derives
+   * scriptPubKey (tweaked output key) + tapInternalKey (untweaked internal
+   * key) from the wallet's ordinals key and THROWS on a key that does not
+   * derive the coin's address, before any signature. A sat that needs a
+   * padding coin is left unbuilt in this version (see rareSatBlocked), so the
+   * mint is blocked rather than inscribing on a common sat by surprise.
+   */
+  private updateSatTarget(): void {
+    this.rareSatTargetError = '';
+    this.satTarget = undefined;
+    const row = this.selectedRareSat;
+    if (!row || !row.rareSat || !this.currentWallet) { return; }
+    if (this.rareSatPadding?.needsPadding) { return; } // blocked in v1: no padding coin sourced
+    try {
+      const source = inscribeSatSourceFromRow(row, {
+        ordinalsPublicKey: this.currentWallet.ordinalsPublicKey,
+        network: this.network,
+      });
+      if (source) { this.satTarget = { kind: 'in-utxo', utxo: source, offset: source.offset }; }
+    } catch (err) {
+      this.rareSatTargetError = inscribeUserMessage(err);
+    }
+  }
+
+  /**
+   * A rare sat is picked but no satTarget could be produced for it: either it
+   * needs a padding coin (not sourced in this version) or the key derivation
+   * failed. Blocks the mint so the inscription never silently lands on a
+   * common sat instead of the one the user chose.
+   */
+  get rareSatBlocked(): boolean {
+    return !!this.selectedRareSat?.rareSat && !this.satTarget;
+  }
+
+  /** Why the picked rare sat is blocked, for the template. */
+  get rareSatBlockReason(): string {
+    if (!this.rareSatBlocked) { return ''; }
+    if (this.rareSatTargetError) { return this.rareSatTargetError; }
+    const pad = this.rareSatPadding;
+    if (pad?.needsPadding) {
+      return `This sat sits ${pad.shortfallSats} sats below its coin’s dust floor, so moving it needs a separate padding coin. That is not supported here yet; pick a sat at or above the floor, or inscribe onto a fresh sat.`;
+    }
+    return 'This sat cannot be targeted from the connected wallet.';
   }
 
   /**
@@ -1246,6 +1310,11 @@ export class InscribeMintComponent implements OnInit {
     this.metaprotocolControl.setValue('');
     this.postageControl.setValue(INSCRIBE_POSTAGE_SATS);
     this.commitFeeRateControl.setValue(null);
+    this.rareSatRows = null;
+    this.selectedRareSat = null;
+    this.rareSatError = '';
+    this.rareSatTargetError = '';
+    this.satTarget = undefined;
     this.cd.detectChanges();
   }
 }
