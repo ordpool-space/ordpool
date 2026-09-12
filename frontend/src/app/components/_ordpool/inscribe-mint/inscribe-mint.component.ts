@@ -86,6 +86,8 @@ export class InscribeMintComponent implements OnInit {
     scan: this.scanner,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
+    // Resolves a batch's parentIds to their current outpoints (snapshot.parents).
+    ordBaseUrl: environment.ordBaseUrls[0],
   });
 
   /** Orchestrator snapshot bridged to a signal; every state change re-renders. */
@@ -218,9 +220,12 @@ export class InscribeMintComponent implements OnInit {
 
   private state = computed(() => this.snap().state);
   readonly utxoLoading = computed(() => this.state() === 'loading-utxos');
+  // Error text is the person-facing snapshot.userMessage, which the SDK keeps
+  // self-covering (never null on a failure, repeating the developer string
+  // when there is no friendlier wording), so no fallback is needed.
   readonly utxoError = computed(() =>
     this.state() === 'error' && !this.snap().successResult && !this.mintAttempted
-      ? this.snap().errorMessage ?? ''
+      ? this.snap().userMessage ?? ''
       : '',
   );
   readonly mintLoading = computed(() => this.state() === 'minting');
@@ -229,7 +234,7 @@ export class InscribeMintComponent implements OnInit {
   );
   readonly mintError = computed(() =>
     this.state() === 'error' && this.mintAttempted
-      ? this.snap().errorMessage ?? ''
+      ? this.snap().userMessage ?? ''
       : '',
   );
 
@@ -360,6 +365,11 @@ export class InscribeMintComponent implements OnInit {
   batchMode = false;
   batchFiles: BatchEntry[] = [];
   batchError = '';
+  // Parent inscriptions the whole batch is a child of (ord's --parent). The
+  // orchestrator resolves each id to its current outpoint and the reveal spends
+  // + hands it back; that makes the wallet sign twice (commit, then the parent
+  // inputs), reported on snapshot.signing.
+  batchParentRows: { id: string }[] = [];
 
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
@@ -423,6 +433,9 @@ export class InscribeMintComponent implements OnInit {
               ordinalsAddress: w.ordinalsAddress,
               paymentAddress: w.paymentAddress,
               paymentPublicKey: w.paymentPublicKey,
+              // Needed to derive the key the reveal signs a resolved parent's
+              // input with (batch parentIds). Harmless for non-parent flows.
+              ordinalsPublicKey: w.ordinalsPublicKey,
             }
           : null,
       );
@@ -493,6 +506,7 @@ export class InscribeMintComponent implements OnInit {
       this.orchestrator.setContent(null);
     } else {
       this.batchFiles = [];
+      this.batchParentRows = [];
       this.orchestrator.setBatch(null);
     }
     this.syncContent();
@@ -571,6 +585,7 @@ export class InscribeMintComponent implements OnInit {
 
   clearBatch(): void {
     this.batchFiles = [];
+    this.batchParentRows = [];
     this.batchError = '';
     this.orchestrator.setBatch(null);
     this.cd.markForCheck();
@@ -595,9 +610,70 @@ export class InscribeMintComponent implements OnInit {
       })),
       ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
       ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),
+      ...(this.buildBatchParentIds().length ? { parentIds: this.buildBatchParentIds() } : {}),
     };
     this.orchestrator.setBatch(batch);
   }
+
+  // ---- Batch parents editor ------------------------------------------------
+  addBatchParentRow(): void {
+    this.batchParentRows = [...this.batchParentRows, { id: '' }];
+    this.cd.markForCheck();
+  }
+
+  removeBatchParentRow(index: number): void {
+    this.batchParentRows = this.batchParentRows.filter((_, i) => i !== index);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  onBatchParentIdChange(index: number, id: string): void {
+    this.batchParentRows = this.batchParentRows.map((r, i) => i === index ? { id } : r);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Well-formed parent inscription ids, in order. Malformed rows are dropped
+   *  (flagged in the template); the orchestrator resolves the rest. */
+  private buildBatchParentIds(): string[] {
+    return this.batchParentRows
+      .map((r) => r.id.trim())
+      .filter((id) => this.isValidInscriptionId(id));
+  }
+
+  /** `true` while any non-empty parent row is malformed (blocks the mint). */
+  get batchParentsInvalid(): boolean {
+    return this.batchParentRows.some((r) => this.batchParentIdInvalid(r.id));
+  }
+
+  /** A parent row that is non-empty but not a well-formed inscription id (for the template). */
+  batchParentIdInvalid(id: string): boolean {
+    const t = id.trim();
+    return t.length > 0 && !this.isValidInscriptionId(t);
+  }
+
+  /** The parents the orchestrator resolved a batch's parentIds to, for display. */
+  readonly resolvedParents = computed(() => this.snap().parents);
+
+  /** The current signing step (commit / parent-inputs), while the wallet signs. */
+  readonly signingStep = computed(() => this.snap().signing);
+
+  /**
+   * The minting-button text. With a two-signature batch (parents) the SDK
+   * reports the step on snapshot.signing, advancing to 2/2 when the commit
+   * broadcast resolves, so this lights up on every wallet type.
+   */
+  readonly signingMessage = computed(() => {
+    const s = this.snap().signing;
+    if (!s || s.of <= 1) { return 'Inscribing… please confirm in your wallet'; }
+    const what: Record<string, string> = {
+      'commit': 'the funding',
+      'parent-inputs': 'the parent inputs',
+      'satpoint-inputs': 'the sat inputs',
+      'parent-and-satpoint-inputs': 'the parent and sat inputs',
+    };
+    return `Signature ${s.step} of ${s.of}: approve ${what[s.what] ?? 'the transaction'} in your wallet`;
+  });
 
   private async handleFile(file: File): Promise<void> {
     this.fileError = '';
@@ -1487,6 +1563,7 @@ export class InscribeMintComponent implements OnInit {
     this.satTarget = undefined;
     this.batchMode = false;
     this.batchFiles = [];
+    this.batchParentRows = [];
     this.batchError = '';
     this.orchestrator.setBatch(null);
     this.cd.detectChanges();

@@ -151,6 +151,42 @@
             Every file mints in one commit and reveal to your ordinals address.
             You also get two free CAT-21 cats. 😺
           </p>
+
+          <!-- Parents (ord --parent): the batch is a child of these; the reveal
+               spends each and hands it back, so the wallet signs twice. -->
+          <div class="mt-4" data-testid="inscribe-batch-parents">
+            <label class="small text-muted mb-0">Parent inscriptions (optional)</label>
+            <div class="text-muted small mb-2">
+              Make this batch a child of inscriptions you own. Each must be at
+              your ordinals address; the reveal spends and returns it, so your
+              wallet signs twice.
+            </div>
+            <div *ngFor="let row of batchParentRows; let i = index" class="mb-2"
+                 [attr.data-testid]="'inscribe-batch-parent-row-' + i">
+              <div class="d-flex gap-2 align-items-start">
+                <input type="text" class="form-control" placeholder="parent inscription id (abcd…i0)" spellcheck="false"
+                       [attr.data-testid]="'inscribe-batch-parent-id-' + i"
+                       [value]="row.id" (input)="onBatchParentIdChange(i, $any($event.target).value)">
+                <button type="button" class="btn btn-outline-secondary" title="Remove parent"
+                        [attr.data-testid]="'inscribe-batch-parent-remove-' + i" (click)="removeBatchParentRow(i)">&#10005;</button>
+              </div>
+              <div class="feedback-error p-1 small mt-1"
+                   *ngIf="batchParentIdInvalid(row.id)"
+                   [attr.data-testid]="'inscribe-batch-parent-invalid-' + i">
+                Enter a valid inscription id: 64 hex characters, then &ldquo;i&rdquo;, then an index.
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-testid="inscribe-batch-parent-add" (click)="addBatchParentRow()">+ Add parent</button>
+
+            <!-- What the orchestrator resolved the ids to -->
+            <div class="mt-2" *ngIf="resolvedParents() as parents" data-testid="inscribe-batch-parents-resolved">
+              <div class="small text-success" *ngFor="let p of parents">
+                &#10003; parent <code>{{ p.id.slice(0, 12) }}…</code> at <code>{{ p.address.slice(0, 10) }}…</code>
+                ({{ p.value | number }} sats), returns to itself
+              </div>
+            </div>
+          </div>
         </div>
       </ng-container>
 
@@ -587,6 +623,14 @@
               <div class="feedback-error p-1 small mt-2" *ngIf="rareSatBlocked"
                    data-testid="inscribe-raresat-blocked">{{ rareSatBlockReason }}</div>
 
+              <!-- Padding: the sat sits below its coin's dust floor, so the
+                   orchestrator adds a second coin to pad its alignment output. -->
+              <div class="text-muted small mt-2" *ngIf="rareSatPadding() as pad" data-testid="inscribe-raresat-padding">
+                This sat sits {{ pad.shortfallSats | number }} sats below its coin’s dust floor, so
+                it’s padded with coin <code>{{ pad.utxo.txid.slice(0, 12) }}…:{{ pad.utxo.vout }}</code>
+                ({{ pad.utxo.value | number }} sats). No action needed.
+              </div>
+
               <!-- Empty + unknown notes -->
               <p class="small text-muted mt-2 mb-0" *ngIf="rareSatScannedEmpty && rareSatUnknownCount === 0"
                  data-testid="inscribe-raresat-empty">
@@ -618,10 +662,10 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid || rareSatBlocked || batchInvalid"
+              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid || galleryInvalid || rareSatBlocked || batchInvalid || batchParentsInvalid"
               class="btn btn-primary mt-4 mb-4 text-white">
               <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
-              <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>
+              <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> {{ signingMessage() }}</ng-container>
             </button>
 
             <button type="button" data-testid="inscribe-another"

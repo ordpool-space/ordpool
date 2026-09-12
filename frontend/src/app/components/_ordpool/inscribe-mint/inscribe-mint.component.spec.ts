@@ -1128,5 +1128,50 @@ describe('InscribeMintComponent', () => {
       component.setBatchEntryDestination(0, 'bc1p64fa7mjsvlfcutnfapwhxyuvchxgk22l4at7xsh4z02tuuqwaj5syt6x2e');
       expect(component.batchInvalid).toBe(false);
     });
+
+    it('parent ids thread onto the batch as parentIds; a malformed one blocks', async () => {
+      component.toggleBatchMode(true);
+      await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
+      component.addBatchParentRow();
+      component.onBatchParentIdChange(0, 'a'.repeat(64) + 'i0');
+      expect(lastBatch().parentIds).toEqual(['a'.repeat(64) + 'i0']);
+      expect(component.batchParentsInvalid).toBe(false);
+      component.addBatchParentRow();
+      component.onBatchParentIdChange(1, 'not-an-id');
+      expect(component.batchParentIdInvalid('not-an-id')).toBe(true);
+      expect(component.batchParentsInvalid).toBe(true);
+      // a malformed parent is dropped from the wire, valid one stays
+      expect(lastBatch().parentIds).toEqual(['a'.repeat(64) + 'i0']);
+    });
+  });
+
+  describe('Parents resolution, signing indicator, userMessage', () => {
+    it('threads ordinalsPublicKey onto the wallet context (parent resolution needs it)', () => {
+      walletSubject.next(wallet());
+      fixture.detectChanges();
+      expect(orchestrator.setWallet).toHaveBeenCalledWith(
+        expect.objectContaining({ ordinalsPublicKey: '02'.repeat(33) }),
+      );
+    });
+
+    it('resolvedParents surfaces snapshot.parents', () => {
+      expect(component.resolvedParents()).toBeNull();
+      orchestrator._patch({ parents: [{ id: 'a'.repeat(64) + 'i0', address: 'bc1p-parent', value: 546, outpoint: 'a'.repeat(64) + ':0' }] });
+      expect(component.resolvedParents()?.[0].value).toBe(546);
+    });
+
+    it('signingMessage names the step for a two-signature batch, generic otherwise', () => {
+      expect(component.signingMessage()).toContain('confirm in your wallet'); // no signing yet
+      orchestrator._patch({ signing: { step: 2, of: 2, what: 'parent-inputs' } });
+      expect(component.signingMessage()).toBe('Signature 2 of 2: approve the parent inputs in your wallet');
+      orchestrator._patch({ signing: { step: 1, of: 1, what: 'commit' } });
+      expect(component.signingMessage()).toContain('confirm in your wallet'); // single-sig stays generic
+    });
+
+    it('mintError shows the person-facing userMessage, not the developer errorMessage', () => {
+      (component as any).mintAttempted = true;
+      orchestrator._patch({ state: 'error', errorMessage: 'sat-offset-needs-padding', userMessage: 'No single coin covers the padding shortfall.' });
+      expect(component.mintError()).toBe('No single coin covers the padding shortfall.');
+    });
   });
 });
