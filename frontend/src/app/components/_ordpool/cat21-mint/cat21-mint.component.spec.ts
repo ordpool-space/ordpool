@@ -858,6 +858,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: { ALPHA: {}, BETA: {} }, catIds: [], catSat: null, rareSat: null }).sort()).toEqual(['ALPHA', 'BETA']);
     });
 
+    it('M1b: txidFromInscriptionId strips the i<index> suffix (single- and multi-digit)', () => {
+      const txid = 'a'.repeat(64);
+      expect(component.txidFromInscriptionId(`${txid}i0`)).toBe(txid);
+      expect(component.txidFromInscriptionId(`${txid}i15`)).toBe(txid);
+      // already-bare txid is left unchanged (defensive)
+      expect(component.txidFromInscriptionId(txid)).toBe(txid);
+    });
+
     it('M2: autoScanThreshold matches the SDK constant', () => {
       expect(component.autoScanThreshold).toBe(AUTO_SCAN_MAX_VALUE_SAT);
     });

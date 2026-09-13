@@ -526,13 +526,13 @@
                   <ng-container *ngIf="row.scan.content.inscriptionIds.length > 0">
                     Inscription{{ row.scan.content.inscriptionIds.length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let id of row.scan.content.inscriptionIds; let last = last">
-                      <a [href]="ordReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                      <a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
                     </ng-container><br>
                   </ng-container>
                   <ng-container *ngIf="runeNames(row.scan.content).length > 0">
                     Rune{{ runeNames(row.scan.content).length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let name of runeNames(row.scan.content); let last = last">
-                      <a [href]="ordReviewBase + '/rune/' + name" target="_blank" rel="noopener">{{ name }}</a><ng-container *ngIf="!last">, </ng-container>
+                      {{ name }}<ng-container *ngIf="!last">, </ng-container>
                     </ng-container><br>
                   </ng-container>
                   <ng-container *ngIf="row.scan.content.catIds.length > 0">
@@ -694,7 +694,7 @@
           <div class="mt-2">
             Inscription:
             <a class="alert-link text-decoration-underline"
-              [href]="ordReviewBase + '/inscription/' + inscriptionId(success.revealTxId)" target="_blank" rel="noopener">
+              [routerLink]="['/tx/' | relativeUrl, success.revealTxId]" target="_blank" rel="noopener">
               {{ inscriptionId(success.revealTxId) }}
             </a>
             (visible once the reveal transaction confirms and is indexed)

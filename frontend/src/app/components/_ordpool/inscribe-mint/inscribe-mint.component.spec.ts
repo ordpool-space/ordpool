@@ -377,6 +377,13 @@ describe('InscribeMintComponent', () => {
     expect(component.inscriptionId('r'.repeat(64))).toBe('r'.repeat(64) + 'i0');
   });
 
+  it('txidFromInscriptionId strips the i<index> suffix (single- and multi-digit)', () => {
+    const txid = 'a'.repeat(64);
+    expect(component.txidFromInscriptionId(`${txid}i0`)).toBe(txid);
+    expect(component.txidFromInscriptionId(`${txid}i15`)).toBe(txid);
+    expect(component.txidFromInscriptionId(txid)).toBe(txid);
+  });
+
   it('inscribeAnother resets orchestrator + local file state', () => {
     component.pickedFile = { name: 'x', bytes: new Uint8Array(1), contentType: 'image/png', sizeBytes: 1 };
     component.inscribeAnother();

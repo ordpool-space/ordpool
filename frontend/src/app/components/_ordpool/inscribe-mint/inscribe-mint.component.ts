@@ -1459,6 +1459,16 @@ export class InscribeMintComponent implements OnInit {
     return `${revealTxId}i0`;
   }
 
+  /**
+   * The genesis/reveal txid an inscription id points at, for the in-app
+   * /tx/<txid> link. An inscription id is `<64-hex-txid>i<index>`; the
+   * index suffix is stripped. The tx page renders the inscription from
+   * the witness, so it works for unconfirmed txs too.
+   */
+  txidFromInscriptionId(inscriptionId: string): string {
+    return inscriptionId.replace(/i\d+$/, '');
+  }
+
   inscribe(wallet: WalletInfo): void {
     if (this.batchMode) { this.inscribeBatch(wallet); return; }
     // The gate + orchestrator see the exact bytes that land on-chain

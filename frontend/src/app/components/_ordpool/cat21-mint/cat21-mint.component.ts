@@ -385,6 +385,16 @@ export class Cat21MintComponent implements OnInit {
   /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
 
+  /**
+   * The genesis/reveal txid an inscription id points at, for the in-app
+   * /tx/<txid> link. An inscription id is `<64-hex-txid>i<index>`; the
+   * index suffix is stripped. The tx page renders the inscription from
+   * the witness, so it works for unconfirmed txs too.
+   */
+  txidFromInscriptionId(inscriptionId: string): string {
+    return inscriptionId.replace(/i\d+$/, '');
+  }
+
   /** Hover-tooltip text for each bucket badge. */
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {

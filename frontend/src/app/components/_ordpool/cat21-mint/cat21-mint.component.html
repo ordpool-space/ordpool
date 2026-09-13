@@ -161,14 +161,14 @@
                   <ng-container *ngIf="x.scan.content.inscriptionIds.length > 0">
                     Inscription{{ x.scan.content.inscriptionIds.length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let id of x.scan.content.inscriptionIds; let last = last">
-                      <a [href]="ordReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                      <a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
                     </ng-container>
                     <br>
                   </ng-container>
                   <ng-container *ngIf="runeNames(x.scan.content).length > 0">
                     Rune{{ runeNames(x.scan.content).length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let name of runeNames(x.scan.content); let last = last">
-                      <a [href]="ordReviewBase + '/rune/' + name" target="_blank" rel="noopener">{{ name }}</a><ng-container *ngIf="!last">, </ng-container>
+                      {{ name }}<ng-container *ngIf="!last">, </ng-container>
                     </ng-container>
                     <br>
                   </ng-container>
