@@ -246,22 +246,44 @@ describe('OrdpoolInscriptionsApi.$getFirstImageInscription', () => {
 
     expect(delegateSpy).toHaveBeenCalledWith(
       'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111i0',
-      1, // recursive level incremented
     );
     expect(result).toBe(delegated);
     delegateSpy.mockRestore();
   });
 
-  it('throws after 4 levels of delegate recursion', async () => {
-    const looping = fakeInscription({
-      contentType: 'image/png',
-      delegates: ['bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222i0'],
-    });
-    parseSpy.mockReturnValue([looping]);
+  it('follows a delegate exactly one hop, like ord, so a chain cannot loop', async () => {
+    // ord resolves one delegate and stops: `if let Some(delegate) = ..` in
+    // server.rs, server/r.rs and index.rs, never a loop. A target that
+    // delegates again is therefore served as ITSELF, which also makes a
+    // circular chain impossible to spin on.
+    const DELEGATE_A = 'bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222i0';
+    const DELEGATE_B = 'cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333i0';
 
-    await expect(
-      ordpoolInscriptionsApi.$getFirstImageInscription(VALID_TXID, 5),
-    ).rejects.toThrow('Too many delegate levels');
+    // the requested inscription delegates to A, A delegates on to B, and B is a
+    // plain inscription. B is given a body of its own so that a resolver which
+    // kept walking would return something DIFFERENT rather than spin forever,
+    // which makes the mutation fail cleanly instead of crashing the runner.
+    const requested = fakeInscription({ contentType: 'image/png', delegates: [DELEGATE_A] });
+    const targetThatDelegatesOn = fakeInscription({ contentType: 'image/svg+xml', delegates: [DELEGATE_B] });
+    const endOfChain = fakeInscription({ contentType: 'text/plain' });
+
+    const byIdSpy = jest
+      .spyOn(ordpoolInscriptionsApi as any, '$getInscriptionById')
+      .mockImplementation(async (id: unknown) => {
+        if (id === DELEGATE_A) { return targetThatDelegatesOn; }
+        if (id === DELEGATE_B) { return endOfChain; }
+        return requested;
+      });
+
+    const result = await ordpoolInscriptionsApi.$getInscriptionOrDelegeate(VALID_TXID + 'i0');
+
+    // one hop: A is returned as it is, B is never fetched
+    expect(result).toBe(targetThatDelegatesOn);
+    expect(result).not.toBe(endOfChain);
+    expect(byIdSpy).toHaveBeenCalledTimes(2);
+    expect(byIdSpy).not.toHaveBeenCalledWith(DELEGATE_B);
+
+    byIdSpy.mockRestore();
   });
 
   it('passes skipConversion=false to the bitcoin API (Esplora-shape conversion regression guard)', async () => {
