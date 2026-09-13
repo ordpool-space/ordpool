@@ -11,6 +11,7 @@ import * as path from 'path';
 export interface Bitmap3dDebug {
   state: 'intro' | 'orbit' | 'fly-to-pfp' | 'pfp' | 'fly-to-iso' | 'exit-done';
   playerState: 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
+  octreeBuilt: boolean;
   pos: [number, number, number];
   fov: number;
   onFloor: boolean;
@@ -30,6 +31,11 @@ type Win = Window & { __bitmap3d?: Bitmap3dDebug };
  * Block 800,000 — canonical E2E bitmap. Healthy variety of cube sizes
  * (1-6) so step-up (size-1 auto-climb) and jump (size-2+) both get
  * exercised, immutable on-chain, lives in playwright/fixtures/.
+ *
+ * Block 500,000 is the perf-guard fixture. Its 2701 txs carry old-style
+ * large output values, so it packs into a 160-unit layout — the widest of
+ * any block sampled, and layout width is what the collision octree's cost
+ * scales with. It is the worst case, not the biggest block.
  */
 export const loadBitmapFixture = (height = 800_000): { sizes: number[] } =>
   JSON.parse(

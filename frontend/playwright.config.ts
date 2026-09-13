@@ -86,7 +86,11 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run start:ordpool-e2e',
-    url: 'http://localhost:4242',
+    // 127.0.0.1, not localhost: Node resolves localhost to ::1 first, and
+    // `ng serve` binds IPv4 only. Probing localhost therefore never sees a
+    // running server, so reuseExistingServer can't fire and the spawned one
+    // is never detected as ready either -- the run dies on this timeout.
+    url: 'http://127.0.0.1:4242',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },

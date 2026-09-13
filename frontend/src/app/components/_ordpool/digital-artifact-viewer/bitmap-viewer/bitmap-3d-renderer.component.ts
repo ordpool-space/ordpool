@@ -288,7 +288,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const material = new THREE.MeshLambertMaterial();
     const instances = new THREE.InstancedMesh(cubeGeometry, material, sizes.length);
     instances.frustumCulled = false;
-    instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Static: every matrix is written once, below, and never touched again.
+    instances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     instances.castShadow = true;
     instances.receiveShadow = true;
     const container = new THREE.Group();
@@ -315,10 +316,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     container.position.set(-layoutSize.width / 2, 0, -layoutSize.height / 2);
 
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(maxSize * 2, maxSize * 2),
-      new THREE.ShadowMaterial({ opacity: 0.1 }),
-    );
+    const groundGeom = new THREE.PlaneGeometry(maxSize * 2, maxSize * 2);
+    const groundMat = new THREE.ShadowMaterial({ opacity: 0.1 });
+    const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.receiveShadow = true;
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
@@ -398,6 +398,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     directional.shadow.camera.right = maxSize;
     directional.shadow.camera.top = maxSize;
     directional.shadow.camera.bottom = -maxSize;
+    // The cubes never move and the sun never moves, so the depth map is the
+    // same every frame. Render it on the first frame, then freeze: this
+    // drops one full geometry pass over every instance per render call --
+    // and with the SSAA pass on desktop, a render call happens 16 times a
+    // frame. The one exception is the intro, where the cubes grow: the loop
+    // re-arms needsUpdate until the grow tween is done.
+    directional.shadow.autoUpdate = false;
+    directional.shadow.needsUpdate = true;
     scene.add(directional);
     scene.add(directional.target);
     scene.add(new THREE.AmbientLight(new THREE.Color('white'), 1.2));
@@ -462,26 +470,39 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // happen in the state machine below.
     camera.rotation.order = 'YXZ';                  // yaw + pitch, no roll
 
-    const collisionRoot = new THREE.Group();
-    const cubeColliderGeom = new THREE.BoxGeometry(1, 1, 1);
-    cubeColliderGeom.translate(0.5, 0.5, 0.5);
-    for (let i = 0; i < mondrian.slots.length; i++) {
-      const slot = mondrian.slots[i];
-      const s = slot.size - 0.5;
-      const m = new THREE.Mesh(cubeColliderGeom);
-      m.scale.set(s, s, s);
-      m.position.set(slot.position.x - layoutSize.width / 2, 0, slot.position.y - layoutSize.height / 2);
-      collisionRoot.add(m);
-    }
-    const groundColliderGeom = new THREE.BoxGeometry(maxSize * FLOOR_RADIUS_MULT * 2, 0.1, maxSize * FLOOR_RADIUS_MULT * 2);
-    const groundCollider = new THREE.Mesh(groundColliderGeom);
-    groundCollider.position.set(0, -0.05, 0);
-    collisionRoot.add(groundCollider);
-    collisionRoot.updateMatrixWorld(true);
-    const worldOctree = new Octree();
-    worldOctree.fromGraphNode(collisionRoot);
-    cubeColliderGeom.dispose();
-    groundColliderGeom.dispose();
+    // The floor is the analytic plane y = FLOOR_Y, not collision geometry.
+    // As a box it had to span FLOOR_RADIUS_MULT x the layout, which made the
+    // octree's root box ten times the cubes' extent: every cube then needed
+    // ~3 extra subdivision levels to separate, and the ground's own triangles
+    // were copied into every leaf they crossed. Measured on block 500000
+    // (2701 txs, 160-unit layout): 4.1M nodes / 14.3M triangle refs / 15.0 s
+    // / 3.3 GB with the box, 489k / 1.6M / 0.9 s / 0.4 GB without. A plane
+    // also cannot be walked off the edge of, which the 5x box could.
+    const FLOOR_Y = 0;
+
+    // Built on demand, not on mount: it is only consulted in PFP mode, and
+    // most visitors never leave the iso orbit. buildOctree() is called when
+    // the walk is requested, so its cost hides inside the fly-to-pfp sweep.
+    let worldOctree: InstanceType<typeof Octree> | null = null;
+    const buildOctree = () => {
+      const collisionRoot = new THREE.Group();
+      const cubeColliderGeom = new THREE.BoxGeometry(1, 1, 1);
+      cubeColliderGeom.translate(0.5, 0.5, 0.5);
+      for (let i = 0; i < mondrian.slots.length; i++) {
+        const slot = mondrian.slots[i];
+        const s = slot.size - 0.5;
+        const m = new THREE.Mesh(cubeColliderGeom);
+        m.scale.set(s, s, s);
+        m.position.set(slot.position.x - layoutSize.width / 2, 0, slot.position.y - layoutSize.height / 2);
+        collisionRoot.add(m);
+      }
+      collisionRoot.updateMatrixWorld(true);
+      const octree = new Octree();
+      octree.fromGraphNode(collisionRoot);
+      cubeColliderGeom.dispose();
+      return octree;
+    };
+    const ensureOctree = () => (worldOctree ??= buildOctree());
 
     const PLAYER_HEIGHT = 0.8;          // user-tuned, don't change
     // 0.22 keeps safe-step-per-substep above sprint velocity per substep
@@ -524,14 +545,25 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const probeDir = new THREE.Vector3();
     const stepUpForward = new THREE.Vector3();
     const stepUpLift = new THREE.Vector3();
+    const floorLift = new THREE.Vector3();
     let playerState: PlayerState = 'idle';
     let playerOnFloor = false;
     // Octree.rayIntersect ships as `(ray) => { distance, normal, position } | false`
     // but its TS def is missing in three's examples. Cast once; only `.distance`
     // is consumed by our probes.
     type OctreeHit = { distance: number } | false;
-    const worldOctreeR = worldOctree as typeof worldOctree & {
-      rayIntersect(ray: InstanceType<typeof THREE.Ray>): OctreeHit;
+    const octreeRay = (ray: InstanceType<typeof THREE.Ray>): OctreeHit =>
+      (ensureOctree() as unknown as { rayIntersect(r: typeof ray): OctreeHit }).rayIntersect(ray);
+
+    // Distance along `ray` to the floor plane, Infinity when it points away.
+    // The three downward probes below (grounded, step-up, eye-safety) used to
+    // hit the ground box; with the plane they take whichever of octree and
+    // floor is nearer.
+    const floorRayDistance = (ray: InstanceType<typeof THREE.Ray>): number =>
+      (ray.direction.y < -1e-6 ? (ray.origin.y - FLOOR_Y) / -ray.direction.y : Infinity);
+    const probeDistance = (ray: InstanceType<typeof THREE.Ray>): number => {
+      const hit = octreeRay(ray);
+      return Math.min(hit ? hit.distance : Infinity, floorRayDistance(ray));
     };
 
     // ---- Input-scheme tracking ------------------------------------------
@@ -833,8 +865,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     const collidePlayer = () => {
       playerOnFloor = false;
+      const octree = ensureOctree();
       for (let i = 0; i < 4; i++) {
-        const result = worldOctree.capsuleIntersect(playerCollider);
+        const result = octree.capsuleIntersect(playerCollider);
         if (!result) break;
         if (result.normal.y >= 0.15) playerOnFloor = true;
         if (result.normal.y < 0.15) {
@@ -846,6 +879,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           break;
         }
       }
+      // Floor plane, resolved the same way the ground box was: push the
+      // capsule back up and report contact, leaving the velocity alone --
+      // updatePlayer stops integrating gravity while playerOnFloor holds and
+      // damps the residual vy on the next substep.
+      const penetration = FLOOR_Y - (playerCollider.start.y - playerCollider.radius);
+      if (penetration > 0) {
+        playerCollider.translate(floorLift.set(0, penetration, 0));
+        playerOnFloor = true;
+      }
     };
     // Down-ray ground check (ecctrl :1224-1230). More reliable than the
     // capsule contact-normal at sharp cube edges. Forgiveness 0.1 prevents
@@ -854,8 +896,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const isGroundedByRay = (): boolean => {
       probeRay.origin.copy(playerCollider.start);
       probeRay.direction.set(0, -1, 0);
-      const hit = worldOctreeR.rayIntersect(probeRay);
-      return !!hit && hit.distance <= PLAYER_RADIUS + 0.1;
+      return probeDistance(probeRay) <= PLAYER_RADIUS + 0.1;
     };
 
     // Step-up: cast forward+up+down; if a sub-STEP_HEIGHT ledge is in
@@ -870,9 +911,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         .addScaledVector(stepUpForward, PLAYER_RADIUS + 0.05);
       probeRay.origin.y += STEP_HEIGHT;
       probeRay.direction.set(0, -1, 0);
-      const hit = worldOctreeR.rayIntersect(probeRay);
-      if (!hit) return;
-      const stepTopY = probeRay.origin.y - hit.distance;
+      const stepDistance = probeDistance(probeRay);
+      if (!Number.isFinite(stepDistance)) return;
+      const stepTopY = probeRay.origin.y - stepDistance;
       const currentFootY = playerCollider.start.y - PLAYER_RADIUS;
       const lift = stepTopY - currentFootY;
       if (lift < 0.02 || lift > STEP_HEIGHT) return;
@@ -894,7 +935,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       probeDir.divideScalar(segLen);
       probeRay.origin.copy(playerCollider.start);
       probeRay.direction.copy(probeDir);
-      const hit = worldOctreeR.rayIntersect(probeRay);
+      // Octree only: this probe points foot -> head, away from the floor.
+      const hit = octreeRay(probeRay);
       if (hit && hit.distance < segLen) {
         camera.position.copy(probeRay.origin)
           .addScaledVector(probeDir, Math.max(PLAYER_RADIUS, hit.distance - 0.02));
@@ -1026,6 +1068,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     const flyLookAtSpawn = new THREE.Vector3();
     const beginFlyToPfp = () => {
+      // Build the collision octree here rather than on the first walking
+      // frame: the sweep that follows is FLY_MS long, so the one-off cost
+      // lands before the player has any control instead of as a hitch on
+      // their first step.
+      ensureOctree();
       flyStartPos.copy(camera.position);
       flyStartQuat.copy(camera.quaternion);
       flyStartFov = camera.fov;
@@ -1038,6 +1085,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // Cubes must be at full height for PFP (they are during orbit; mid-
       // intro they're growing -- force-finish the scale if we leave early).
       container.scale.y = 1;
+      directional.shadow.needsUpdate = true;
       state = 'fly-to-pfp';
     };
 
@@ -1125,9 +1173,36 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const GROW_TWEEN_MS = 1400;
     const introStartedAt = performance.now();
 
+    // Render-on-demand bookkeeping, see the render call at the end of the
+    // loop. OrbitControls fires 'change' for every drag/zoom step, which is
+    // exactly when an orbiting still scene needs a new frame.
+    let needsRender = true;
+    const requestRender = () => { needsRender = true; };
+    controls.addEventListener('change', requestRender);
+
+    // Viewport gating. Starts true so a viewer that is already on screen
+    // (or a browser without IntersectionObserver) renders immediately; the
+    // observer corrects it on its first callback.
+    let onScreen = true;
+    const visibilityObserver = new IntersectionObserver((entries) => {
+      const wasOnScreen = onScreen;
+      onScreen = entries.some(e => e.isIntersecting);
+      // Coming back into view: the canvas still holds the last frame, but
+      // anything that changed while we were away (a resize) needs one.
+      if (onScreen && !wasOnScreen) requestRender();
+    }, { threshold: 0 });
+    visibilityObserver.observe(hostEl);
+    document.addEventListener('visibilitychange', requestRender);
+
     this.zone.runOutsideAngular(() => {
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
+
+        // Nothing to do while the canvas is scrolled out of view or the tab
+        // is in the background. The bitmap sits well down the transaction
+        // page, so this is the common case, and a WebGL scene of several
+        // thousand cubes is not something to keep drawing for nobody.
+        if (!onScreen || document.visibilityState === 'hidden') return;
 
         switch (state) {
           case 'intro': {
@@ -1150,6 +1225,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               camera.lookAt(controls.target);
               const t = (elapsed - growStart) / GROW_TWEEN_MS;
               container.scale.y = SCALE_MIN + (1 - SCALE_MIN) * easeOutBack(t);
+              // Cube heights change every frame here, so the frozen depth
+              // map has to be re-rendered along with them.
+              directional.shadow.needsUpdate = true;
             } else {
               // Hand off to orbit.
               camera.position.copy(finalCamera);
@@ -1157,6 +1235,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               camera.lookAt(controls.target);
               container.scale.y = 1;
               controls.enabled = true;
+              // Last shadow refresh at full cube height; from here the
+              // scene is static and the map stays frozen.
+              directional.shadow.needsUpdate = true;
               state = 'orbit';
             }
             break;
@@ -1236,6 +1317,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           }
         }
 
+        // Render on demand. 'orbit' is a still scene: nothing moves unless
+        // the user drags, so a frame is only worth drawing after a controls
+        // change (or a resize / the first frame after the intro). Every
+        // other state is mid-animation and draws every frame. Off-screen
+        // and hidden-tab frames are dropped above, before any of this.
+        if (state !== 'orbit') needsRender = true;
+        if (!needsRender) return;
+        needsRender = false;
         // Sun stays fixed in world space. Composer renders all states the
         // same way -- only the camera/state changed.
         if (composer) composer.render(); else renderer.render(scene, camera);
@@ -1249,6 +1338,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         (window as unknown as { __bitmap3d?: unknown }).__bitmap3d = {
           get state() { return state; },
           get playerState() { return playerState; },
+          // Whether the collision octree exists yet. Lets the perf spec pin
+          // the lazy build structurally instead of timing it: it must still
+          // be null while orbiting and present once the walk is entered.
+          get octreeBuilt() { return worldOctree !== null; },
           get pos() { return [playerCollider.end.x, playerCollider.end.y, playerCollider.end.z]; },
           get fov() { return camera.fov; },
           get onFloor() { return playerOnFloor; },
@@ -1290,6 +1383,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       camera.updateProjectionMatrix();
       // Fat-line shader needs the current viewport resolution to scale pixels.
       gridMat.resolution.set(r.width, r.height);
+      requestRender();
     };
     const ro = new ResizeObserver(resize);
     ro.observe(hostEl);
@@ -1308,6 +1402,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (this.animFrame !== null) cancelAnimationFrame(this.animFrame);
       this.animFrame = null;
       ro.disconnect();
+      visibilityObserver.disconnect();
+      document.removeEventListener('visibilitychange', requestRender);
+      controls.removeEventListener('change', requestRender);
       window.removeEventListener('resize', onOrientation);
       window.removeEventListener('orientationchange', onOrientation);
       pfpDetach();
@@ -1320,6 +1417,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       instances.dispose();
       gridGeom.dispose();
       gridMat.dispose();
+      // The shadow-only ground plane and the light's depth map were left
+      // behind before; nothing else traverses the scene to catch them.
+      groundGeom.dispose();
+      groundMat.dispose();
+      directional.shadow.map?.dispose();
       controls.dispose();
       // Remove only the canvas we appended; leave the template-rendered
       // touch UI children alone (Angular tears them down when the
