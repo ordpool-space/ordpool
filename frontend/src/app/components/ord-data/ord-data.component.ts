@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
-import { Runestone, Etching } from '@app/shared/ord/rune.utils';
-import { ParsedInscription } from 'ordpool-parser';
+import { RuneEtchingSpec, runeIdKey } from '@app/services/ord-api.service';
+
+import { ParsedInscription, RunestoneSpec } from 'ordpool-parser';
 
 /** Bodies above this are summarised by size only, never rendered as text. */
 const MAX_RENDERED_BODY_SIZE = 100_000;
@@ -14,8 +15,8 @@ const MAX_RENDERED_BODY_SIZE = 100_000;
 })
 export class OrdDataComponent implements OnChanges {
   @Input() inscriptions: ParsedInscription[];
-  @Input() runestone: Runestone;
-  @Input() runeInfo: { [id: string]: { etching: Etching; txid: string } };
+  @Input() runestone: RunestoneSpec;
+  @Input() runeInfo: { [id: string]: { etching: RuneEtchingSpec; txid: string } };
   @Input() type: 'vin' | 'vout';
 
   toNumber = (value: bigint): number => Number(value);
@@ -25,14 +26,14 @@ export class OrdDataComponent implements OnChanges {
   // Rune mints
   minted: number;
   // Rune transfers
-  transferredRunes: { key: string; etching: Etching; txid: string }[] = [];
+  transferredRunes: { key: string; etching: RuneEtchingSpec; txid: string }[] = [];
 
   constructor(private ref: ChangeDetectorRef) { }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.runestone && this.runestone) {
-      if (this.runestone.mint && this.runeInfo[this.runestone.mint.toString()]) {
-        const mint = this.runestone.mint.toString();
+      if (this.runestone.mint && this.runeInfo[runeIdKey(this.runestone.mint)]) {
+        const mint = runeIdKey(this.runestone.mint);
         const terms = this.runeInfo[mint].etching.terms;
         const amount = terms?.amount;
         const divisibility = this.runeInfo[mint].etching.divisibility;
@@ -41,9 +42,10 @@ export class OrdDataComponent implements OnChanges {
         }
       }
 
-      this.runestone.edicts.forEach(edict => {
-        if (this.runeInfo[edict.id.toString()]) {
-          this.transferredRunes.push({ key: edict.id.toString(), ...this.runeInfo[edict.id.toString()] });
+      this.runestone.edicts?.forEach(edict => {
+        const key = runeIdKey(edict.id);
+        if (this.runeInfo[key]) {
+          this.transferredRunes.push({ key, ...this.runeInfo[key] });
         }
       });
     }
@@ -89,6 +91,18 @@ export class OrdDataComponent implements OnChanges {
         });
       }
     }
+  }
+
+  /** The rune id as the "block:tx" key the runeInfo map uses. */
+  runeIdKey = runeIdKey;
+
+  /**
+   * ord: supply is premine plus cap times amount (Etching::supply in
+   * ord's src/runes/etching.rs). The parser reports the etching fields, not
+   * the derived total, so it is computed here.
+   */
+  supply(etching: RuneEtchingSpec): bigint {
+    return (etching?.premine ?? 0n) + (etching?.terms?.cap ?? 0n) * (etching?.terms?.amount ?? 0n);
   }
 
   getAmount(amount: bigint, divisibility: number): number {

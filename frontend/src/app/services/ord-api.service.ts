@@ -1,10 +1,33 @@
 import { Injectable } from '@angular/core';
 import { catchError, forkJoin, map, Observable, of, switchMap, tap } from 'rxjs';
-import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
+import { InscriptionParserService, ParsedInscription, RuneParserService, RunestoneSpec } from 'ordpool-parser';
+
+/** The etching as the parser reports it inside a runestone. */
+export type RuneEtchingSpec = NonNullable<RunestoneSpec['etching']>;
 import { Transaction } from '@interfaces/electrs.interface';
-import { decipherRunestone, Runestone, Etching, UNCOMMON_GOODS } from '@app/shared/ord/rune.utils';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
 
+
+/** A rune id is addressed as "block:tx" wherever it is used as a key. */
+export function runeIdKey(id: { block: bigint | number; tx: number }): string {
+  return `${id.block}:${id.tx}`;
+}
+
+/**
+ * Rune 1:0, which has no etching transaction: it came into being with the
+ * Runes protocol itself. ord hardcodes it the same way.
+ */
+const UNCOMMON_GOODS: RuneEtchingSpec = {
+  divisibility: 0,
+  premine: 0n,
+  symbol: '\u29c9',
+  runeName: 'UNCOMMON\u2022GOODS',
+  terms: {
+    cap: 340282366920938463463374607431768211455n, // u128 max
+    amount: 1n,
+  },
+  turbo: false,
+};
 
 @Injectable({
   providedIn: 'root'
@@ -15,22 +38,20 @@ export class OrdApiService {
     private electrsApiService: ElectrsApiService,
   ) { }
 
-  decodeRunestone$(tx: Transaction): Observable<{ runestone: Runestone, runeInfo: { [id: string]: { etching: Etching; txid: string; } } }> {
-    const runestone = decipherRunestone(tx);
-    const runeInfo: { [id: string]: { etching: Etching; txid: string; } } = {};
+  decodeRunestone$(tx: Transaction): Observable<{ runestone: RunestoneSpec, runeInfo: { [id: string]: { etching: RuneEtchingSpec; txid: string; } } }> {
+    const runestone = RuneParserService.parse(tx)?.runestone;
+    const runeInfo: { [id: string]: { etching: RuneEtchingSpec; txid: string; } } = {};
 
     if (runestone) {
       const runesToFetch: Set<string> = new Set();
 
       if (runestone.mint) {
-        runesToFetch.add(runestone.mint.toString());
+        runesToFetch.add(runeIdKey(runestone.mint));
       }
 
-      if (runestone.edicts.length) {
-        runestone.edicts.forEach(edict => {
-          runesToFetch.add(edict.id.toString());
-        });
-      }
+      runestone.edicts?.forEach(edict => {
+        runesToFetch.add(runeIdKey(edict.id));
+      });
 
       if (runesToFetch.size) {
         const runeEtchingObservables = Array.from(runesToFetch).map(runeId => this.getEtchingFromRuneId$(runeId));
@@ -53,7 +74,7 @@ export class OrdApiService {
   }
 
   // Get etching from runeId by looking up the transaction that etched the rune
-  getEtchingFromRuneId$(runeId: string): Observable<{ runeId: string; etching: Etching; txid: string; }> {
+  getEtchingFromRuneId$(runeId: string): Observable<{ runeId: string; etching: RuneEtchingSpec; txid: string; }> {
     if (runeId === '1:0') {
       return of({ runeId, etching: UNCOMMON_GOODS, txid: '0000000000000000000000000000000000000000000000000000000000000000' });
     } else {
@@ -62,7 +83,7 @@ export class OrdApiService {
         switchMap(blockHash => this.electrsApiService.getBlockTxId$(blockHash, parseInt(txIndex))),
         switchMap(txId => this.electrsApiService.getTransaction$(txId)),
         switchMap(tx => {
-          const runestone = decipherRunestone(tx);
+          const runestone = RuneParserService.parse(tx)?.runestone;
           if (runestone) {
             const etching = runestone.etching;
             if (etching) {

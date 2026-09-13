@@ -2,23 +2,23 @@
   <ng-container i18n="ord.mint-n-runes">
     <span>Mint</span>
     <span class="amount"> {{ minted >= 100000 ? (minted | amountShortener:undefined:undefined:true) : minted }} </span>
-    <ng-container *ngTemplateOutlet="runeName; context: { $implicit: runestone.mint.toString() }"></ng-container>
+    <ng-container *ngTemplateOutlet="runeName; context: { $implicit: runeIdKey(runestone.mint) }"></ng-container>
   </ng-container>
 }
-@if (runestone?.etching?.supply) {
+@if (supply(runestone?.etching)) {
   @if (runestone?.etching.premine > 0) {
     <ng-container i18n="ord.premine-n-runes">
       <span>Premine</span>
       <span class="amount"> {{ getAmount(runestone.etching.premine, runestone.etching.divisibility || 0)  >= 100000 ? (getAmount(runestone.etching.premine, runestone.etching.divisibility || 0) | amountShortener:undefined:undefined:true) : getAmount(runestone.etching.premine, runestone.etching.divisibility || 0) }} </span>
       {{ runestone.etching.symbol }}
-      <span class="name">{{ runestone.etching.spacedName }}</span>
-      <span> ({{ toNumber(runestone.etching.premine) / toNumber(runestone.etching.supply) * 100 | amountShortener:0}}% of total supply)</span>
+      <span class="name">{{ runestone.etching.runeName }}</span>
+      <span> ({{ toNumber(runestone.etching.premine) / toNumber(supply(runestone.etching)) * 100 | amountShortener:0}}% of total supply)</span>
     </ng-container>
   } @else {
     <ng-container i18n="ord.etch-rune">
       <span>Etching of</span>
       {{ runestone.etching.symbol }}
-      <span class="name">{{ runestone.etching.spacedName }}</span>
+      <span class="name">{{ runestone.etching.runeName }}</span>
     </ng-container>
   }
 }
@@ -53,13 +53,13 @@
   <div class="skeleton-loader" style="width: 50%;"></div>
 }
 
-@if ((runestone && !minted && !runestone.etching?.supply && !transferredRunes?.length && type === 'vout') || (!inscriptions?.length && type === 'vin')) {
+@if ((runestone && !minted && !supply(runestone.etching) && !transferredRunes?.length && type === 'vout') || (!inscriptions?.length && type === 'vin')) {
   <i i18n="error.decoding-data">Error decoding data</i>
 }
 
 <ng-template #runeName let-id>
   {{ runeInfo[id]?.etching.symbol || '' }}
   <a [routerLink]="id !== '1:0' ? ['/tx' | relativeUrl, runeInfo[id]?.txid] : null" [class.rune-link]="id !== '1:0'" [class.disabled]="id === '1:0'">
-    <span class="name">{{ runeInfo[id]?.etching.spacedName }}</span>
+    <span class="name">{{ runeInfo[id]?.etching.runeName }}</span>
   </a>
 </ng-template>
