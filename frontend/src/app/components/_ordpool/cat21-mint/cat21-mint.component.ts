@@ -155,6 +155,19 @@ export class Cat21MintComponent implements OnInit {
         value: r.paymentOutput.value,
       })));
 
+      // Kick off rune-etching resolution here — on a scan/simulation change,
+      // not from the template. Doing it in the render getter re-fires the
+      // lookup every change-detection pass for a rune that resolves to null
+      // (a reserved rune's all-zero etching, e.g. UNCOMMON•GOODS, which never
+      // caches), hammering our ord. The resolver dedupes by name.
+      for (const r of rows) {
+        if (r.scan.kind === 'scanned-with-assets' && r.scan.content.runes) {
+          for (const name of Object.keys(r.scan.content.runes)) {
+            this.runeResolver.ensureResolved(name, this.ordReviewBase);
+          }
+        }
+      }
+
       // Funding auto-pick is the orchestrator's job (its `fundingRecommendation`
       // force-scans covering candidates regardless of size and never
       // auto-selects an unscanned/asset coin). We leave the orchestrator's
@@ -398,12 +411,12 @@ export class Cat21MintComponent implements OnInit {
 
   /**
    * The etching txid for a rune, for the /tx/<etching> link, or null while it's
-   * unresolved or has none (reserved runes). Reading this also kicks off the
-   * per-name lookup (idempotent; the result lands via signal in a microtask, so
-   * the row is plain text until then and links once resolved).
+   * unresolved or has none (reserved runes → plain text). Pure read of the
+   * resolver signal: resolution is kicked off from paymentOutputs$ on scan
+   * change, not here, so this getter has no side effect during render. The
+   * signal read re-renders the row when the lookup lands.
    */
   runeTxEtching(name: string): string | null {
-    this.runeResolver.ensureResolved(name, this.ordReviewBase);
     return this.runeResolver.resolved().get(name) ?? null;
   }
 
