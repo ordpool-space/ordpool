@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
 import { catchError, forkJoin, map, Observable, of, switchMap, tap } from 'rxjs';
-import { Inscription } from '@app/shared/ord/inscription.utils';
+import { InscriptionParserService, ParsedInscription } from 'ordpool-parser';
 import { Transaction } from '@interfaces/electrs.interface';
-import { getNextInscriptionMark, hexToBytes, extractInscriptionData } from '@app/shared/ord/inscription.utils';
 import { decipherRunestone, Runestone, Etching, UNCOMMON_GOODS } from '@app/shared/ord/rune.utils';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
 
@@ -77,24 +76,21 @@ export class OrdApiService {
     }
   }
 
-  decodeInscriptions(witness: string): Inscription[] | null {
+  /**
+   * Reads the inscriptions of ONE input, via ordpool-parser.
+   *
+   * The parser takes a transaction, so the input is handed over as a
+   * single-input transaction. That keeps the element selection (leaf script,
+   * annex aware) and the envelope decoding identical to what ord does, and to
+   * what the rest of ordpool shows.
+   */
+  decodeInscriptions(tx: Transaction, vinIndex: number): ParsedInscription[] {
 
-    const inscriptions: Inscription[] = [];
-    const raw = hexToBytes(witness);
-    let startPosition = 0;
-
-    while (true) {
-      const pointer = getNextInscriptionMark(raw, startPosition);
-      if (pointer === -1) {break;}
-
-      const inscription = extractInscriptionData(raw, pointer);
-      if (inscription) {
-        inscriptions.push(inscription);
-      }
-
-      startPosition = pointer;
+    const vin = tx.vin[vinIndex];
+    if (!vin?.witness?.length) {
+      return [];
     }
 
-    return inscriptions;
+    return InscriptionParserService.parse({ txid: tx.txid, vin: [{ witness: vin.witness }] });
   }
 }

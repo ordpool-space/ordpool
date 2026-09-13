@@ -1,6 +1,9 @@
-import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { Runestone, Etching } from '@app/shared/ord/rune.utils';
-import { Inscription } from '@app/shared/ord/inscription.utils';
+import { ParsedInscription } from 'ordpool-parser';
+
+/** Bodies above this are summarised by size only, never rendered as text. */
+const MAX_RENDERED_BODY_SIZE = 100_000;
 
 @Component({
   selector: 'app-ord-data',
@@ -10,7 +13,7 @@ import { Inscription } from '@app/shared/ord/inscription.utils';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrdDataComponent implements OnChanges {
-  @Input() inscriptions: Inscription[];
+  @Input() inscriptions: ParsedInscription[];
   @Input() runestone: Runestone;
   @Input() runeInfo: { [id: string]: { etching: Etching; txid: string } };
   @Input() type: 'vin' | 'vout';
@@ -24,7 +27,7 @@ export class OrdDataComponent implements OnChanges {
   // Rune transfers
   transferredRunes: { key: string; etching: Etching; txid: string }[] = [];
 
-  constructor() { }
+  constructor(private ref: ChangeDetectorRef) { }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.runestone && this.runestone) {
@@ -51,28 +54,37 @@ export class OrdDataComponent implements OnChanges {
         this.inscriptionsData = {};
         this.inscriptions.forEach((inscription) => {
           // General: count, total size, delegate
-          const key = inscription.content_type_str || 'undefined';
+          const key = inscription.contentType || 'undefined';
           if (!this.inscriptionsData[key]) {
             this.inscriptionsData[key] = { count: 0, totalSize: 0 };
           }
           this.inscriptionsData[key].count++;
-          this.inscriptionsData[key].totalSize += inscription.body_length;
-          if (inscription.delegate_txid && !this.inscriptionsData[key].delegate) {
-            this.inscriptionsData[key].delegate = inscription.delegate_txid;
+          this.inscriptionsData[key].totalSize += inscription.contentSize;
+
+          // the template links the delegate to /tx, so it wants the txid half
+          // of the inscription id
+          const delegate = inscription.getDelegates()[0];
+          if (delegate && !this.inscriptionsData[key].delegate) {
+            this.inscriptionsData[key].delegate = delegate.split('i')[0];
           }
 
-          // Text / JSON data
-          if ((key.includes('text') || key.includes('json')) && !inscription.is_cropped && !this.inscriptionsData[key].text && !this.inscriptionsData[key].json) {
-            const decoder = new TextDecoder('utf-8');
-            const text = decoder.decode(inscription.body);
-            try {
-              this.inscriptionsData[key].json = JSON.parse(text);
-              if (this.inscriptionsData[key].json['p']) {
-                this.inscriptionsData[key].tag = this.inscriptionsData[key].json['p'].toUpperCase();
+          // Text / JSON data. getContent() decompresses brotli and gzip, so a
+          // compressed BRC-20 mint now shows its protocol tag too.
+          if ((key.includes('text') || key.includes('json'))
+            && inscription.contentSize <= MAX_RENDERED_BODY_SIZE
+            && !this.inscriptionsData[key].text && !this.inscriptionsData[key].json) {
+
+            inscription.getContent().then((text) => {
+              try {
+                this.inscriptionsData[key].json = JSON.parse(text);
+                if (this.inscriptionsData[key].json['p']) {
+                  this.inscriptionsData[key].tag = this.inscriptionsData[key].json['p'].toUpperCase();
+                }
+              } catch (e) {
+                this.inscriptionsData[key].text = text;
               }
-            } catch (e) {
-              this.inscriptionsData[key].text = text;
-            }
+              this.ref.markForCheck();
+            });
           }
         });
       }
