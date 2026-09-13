@@ -745,6 +745,11 @@ class OrdpoolDatabaseMigration {
 
       queries.push(`DELETE FROM ordpool_stats WHERE height >= ${firstInscriptionHeight};`);
 
+      // The nine satellite tables the block indexer fills from the parser.
+      // ordpool_stats_ots is deliberately NOT in this list: its rows come from
+      // polling the OTS calendars, not from parsing a block, a calendar that
+      // was unreachable cannot be asked again for that window, and its height
+      // column is called blockheight and is nullable.
       for (const table of [
         'ordpool_stats_rune_mint',
         'ordpool_stats_rune_etch',
@@ -755,7 +760,6 @@ class OrdpoolDatabaseMigration {
         'ordpool_stats_cat21_mint',
         'ordpool_stats_atomical_op',
         'ordpool_stats_counterparty',
-        'ordpool_stats_ots',
       ]) {
         queries.push(`DELETE FROM ${table} WHERE height >= ${firstInscriptionHeight};`);
       }
