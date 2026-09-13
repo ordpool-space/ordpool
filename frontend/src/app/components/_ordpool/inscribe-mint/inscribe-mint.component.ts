@@ -12,6 +12,8 @@ import { environment } from '../../../../environments/environment';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
+import { runeLabel } from '../rune-label.helper';
+import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 
 /** One viable funding UTXO joined with its content-scan bucket. */
 export interface ViableInscribeSimulation {
@@ -66,6 +68,7 @@ export class InscribeMintComponent implements OnInit {
   walletService = inject(WalletService);
   private cat21 = inject(Cat21Service);
   private psbtExportPrompt = inject(PsbtExportPromptService);
+  private runeResolver = inject(RuneEtchingResolverService);
   private scanner = inject(UtxoContentScanner);
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
@@ -1405,6 +1408,25 @@ export class InscribeMintComponent implements OnInit {
   }
 
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
+
+  /** Rune name + its raw pile value ({amount,divisibility,symbol}) for each rune on a UTXO. */
+  runeEntries(content: UtxoContent): { name: string; value: unknown }[] {
+    return Object.entries(content.runes ?? {}).map(([name, value]) => ({ name, value }));
+  }
+
+  /** ord-rendered balance + name for a rune row; bare name if the pile shape is off. */
+  readonly formatRuneLabel = runeLabel;
+
+  /**
+   * The etching txid for a rune, for the /tx/<etching> link, or null while it's
+   * unresolved or has none (reserved runes). Reading this also kicks off the
+   * per-name lookup (idempotent; the result lands via signal in a microtask, so
+   * the row is plain text until then and links once resolved).
+   */
+  runeTxEtching(name: string): string | null {
+    this.runeResolver.ensureResolved(name, this.ordReviewBase);
+    return this.runeResolver.resolved().get(name) ?? null;
+  }
 
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {

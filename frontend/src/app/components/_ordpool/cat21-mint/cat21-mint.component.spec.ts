@@ -106,6 +106,13 @@ jest.mock('ordpool-sdk', () => {
     calculateRecommendedFundingSats: (rate: number) => rate * 1000,
     runeNamesFromContent: (content: { runes: object | null }) =>
       content.runes ? Object.keys(content.runes) : [],
+    // Rune label + etching-link deps. formatRunePile's real ord-exact behaviour
+    // is unit-tested in rune-label.helper.spec.ts against the real SDK; here it
+    // only needs to not crash a render. resolveRuneEtchingTxid defaults to null
+    // (no link) so panel-render tests stay deterministic.
+    formatRunePile: (pile: { amount: unknown; symbol?: string | null }) =>
+      `${pile.amount} ${pile.symbol ?? '¤'}`,
+    resolveRuneEtchingTxid: jest.fn(async () => null),
     // Four-character grouping for the "Fund <addr>" verification instruction.
     addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
     // wallet-ux-round3 single-address custody API. Faithful re-implementations

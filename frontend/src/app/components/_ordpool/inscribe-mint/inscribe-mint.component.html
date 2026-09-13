@@ -529,14 +529,20 @@
                       <a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
                     </ng-container><br>
                   </ng-container>
-                  <ng-container *ngIf="runeNames(row.scan.content).length > 0">
-                    Rune{{ runeNames(row.scan.content).length === 1 ? '' : 's' }}:
-                    <ng-container *ngFor="let name of runeNames(row.scan.content); let last = last">
-                      {{ name }}<ng-container *ngIf="!last">, </ng-container>
+                  <ng-container *ngIf="runeEntries(row.scan.content).length > 0">
+                    Rune{{ runeEntries(row.scan.content).length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let rune of runeEntries(row.scan.content); let last = last">
+                      <ng-container *ngIf="runeTxEtching(rune.name) as etching; else runePlain">
+                        <a [routerLink]="['/tx/' | relativeUrl, etching]" target="_blank" rel="noopener">{{ formatRuneLabel(rune.name, rune.value) }}</a>
+                      </ng-container>
+                      <ng-template #runePlain>{{ formatRuneLabel(rune.name, rune.value) }}</ng-template><ng-container *ngIf="!last">, </ng-container>
                     </ng-container><br>
                   </ng-container>
                   <ng-container *ngIf="row.scan.content.catIds.length > 0">
                     CAT-21 cat{{ row.scan.content.catIds.length === 1 ? '' : 's' }}: {{ row.scan.content.catIds.length }}<br>
+                  </ng-container>
+                  <ng-container *ngIf="row.scan.content.rareSat as rareSat">
+                    Rare sat: {{ rareSat.rarity }} · sat {{ rareSat.sat | number }} · block {{ rareSat.block | number }}<br>
                   </ng-container>
                 </div>
 

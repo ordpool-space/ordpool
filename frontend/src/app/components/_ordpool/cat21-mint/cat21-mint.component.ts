@@ -8,6 +8,8 @@ import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
+import { runeLabel } from '../rune-label.helper';
+import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 
 export interface ViableSimulation {
   simulation: SimulateTransactionResult;
@@ -32,6 +34,7 @@ export class Cat21MintComponent implements OnInit {
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
   private psbtExportPrompt = inject(PsbtExportPromptService);
+  private runeResolver = inject(RuneEtchingResolverService);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
   private destroyRef = inject(DestroyRef);
@@ -384,6 +387,25 @@ export class Cat21MintComponent implements OnInit {
 
   /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
+
+  /** Rune name + its raw pile value ({amount,divisibility,symbol}) for each rune on a UTXO. */
+  runeEntries(content: UtxoContent): { name: string; value: unknown }[] {
+    return Object.entries(content.runes ?? {}).map(([name, value]) => ({ name, value }));
+  }
+
+  /** ord-rendered balance + name for a rune row; bare name if the pile shape is off. */
+  readonly formatRuneLabel = runeLabel;
+
+  /**
+   * The etching txid for a rune, for the /tx/<etching> link, or null while it's
+   * unresolved or has none (reserved runes). Reading this also kicks off the
+   * per-name lookup (idempotent; the result lands via signal in a microtask, so
+   * the row is plain text until then and links once resolved).
+   */
+  runeTxEtching(name: string): string | null {
+    this.runeResolver.ensureResolved(name, this.ordReviewBase);
+    return this.runeResolver.resolved().get(name) ?? null;
+  }
 
   /**
    * The genesis/reveal txid an inscription id points at, for the in-app
