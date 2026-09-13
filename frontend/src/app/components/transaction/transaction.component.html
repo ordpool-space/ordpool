@@ -143,6 +143,8 @@
     <!-- HACK -->
     <ng-container *ngIf="getParsedDigitalArtifacts() as digitalArtifacts">
 
+      <!-- HACK -- Ordpool: anchor for the ?artifact=<id> deep link (scroll target). -->
+      <span id="digital-artifacts" class="anchor"></span>
       <div class="title">
         <h2>Digital Artifacts</h2>
       </div>

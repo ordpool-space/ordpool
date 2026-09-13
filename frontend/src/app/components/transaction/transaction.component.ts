@@ -42,6 +42,7 @@ import { ZONE_SERVICE } from '@app/injection-tokens';
 import { MiningService, MiningStats } from '@app/services/mining.service';
 import { ETA, EtaService } from '@app/services/eta.service';
 import { DigitalArtifactsParserService, DigitalArtifact } from 'ordpool-parser';
+import { findArtifactIndex } from '../_ordpool/artifact-deeplink.helper';
 
 export interface Pool {
   id: number;
@@ -238,6 +239,37 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     return DigitalArtifactsParserService.parse(this.tx);
   }
 
+  // HACK -- Ordpool: ?artifact=<id> deep link. Family sites (cat21.space) link to
+  // a SPECIFIC artifact on this tx, not artifact-page 1. Consumed once, after the
+  // tx loads, in applyArtifactDeepLink(); absent/no-match leaves page 1 (default).
+  private deepLinkArtifact?: string;
+
+  /**
+   * Select the digital-artifact page matching the ?artifact=<id> query param and
+   * scroll to the section. Matches by IDENTITY, not array index (digitalArtifacts
+   * mixes all types in parse order): an inscription by its full inscription id, a
+   * rune by its etching's name (spacer- and case-insensitive, since the linking
+   * side may send the spaced or unspaced form). Applied once, then cleared, so a
+   * later tx re-emit or a manual page change is not yanked back.
+   */
+  private applyArtifactDeepLink(): void {
+    if (!this.deepLinkArtifact || !this.tx) {
+      return;
+    }
+    const wanted = this.deepLinkArtifact;
+    this.deepLinkArtifact = undefined;
+    const index = findArtifactIndex(this.getParsedDigitalArtifacts(), wanted);
+    if (index < 0) {
+      return;
+    }
+    this.digitalArtifactsPage = index + 1;
+    this.cd.markForCheck();
+    // Defer the scroll one tick so the selected artifact has rendered.
+    setTimeout(() => {
+      document.getElementById('digital-artifacts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
+
   ngOnInit() {
     this.enterpriseService.page();
     this.isDetailsOpen = this.route.snapshot.queryParams['showDetails'] === 'true';
@@ -245,6 +277,9 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
     if (cpfpParam === 'advanced' || cpfpParam === 'simple') {
       this.cpfpMode = cpfpParam;
     }
+    // HACK -- Ordpool: capture ?artifact=<id> for the deep link; applied in
+    // applyArtifactDeepLink() once the tx (and its artifacts) have loaded.
+    this.deepLinkArtifact = this.route.snapshot.queryParams['artifact'] || undefined;
 
     const urlParams = new URLSearchParams(window.location.search);
     this.forceAccelerationSummary = !!urlParams.get('cash_request_id');
@@ -1048,6 +1083,10 @@ export class TransactionComponent implements OnInit, AfterViewInit, OnDestroy {
       this.rbfEnabled = false;
     }
     this.featuresEnabled = this.segwitEnabled || this.taprootEnabled || this.rbfEnabled;
+    // HACK -- Ordpool: both tx-load paths call setFeatures() after this.tx is set,
+    // so this is the shared point where the ?artifact deep link can resolve. It
+    // applies once then clears, so the extra setFeatures() triggers are no-ops.
+    this.applyArtifactDeepLink();
   }
 
   checkAccelerationEligibility() {
