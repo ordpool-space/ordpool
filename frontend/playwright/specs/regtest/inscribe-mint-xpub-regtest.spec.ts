@@ -155,17 +155,33 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + watch-only
   const scriptType = page.getByTestId('xpub-script-type');
   await expect(scriptType).toBeVisible({ timeout: 20_000 });
   // The options use Angular's [ngValue]="'p2tr'" binding, which sets an OPAQUE
-  // DOM value (e.g. "1: p2tr", an internal id-prefixed string), so a value match
-  // (selectOption('p2tr')) never finds it. A native <select> option can't carry
-  // a data-testid, so select by position: index 0 is the disabled placeholder,
-  // index 1 is Taproot (deliberately first as "recommended for cats").
-  await scriptType.selectOption({ index: 1 });
+  // DOM value (e.g. "1: p2tr"), so a value match (selectOption('p2tr')) never
+  // finds it. A native <select> option can't carry a data-testid. Match the
+  // visible LABEL, not position: a reorder would silently pick a different
+  // script type (deriving a different address family from the same tpub); a
+  // copy change breaks this loudly instead.
+  await scriptType.selectOption({ label: 'Taproot (P2TR), recommended for cats' });
   await page.getByTestId('xpub-connect-scan').click();
   await shot(page, '03-scanned');
 
   // Scan review: confirm the auto-picked funding address (receive #0) and connect.
   const confirmXpub = page.getByTestId('xpub-connect-confirm');
   await expect(confirmXpub).toBeVisible({ timeout: 30_000 });
+
+  // Positive assertion at the point of the selection mistake: the derived
+  // ordinals address the UI now shows must be the account's receive #0. The
+  // helper is the oracle - addressAt agrees address-for-address with the SDK's
+  // deriveWatchOnlyAddresses (proven on regtest), so a correct displayed address
+  // proves the right script type was selected, by construction. shortenString:14
+  // renders first7...last7, so both halves are on screen: the HEAD (bcrt1p vs
+  // bcrt1q) is the family discriminator a wrong script type would flip; the TAIL
+  // pins the exact identity (catches an off-by-one index / wrong path / account).
+  // Asserting here surfaces a mis-selection on THIS line, not as an empty-balance
+  // timeout several steps downstream.
+  const shownOrdinals = (await page.getByTestId('xpub-ordinals-address').textContent()) ?? '';
+  expect(shownOrdinals).toContain(paymentAddress.slice(0, 7));
+  expect(shownOrdinals).toContain(paymentAddress.slice(-7));
+
   await confirmXpub.click();
   await shot(page, '04-connected');
 

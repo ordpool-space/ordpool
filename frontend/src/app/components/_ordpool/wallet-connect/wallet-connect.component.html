@@ -104,7 +104,7 @@
      <!-- ordinals identity (where a minted cat lands) -->
      <div class="xpub-pick mb-2">
        <div class="label small text-muted">Cat address (ordinals)</div>
-       <div class="address">{{ scan.ordinals.address | shortenString : 14 }}</div>
+       <div class="address" data-testid="xpub-ordinals-address">{{ scan.ordinals.address | shortenString : 14 }}</div>
        <div class="small text-muted">
          {{ scan.ordinalsReason === 'cat' ? 'Holds a CAT-21 cat' : 'Receive address #0 (default)' }}
        </div>
