@@ -53,7 +53,6 @@ on:
       # too.
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
-      - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
@@ -512,35 +511,15 @@ jobs:
             npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
-      # THE funding-safety guard proof. The only funding candidate is a REAL
-      # inscribed coin (seedInscribedCoin, 2M sat so it's a covering candidate).
-      # A working guard, reading the stock ord (:8081, real inscriptions field),
-      # refuses it: the "asset found" warning shows and the Mint button never
-      # auto-enables. seedInscribedCoin docker-execs the ord wallet, so it needs
-      # the consumer-environment's container names (the SDK's helper defaults to
-      # its own stack's names). Mutation-checked out of band: at ordBaseUrls=:8080
-      # (cat21-ord, no inscriptions field) this spec goes RED - the coin wrongly
-      # classifies clean and the guard never fires.
-      - name: Run the funding-guard inscription-refusal spec
-        if: always()
-        working-directory: frontend
-        env:
-          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
-          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
-          FRONTEND_URL: http://localhost:4200
-          # The LIVE bitcoind at spec time is ordpool-e2e-bitcoind (the SDK
-          # default) - rpc() uses it in every passing spec, and the ords index
-          # its chain (the mock-free inscribe specs prove that), so
-          # seedInscribedCoin must mine on it for ord-stock to see the
-          # inscription. The two ords serve :8080/:8081 as the consumer-
-          # environment named them, so they keep the -consumer- prefix.
-          REGTEST_BITCOIND_CONTAINER: ordpool-e2e-bitcoind
-          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
-          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
-        run: |
-          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+      # NOTE: the funding-guard inscription-refusal spec
+      # (funding-guard-inscription-refusal-regtest.spec.ts) is PARKED, not run.
+      # It needs ordpool-sdk c790db7 (ord-stock internal :8080 fix for
+      # seedInscribedCoin), but c790db7 also derives the compose project from
+      # E2E_PREFIX, which stops this workflow's two bootstraps
+      # (consumer-environment + regtest-bootstrap) from sharing one bitcoind and
+      # makes them collide on host :18443. Re-enable once this workflow runs a
+      # single bitcoind (consolidated bootstrap) - the spec file is complete and
+      # the mutation check (:8080 -> RED) is documented in its header.
 
       # Same stack, second spec: drive the /inscribe page through a full
       # single-file inscription (commit + reveal). `if: always()` so a
