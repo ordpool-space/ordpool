@@ -1,9 +1,10 @@
 /* eslint-disable no-console */
-// PARKED - not wired into the workflow. Wizz's sign popup times out on the
-// CAT-21 mint PSBT (approveWizzSign) - the offline-routes balance stub does not
-// cover a wizz call the mint triggers, and running it before inscribe-wizz made
-// that previously-green spec flake too. Re-enable once the wizz mint-sign is
-// understood. The unisat cat21-mint spec is the proven mock-free template.
+// Runs LAST in the workflow, after inscribe-wizz. The two wizz specs contend
+// when adjacent (a wizz sign popup intermittently stalls past the 60s Sign-wait
+// if another wizz context ran just before), so the matrix separates them: this
+// one runs after every other spec, with the config's retries:1 covering a
+// residual stall. Proven mock-free against the real ords; the unisat cat21-mint
+// spec is the template.
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -21,7 +22,6 @@ import {
   waitForApprovalPopup,
   installWizzOfflineRoutes,
   onboardWizz,
-  recordWalletBackendRequests,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -49,11 +49,6 @@ const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
-// DIAGNOSTIC: records the wizz popup's own backend calls (localhost/extension
-// filtered) so the mint flow can be diffed against the working inscribe flow.
-// Attached in beforeAll; dumped in a finally around the sign so the fatal call
-// is captured even when Sign hangs.
-let rec: ReturnType<typeof recordWalletBackendRequests>;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -145,7 +140,6 @@ test.beforeAll(async () => {
   // same canonical helper the SDK + cubes wizz specs use. Without it the
   // popup shows "Failed to load balance" and Sign stays disabled.
   await installWizzOfflineRoutes(context);
-  rec = recordWalletBackendRequests(context);
 
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
@@ -224,19 +218,8 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
 
   // ─── 6. Click Mint, approve the Wizz sign popup ────────────────
   const knownPagesBeforeSign = new Set(context.pages());
-  // DIAGNOSTIC: snapshot the request count before the mint click so the dump
-  // isolates the connect+mint+sign window from onboarding noise. The dump runs
-  // in a finally so the fatal call is captured even if approveWizzSign hangs
-  // (the recorder is a lifecycle-free accumulating array).
-  const beforeMintCount = rec.requests.length;
   await mintBtn.click();
-  try {
-    await approveWizzSign(knownPagesBeforeSign);
-  } finally {
-    const window = rec.requests.slice(beforeMintCount);
-    console.log('WIZZ-REC-MINT-HOSTS', JSON.stringify(rec.hosts()));
-    console.log('WIZZ-REC-MINT-WINDOW', JSON.stringify(window, null, 2));
-  }
+  await approveWizzSign(knownPagesBeforeSign);
   await page.bringToFront();
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
