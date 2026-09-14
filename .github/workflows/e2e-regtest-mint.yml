@@ -528,7 +528,13 @@ jobs:
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
           XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
           FRONTEND_URL: http://localhost:4200
-          REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+          # The LIVE bitcoind at spec time is ordpool-e2e-bitcoind (the SDK
+          # default) - rpc() uses it in every passing spec, and the ords index
+          # its chain (the mock-free inscribe specs prove that), so
+          # seedInscribedCoin must mine on it for ord-stock to see the
+          # inscription. The two ords serve :8080/:8081 as the consumer-
+          # environment named them, so they keep the -consumer- prefix.
+          REGTEST_BITCOIND_CONTAINER: ordpool-e2e-bitcoind
           REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
           REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
         run: |
