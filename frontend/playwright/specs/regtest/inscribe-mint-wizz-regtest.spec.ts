@@ -176,11 +176,11 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   await shot(page, '01-page-loaded');
 
-  const connectLink = page.getByRole('button', { name: /connect your wallet/i }).first();
-  await expect(connectLink).toBeVisible({ timeout: 30_000 });
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());
-  await connectLink.click();
+  await connectTrigger.click();
   await page.getByTestId('wallet-connect-wizz').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
   await approveWizzConnect(knownPagesBeforeConnect, 60_000);

@@ -429,7 +429,7 @@
 
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
-        <button type="button" class="btn btn-link p-0 align-baseline" (click)="walletService.requestWalletConnect()">connect your wallet</button>
+        <button type="button" data-testid="connect-wallet-trigger" class="btn btn-link p-0 align-baseline" (click)="walletService.requestWalletConnect()">connect your wallet</button>
         to inscribe.
       </p>
 

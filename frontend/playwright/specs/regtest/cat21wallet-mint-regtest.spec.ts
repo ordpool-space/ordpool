@@ -178,9 +178,9 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
 
   // ordpool's connect link reads "connect your wallet" in the empty-
   // wallet state.
-  const connectLink = page.getByRole('button', { name: /connect your wallet/i }).first();
-  await expect(connectLink).toBeVisible({ timeout: 30_000 });
-  await connectLink.click();
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await connectTrigger.click();
 
   // Picker modal: CAT-21 wallet sits in the "installed" section. Each row's
   // Connect button carries a stable per-wallet testid, so match that instead
