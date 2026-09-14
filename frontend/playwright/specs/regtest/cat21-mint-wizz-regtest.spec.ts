@@ -1,4 +1,9 @@
 /* eslint-disable no-console */
+// PARKED - not wired into the workflow. Wizz's sign popup times out on the
+// CAT-21 mint PSBT (approveWizzSign) - the offline-routes balance stub does not
+// cover a wizz call the mint triggers, and running it before inscribe-wizz made
+// that previously-green spec flake too. Re-enable once the wizz mint-sign is
+// understood. The unisat cat21-mint spec is the proven mock-free template.
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
