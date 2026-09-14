@@ -116,6 +116,18 @@ jobs:
           ref: ordpool
           path: ordpool-electrs
 
+      # cat21-ord source for BOTH ord containers the funding-safety scan
+      # queries for real: cat21-ord (--index-cat21, port 8080, cats) and
+      # ord-stock (same binary WITHOUT --index-cat21, port 8081,
+      # inscriptions/runes/sat_ranges). The consumer-environment builds
+      # both from this one checkout (ORD_SRC falls back to CAT21_ORD_SRC).
+      - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-ord
+          ref: index-cat21
+          path: cat21-ord
+
       # buildx gha cache: reuse the compiled electrs image across runs
       # instead of recompiling Rust (~10 min) every run. A docker-container
       # builder + the Actions runtime env make type=gha work; the
@@ -130,12 +142,17 @@ jobs:
       - name: Stabilise the electrs build context for layer caching
         run: printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
 
-      - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb + cat21-ord + ord-stock)
         env:
           ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
+          # Both ords build from the one cat21-ord checkout; ORD_SRC falls
+          # back to CAT21_ORD_SRC in the compose, so this one var feeds both.
+          CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
         run: |
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
             --buildx-cache \
+            --with-cat21-ord \
+            --with-ord-stock \
             > stack.json
           cat stack.json
 
@@ -367,7 +384,15 @@ jobs:
             -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
             -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
             -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
+            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
             src/environments/environment.ts
+          # ordBaseUrls -> the STOCK ord (:8081, real inscriptions/runes/sat_ranges)
+          # and cat21OrdBaseUrl -> cat21-ord (:8080, cats). This is the split the
+          # UtxoContentScanner's classifier expects: pointing ordBaseUrls at
+          # cat21-ord would read every inscribed coin as clean (it has no
+          # inscriptions field), silently disabling the funding-safety guard.
           echo "--- patched environment.ts ---"
           head -32 src/environments/environment.ts
 
