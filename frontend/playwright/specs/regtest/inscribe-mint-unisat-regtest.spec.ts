@@ -148,7 +148,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   await shot(page, '01-page-loaded');
 
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
+  const connectLink = page.getByRole('button', { name: /connect your wallet/i }).first();
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());

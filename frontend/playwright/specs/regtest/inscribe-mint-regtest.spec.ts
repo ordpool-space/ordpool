@@ -211,7 +211,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
 
   // The pre-connect prompt renders a "connect your wallet" link that
   // calls WalletService.requestWalletConnect() → the ngb-modal picker.
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
+  const connectLink = page.getByRole('button', { name: /connect your wallet/i }).first();
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());

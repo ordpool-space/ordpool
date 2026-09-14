@@ -214,7 +214,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   await page.reload({ waitUntil: 'domcontentloaded' });
   await shot(page, '01-page-loaded');
 
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
+  const connectLink = page.getByRole('button', { name: /connect your wallet/i }).first();
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
   await connectLink.click();
   await page.getByTestId('wallet-connect-alby').click({ timeout: 20_000 });

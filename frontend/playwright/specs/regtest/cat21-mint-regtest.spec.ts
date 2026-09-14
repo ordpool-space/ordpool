@@ -220,7 +220,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // The connect link in the mint page reads "connect your wallet" and
   // sits inside the form when no wallet is yet bound. The wallet picker
   // is a ngb-modal that opens with the supported wallet list.
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
+  const connectLink = page.getByRole('button', { name: /connect your wallet/i }).first();
   await expect(connectLink).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());
