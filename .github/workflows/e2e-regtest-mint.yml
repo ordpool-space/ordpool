@@ -53,6 +53,7 @@ on:
       # too.
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
@@ -571,6 +572,20 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # Same stack, non-native wallet on the OTHER action: /cat21-mint via
+      # Unisat. First of the cat21-mint wallet matrix, mock-free against the
+      # real ords. bitcoind comes from the job env; the ord sync waits are HTTP.
+      - name: Run the page-driven cat21-mint regtest spec (Unisat)
+        if: always()
+        working-directory: frontend
+        env:
+          UNISAT_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/unisat
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       # Same stack, second non-native wallet: /inscribe via Wizz.
