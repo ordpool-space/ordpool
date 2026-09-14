@@ -53,6 +53,7 @@ on:
       # too.
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
@@ -509,6 +510,30 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # THE funding-safety guard proof. The only funding candidate is a REAL
+      # inscribed coin (seedInscribedCoin, 2M sat so it's a covering candidate).
+      # A working guard, reading the stock ord (:8081, real inscriptions field),
+      # refuses it: the "asset found" warning shows and the Mint button never
+      # auto-enables. seedInscribedCoin docker-execs the ord wallet, so it needs
+      # the consumer-environment's container names (the SDK's helper defaults to
+      # its own stack's names). Mutation-checked out of band: at ordBaseUrls=:8080
+      # (cat21-ord, no inscriptions field) this spec goes RED - the coin wrongly
+      # classifies clean and the guard never fires.
+      - name: Run the funding-guard inscription-refusal spec
+        if: always()
+        working-directory: frontend
+        env:
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       # Same stack, second spec: drive the /inscribe page through a full
