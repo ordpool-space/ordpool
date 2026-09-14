@@ -23,6 +23,7 @@ on:
   push:
     paths:
       - 'frontend/playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-cat21wallet-regtest.spec.ts'
       - '.github/workflows/e2e-regtest-mint-cat21wallet.yml'
       # An SDK pin bump changes the app bundle this page-driven spec boots,
       # so dep bumps must trigger it (matches the sibling mint lane).
@@ -91,6 +92,16 @@ jobs:
           ref: ordpool
           path: ordpool-electrs
 
+      # cat21-ord source for BOTH ord containers the mock-free inscribe scan
+      # queries: cat21-ord (--index-cat21, :8080, cats) and ord-stock (same
+      # binary WITHOUT --index-cat21, :8081, inscriptions/runes/sat_ranges).
+      - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-ord
+          ref: index-cat21
+          path: cat21-ord
+
       # buildx gha cache: reuse the compiled electrs image across runs
       # instead of recompiling Rust (~10 min) every run. A docker-container
       # builder + the Actions runtime env make type=gha work; the
@@ -105,12 +116,15 @@ jobs:
       - name: Stabilise the electrs build context for layer caching
         run: printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
 
-      - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb + cat21-ord + ord-stock)
         env:
           ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
+          CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
         run: |
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
             --buildx-cache \
+            --with-cat21-ord \
+            --with-ord-stock \
             > stack.json
           cat stack.json
 
@@ -246,6 +260,9 @@ jobs:
             -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
             -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
             -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
+            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
             src/environments/environment.ts
 
       - name: Patch bitcoinNetwork to Regtest
@@ -311,6 +328,20 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # inscribe via cat21-wallet: the /inscribe half of the wallet's matrix.
+      # Mock-free against the real ords (this workflow now brings them up).
+      # cat21-wallet signs Leather-fork-generic, so no cat-specific dialog.
+      - name: Run the page-driven inscribe regtest spec (CAT-21 wallet)
+        if: always()
+        working-directory: frontend
+        env:
+          CAT21WALLET_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/cat21wallet
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-cat21wallet-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts

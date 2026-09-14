@@ -1,12 +1,4 @@
 /* eslint-disable no-console */
-// PARKED - built and correct, but not wired into a workflow yet. cat21-wallet's
-// .crx is BUILT from source (cat21-wallet-src: pnpm install + build the
-// extension), which only the cat21-wallet workflow does; that workflow lacks the
-// real ords (--with-ord-stock) this mock-free inscribe scan needs. Wiring it
-// means either the cat21-wallet build in the main mint workflow, or the ord
-// stack in the cat21-wallet workflow. Structurally the clone is done - it is the
-// Leather inscribe spec with the wallet swapped, since cat21-wallet signs
-// Leather-fork-generic (get-addresses-approve-button + confirm/sign/approve).
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
