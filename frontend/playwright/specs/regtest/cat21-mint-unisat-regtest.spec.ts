@@ -151,23 +151,16 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   await approveUnisatConnect(knownPagesBeforeReload, 8_000);
   await page.bringToFront();
 
-  // ─── 5. Pin the fee, select the funding coin, wait for Mint ────
+  // ─── 5. Pin the fee, wait for the Mint button ──────────────────
+  // The ~100k funding coin is over AUTO_SCAN_MAX_VALUE_SAT (50k), so the scanner
+  // leaves it `unscanned` - and the orchestrator's fundingRecommendation
+  // auto-spends a large unscanned UTXO (a deliberate-payment shape), which sets
+  // the selected funding source and enables the Mint button without a manual
+  // pick. (Proven: this spec passes mock-free against the real ords with no
+  // picker interaction.)
   const feeRateInput = page.locator('[data-testid="cat21-fee-rate"]');
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-
-  // The ~100k funding coin is over AUTO_SCAN_MAX_VALUE_SAT (50k), so the scanner
-  // skips it and it stays `unscanned` - which is NOT `clean`. fundingStatus is
-  // then `scanning`, and the Mint button won't auto-enable (hasFundingSource
-  // needs `auto` or an explicit pick). A real user with a large payment coin
-  // selects it; do the same via the picker's "Use this UTXO". (A safe-clean
-  // auto-fund is the mocked-xverse path; on a real chain a >50k coin is a
-  // deliberate-payment shape the scan leaves for the user to choose.)
-  const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
-  await expect(pickerSummary).toBeVisible({ timeout: 60_000 });
-  await pickerSummary.click();
-  await page.getByRole('button', { name: /^use this utxo$/i }).first().click();
-
   const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
   await shot(page, '01-ready-to-mint');
