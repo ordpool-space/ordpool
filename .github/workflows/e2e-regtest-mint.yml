@@ -59,6 +59,7 @@ on:
       - 'frontend/playwright/specs/regtest/cat21-mint-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-okx-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-alby-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
@@ -687,10 +688,11 @@ jobs:
             npx playwright test playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
-      # The ONE matrix cell with no browser extension: /inscribe via a
-      # watch-only (xpub) wallet. Signs the exported PSBT with the offline half
-      # of the SDK's makeWatchOnlyTestAccount and pastes it back - no .crx, no
-      # seeded vault, just the regtest stack + the in-page export/paste bridge.
+      # The two matrix cells with no browser extension: /inscribe AND /cat21-mint
+      # via a watch-only (xpub) wallet. Both sign the exported PSBT with the
+      # offline half of the SDK's makeWatchOnlyTestAccount and paste it back - no
+      # .crx, no seeded vault, just the regtest stack + the in-page export/paste
+      # bridge.
       - name: Run the page-driven inscribe regtest spec (watch-only xpub)
         if: always()
         working-directory: frontend
@@ -699,6 +701,16 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      - name: Run the page-driven cat21-mint regtest spec (watch-only xpub)
+        if: always()
+        working-directory: frontend
+        env:
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
