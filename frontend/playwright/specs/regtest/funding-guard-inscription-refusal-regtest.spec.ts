@@ -27,16 +27,21 @@ import {
  * lands in the unsafe bucket: the "asset found" danger badge shows and its row
  * offers a "Use anyway" override in place of "Use this UTXO". The guard is
  * informational by design (it warns and steers auto-funding away; it does NOT
- * hard-disable the Mint button, the user stays in charge of their funds), so
- * the proof is the detection + the unsafe classification, both of which read
- * the stock ord's inscriptions field.
+ * hard-disable the Mint button, the user stays in charge of their funds). The
+ * proof that isolates the INSCRIPTION half is the asset detail naming the real
+ * inscription by id, which is populated only from the stock ord's inscriptions
+ * field.
  *
- * THE MUTATION CHECK (run manually, not in CI): point `ordBaseUrls` at :8080
- * instead of :8081. cat21-ord has no `inscriptions` field, so the coin wrongly
- * classifies clean, the guard never fires, and this spec goes RED (the Mint
- * button enables, the warning never shows). A guard spec that passes under both
- * wirings is not reading the scan's verdict. Verified: at :8081 GREEN, at :8080
- * RED. No mock — a real inscribed coin, real ord reporting it, real refusal.
+ * THE MUTATION CHECK (run on a throwaway branch, not in CI): point `ordBaseUrls`
+ * at :8080 instead of :8081. cat21-ord has no `inscriptions` field, so the
+ * inscription becomes invisible and the "Inscription: <id>" line never renders,
+ * turning the `toContainText(inscriptionId)` assertion RED. The generic "asset
+ * found" badge and "Use anyway" override do NOT flip, because this coin also
+ * carries a rare sat and both ords run --index-sats, which is exactly why the
+ * inscription-id assertion, not the badge, is the load-bearing proof. A guard
+ * spec that passed under both wirings would not be reading the inscription
+ * verdict. Verified: at :8081 GREEN, at :8080 RED on the inscription-id line.
+ * No mock: a real inscribed coin, real stock ord reporting it, real detection.
  *
  * CI-only (unverified Xverse .crx). See `playwright.regtest.config.ts`.
  */
@@ -212,30 +217,39 @@ test('funding-safety guard refuses an inscribed coin as a fee (real ord, no mock
     await shot(page, '02-picker-open');
   }
 
-  // 5a. The "asset found" badge appears — the inscription was DETECTED via
-  // the real stock ord. Under the :8080 mutation this badge never renders.
+  // Necessary but NOT sufficient: the coin is flagged unsafe (the "asset found"
+  // danger badge, the row offers "Use anyway" not "Use this UTXO"). These fire
+  // for ANY asset and persist at :8080, because this 2M coin also carries a rare
+  // sat and both ords run --index-sats. They show the guard flags the coin; they
+  // do not, alone, prove the inscription half. The inscription-specific proof is
+  // the detail assertion further down.
   const assetBadge = page.locator('.badge.bg-danger', { hasText: /asset found/i }).first();
   await expect(assetBadge).toBeVisible({ timeout: 60_000 });
   await shot(page, '03-asset-found');
 
-  // 5b. The flagged row is OUR inscribed outpoint, and its action is the
-  // danger-styled "Use anyway" override — not the plain "Use this UTXO".
-  // Under the :8080 mutation the coin classifies clean and shows "Use this
-  // UTXO", so this assertion flips.
   const assetRow = page.locator('.utxo-row-assets').filter({ hasText: inscribedOutpoint }).first();
   await expect(assetRow).toBeVisible();
   await expect(assetRow.getByRole('button', { name: /use anyway/i })).toBeVisible();
   await expect(assetRow.getByRole('button', { name: /^use this utxo$/i })).toHaveCount(0);
 
-  // The guard is informational by design, not a hard block: it flags the
-  // asset-bearing coin (the danger badge + a "Use anyway" override in place of
-  // "Use this UTXO") and steers auto-funding away from it, but it does NOT
-  // disable the Mint button — the user stays in charge of their own funds and
-  // may consciously override. So the proof of the guard is 5a + 5b above: the
-  // real inscription was detected (badge) and classified unsafe (Use anyway),
-  // both of which depend on the stock ord's inscriptions field and both of
-  // which flip under the :8080 mutation. We deliberately do NOT click "Use
-  // anyway" here — the point is that reaching the chain with this coin requires
-  // that conscious override, which the warning forces.
-  await shot(page, '04-asset-flagged');
+  // THE inscription-specific proof, and the only assertion the mutation check
+  // turns red. The asset detail names the REAL inscription by id (the template
+  // renders "Inscription: <id>" from scan.content.inscriptionIds, which is
+  // populated ONLY from the stock ord's inscriptions field). Under the :8080
+  // mutation (ordBaseUrls -> cat21-ord, which has no inscriptions field)
+  // inscriptionIds is empty, the "Inscription" line never renders, and this
+  // flips RED. That isolates the inscription guard from the coin's incidental
+  // rare sat: both ords run --index-sats, so the generic "asset found" badge
+  // and the "Use anyway" override above persist even at :8080 and cannot, on
+  // their own, prove the inscription half of the guard.
+  const detail = assetRow.locator('.utxo-assets-detail');
+  await expect(detail).toContainText('Inscription');
+  await expect(detail).toContainText(inscribed.inscriptionId);
+  await shot(page, '04-inscription-named');
+
+  // The guard is informational by design, not a hard block: it flags the coin
+  // and steers auto-funding away, but leaves the Mint button enabled, so the
+  // user stays in charge and may consciously override with "Use anyway". The
+  // proof is the detection + naming of the inscription above, not a disabled
+  // button.
 });
