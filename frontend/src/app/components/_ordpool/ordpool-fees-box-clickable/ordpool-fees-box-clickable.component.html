@@ -29,9 +29,9 @@
     <div class="item">
       <div class="card-text">
         <div class="fee-text">
-          <a href="javascript:void(0)" (click)="feeClicked.emit(recommendedFees.hourFee)">
+          <button type="button" (click)="feeClicked.emit(recommendedFees.hourFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
             <app-fee-rate [fee]="recommendedFees.hourFee"  rounding="1.0-2"></app-fee-rate>
-          </a>
+          </button>
         </div>
         <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.hourFee * 140" ></app-fiat></span>
       </div>
@@ -39,9 +39,9 @@
     <div class="item">
       <div class="card-text">
         <div class="fee-text">
-          <a href="javascript:void(0)" (click)="feeClicked.emit(recommendedFees.halfHourFee)">
+          <button type="button" (click)="feeClicked.emit(recommendedFees.halfHourFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
             <app-fee-rate [fee]="recommendedFees.halfHourFee"  rounding="1.0-2"></app-fee-rate>
-          </a>
+          </button>
         </div>
         <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.halfHourFee * 140" ></app-fiat></span>
       </div>
@@ -49,9 +49,9 @@
     <div class="item">
       <div class="card-text">
         <div class="fee-text">
-          <a href="javascript:void(0)" (click)="feeClicked.emit(recommendedFees.fastestFee)">
+          <button type="button" (click)="feeClicked.emit(recommendedFees.fastestFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
             <app-fee-rate [fee]="recommendedFees.fastestFee"  rounding="1.0-2"></app-fee-rate>
-          </a>
+          </button>
         </div>
         <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.fastestFee * 140" ></app-fiat></span>
       </div>

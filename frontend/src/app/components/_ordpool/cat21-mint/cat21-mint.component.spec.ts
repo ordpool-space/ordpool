@@ -106,13 +106,16 @@ jest.mock('ordpool-sdk', () => {
     calculateRecommendedFundingSats: (rate: number) => rate * 1000,
     runeNamesFromContent: (content: { runes: object | null }) =>
       content.runes ? Object.keys(content.runes) : [],
+    // Rune-etching lookup: defaults to 'unavailable' (no link, deterministic)
+    // so panel-render tests stay stable; F3/F4 spy on this to assert the
+    // resolver kicks off from the pipe and the getter is a pure read.
+    lookupRuneEtching: jest.fn(async () => ({ kind: 'unavailable' as const })),
     // Rune label + etching-link deps. formatRunePile's real ord-exact behaviour
     // is unit-tested in rune-label.helper.spec.ts against the real SDK; here it
-    // only needs to not crash a render. resolveRuneEtchingTxid defaults to null
-    // (no link) so panel-render tests stay deterministic.
+    // only needs to not crash a render. lookupRuneEtching defaults to unavailable
+    // (no link, deterministic) so panel-render tests stay stable.
     formatRunePile: (pile: { amount: unknown; symbol?: string | null }) =>
       `${pile.amount} ${pile.symbol ?? '¤'}`,
-    resolveRuneEtchingTxid: jest.fn(async () => null),
     // Four-character grouping for the "Fund <addr>" verification instruction.
     addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
     // wallet-ux-round3 single-address custody API. Faithful re-implementations
@@ -148,7 +151,7 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, resolveRuneEtchingTxid, UtxoContentScanner, WalletService, singleAddressCaveat, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, lookupRuneEtching, UtxoContentScanner, WalletService, singleAddressCaveat, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { Cat21MintComponent, ViableSimulation } from './cat21-mint.component';
@@ -612,7 +615,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('F3: rune-etching resolution kicks off from the row pipe on a scanned-with-assets row', () => {
-      const mockResolve = resolveRuneEtchingTxid as jest.Mock;
+      const mockResolve = lookupRuneEtching as jest.Mock;
       mockResolve.mockClear();
       const u = utxo({ txid: 'd'.repeat(64), vout: 0, value: 90_000 });
       pushRows([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'d'.repeat(64)}:0`, inscriptionIds: [], runes: { ANARCHY: { amount: 1, divisibility: 0, symbol: 'X' } }, catIds: [], catSat: null, rareSat: null } } }]);
@@ -620,7 +623,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('F4: runeTxEtching is a pure read — repeated calls trigger NO extra lookups (guards the per-CD refetch bug)', async () => {
-      const mockResolve = resolveRuneEtchingTxid as jest.Mock;
+      const mockResolve = lookupRuneEtching as jest.Mock;
       const u = utxo({ txid: 'e'.repeat(64), vout: 0, value: 90_000 });
       // A rune that resolves to null (no symbol / reserved-style) is the storm
       // case: null is never cached, so a per-CD getter would re-fire forever.

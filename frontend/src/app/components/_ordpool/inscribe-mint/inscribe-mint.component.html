@@ -82,7 +82,7 @@
           Ord renders the target's content, so this inscription costs only a
           few sats.
         </div>
-        <div class="feedback-error p-1 small mt-1" *ngIf="delegateIdError" data-testid="inscribe-delegate-error">
+        <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="delegateIdError" data-testid="inscribe-delegate-error">
           {{ delegateIdError }}
         </div>
 
@@ -95,7 +95,7 @@
         </div>
       </div>
 
-      <div class="feedback-error p-2 mt-2" *ngIf="fileError" data-testid="inscribe-file-error">
+      <div class="feedback-error p-2 mt-2" role="alert" *ngIf="fileError" data-testid="inscribe-file-error">
         {{ fileError }}
       </div>
       </ng-container><!-- /!batchMode -->
@@ -112,7 +112,7 @@
           <div class="text-muted small mt-2">Each file becomes its own inscription in one transaction. Max {{ 350000 / 1000 }} KB each.</div>
         </label>
 
-        <div class="feedback-error p-2 mt-2" *ngIf="batchError" data-testid="inscribe-batch-error">{{ batchError }}</div>
+        <div class="feedback-error p-2 mt-2" role="alert" *ngIf="batchError" data-testid="inscribe-batch-error">{{ batchError }}</div>
 
         <div *ngIf="batchFiles.length" class="mt-3 text-start" data-testid="inscribe-batch-list">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -140,7 +140,7 @@
                 <input type="text" class="form-control form-control-sm" placeholder="destination address (optional, defaults to your ordinals address)" spellcheck="false"
                        [attr.data-testid]="'inscribe-batch-destination-' + i"
                        [value]="f.destination" (input)="setBatchEntryDestination(i, $any($event.target).value)">
-                <div class="feedback-error p-1 small mt-1" *ngIf="batchEntryDestinationInvalid(f.destination)"
+                <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="batchEntryDestinationInvalid(f.destination)"
                      [attr.data-testid]="'inscribe-batch-destination-error-' + i">
                   That does not look like a bitcoin address. Leave it empty to send this inscription to your ordinals address.
                 </div>
@@ -170,7 +170,7 @@
                 <button type="button" class="btn btn-outline-secondary" title="Remove parent"
                         [attr.data-testid]="'inscribe-batch-parent-remove-' + i" (click)="removeBatchParentRow(i)">&#10005;</button>
               </div>
-              <div class="feedback-error p-1 small mt-1"
+              <div class="feedback-error p-1 small mt-1" role="alert"
                    *ngIf="batchParentIdInvalid(row.id)"
                    [attr.data-testid]="'inscribe-batch-parent-invalid-' + i">
                 Enter a valid inscription id: 64 hex characters, then &ldquo;i&rdquo;, then an index.
@@ -229,7 +229,7 @@
           <button type="button" class="btn btn-sm btn-outline-secondary"
                   data-testid="inscribe-trait-add" (click)="addTraitRow()">+ Add trait</button>
 
-          <div class="feedback-error p-1 small mt-1" *ngIf="traitDuplicateName as dup"
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="traitDuplicateName as dup"
                data-testid="inscribe-trait-dup-error">
             Duplicate trait name &ldquo;{{ dup }}&rdquo;. ord rejects duplicate names and would
             drop all properties, so remove or rename one.
@@ -261,11 +261,11 @@
                       [attr.data-testid]="'inscribe-gallery-remove-' + i"
                       (click)="removeGalleryRow(i)">&#10005;</button>
             </div>
-            <div class="feedback-error p-1 small mt-1" *ngIf="galleryItemStatus(row.id) === 'invalid'"
+            <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="galleryItemStatus(row.id) === 'invalid'"
                  [attr.data-testid]="'inscribe-gallery-invalid-' + i">
               Enter a valid inscription id: 64 hex characters, then &ldquo;i&rdquo;, then an index (e.g. abcd&hellip;i0).
             </div>
-            <div class="feedback-error p-1 small mt-1" *ngIf="galleryItemStatus(row.id) === 'missing'"
+            <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="galleryItemStatus(row.id) === 'missing'"
                  [attr.data-testid]="'inscribe-gallery-missing-' + i">
               No inscription with this id exists. ord would refuse to inscribe a
               gallery that points at it.
@@ -357,7 +357,7 @@
                       (input)="onMetadataJsonChange(jsonArea.value)"></textarea>
           </div>
 
-          <div class="feedback-error p-1 small mt-1" *ngIf="metadataError" data-testid="inscribe-metadata-error">
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="metadataError" data-testid="inscribe-metadata-error">
             {{ metadataError }}
           </div>
           <div class="text-muted small mt-1" *ngIf="metadataModeHint" data-testid="inscribe-metadata-hint">
@@ -389,7 +389,7 @@
                    [formControl]="postageControl">
             <span class="input-group-text">sats</span>
           </div>
-          <div class="feedback-error p-1 small mt-1" *ngIf="postageControl.invalid"
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="postageControl.invalid"
                data-testid="inscribe-postage-error">
             Postage must be between 546 and 1,000,000 sats.
           </div>
@@ -407,7 +407,7 @@
                    [formControl]="commitFeeRateControl" placeholder="same as fee rate">
             <span class="input-group-text">sat/vB</span>
           </div>
-          <div class="feedback-error p-1 small mt-1" *ngIf="commitFeeRateControl.invalid"
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="commitFeeRateControl.invalid"
                data-testid="inscribe-commit-fee-error">
             Commit fee rate must be between 0.1 and 1000 sat/vB.
           </div>
@@ -429,7 +429,7 @@
 
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
-        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+        <button type="button" class="btn btn-link p-0 align-baseline" (click)="walletService.requestWalletConnect()">connect your wallet</button>
         to inscribe.
       </p>
 
@@ -452,7 +452,7 @@
                   (ngModelChange)="onFeeRateInput($event)">
                 <span class="input-group-text">sat/vB</span>
               </div>
-              <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+              <div class="feedback-error p-1" role="alert" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
                 <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB. Anything lower won't relay on a default-config Bitcoin Core node.</div>
               </div>
@@ -468,7 +468,7 @@
             in total: miner fees plus the {{ postageSats }} sats your inscription lives on.
           </div>
 
-          <div class="alert alert-warning p-2 mt-4" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
             We found funds, but every coin big enough to cover the fee also carries an asset
             (an inscription, rune, rare sat, or cat). Inscribing with one would send that asset to the
             miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
@@ -487,7 +487,7 @@
           <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
             <details>
               <summary>Choose a different funding source</summary>
-              <p class="alert alert-warning mt-2 mb-2">
+              <p class="alert alert-warning mt-2 mb-2" role="alert">
                 <strong>Sources flagged <em>asset found</em> carry an inscription,
                 rune, rare sat, or cat.</strong> Inscribing with one sends that asset
                 to the miner as fee.
@@ -518,8 +518,8 @@
                   <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
                 </span>
 
-                <a *ngIf="row.bucket === 'unscanned'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(row)">Scan</a>
-                <a *ngIf="row.bucket === 'failed'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(row)">Retry scan</a>
+                <button type="button" *ngIf="row.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Scan</button>
+                <button type="button" *ngIf="row.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Retry scan</button>
 
                 <div *ngIf="row.bucket === 'assets' && row.scan.kind === 'scanned-with-assets'" class="mt-2 ps-2 pe-2 pt-1 pb-1 utxo-assets-detail">
                   <strong>Assets on this UTXO:</strong><br>
@@ -604,7 +604,7 @@
                 {{ rareSatLoading ? 'Scanning…' : (rareSatRows ? 'Scan again' : 'Scan my wallet for rare sats') }}
               </button>
 
-              <div class="feedback-error p-1 small mt-2" *ngIf="rareSatError"
+              <div class="feedback-error p-1 small mt-2" role="alert" *ngIf="rareSatError"
                    data-testid="inscribe-raresat-error">{{ rareSatError }}</div>
 
               <!-- Candidates -->
@@ -626,7 +626,7 @@
               </div>
 
               <!-- Block reason for a selected-but-unbuildable sat -->
-              <div class="feedback-error p-1 small mt-2" *ngIf="rareSatBlocked"
+              <div class="feedback-error p-1 small mt-2" role="alert" *ngIf="rareSatBlocked"
                    data-testid="inscribe-raresat-blocked">{{ rareSatBlockReason }}</div>
 
               <!-- Padding: the sat sits below its coin's dust floor, so the
@@ -668,9 +668,10 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
+              aria-live="polite"
               [disabled]="mintDisabled"
               class="btn btn-primary mt-4 mb-4 text-white">
-              <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
+              <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate!' : '📎 Inscribe my file!' }}</ng-container>
               <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> {{ signingMessage() }}</ng-container>
             </button>
 
@@ -678,13 +679,13 @@
               *ngIf="mintSuccess()" (click)="inscribeAnother()"
               class="btn btn-primary mt-4 mb-4 text-white">📎 Inscribe another file</button>
 
-            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
+            <button type="submit" disabled aria-live="polite" class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
               <i class="spinner-border spinner-border-sm text-light"></i> Scanning your payments address
             </button>
           </div>
         </form>
 
-        <div class="alert alert-success" *ngIf="mintSuccess() as success" data-testid="inscribe-success">
+        <div class="alert alert-success" aria-live="polite" *ngIf="mintSuccess() as success" data-testid="inscribe-success">
           ✅&nbsp; Your inscription has been broadcast to the mempool.<br>
           <div class="mt-2">
             Commit tx:
@@ -712,9 +713,9 @@
           </div>
         </div>
 
-        <div class="alert alert-danger" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
-        <div class="alert alert-danger" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
-        <div class="alert alert-danger" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>
+        <div class="alert alert-danger" role="alert" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
+        <div class="alert alert-danger" role="alert" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
+        <div class="alert alert-danger" role="alert" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>
 
       </ng-container>
     </ng-container>

@@ -155,7 +155,7 @@ export class Cat21MintComponent implements OnInit {
         value: r.paymentOutput.value,
       })));
 
-      // Kick off rune-etching resolution here — on a scan/simulation change,
+      // Kick off rune-etching resolution here, on a scan/simulation change,
       // not from the template. Doing it in the render getter re-fires the
       // lookup every change-detection pass for a rune that resolves to null
       // (a reserved rune's all-zero etching, e.g. UNCOMMON•GOODS, which never
@@ -428,6 +428,11 @@ export class Cat21MintComponent implements OnInit {
    */
   txidFromInscriptionId(inscriptionId: string): string {
     return inscriptionId.replace(/i\d+$/, '');
+  }
+
+  /** The success-panel "mint another" action: reload for a fresh mint. */
+  mintAnother(): void {
+    location.reload();
   }
 
   /** Hover-tooltip text for each bucket badge. */

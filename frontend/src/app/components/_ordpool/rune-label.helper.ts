@@ -34,14 +34,13 @@ export function runeLabel(name: string, value: unknown): string {
     symbol?: unknown;
   };
 
-  // Integer-valued numbers go through BigInt. This conversion is REQUIRED, not
-  // a nicety, at the pinned SDK (df74d03): formatRunePile's toBaseUnits takes
-  // string | bigint and THROWS on a number (`amount.trim` on a number), so a
-  // bare number from ord's /output/ JSON must become a bigint before the call.
-  // (The widen to accept numbers landed later, in 952345c.) Do not "simplify"
-  // this away without bumping the SDK — the rune-amount tests catch it if you do.
-  // BigInt over String because String(1e21) is "1e+21", which toBaseUnits
-  // rejects as not-base-units, silently dropping the amount from the row.
+  // Integer-valued numbers go through BigInt (the family convention for the
+  // rune amount, per FAMILY_UX.md). BigInt, never String: String(1e21) is
+  // "1e+21", which the SDK's toBaseUnits rejects as not-base-units, silently
+  // dropping the amount from the row. The rune-amount tests pin this: a wrong
+  // coercion changes the rendered figure. (ord's /output/ sends the amount as a
+  // JSON number; the pinned SDK's widened formatRunePile accepts a number too,
+  // but coercing to bigint keeps all three sites identical and precision-safe.)
   const units =
     typeof amount === 'number' && Number.isInteger(amount) && amount >= 0
       ? BigInt(amount)
