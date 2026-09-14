@@ -47,6 +47,8 @@ on:
       - 'frontend/src/app/components/_ordpool/cat21-mint/**'
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
+      # The watch-only (xpub) inscribe spec drives the PSBT export/paste dialog.
+      - 'frontend/src/app/components/_ordpool/psbt-export-prompt/**'
       # The page shell every one of these specs boots. A change here (e.g.
       # adding the family-footer strip) alters the rendered page without
       # touching any component dir above, so the shell must trigger the lane
@@ -64,6 +66,7 @@ on:
       - 'frontend/playwright/specs/regtest/inscribe-mint-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
@@ -682,6 +685,20 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # The ONE matrix cell with no browser extension: /inscribe via a
+      # watch-only (xpub) wallet. Signs the exported PSBT with the offline half
+      # of the SDK's makeWatchOnlyTestAccount and pastes it back - no .crx, no
+      # seeded vault, just the regtest stack + the in-page export/paste bridge.
+      - name: Run the page-driven inscribe regtest spec (watch-only xpub)
+        if: always()
+        working-directory: frontend
+        env:
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts
