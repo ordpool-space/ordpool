@@ -17,6 +17,7 @@ import {
   waitForApprovalPopup,
   installWizzOfflineRoutes,
   onboardWizz,
+  recordWalletBackendRequests,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -46,6 +47,10 @@ const EXT_PATH = process.env.WIZZ_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions
 const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
 
 let context: BrowserContext;
+// DIAGNOSTIC: records the wizz popup's backend calls so the WORKING inscribe
+// flow can be diffed against the hanging cat21-mint flow (installed in the
+// sibling cat21-mint-wizz spec). This is the baseline half of the pair.
+let rec: ReturnType<typeof recordWalletBackendRequests>;
 let extensionId: string;
 
 test.describe.configure({ mode: 'serial' });
@@ -141,6 +146,7 @@ test.beforeAll(async () => {
   // same canonical helper the SDK + cubes wizz specs use. Without it the
   // popup shows "Failed to load balance" and Sign stays disabled.
   await installWizzOfflineRoutes(context);
+  rec = recordWalletBackendRequests(context);
 
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
@@ -218,8 +224,19 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
   await shot(page, '04-ready-to-inscribe');
 
   const knownPagesBeforeSign = new Set(context.pages());
+  // DIAGNOSTIC: snapshot before the click so the dump isolates the
+  // connect+inscribe+sign window - the baseline to diff the cat21-mint window
+  // against (by method + URL path, and by same-call status/body). finally keeps
+  // symmetry with the mint spec.
+  const beforeSignCount = rec.requests.length;
   await inscribeButton.click();
-  await approveWizzSign(knownPagesBeforeSign);
+  try {
+    await approveWizzSign(knownPagesBeforeSign);
+  } finally {
+    const window = rec.requests.slice(beforeSignCount);
+    console.log('WIZZ-REC-INSCRIBE-HOSTS', JSON.stringify(rec.hosts()));
+    console.log('WIZZ-REC-INSCRIBE-WINDOW', JSON.stringify(window, null, 2));
+  }
   await page.bringToFront();
 
   const successPanel = page.locator('[data-testid="inscribe-success"]');

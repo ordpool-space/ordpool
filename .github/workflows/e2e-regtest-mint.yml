@@ -64,6 +64,7 @@ on:
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-wizz-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts'
@@ -712,6 +713,29 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts \
             --config=playwright.regtest.config.ts
+
+      # DIAGNOSTIC (temporary): the parked cat21-mint-wizz cell hangs at the Wizz
+      # Sign popup because installWizzOfflineRoutes leaves wallet-api.unisat.io
+      # /tx/decode2 live, and the mint's 546-to-ordinals postage shape appears to
+      # trigger a decode the stub can't answer. This step runs the parked spec to
+      # CAPTURE the wizz backend calls (recordWalletBackendRequests dumps the
+      # sign window in a finally, so the fatal call is logged even as Sign hangs);
+      # diffed against the inscribe-wizz baseline the sibling step now logs. It is
+      # continue-on-error (the sign is expected to hang until the SDK widens the
+      # stub) and runs LAST so it can't perturb the passing wizz inscribe step
+      # (running two wizz specs together previously flaked inscribe-wizz). Remove
+      # once the stub route is written and the cell is un-parked for real.
+      - name: DIAGNOSTIC - capture wizz cat21-mint backend calls
+        if: always()
+        continue-on-error: true
+        working-directory: frontend
+        env:
+          WIZZ_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/wizz
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-wizz-regtest.spec.ts \
+            --config=playwright.regtest.config.ts --retries=0
 
       - name: Upload Playwright artifacts
         if: always()

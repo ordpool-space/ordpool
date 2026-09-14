@@ -21,6 +21,7 @@ import {
   waitForApprovalPopup,
   installWizzOfflineRoutes,
   onboardWizz,
+  recordWalletBackendRequests,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -48,6 +49,11 @@ const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
+// DIAGNOSTIC: records the wizz popup's own backend calls (localhost/extension
+// filtered) so the mint flow can be diffed against the working inscribe flow.
+// Attached in beforeAll; dumped in a finally around the sign so the fatal call
+// is captured even when Sign hangs.
+let rec: ReturnType<typeof recordWalletBackendRequests>;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -139,6 +145,7 @@ test.beforeAll(async () => {
   // same canonical helper the SDK + cubes wizz specs use. Without it the
   // popup shows "Failed to load balance" and Sign stays disabled.
   await installWizzOfflineRoutes(context);
+  rec = recordWalletBackendRequests(context);
 
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
@@ -217,8 +224,19 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
 
   // ─── 6. Click Mint, approve the Wizz sign popup ────────────────
   const knownPagesBeforeSign = new Set(context.pages());
+  // DIAGNOSTIC: snapshot the request count before the mint click so the dump
+  // isolates the connect+mint+sign window from onboarding noise. The dump runs
+  // in a finally so the fatal call is captured even if approveWizzSign hangs
+  // (the recorder is a lifecycle-free accumulating array).
+  const beforeMintCount = rec.requests.length;
   await mintBtn.click();
-  await approveWizzSign(knownPagesBeforeSign);
+  try {
+    await approveWizzSign(knownPagesBeforeSign);
+  } finally {
+    const window = rec.requests.slice(beforeMintCount);
+    console.log('WIZZ-REC-MINT-HOSTS', JSON.stringify(rec.hosts()));
+    console.log('WIZZ-REC-MINT-WINDOW', JSON.stringify(window, null, 2));
+  }
   await page.bringToFront();
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
