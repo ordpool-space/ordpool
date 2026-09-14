@@ -154,7 +154,12 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + watch-only
   await page.getByTestId('xpub-connect-scan').click();
   const scriptType = page.getByTestId('xpub-script-type');
   await expect(scriptType).toBeVisible({ timeout: 20_000 });
-  await scriptType.selectOption('p2tr');
+  // The options use Angular's [ngValue]="'p2tr'" binding, which sets an OPAQUE
+  // DOM value (e.g. "1: p2tr", an internal id-prefixed string), so a value match
+  // (selectOption('p2tr')) never finds it. A native <select> option can't carry
+  // a data-testid, so select by position: index 0 is the disabled placeholder,
+  // index 1 is Taproot (deliberately first as "recommended for cats").
+  await scriptType.selectOption({ index: 1 });
   await page.getByTestId('xpub-connect-scan').click();
   await shot(page, '03-scanned');
 
