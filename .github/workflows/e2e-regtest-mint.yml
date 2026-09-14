@@ -54,6 +54,7 @@ on:
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
@@ -586,6 +587,18 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # cat21-mint via Leather (second running cat21-mint wallet).
+      - name: Run the page-driven cat21-mint regtest spec (Leather)
+        if: always()
+        working-directory: frontend
+        env:
+          LEATHER_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/leather
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-leather-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       # cat21-mint via Wizz is PARKED (spec file kept, not run). Wizz's sign
