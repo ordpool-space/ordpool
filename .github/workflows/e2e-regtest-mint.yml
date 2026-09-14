@@ -53,6 +53,7 @@ on:
       # too.
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
@@ -78,6 +79,16 @@ jobs:
     name: Bring up stack + smoke-test backend
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # regtest-bootstrap.sh is DROPPED: consumer-environment-bootstrap.sh is a
+      # strict superset (same hardcoded funder identity, same 101-block funding,
+      # and it is the WIF source the Xverse onboarding + every rpc() already
+      # rely on). Running both used to work only because they merged into one
+      # compose project by accident; once the project is derived from E2E_PREFIX
+      # they collide on host :18443. With regtest-bootstrap gone the only
+      # bitcoind is the consumer-environment's, so every rpc() has to name it -
+      # the SDK default ordpool-e2e-bitcoind no longer exists in this job.
+      REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
     steps:
       - name: Checkout ordpool
         uses: actions/checkout@v4
@@ -329,13 +340,12 @@ jobs:
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh alby
 
-      - name: Bootstrap regtest funds (101 blocks, dump WIF)
-        working-directory: sdk
-        run: |
-          chmod +x e2e/regtest-bootstrap.sh
-          ./e2e/regtest-bootstrap.sh > regtest-bootstrap.json
-          cat regtest-bootstrap.json
-
+      # regtest-bootstrap.sh removed: consumer-environment-bootstrap.sh (run
+      # earlier) is a strict superset - identical hardcoded funder identity,
+      # identical 101-block funding, and its descriptor is what the Xverse
+      # onboarding + every rpc() read. Running both used to merge into one
+      # bitcoind by accident; with the compose project derived from E2E_PREFIX
+      # they collide on host :18443. One bitcoind now: the consumer-environment's.
       - name: Run SDK's Xverse onboarding (produces seeded user-data-dir)
         working-directory: sdk
         run: |
@@ -511,15 +521,27 @@ jobs:
             npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
-      # NOTE: the funding-guard inscription-refusal spec
-      # (funding-guard-inscription-refusal-regtest.spec.ts) is PARKED, not run.
-      # It needs ordpool-sdk c790db7 (ord-stock internal :8080 fix for
-      # seedInscribedCoin), but c790db7 also derives the compose project from
-      # E2E_PREFIX, which stops this workflow's two bootstraps
-      # (consumer-environment + regtest-bootstrap) from sharing one bitcoind and
-      # makes them collide on host :18443. Re-enable once this workflow runs a
-      # single bitcoind (consolidated bootstrap) - the spec file is complete and
-      # the mutation check (:8080 -> RED) is documented in its header.
+      # THE funding-safety guard proof. The only funding candidate is a REAL
+      # inscribed coin (seedInscribedCoin, 2M sat so it's a covering candidate).
+      # A working guard, reading the stock ord (:8081, real inscriptions field),
+      # refuses it: the "asset found" warning shows and the Mint button never
+      # auto-enables. seedInscribedCoin docker-execs the ord wallet, so it needs
+      # the consumer-environment ord container names (bitcoind is inherited from
+      # the job env). Mutation-checked out of band: at ordBaseUrls=:8080
+      # (cat21-ord, no inscriptions field) this spec goes RED.
+      - name: Run the funding-guard inscription-refusal spec
+        if: always()
+        working-directory: frontend
+        env:
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
 
       # Same stack, second spec: drive the /inscribe page through a full
       # single-file inscription (commit + reveal). `if: always()` so a
