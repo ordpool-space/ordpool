@@ -328,7 +328,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // run 27481577440 showed the "Create new wallet" onboarding
   // screen on the third page). Keeping the picker proof inside the
   // already-connected test 1 avoids that whole class of flake.
-  const tiles = page.locator('.fee-estimation-container .item a');
+  const tiles = page.getByTestId('fee-tile');
   await expect(tiles).toHaveCount(4, { timeout: 30_000 });
   // Order on screen: 0=economy, 1=hour, 2=halfHour, 3=fastest.
   // The economy `<a>` ships with its click handler commented out by
@@ -349,7 +349,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // the broadcast, so the form has to refuse the input client-side.
   // We type 0 and 0.05, assert the Mint button stays disabled, then
   // reset to 1 for the rest of the round-trip.
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   await feeRateInput.fill('0');
   await feeRateInput.press('Tab');
   await expect(mintButton).toBeDisabled({ timeout: 5_000 });
@@ -656,7 +656,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   // what I'm doing, mint anyway" actually reaches the chain.
   const overrideBtn = assetRow.getByRole('button', { name: /use anyway/i });
   await overrideBtn.click();
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 30_000 });
 
   const knownBeforeBurnSign = new Set(context.pages());
@@ -756,7 +756,7 @@ test('sign-popup cancel keeps state coherent', async () => {
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
 
   // Wait for picker + mint button enabled.
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   const feeRateInput = page.locator(
     '[data-testid="cat21-fee-rate"]',
   ).first();
@@ -827,7 +827,7 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
   });
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
 
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   const feeRateInput = page.locator(
     '[data-testid="cat21-fee-rate"]',
   ).first();
@@ -969,7 +969,7 @@ async function ordpoolMintAtRate(opts: {
 
     // ─── Wait for the fee picker tiles to render, sanity-check that
     // the WS frame actually carried the expected scenario values. ─
-    const tiles = page.locator('.fee-estimation-container .item a');
+    const tiles = page.getByTestId('fee-tile');
     await expect(tiles).toHaveCount(4, { timeout: 30_000 });
     if (opts.mockFeesAsHigh) {
       // tile index 3 is the fastest tier — should show 100 from the
@@ -985,7 +985,7 @@ async function ordpoolMintAtRate(opts: {
     await feeRateInput.press('Tab');
     await shot(page, `mr-${opts.scenarioLabel}-02-rate-typed`);
 
-    const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+    const mintButton = page.getByTestId('mint-cat-button');
     await expect(mintButton).toBeEnabled({ timeout: 60_000 });
 
     // ─── Click Mint, approve Xverse sign popup ───────────────────

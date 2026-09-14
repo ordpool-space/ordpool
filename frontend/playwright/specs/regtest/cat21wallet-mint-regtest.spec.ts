@@ -287,7 +287,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   await expect(mintButton).toBeEnabled({ timeout: 60_000 });
   await shot(page, '06-ready-to-mint');
 
@@ -401,7 +401,7 @@ async function cat21walletMintAtRate(opts: {
 
     // Sanity-check the picker if we mocked fees.
     if (opts.mockFeesAsHigh) {
-      const tiles = page.locator('.fee-estimation-container .item a');
+      const tiles = page.getByTestId('fee-tile');
       await expect(tiles).toHaveCount(4, { timeout: 30_000 });
       await expect(tiles.nth(3)).toContainText('100', { timeout: 10_000 });
     }
@@ -413,7 +413,7 @@ async function cat21walletMintAtRate(opts: {
     await feeRateInput.press('Tab');
     await shot(page, `mr-${opts.scenarioLabel}-02-rate-typed`);
 
-    const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+    const mintBtn = page.getByTestId('mint-cat-button');
     await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
 
     const knownBeforeSign = new Set(context.pages());
@@ -560,7 +560,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   const assetRow = page.locator('.utxo-row-assets').filter({ hasText: catOutpoint }).first();
   const overrideBtn = assetRow.getByRole('button', { name: /use anyway/i });
   await overrideBtn.click();
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 30_000 });
 
   const knownSign = new Set(context.pages());
@@ -642,7 +642,7 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
 
   const knownSign = new Set(context.pages());
@@ -712,7 +712,7 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
 
   const knownSign = new Set(context.pages());

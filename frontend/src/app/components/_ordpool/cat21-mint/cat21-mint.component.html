@@ -261,7 +261,7 @@
 
           <div class="text-center mt-4">
 
-            <button type="submit" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !hasFundingSource()"
+            <button type="submit" data-testid="mint-cat-button" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !hasFundingSource()"
               aria-live="polite" class="btn btn-primary mt-4 mb-4 text-white">
 
               <ng-container  *ngIf="!mintCat21Loading()">

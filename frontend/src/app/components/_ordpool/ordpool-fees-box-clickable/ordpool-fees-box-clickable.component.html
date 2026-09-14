@@ -18,7 +18,7 @@
                "0.55 sat/vB" instead of rounding to "0 sat/vB" at low
                mainnet fees. -->
           <!-- <a href="javascript:void(0)" (click)="feeClicked.emit(recommendedFees.economyFee)"> -->
-          <a  >
+          <a data-testid="fee-tile">
             <app-fee-rate [fee]="recommendedFees.economyFee"  rounding="1.0-2"></app-fee-rate>
           </a>
         </div>
@@ -29,7 +29,7 @@
     <div class="item">
       <div class="card-text">
         <div class="fee-text">
-          <button type="button" (click)="feeClicked.emit(recommendedFees.hourFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
+          <button type="button" data-testid="fee-tile" (click)="feeClicked.emit(recommendedFees.hourFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
             <app-fee-rate [fee]="recommendedFees.hourFee"  rounding="1.0-2"></app-fee-rate>
           </button>
         </div>
@@ -39,7 +39,7 @@
     <div class="item">
       <div class="card-text">
         <div class="fee-text">
-          <button type="button" (click)="feeClicked.emit(recommendedFees.halfHourFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
+          <button type="button" data-testid="fee-tile" (click)="feeClicked.emit(recommendedFees.halfHourFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
             <app-fee-rate [fee]="recommendedFees.halfHourFee"  rounding="1.0-2"></app-fee-rate>
           </button>
         </div>
@@ -49,7 +49,7 @@
     <div class="item">
       <div class="card-text">
         <div class="fee-text">
-          <button type="button" (click)="feeClicked.emit(recommendedFees.fastestFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
+          <button type="button" data-testid="fee-tile" (click)="feeClicked.emit(recommendedFees.fastestFee)" style="border:0;background:none;padding:0;text-align:inherit;font:inherit;color:inherit;width:100%">
             <app-fee-rate [fee]="recommendedFees.fastestFee"  rounding="1.0-2"></app-fee-rate>
           </button>
         </div>
