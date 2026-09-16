@@ -297,4 +297,52 @@ describe('WalletConnectComponent picker: platform + install-state detection', ()
     expect(lastCapability()).toBe(WalletCapability.Cat21Mint);
   });
 
+  // The component's OTHER own logic (beyond delegation): split the SDK's rows
+  // into the usable group and the unreachable "also supported" group by
+  // reachableHere, and derive that group's SINGLE heading from its action. The
+  // SDK guarantees one device sees one kind, so the heading reads the first
+  // unreachable row. Pure grouping, unit-pinned here; the rendering (no buttons
+  // in group 2, testids) is proven in the regtest e2e.
+  const row = (over: Record<string, unknown>) => ({
+    wallet: 'x', label: 'X', logo: 'l', installed: false,
+    reachableHere: true, action: 'connect', actionLabel: 'Connect', ...over,
+  });
+
+  const groupsNow = () => {
+    let captured: { usable: { wallet: string }[]; alsoSupported: { wallet: string }[]; alsoSupportedHeading: string } | undefined;
+    component.pickerGroups$.subscribe((g) => (captured = g)).unsubscribe();
+    if (!captured) { throw new Error('pickerGroups$ did not emit synchronously'); }
+    return captured;
+  };
+
+  it('splits rows into the usable group and the unreachable "also supported" group by reachableHere', () => {
+    (walletPickerRows as jest.Mock).mockReturnValue([
+      row({ wallet: 'xverse', reachableHere: true, action: 'connect' }),
+      row({ wallet: 'watch-only', reachableHere: true, action: 'connect-xpub' }),
+      row({ wallet: 'phantom', reachableHere: false, action: 'use-on-mobile', actionLabel: 'Mobile only' }),
+    ]);
+    const g = groupsNow();
+    expect(g.usable.map((r) => r.wallet)).toEqual(['xverse', 'watch-only']);
+    expect(g.alsoSupported.map((r) => r.wallet)).toEqual(['phantom']);
+  });
+
+  it('heads the also-supported group by its platform: use-on-mobile -> "on mobile", use-on-desktop -> "on desktop"', () => {
+    (walletPickerRows as jest.Mock).mockReturnValue([row({ reachableHere: false, action: 'use-on-mobile' })]);
+    expect(groupsNow().alsoSupportedHeading).toBe('Also supported on mobile');
+
+    (walletPickerRows as jest.Mock).mockReturnValue([row({ reachableHere: false, action: 'use-on-desktop' })]);
+    expect(groupsNow().alsoSupportedHeading).toBe('Also supported on desktop');
+  });
+
+  it('has no also-supported group and no heading when every wallet is reachable here', () => {
+    (walletPickerRows as jest.Mock).mockReturnValue([
+      row({ wallet: 'xverse', reachableHere: true }),
+      row({ wallet: 'unisat', reachableHere: true }),
+    ]);
+    const g = groupsNow();
+    expect(g.usable.map((r) => r.wallet)).toEqual(['xverse', 'unisat']);
+    expect(g.alsoSupported).toEqual([]);
+    expect(g.alsoSupportedHeading).toBe('');
+  });
+
 });
