@@ -130,14 +130,19 @@ test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-
   await expect(confirmXpub).toBeVisible({ timeout: 30_000 });
 
   // Positive assertion at the point of the selection mistake: the derived
-  // ordinals address must be the account's receive #0. The helper agrees
-  // address-for-address with the SDK's deriveWatchOnlyAddresses, so a correct
-  // displayed address proves the right script type. shortenString:14 renders
-  // first7...last7 - assert the HEAD (bcrt1p vs bcrt1q, the family discriminator)
-  // and the TAIL (exact identity).
+  // ordinals address must be the account's receive #0. The expected value is a
+  // LITERAL a human transcribed and verified against makeWatchOnlyTestAccount
+  // (fixed seed, m/86'/1'/7', keypath-only p2tr), NOT re-derived from the SDK:
+  // comparing the page's SDK-derived address against the SDK's own addressAt(0)
+  // is the derivation checked against itself, and a bug in it agrees on both
+  // sides. Against a typed literal the page's derivation has an independent
+  // oracle (drifts loudly if the helper's seed/path changes). shortenString:14
+  // renders first7...last7 - assert the HEAD (bcrt1p vs bcrt1q, the family
+  // discriminator a wrong script type flips) and the TAIL (exact identity).
+  const EXPECTED_ORDINALS_ADDRESS = 'bcrt1pkh944sywa9czctjzzet5f29v97p4pgrr2p0sp6xcktf3k5ryxxwq9an3c0';
   const shownOrdinals = (await page.getByTestId('xpub-ordinals-address').textContent()) ?? '';
-  expect(shownOrdinals).toContain(paymentAddress.slice(0, 7));
-  expect(shownOrdinals).toContain(paymentAddress.slice(-7));
+  expect(shownOrdinals).toContain(EXPECTED_ORDINALS_ADDRESS.slice(0, 7));
+  expect(shownOrdinals).toContain(EXPECTED_ORDINALS_ADDRESS.slice(-7));
 
   await confirmXpub.click();
   await shot(page, '04-connected');

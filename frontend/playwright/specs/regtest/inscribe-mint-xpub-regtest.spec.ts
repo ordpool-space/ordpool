@@ -169,18 +169,23 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + watch-only
   await expect(confirmXpub).toBeVisible({ timeout: 30_000 });
 
   // Positive assertion at the point of the selection mistake: the derived
-  // ordinals address the UI now shows must be the account's receive #0. The
-  // helper is the oracle - addressAt agrees address-for-address with the SDK's
-  // deriveWatchOnlyAddresses (proven on regtest), so a correct displayed address
-  // proves the right script type was selected, by construction. shortenString:14
-  // renders first7...last7, so both halves are on screen: the HEAD (bcrt1p vs
-  // bcrt1q) is the family discriminator a wrong script type would flip; the TAIL
-  // pins the exact identity (catches an off-by-one index / wrong path / account).
-  // Asserting here surfaces a mis-selection on THIS line, not as an empty-balance
-  // timeout several steps downstream.
+  // ordinals address the UI now shows must be the account's receive #0.
+  //
+  // The expected value is a LITERAL a human transcribed and verified against
+  // makeWatchOnlyTestAccount (fixed seed, m/86'/1'/7', keypath-only p2tr), NOT
+  // re-derived here from the SDK. Comparing the page's SDK-derived address
+  // against the SDK's own addressAt(0) would be the SDK's derivation checked
+  // against itself: a bug in it corrupts both sides and they agree. Against a
+  // typed literal the page's derivation has an independent oracle. (If the
+  // helper's seed/path ever changes the address, this fails loudly and a human
+  // re-verifies and updates the literal.) shortenString:14 renders first7...last7,
+  // so both halves are on screen: the HEAD (bcrt1p vs bcrt1q) is the family
+  // discriminator a wrong script type would flip; the TAIL pins the exact
+  // identity. Surfaces a mis-selection on THIS line, not as a downstream timeout.
+  const EXPECTED_ORDINALS_ADDRESS = 'bcrt1pkh944sywa9czctjzzet5f29v97p4pgrr2p0sp6xcktf3k5ryxxwq9an3c0';
   const shownOrdinals = (await page.getByTestId('xpub-ordinals-address').textContent()) ?? '';
-  expect(shownOrdinals).toContain(paymentAddress.slice(0, 7));
-  expect(shownOrdinals).toContain(paymentAddress.slice(-7));
+  expect(shownOrdinals).toContain(EXPECTED_ORDINALS_ADDRESS.slice(0, 7));
+  expect(shownOrdinals).toContain(EXPECTED_ORDINALS_ADDRESS.slice(-7));
 
   await confirmXpub.click();
   await shot(page, '04-connected');
