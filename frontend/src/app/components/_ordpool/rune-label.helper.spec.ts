@@ -7,7 +7,7 @@
 // pure file by filesystem-relative path (test-only; fails loudly if it moves).
 jest.mock('ordpool-sdk', () => ({
   formatRunePile: jest.requireActual(
-    '../../../../node_modules/ordpool-sdk/dist-core/cat21-mint/rune-amount',
+    '../../../../node_modules/ordpool-sdk/dist/cat21-mint/rune-amount',
   ).formatRunePile,
 }));
 
