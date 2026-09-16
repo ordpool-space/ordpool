@@ -1,14 +1,13 @@
 // The full ordpool-sdk barrel drags in browser-only deps jest can't resolve
 // (bitcoin-address-validation -> base58-js), which is why the component specs
-// mock it. formatRunePile lives in a pure, dependency-free submodule, so we
-// wire the REAL implementation from that file directly: this exercises ord's
-// actual Pile rendering, not a stand-in, without loading the heavy barrel.
-// The SDK's exports map blocks the package subpath specifier, so reach the
-// pure file by filesystem-relative path (test-only; fails loudly if it moves).
+// mock it. `ordpool-sdk/rune` is a dependency-free subpath (0.8 kB, no
+// third-party deps) that exports the real formatRunePile, so we wire it in
+// directly: this exercises ord's actual Pile rendering, not a stand-in, without
+// loading the heavy barrel. A public subpath is the package's contract, so it
+// survives the SDK's internal build restructures (a deep path into `dist/`
+// does not, and `/core` drags the same deps as the barrel).
 jest.mock('ordpool-sdk', () => ({
-  formatRunePile: jest.requireActual(
-    '../../../../node_modules/ordpool-sdk/dist/cat21-mint/rune-amount',
-  ).formatRunePile,
+  formatRunePile: jest.requireActual('ordpool-sdk/rune').formatRunePile,
 }));
 
 import { runeLabel } from './rune-label.helper';
