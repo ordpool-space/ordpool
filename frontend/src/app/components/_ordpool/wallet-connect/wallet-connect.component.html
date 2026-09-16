@@ -7,15 +7,18 @@
   </div>
   <div class="modal-body">
 
-   <ng-container *ngIf="!xpubMode && (pickerRows$ | async) as rows">
+   <ng-container *ngIf="!xpubMode && (pickerGroups$ | async) as groups">
 
     <!-- Round 2 (wallet-ux-round2.md §7): before a person is connected we ask
          them to connect, nothing else. One neutral line; each row is logo,
          name, one enabled button. No capability list, no badge, no popover. -->
     <p class="text-muted small mb-3">Connect a wallet to inscribe files, mint cats and stamp files on Bitcoin.</p>
 
-    <ul class="list-unstyled">
-      <li *ngFor="let row of rows" class="wallet-row" [attr.data-testid]="'wallet-row-' + row.wallet">
+    <!-- Group 1: wallets usable on THIS device. Normal rows, one enabled action
+         each. No heading, so the common phone case (every row an Install, no
+         connected row) reads as one clean list instead of an orphan heading. -->
+    <ul class="list-unstyled" data-testid="wallet-picker-list">
+      <li *ngFor="let row of groups.usable" class="wallet-row" [attr.data-testid]="'wallet-row-' + row.wallet">
 
         <img [src]="row.logo" width="25" height="25" class="wallet-logo">
         <span class="wallet-name">{{ row.label }}</span>
@@ -43,6 +46,18 @@
 
       </li>
     </ul>
+
+    <!-- Group 2: wallets the SDK supports but this device can't reach (all on
+         the opposite platform, so one heading is always correct). Discovery,
+         not affordance: plain names, NO button elements - a disabled button
+         still sits in the a11y tree and tab order and reads as pressable, and
+         the heading already carries "Desktop only" / "Mobile only". -->
+    <div *ngIf="groups.alsoSupported.length" class="wallet-also-supported mt-3" data-testid="wallet-picker-also-supported">
+      <p class="text-muted small mb-1">{{ groups.alsoSupportedHeading }}</p>
+      <p class="wallet-also-supported-names small text-muted mb-0"><ng-container
+        *ngFor="let row of groups.alsoSupported; let last = last"><span
+          [attr.data-testid]="'wallet-unreachable-' + row.wallet">{{ row.label }}</span>{{ last ? '' : ', ' }}</ng-container></p>
+    </div>
 
     <ng-container *ngIf="showFakeWallet">
       Just for debugging:

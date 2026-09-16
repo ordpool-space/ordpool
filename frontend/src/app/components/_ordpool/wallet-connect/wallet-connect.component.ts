@@ -99,8 +99,23 @@ export class WalletConnectComponent implements OnDestroy {
 
   // wallets$ is only the re-emit trigger so the list refreshes when a provider
   // appears/disappears; the rows themselves come from the SDK's walletPickerRows.
-  pickerRows$ = this.walletService.wallets$.pipe(
-    map(() => this.buildPickerRows()),
+  // Split into two groups by reachableHere: the usable wallets render as normal
+  // rows, the ones this device can't reach render compact under a heading.
+  pickerGroups$ = this.walletService.wallets$.pipe(
+    map(() => {
+      const rows = this.buildPickerRows();
+      const usable = rows.filter(r => r.reachableHere);
+      const alsoSupported = rows.filter(r => !r.reachableHere);
+      // Every unreachable row carries the same action (the opposite platform,
+      // computed once by walletPickerRows), so a single heading is always
+      // correct and a mixed group can't occur.
+      const alsoSupportedHeading = alsoSupported.length === 0
+        ? ''
+        : alsoSupported[0].action === 'use-on-desktop'
+          ? 'Also supported on desktop'
+          : 'Also supported on mobile';
+      return { usable, alsoSupported, alsoSupportedHeading };
+    }),
   );
 
   connectedWallet$ = this.walletService.connectedWallet$;
@@ -152,13 +167,15 @@ export class WalletConnectComponent implements OnDestroy {
 
   /**
    * The picker rows, from the SDK's walletPickerRows: it owns provider
-   * detection, platform detection + filtering (a wallet unreachable on this
-   * DEVICE is absent, never badged; the SDK reads the device from `win`, not
-   * the viewport, so resizing a desktop window never changes the list), the
-   * button action + label (so labels cannot drift from the other sites), and
-   * the watch-only row. Scoped to the page's action so an incapable wallet
-   * never appears — which is what makes silence at login safe
-   * (wallet-ux-round2.md §7.2/§7.3).
+   * detection, platform detection (read from `win`, not the viewport, so
+   * resizing a desktop window never changes the list), the button action +
+   * label (so labels cannot drift from the other sites), and the watch-only
+   * row. Every SDK-supported wallet comes back; one unreachable on this DEVICE
+   * carries `reachableHere: false` and a discovery action ('use-on-desktop' /
+   * 'use-on-mobile') so the picker shows what the person holds instead of
+   * hiding it. Rows are pre-sorted (usable first, unreachable last). Scoped to
+   * the page's action so an incapable wallet never appears — which is what
+   * makes silence at login safe (wallet-ux-round2.md §7.2/§7.3).
    */
   private buildPickerRows(): WalletPickerRow[] {
     return walletPickerRows({
