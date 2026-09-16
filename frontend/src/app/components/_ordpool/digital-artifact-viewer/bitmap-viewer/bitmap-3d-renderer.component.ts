@@ -183,7 +183,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // Dynamic imports: three.js + addons land in a separate webpack chunk.
     // Visitors who never open a .bitmap inscription pay zero bytes for this.
     const [THREE, { OrbitControls }, { Octree }, { Capsule }, { EffectComposer }, { SAOPass }, { SSAARenderPass },
-           { LineSegments2 }, { LineSegmentsGeometry }, { LineMaterial }, parser] = await Promise.all([
+           parser] = await Promise.all([
       import('three'),
       import('three/examples/jsm/controls/OrbitControls.js'),
       // FPS-demo pattern: Octree for the static world + Capsule for the player.
@@ -195,9 +195,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       import('three/examples/jsm/postprocessing/EffectComposer.js'),
       import('three/examples/jsm/postprocessing/SAOPass.js'),
       import('three/examples/jsm/postprocessing/SSAARenderPass.js'),
-      import('three/examples/jsm/lines/LineSegments2.js'),
-      import('three/examples/jsm/lines/LineSegmentsGeometry.js'),
-      import('three/examples/jsm/lines/LineMaterial.js'),
       import('ordpool-parser'),
     ]);
 
@@ -323,53 +320,75 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
-    // Tron-style grid on the floor. Each cell is one layout unit. The floor
-    // extends 5x the bitmap on each side so the "edge of the world" stays
-    // out of frame when the user orbits low. Lines drop just below y=0 so
-    // they don't paint over the bottoms of the flat cubes during the intro.
-    // Uses LineSegments2 + LineMaterial because LineBasicMaterial.linewidth
-    // is silently ignored on WebGL (browsers cap it at 1px); the fat-line
-    // shader-based variant gives us a real 2-pixel line.
-    // Step the grid by 1/CELLS_PER_BITMAP of the bitmap's actual dimensions
-    // on each axis, so the outer edges of the bitmap land exactly on grid
-    // lines (otherwise non-square bitmaps -- the common case -- leave the
-    // shorter edge floating between lines). The floor extends ~5x beyond
-    // the bitmap on each side; we walk outward from the centre in step
-    // increments until we leave that box.
-    const CELLS_PER_BITMAP = 4;
-    const FLOOR_RADIUS_MULT = 5;
-    const stepX = layoutSize.width / CELLS_PER_BITMAP;
-    const stepZ = layoutSize.height / CELLS_PER_BITMAP;
-    const halfX = maxSize * FLOOR_RADIUS_MULT;
-    const halfZ = maxSize * FLOOR_RADIUS_MULT;
-    const stepsOutwardX = Math.ceil(halfX / stepX);
-    const stepsOutwardZ = Math.ceil(halfZ / stepZ);
-    const gridColor = orange.clone().multiplyScalar(0.3);
-    const gridPositions: number[] = [];
-    // Lines parallel to X (constant z)
-    for (let i = -stepsOutwardZ; i <= stepsOutwardZ; i++) {
-      const z = i * stepZ;
-      gridPositions.push(-halfX, 0, z,  halfX, 0, z);
-    }
-    // Lines parallel to Z (constant x)
-    for (let i = -stepsOutwardX; i <= stepsOutwardX; i++) {
-      const x = i * stepX;
-      gridPositions.push(x, 0, -halfZ,  x, 0,  halfZ);
-    }
-    const gridGeom = new LineSegmentsGeometry();
-    gridGeom.setPositions(gridPositions);
-    const gridMat = new LineMaterial({
-      color: gridColor.getHex(),
-      linewidth: 1,           // 1px screen-space (fat-line shader) -- thin Tron lines
-      worldUnits: false,
-      transparent: false,
+    // Tron floor, drawn analytically in the fragment shader on one quad.
+    //
+    // The lines are computed from world XZ, so the grid is effectively
+    // infinite and simply fades out before the quad's own edge -- no "edge
+    // of the world" to keep out of frame, and no line geometry at all. The
+    // width of a line is derived per pixel via fwidth(), which is what
+    // keeps it crisp at any distance and at the grazing angles PFP mode
+    // looks along; screen-space fat lines shimmer badly there because a
+    // fixed-width line has no idea how many world units a pixel covers.
+    //
+    // Two tiers: one cell per layout unit (so a cell is a parcel) and a
+    // brighter line every GRID_MAJOR_EVERY cells for the '82-film look.
+    const GRID_CELL = 1;
+    const GRID_MAJOR_EVERY = 10;
+    const GRID_QUAD_MULT = 60;         // quad half-extent, in bitmap widths
+    const GRID_FADE_START_MULT = 4;    // fully opaque out to this...
+    const GRID_FADE_END_MULT = 16;     // ...gone by this, long before the edge
+    const gridColor = orange.clone().multiplyScalar(0.55);
+    const gridGeom = new THREE.PlaneGeometry(maxSize * GRID_QUAD_MULT * 2, maxSize * GRID_QUAD_MULT * 2);
+    const gridMat = new THREE.ShaderMaterial({
+      transparent: true,
+      // The floor is a backdrop: it must not occlude anything, and the
+      // cubes' own depth still hides the parts behind them.
+      depthWrite: false,
+      uniforms: {
+        uColor: { value: gridColor },
+        uCell: { value: GRID_CELL },
+        uMajor: { value: GRID_MAJOR_EVERY },
+        uFadeStart: { value: maxSize * GRID_FADE_START_MULT },
+        uFadeEnd: { value: maxSize * GRID_FADE_END_MULT },
+      },
+      vertexShader: `
+        varying vec3 vWorld;
+        void main() {
+          vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        precision highp float;
+        uniform vec3 uColor;
+        uniform float uCell;
+        uniform float uMajor;
+        uniform float uFadeStart;
+        uniform float uFadeEnd;
+        varying vec3 vWorld;
+
+        // Coverage of the nearest grid line, anti-aliased by how fast the
+        // grid coordinate changes across this pixel.
+        float lineCoverage(vec2 p, float cell) {
+          vec2 c = p / cell;
+          vec2 d = fwidth(c);
+          vec2 g = abs(fract(c - 0.5) - 0.5) / max(d, vec2(1e-5));
+          return 1.0 - min(min(g.x, g.y), 1.0);
+        }
+
+        void main() {
+          float fine  = lineCoverage(vWorld.xz, uCell);
+          float major = lineCoverage(vWorld.xz, uCell * uMajor);
+          float a = max(fine * 0.3, major * 0.85);
+          a *= 1.0 - smoothstep(uFadeStart, uFadeEnd, length(vWorld.xz));
+          if (a < 0.004) discard;
+          gl_FragColor = vec4(uColor, a);
+        }`,
     });
-    gridMat.resolution.set(width, heightPx);
-    const grid = new LineSegments2(gridGeom, gridMat);
-    // Grid sits on the ground at y=0. Cubes always carry SCALE_MIN height,
-    // so their bottoms occlude the grid below them; no need to drop the
-    // grid into the basement anymore. Tiny +Y nudge to dodge z-fight with
-    // the ShadowMaterial ground plane.
+    const grid = new THREE.Mesh(gridGeom, gridMat);
+    grid.rotation.x = -Math.PI / 2;
+    // Cubes always carry SCALE_MIN height, so their bottoms occlude the
+    // grid below them. Tiny +Y nudge to dodge z-fight with the
+    // ShadowMaterial ground plane.
     grid.position.y = 0.001;
     scene.add(grid);
 
@@ -471,7 +490,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     camera.rotation.order = 'YXZ';                  // yaw + pitch, no roll
 
     // The floor is the analytic plane y = FLOOR_Y, not collision geometry.
-    // As a box it had to span FLOOR_RADIUS_MULT x the layout, which made the
+    // As a box it had to span five times the layout, which made the
     // octree's root box ten times the cubes' extent: every cube then needed
     // ~3 extra subdivision levels to separate, and the ground's own triangles
     // were copied into every leaf they crossed. Measured on block 500000
@@ -1178,7 +1197,31 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // exactly when an orbiting still scene needs a new frame.
     let needsRender = true;
     const requestRender = () => { needsRender = true; };
-    controls.addEventListener('change', requestRender);
+
+    // Progressive refinement. The desktop composer runs SSAA at its default
+    // sampleLevel 4, i.e. it renders the scene 16 times for one frame. That
+    // is worth it for the still image the viewer actually studies, and
+    // wasted while anything moves -- motion hides aliasing, and 16x is
+    // exactly what makes a drag feel heavy. So: draw straight to the screen
+    // whenever something is moving, and once it has been still for a beat,
+    // draw one refined frame.
+    const REFINE_DELAY_MS = 180;
+    let refined = false;
+    let refineTimer: number | null = null;
+    const scheduleRefine = () => {
+      if (refineTimer !== null) clearTimeout(refineTimer);
+      refineTimer = window.setTimeout(() => {
+        refineTimer = null;
+        refined = true;
+        requestRender();
+      }, REFINE_DELAY_MS);
+    };
+    const onControlsChange = () => {
+      refined = false;
+      requestRender();
+      scheduleRefine();
+    };
+    controls.addEventListener('change', onControlsChange);
 
     // Viewport gating. Starts true so a viewer that is already on screen
     // (or a browser without IntersectionObserver) renders immediately; the
@@ -1239,6 +1282,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               // scene is static and the map stays frozen.
               directional.shadow.needsUpdate = true;
               state = 'orbit';
+              // Settle into the refined still frame.
+              scheduleRefine();
             }
             break;
           }
@@ -1322,12 +1367,14 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         // change (or a resize / the first frame after the intro). Every
         // other state is mid-animation and draws every frame. Off-screen
         // and hidden-tab frames are dropped above, before any of this.
-        if (state !== 'orbit') needsRender = true;
+        if (state !== 'orbit') {
+          needsRender = true;
+          refined = false;
+        }
         if (!needsRender) return;
         needsRender = false;
-        // Sun stays fixed in world space. Composer renders all states the
-        // same way -- only the camera/state changed.
-        if (composer) composer.render(); else renderer.render(scene, camera);
+        // Sun stays fixed in world space; only the camera and state change.
+        if (composer && refined) composer.render(); else renderer.render(scene, camera);
       };
 
       // Playwright E2E debug hook. Live getters so the spec reads the
@@ -1381,8 +1428,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       composer?.setSize(r.width, r.height);
       camera.aspect = r.width / r.height;
       camera.updateProjectionMatrix();
-      // Fat-line shader needs the current viewport resolution to scale pixels.
-      gridMat.resolution.set(r.width, r.height);
       requestRender();
     };
     const ro = new ResizeObserver(resize);
@@ -1403,8 +1448,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       this.animFrame = null;
       ro.disconnect();
       visibilityObserver.disconnect();
+      if (refineTimer !== null) clearTimeout(refineTimer);
       document.removeEventListener('visibilitychange', requestRender);
-      controls.removeEventListener('change', requestRender);
+      controls.removeEventListener('change', onControlsChange);
       window.removeEventListener('resize', onOrientation);
       window.removeEventListener('orientationchange', onOrientation);
       pfpDetach();
