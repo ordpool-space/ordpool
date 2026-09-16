@@ -1,14 +1,20 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, ElementRef, inject, Input, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { renderBitmapSvg } from 'ordpool-parser';
-import { map, Observable, of } from 'rxjs';
+import { map, Observable, of, startWith } from 'rxjs';
 
 import { BitmapApiService, BitmapResponse } from '../../../../services/ordinals/bitmap-api.service';
 
-interface BitmapVm {
-  data: BitmapResponse;
-  svg: SafeHtml;
-}
+/**
+ * The three states the viewer can be in. Previously the template tested a
+ * nullable view-model, which made "the request is still in flight" and
+ * "this block has no data" render identically -- as nothing at all, with
+ * no hint that anything was ever going to appear.
+ */
+type BitmapVm =
+  | { kind: 'loading' }
+  | { kind: 'unavailable' }
+  | { kind: 'ready'; data: BitmapResponse; svg: SafeHtml };
 
 @Component({
   selector: 'app-bitmap-viewer',
@@ -27,7 +33,7 @@ export class BitmapViewerComponent {
   @ViewChild('stage') stage!: ElementRef<HTMLElement>;
 
   private _height: number | null = null;
-  vm$: Observable<BitmapVm | null> = of(null);
+  vm$: Observable<BitmapVm> = of<BitmapVm>({ kind: 'unavailable' });
   // 2d  = SVG | 3d = iso/orbit | pfp = first-person walk
   mode: '2d' | '3d' | 'pfp' = '2d';
   // While true, the 3D renderer is mid-back-fly to its initial iso pose.
@@ -66,12 +72,16 @@ export class BitmapViewerComponent {
     }
     this._height = value;
     this.vm$ = value === null
-      ? of(null)
+      ? of<BitmapVm>({ kind: 'unavailable' })
       : this.bitmapApi.getBitmapData(value).pipe(
-          map(data => data === null ? null : ({
-            data,
-            svg: this.sanitizer.bypassSecurityTrustHtml(renderBitmapSvg(data.sizes)),
-          })),
+          map((data): BitmapVm => data === null
+            ? { kind: 'unavailable' }
+            : {
+                kind: 'ready',
+                data,
+                svg: this.sanitizer.bypassSecurityTrustHtml(renderBitmapSvg(data.sizes)),
+              }),
+          startWith<BitmapVm>({ kind: 'loading' }),
         );
   }
 

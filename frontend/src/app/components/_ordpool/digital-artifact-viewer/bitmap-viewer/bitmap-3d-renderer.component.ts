@@ -224,7 +224,17 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const maxSize = Math.max(layoutSize.width, layoutSize.height);
     const maxHeight = sizes.reduce((m, s) => (s > m ? s : m), 0);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // WebGL can be missing entirely (old device, GPU blocklist, a hardened
+    // browser profile) or fail to hand out a context under memory pressure.
+    // Construction throws in that case; hand the viewer back to 2D rather
+    // than leave an empty square and an unhandled rejection.
+    let renderer: InstanceType<typeof THREE.WebGLRenderer>;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      this.zone.run(() => this.exitDone.emit());
+      return;
+    }
     // Mobile-class device heuristic for perf knobs. False positives on
     // touch-screen laptops are acceptable -- the worst case is slightly less
     // post-processing on a beefy machine. The opposite (no perf knobs on a
@@ -232,6 +242,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     const isMobileLike = window.matchMedia('(pointer: coarse)').matches
       || (navigator.maxTouchPoints || 0) > 0
       || window.innerWidth < 1024;
+    // Readers who ask for reduced motion get the same scene without the
+    // cinematics: every tween collapses to a single frame, so the cube city
+    // simply appears and the walk transitions cut instead of sweeping.
+    // The durations below use 1 rather than 0 because the tweens divide by
+    // them.
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     renderer.setSize(width, heightPx);
     renderer.shadowMap.enabled = true;
     // PCFSoftShadowMap throws a deprecation warning under the SSAA+SAO pipeline
@@ -1048,7 +1064,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     type State = 'intro' | 'orbit' | 'fly-to-pfp' | 'pfp' | 'fly-to-iso' | 'exit-done';
     let state: State = 'intro';
     let flyAfterIso: 'orbit' | 'exit' = 'orbit';
-    const FLY_MS = 1500;
+    const FLY_MS = reducedMotion ? 1 : 1500;
     let flyStartedAt = 0;
     const flyStartPos = new THREE.Vector3();
     const flyStartQuat = new THREE.Quaternion();
@@ -1187,9 +1203,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     //   ..+CAMERA_TWEEN_MS : tilt from top-down to isometric (cubes flat)
     //   ..+GROW_TWEEN_MS   : cubes grow from flat to full height
     //   beyond             : OrbitControls takes over (state -> 'orbit')
-    const HOLD_MS = 600;
-    const CAMERA_TWEEN_MS = 1300;
-    const GROW_TWEEN_MS = 1400;
+    const HOLD_MS = reducedMotion ? 1 : 600;
+    const CAMERA_TWEEN_MS = reducedMotion ? 1 : 1300;
+    const GROW_TWEEN_MS = reducedMotion ? 1 : 1400;
     const introStartedAt = performance.now();
 
     // Render-on-demand bookkeeping, see the render call at the end of the
@@ -1389,6 +1405,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           // the lazy build structurally instead of timing it: it must still
           // be null while orbiting and present once the walk is entered.
           get octreeBuilt() { return worldOctree !== null; },
+          // Total length of the opening cinematic. Collapses to ~3 ms under
+          // prefers-reduced-motion, which is what the motion spec asserts --
+          // exactly, rather than racing a stopwatch on a shared runner.
+          get introMs() { return HOLD_MS + CAMERA_TWEEN_MS + GROW_TWEEN_MS; },
           get pos() { return [playerCollider.end.x, playerCollider.end.y, playerCollider.end.z]; },
           get fov() { return camera.fov; },
           get onFloor() { return playerOnFloor; },

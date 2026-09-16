@@ -12,6 +12,7 @@ export interface Bitmap3dDebug {
   state: 'intro' | 'orbit' | 'fly-to-pfp' | 'pfp' | 'fly-to-iso' | 'exit-done';
   playerState: 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
   octreeBuilt: boolean;
+  introMs: number;
   pos: [number, number, number];
   fov: number;
   onFloor: boolean;

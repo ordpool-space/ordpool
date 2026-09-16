@@ -1,7 +1,22 @@
 @if (vm$ | async; as vm) {
+@if (vm.kind === 'loading') {
+  <div class="bitmap-stage bitmap-placeholder" role="status" aria-live="polite">
+    <span class="skeleton-loader"></span>
+    <span class="visually-hidden" i18n="bitmap.loading">Loading the block&rsquo;s transactions&hellip;</span>
+  </div>
+} @else if (vm.kind === 'unavailable') {
+  <div class="bitmap-stage bitmap-placeholder">
+    <p class="smaller-text mb-0" i18n="bitmap.unavailable">
+      This block&rsquo;s transactions aren&rsquo;t available, so the land can&rsquo;t be drawn.
+    </p>
+  </div>
+} @else {
   <div #stage class="bitmap-stage" [class.is-fullscreen]="fullscreen">
     @if (mode === '2d') {
-      <div class="bitmap-canvas" [innerHTML]="vm.svg"></div>
+      <div class="bitmap-canvas"
+           role="img"
+           [attr.aria-label]="'Block ' + formatHeight(vm.data.height) + ' drawn as land: ' + vm.data.sizes.length + ' transactions, each a square sized by its output value'"
+           [innerHTML]="vm.svg"></div>
     } @else {
       <app-bitmap-3d-renderer
         [sizes]="vm.data.sizes"
@@ -79,4 +94,5 @@
     is one of its transactions, sized by output value and packed Mondrian-style. Ordpool
     renders any well-formed claim; first-claim validity isn&rsquo;t enforced here.
   </p>
+}
 }

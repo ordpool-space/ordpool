@@ -6,6 +6,22 @@
   aspect-ratio: 1 / 1;
 }
 
+// Loading / unavailable stand-ins. Same square footprint as the real
+// stage, so the column doesn't jump when the data lands.
+.bitmap-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  color: var(--secondary-text, #b0b0b0);
+
+  .skeleton-loader {
+    width: 60%;
+    height: 1rem;
+  }
+}
+
 .bitmap-canvas {
   display: block;
   width: 100%;
