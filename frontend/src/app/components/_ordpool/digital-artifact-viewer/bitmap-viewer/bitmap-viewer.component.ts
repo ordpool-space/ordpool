@@ -16,6 +16,15 @@ type BitmapVm =
   | { kind: 'unavailable' }
   | { kind: 'ready'; data: BitmapResponse; svg: SafeHtml };
 
+/**
+ * Ordpool's bitcoin orange, read from the theme the same way the 3D
+ * renderer reads it, so the two drawings of one bitmap are the same colour.
+ * `renderBitmapSvg` otherwise falls back to bitlodo's #F7931A, which is
+ * what the reference implementation ships and a slightly duller orange.
+ */
+const brandOrange = (): string =>
+  getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#FF9900';
+
 @Component({
   selector: 'app-bitmap-viewer',
   templateUrl: './bitmap-viewer.component.html',
@@ -79,7 +88,9 @@ export class BitmapViewerComponent {
             : {
                 kind: 'ready',
                 data,
-                svg: this.sanitizer.bypassSecurityTrustHtml(renderBitmapSvg(data.sizes)),
+                svg: this.sanitizer.bypassSecurityTrustHtml(
+                  renderBitmapSvg(data.sizes, { color: brandOrange() }),
+                ),
               }),
           startWith<BitmapVm>({ kind: 'loading' }),
         );

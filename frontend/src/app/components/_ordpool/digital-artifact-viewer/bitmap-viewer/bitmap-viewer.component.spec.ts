@@ -37,6 +37,21 @@ describe('BitmapViewerComponent view states', () => {
     expect(emissions[1]).toMatchObject({ kind: 'ready', data: blockResponse });
   });
 
+  it('draws the squares in ordpool orange, not the parser default', async () => {
+    document.documentElement.style.setProperty('--primary', '#FF9900');
+    const { component } = setup(of(blockResponse));
+    component.height = 800_000;
+
+    const vm = await firstValueFrom(component.vm$.pipe(toArray()));
+    // The stubbed sanitizer hands the markup straight back, so the view
+    // model's SafeHtml is the SVG string here.
+    const ready = vm[vm.length - 1] as unknown as { kind: 'ready'; svg: string };
+
+    expect(ready.svg).toContain('#FF9900');
+    // bitlodo's reference orange, the fallback when no colour is passed
+    expect(ready.svg).not.toContain('#F7931A');
+  });
+
   it('stays in loading while the request is in flight', async () => {
     const pending = new Subject<BitmapResponse | null>();
     const { component } = setup(pending);
