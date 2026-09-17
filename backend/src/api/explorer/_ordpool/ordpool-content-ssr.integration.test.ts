@@ -57,6 +57,13 @@ const INSCRIPTION_ID = `${TXID}i0`;
 const CSP = "default-src 'self' https://ordinals.com 'unsafe-eval' 'unsafe-inline' data: blob:";
 
 const realTx = () => JSON.parse(fs.readFileSync(path.join(TESTDATA, `tx_${TXID}.json`), 'utf8'));
+
+// A real mainnet inscription with a BODY and NO content type (TODOS P16). The
+// expected bytes are what live ord serves for this id, captured byte-for-byte.
+const NO_CTYPE_TXID = '4b9a822a057743813efbefa0dd21d0a01342ee793ce2ce5bd499a5f262187553';
+const NO_CTYPE_INSCRIPTION_ID = `${NO_CTYPE_TXID}i0`;
+const noCtypeTx = () => JSON.parse(fs.readFileSync(path.join(TESTDATA, `tx_${NO_CTYPE_TXID}.json`), 'utf8'));
+const noCtypeExpectedBytes = () => fs.readFileSync(path.join(TESTDATA, `inscription_${NO_CTYPE_INSCRIPTION_ID}.bin`));
 const expectedBytes = () => fs.readFileSync(path.join(TESTDATA, `inscription_${INSCRIPTION_ID}.txt`));
 
 // Collect the raw response body as a Buffer for a byte-exact comparison
@@ -94,6 +101,32 @@ describe('backend /content + /preview SSR: real decode + serve over HTTP', () =>
     expect(res.body).toEqual(expectedBytes());
     // the fetch really happened at the esplora (skipConversion=false) boundary
     expect(bitcoinApi.$getRawTransaction).toHaveBeenCalledWith(TXID, false, false, false);
+  });
+
+  /**
+   * An inscription can carry bytes and no content type at all. ord serves those
+   * bytes under a fallback header rather than refusing them: `content_response`
+   * sets Content-Type from
+   * `content_type().and_then(..).unwrap_or("application/octet-stream")`
+   * (cat21-ord/src/subcommand/server/r.rs).
+   *
+   * Verified against both live services on this exact inscription before the
+   * fix: ord answered 200 with 35 bytes of application/octet-stream, this
+   * backend answered 400 with a 53-byte error string. A chain scan found
+   * dozens more, up to 343,740 bytes each, so this is content real users
+   * cannot see here (TODOS P16).
+   */
+  it('/content: serves a REAL inscription that has bytes but NO content type, as application/octet-stream', async () => {
+    (bitcoinApi.$getRawTransaction as jest.Mock).mockResolvedValue(noCtypeTx());
+
+    const res = await request(app).get(`/content/${NO_CTYPE_INSCRIPTION_ID}`).buffer(true).parse(binaryParser as any);
+
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toContain('application/octet-stream');
+    expect(res.headers['content-security-policy']).toBe(CSP);
+    // byte-exact against what live ord serves for the same id
+    expect(res.body).toEqual(noCtypeExpectedBytes());
+    expect(res.body.length).toBe(35);
   });
 
   it('/preview: serves the sandbox-ready HTML wrapper for the same real inscription with content-type + CSP', async () => {

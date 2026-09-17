@@ -586,9 +586,19 @@ const INSCRIPTION_CONTENT_SECURITY_POLICY =
 
 function sendInscription(res: Response, inscription: ParsedInscription): void {
 
+  // HACK -- Ordpool: an inscription without a content type still has bytes,
+  // and ord serves them. `content_response` in ord sets the header from
+  // `inscription.content_type().and_then(..).unwrap_or("application/octet-stream")`
+  // (cat21-ord/src/subcommand/server/r.rs), so a missing content type picks a
+  // fallback header, it does not refuse the content. Real case:
+  // 4b9a822a..7553i0 is 35 bytes that ord returns 200 for and we returned 400.
+  // Only a body-less inscription still refuses here; ord answers 404 for that
+  // one, which is a separate difference (see TODOS P13).
   const contentType = inscription.contentType;
   if (contentType) {
     res.setHeader('Content-Type', contentType);
+  } else if (inscription.contentSize > 0) {
+    res.setHeader('Content-Type', 'application/octet-stream');
   } else {
     res.status(400).send('No content type available. Can\'t display inscription.');
     return;
