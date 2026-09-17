@@ -29,6 +29,8 @@ on:
       # so dep bumps must trigger it (matches the sibling mint lane).
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+      # The regtest Playwright config (retries, timeouts) is load-bearing.
+      - 'frontend/playwright.regtest.config.ts'
       # The page shell this spec boots. A change here (e.g. adding the
       # family-footer strip) alters the rendered page without touching the
       # component dirs below, so the shell must trigger the lane too.

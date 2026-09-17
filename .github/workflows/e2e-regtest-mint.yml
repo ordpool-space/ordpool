@@ -34,6 +34,9 @@ on:
       # must trigger it.
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+      # The regtest Playwright config (retries, timeouts) is load-bearing for
+      # every spec below, so a change to it must re-run the lane.
+      - 'frontend/playwright.regtest.config.ts'
       # The page-driven components these specs actually boot. A template or
       # formatting change here (e.g. grouping the Fund address into chunks)
       # breaks the specs WITHOUT touching their files, and frontend/src/**
