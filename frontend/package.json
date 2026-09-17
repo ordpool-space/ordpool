@@ -99,7 +99,7 @@
     "ngx-highlightjs": "^10.0.0",
     "ngx-infinite-scroll": "^20.0.0",
     "nipplejs": "^1.0.4",
-    "ordpool-parser": "github:ordpool-space/ordpool-parser#b3bd5ca",
+    "ordpool-parser": "github:ordpool-space/ordpool-parser#4df6086",
     "ordpool-sdk": "github:ordpool-space/ordpool-sdk#25eac264ae630d43471f379aad24e01bcc0ecb9d",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",
