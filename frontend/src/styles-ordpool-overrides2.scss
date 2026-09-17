@@ -169,6 +169,22 @@ body .bitcoin-block.blink-bg app-iso-cube .iso-shape {
   0%, 100% { filter: drop-shadow(0 0 1.4em var(--taproot)); }
   50% { filter: drop-shadow(0 0 0.7em color-mix(in srgb, var(--taproot) 35%, transparent)); }
 }
+
+// Reduced motion: the special block keeps its taproot face and a steady
+// glow -- the signal survives, the pulsing does not. Same for the pending
+// strip's breathing.
+@media (prefers-reduced-motion: reduce) {
+  body .bitcoin-block.blink-bg app-iso-cube .iso-shape {
+    animation: none;
+    filter: drop-shadow(0 0 1.4em var(--taproot));
+  }
+
+  app-mempool-blocks .flashing,
+  app-blockchain-blocks .flashing {
+    animation: none !important;
+    opacity: 1;
+  }
+}
 body .bitcoin-block:has(app-iso-cube)::after,
 body .bitcoin-block:has(app-iso-cube)::before {
   display: none !important;

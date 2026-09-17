@@ -14,7 +14,7 @@
   justify-content: center;
   text-align: center;
   padding: 1rem;
-  color: var(--secondary-text, #b0b0b0);
+  color: var(--grey);
 
   .skeleton-loader {
     width: 60%;
@@ -47,6 +47,11 @@
   // z-index here the toolbar's fullscreen / PFP / exit toggles would
   // be hidden under both on mobile.
   z-index: 10;
+}
+
+.bitmap-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .bitmap-toggle {

@@ -141,6 +141,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   // Emitted when an exit-to-iso back-fly finishes (because `exit` was set).
   // Parent uses this to tear the renderer down and flip to 2D mode.
   @Output() exitDone = new EventEmitter<void>();
+  /** No WebGL context could be created; there will be no 3D on this device. */
+  @Output() unsupported = new EventEmitter<void>();
 
   // Set inside renderCubes(): a closure that re-evaluates state when the
   // pfp/exit Inputs change. Lets the setters dispatch transitions without
@@ -244,7 +246,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
-      this.zone.run(() => this.exitDone.emit());
+      // Tell the viewer why, rather than only that we are done: falling
+      // back to 2D without a word makes the 3D button look broken -- press
+      // it, nothing happens, no reason given.
+      this.zone.run(() => {
+        this.unsupported.emit();
+        this.exitDone.emit();
+      });
       return;
     }
     // Mobile-class device heuristic for perf knobs. False positives on

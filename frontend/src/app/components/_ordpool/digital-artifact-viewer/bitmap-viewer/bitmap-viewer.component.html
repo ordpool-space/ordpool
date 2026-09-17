@@ -22,7 +22,8 @@
         [sizes]="vm.data.sizes"
         [pfp]="mode === 'pfp'"
         [exit]="exiting"
-        (exitDone)="onExitDone()"/>
+        (exitDone)="onExitDone()"
+        (unsupported)="onUnsupported()"/>
     }
     <!-- Toolbar: flex row, right-aligned, sitting at the bottom of the
          stage. Buttons flow naturally with a fixed gap so there's no
@@ -68,9 +69,16 @@
           }
         </button>
       }
+      <!-- Disabled once the renderer reports no WebGL: without this the
+           button stays live and does nothing, which reads as broken. -->
       <button type="button" class="bitmap-toggle" (click)="toggleView()"
-        [attr.aria-label]="mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
-        [ngbTooltip]="mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'">
+        [disabled]="webglUnsupported"
+        [attr.aria-label]="webglUnsupported
+          ? 'The 3D view needs WebGL, which this browser does not provide'
+          : (mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view')"
+        [ngbTooltip]="webglUnsupported
+          ? 'The 3D view needs WebGL, which this browser does not provide'
+          : (mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view')">
         @if (mode === '2d') {
           <!-- isometric cube outline: click to enter 3D -->
           <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

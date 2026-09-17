@@ -40,12 +40,12 @@
             <ng-container ngProjectAs="[iso-right]">
               <div class="iso-lines" *ngIf="!minimal">
                 <span class="num big">{{ projectedBlock.nTx | number }}</span>
-                <span class="lbl">{{ projectedBlock.nTx === 1 ? 'transaction' : 'transactions' }}</span>
+                <span class="lbl" i18n="shared.transaction-count">{ projectedBlock.nTx, plural, =1 {transaction} other {transactions} }</span>
                 <span class="lbl" *ngIf="projectedBlock.blockVSize <= stateService.blockVSize; else isoMergedBlock">
                   <app-time kind="until" [time]="da.adjustedTimeAvg * (i + 1) + now + da.timeOffset" [fastRender]="false" [fixedRender]="true" [precision]="1" minUnit="minute"></app-time>
                 </span>
                 <ng-template #isoMergedBlock>
-                  <span class="lbl">({{ projectedBlock.blockVSize / stateService.blockVSize | ceil }} blocks)</span>
+                  <span class="lbl" i18n="shared.blocks">({{ projectedBlock.blockVSize / stateService.blockVSize | ceil }} blocks)</span>
                 </ng-template>
               </div>
             </ng-container>

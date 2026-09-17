@@ -34,7 +34,7 @@ type Win = Window & { __bitmap3d?: Bitmap3dDebug };
  * exercised, immutable on-chain, lives in playwright/fixtures/.
  *
  * Block 500,000 is the perf-guard fixture. Its 2701 txs carry old-style
- * large output values, so it packs into a 160-unit layout — the widest of
+ * large output values, so it packs into a 160-unit layout, the widest of
  * any block sampled, and layout width is what the collision octree's cost
  * scales with. It is the worst case, not the biggest block.
  */

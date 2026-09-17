@@ -49,6 +49,13 @@ export class BitmapViewerComponent {
   // When the renderer emits exitDone we commit mode='2d' and tear it down.
   exiting = false;
   fullscreen = false;
+  /** Set once the renderer reports it cannot get a WebGL context. */
+  webglUnsupported = false;
+
+  onUnsupported(): void {
+    this.webglUnsupported = true;
+    this.cdr.markForCheck();
+  }
 
   constructor() {
     const onFsChange = () => {

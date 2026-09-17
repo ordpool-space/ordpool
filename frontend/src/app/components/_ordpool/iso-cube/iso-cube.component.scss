@@ -246,3 +246,18 @@ a:hover app-iso-cube.inline {
     filter: drop-shadow(0 0 1.4em color-mix(in srgb, var(--iso-top) 80%, transparent));
   }
 }
+
+// Reduced motion: keep the hover's brightening, which is the part that
+// says "this one", and drop the travel and the easing. The 3D renderer
+// honours the same preference for its cinematics.
+@media (prefers-reduced-motion: reduce) {
+  app-iso-cube,
+  app-iso-cube .iso-shape {
+    transition: none;
+  }
+
+  .bitcoin-block:hover app-iso-cube,
+  a:hover app-iso-cube.inline {
+    transform: none;
+  }
+}

@@ -168,7 +168,7 @@
   <div class="iso-lines">
     <ng-container *ngIf="b?.tx_count">
       <span class="num big">{{ b.tx_count | number }}</span>
-      <span class="lbl">{{ b.tx_count === 1 ? 'transaction' : 'transactions' }}</span>
+      <span class="lbl" i18n="shared.transaction-count">{ b.tx_count, plural, =1 {transaction} other {transactions} }</span>
     </ng-container>
     <span class="lbl" *ngIf="b?.timestamp">
       <app-time kind="since" [time]="b.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
