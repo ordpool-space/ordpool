@@ -11,6 +11,8 @@ import {
   getUtxos,
   waitForUtxoAt,
   waitForElectrsSync,
+  waitForOrdSync,
+  waitForOrdStockSync,
   rpc,
   mineBlocks,
   waitForTxConfirmed,
@@ -276,6 +278,14 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // the address→utxo mapping a tick later, so an immediate getUtxos can
   // miss the fresh output.
   await waitForUtxoAt(wallet.paymentAddress, FUND_AMOUNT_SATS);
+  // The mock-free funding scan reads /output on both real ords; they must have
+  // indexed the funding block before the scan runs. ord indexes independently
+  // of electrs and lags it, so a scan fired before ord catches up caches a
+  // `scan-failed` ("ord has not indexed <outpoint> yet") that the scanner never
+  // re-probes, leaving the funding status stuck below `auto` and the Mint
+  // button disabled for the page's lifetime.
+  await waitForOrdStockSync(fundedTip);
+  await waitForOrdSync(fundedTip);
 
   // ─── 4b. Reload page to refresh UTXO state ─────────────────────
   // The orchestrator fires getUtxos once on connect — funding the

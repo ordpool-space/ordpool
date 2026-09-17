@@ -9,6 +9,8 @@ import {
   getUtxos,
   waitForUtxoAt,
   waitForElectrsSync,
+  waitForOrdSync,
+  waitForOrdStockSync,
   rpc,
   mineBlocks,
   waitForTxConfirmed,
@@ -264,6 +266,14 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   // Poll the address→utxo index until the funding UTXO is visible
   // (waitForElectrsSync confirms block height, not per-address indexing).
   await waitForUtxoAt(paymentAddr, Math.round(FUND_AMOUNT_BTC * 1e8));
+  // The mock-free funding scan reads /output on both real ords; they must have
+  // indexed the funding block before the scan runs. ord indexes independently
+  // of electrs and lags it, so a scan fired before ord catches up caches a
+  // `scan-failed` ("ord has not indexed <outpoint> yet") that the scanner never
+  // re-probes, leaving the funding status stuck below `auto` and the Mint
+  // button disabled for the page's lifetime.
+  await waitForOrdStockSync(fundedTip);
+  await waitForOrdSync(fundedTip);
 
   // Reload so the orchestrator picks up the new UTXO.
   const knownBeforeReload = new Set(context.pages());
