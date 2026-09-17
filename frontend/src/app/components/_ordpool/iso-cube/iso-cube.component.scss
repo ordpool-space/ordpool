@@ -58,14 +58,17 @@ app-iso-cube {
 
     // Lighting, sun from the upper left: the top face carries the cube's
     // colour, the left and right faces are the same hue mixed towards
-    // black at 76 % and 50 %. For brand orange that is exactly the logo
-    // cascade #FF9900 / #C07300 / #7E4B00. The gradient overlays in the
-    // SVG (gloss on the top face, light-to-dark on the sides) are built
-    // to average out to these flat colours, so the header logo keeps
-    // the reference colours and every screenshot of it stays valid.
+    // black. The two factors are the ones that reproduce the brand cascade
+    // #FF9900 / #C07300 / #7E4B00 exactly: 255 x 0.7525 rounds to 192 =
+    // 0xC0 and 153 x 0.7525 to 115 = 0x73; 255 x 0.4925 to 126 = 0x7E and
+    // 153 x 0.4925 to 75 = 0x4B. (76 % / 50 % are a shade off -- #C27400
+    // and #804D00.) The gradient overlays in the SVG, gloss on the top
+    // face and light-to-dark on the sides, average out to zero over their
+    // face, so these stay the cube's mean colours and the header logo
+    // keeps the reference values.
     .face-top { fill: var(--iso-top); }
-    .face-left { fill: color-mix(in srgb, var(--iso-top) 76%, black); }
-    .face-right { fill: color-mix(in srgb, var(--iso-top) 50%, black); }
+    .face-left { fill: color-mix(in srgb, var(--iso-top) 75.25%, black); }
+    .face-right { fill: color-mix(in srgb, var(--iso-top) 49.25%, black); }
 
     // Edge lines: lit on the two upper edges, a faint ridge where the
     // faces meet, dark along the ground edges. They also cover the

@@ -1257,11 +1257,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
 
-        // Nothing to do while the canvas is scrolled out of view or the tab
-        // is in the background. The bitmap sits well down the transaction
-        // page, so this is the common case, and a WebGL scene of several
-        // thousand cubes is not something to keep drawing for nobody.
-        if (!onScreen || document.visibilityState === 'hidden') return;
+        // Out of view, or the tab is in the background. Drawing is what
+        // gets skipped (see the tail of this loop) -- the state machine
+        // keeps running, because the transitions it drives are what emit
+        // exitDone. Freezing it here stranded `exiting` as true, and the
+        // viewer's toggles are both guarded on that flag, so scrolling
+        // away mid-exit left the two buttons dead until you scrolled back.
+        const offScreen = !onScreen || document.visibilityState === 'hidden';
 
         switch (state) {
           case 'intro': {
@@ -1321,6 +1323,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
             // simultaneously with the tilt rather than after it).
             if (state === 'fly-to-iso' && flyAfterIso === 'exit') {
               container.scale.y = 1 - (1 - SCALE_MIN) * eased;
+              // Cube heights change per frame here, so the frozen depth map
+              // has to follow -- otherwise full-height shadows keep being
+              // cast while the cubes flatten, and this exit ends looking
+              // straight down, the worst angle to notice it from.
+              directional.shadow.needsUpdate = true;
             }
             if (t >= 1) {
               if (state === 'fly-to-pfp') {
@@ -1358,6 +1365,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 // Restore the iso-mode near-plane (see PFP-entry comment).
                 camera.near = cameraDistance / 100;
                 camera.updateProjectionMatrix();
+                // This frame is already past the point where 'orbit' stops
+                // drawing by itself, and OrbitControls will not announce a
+                // change because the camera landed on the pose it started
+                // from. Ask for the frame that carries the restored near
+                // plane, then settle into the refined one.
+                requestRender();
+                scheduleRefine();
               } else {
                 state = 'exit-done';
                 setPfpClass(false);
@@ -1369,7 +1383,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
             break;
           }
           case 'pfp': {
-            pfpFrame(physicsClock.getDelta());
+            // Physics for a view nobody is looking at is the one piece of
+            // per-frame work worth dropping outright; the clock is still
+            // read so the first frame back does not integrate the whole
+            // absence in one step.
+            const dt = physicsClock.getDelta();
+            if (!offScreen) pfpFrame(dt);
             break;
           }
           case 'exit-done': {
@@ -1387,7 +1406,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           needsRender = true;
           refined = false;
         }
-        if (!needsRender) return;
+        // Keep needsRender armed while away, so the frame that was owed is
+        // drawn on return rather than waiting for the next interaction.
+        if (offScreen || !needsRender) return;
         needsRender = false;
         // Sun stays fixed in world space; only the camera and state change.
         if (composer && refined) composer.render(); else renderer.render(scene, camera);

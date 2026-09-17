@@ -240,8 +240,9 @@ mempool.space styling.
      `#C07300` / `#7E4B00`; brand orange ALWAYS sits on the sun-lit
      face there, it's the identity anchor, the shaded faces are
      derived tones. The timeline cube shades whatever colour its top
-     face carries: sides at 84 % and 66 % of it towards black (kept
-     gentle, the fee palette is dark already), a gloss gradient from
+     face carries: sides at 75.25 % and 49.25 % of it towards black --
+     the two factors that reproduce the cascade above exactly for brand
+     orange -- a gloss gradient from
      the lit corner on the top face, an ambient-occlusion gradient
      towards the ground on the sides, lit edges on top, dark edges at
      the ground. It casts no dark shadow (invisible on the navy page)

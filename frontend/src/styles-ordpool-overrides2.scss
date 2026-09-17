@@ -156,6 +156,11 @@ body .bitcoin-block:has(app-iso-cube) {
 // important) never outranks an element's own declaration.
 body .bitcoin-block.blink-bg app-iso-cube {
   --iso-top: var(--taproot) !important;
+  // The ink has to move with the face. The cube picks it from the FEE
+  // colour's luminance, and for the dark half of the palette that is
+  // white -- which on taproot gold (luminance 0.457) is 2.07:1. Taproot
+  // is a light face, so it takes the dark default, 7.85:1.
+  --iso-ink: var(--bg) !important;
 }
 body .bitcoin-block.blink-bg app-iso-cube .iso-shape {
   animation: ordpool-cube-special 1s infinite;

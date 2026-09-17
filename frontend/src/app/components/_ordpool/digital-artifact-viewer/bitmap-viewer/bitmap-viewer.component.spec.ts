@@ -37,19 +37,38 @@ describe('BitmapViewerComponent view states', () => {
     expect(emissions[1]).toMatchObject({ kind: 'ready', data: blockResponse });
   });
 
-  it('draws the squares in ordpool orange, not the parser default', async () => {
-    document.documentElement.style.setProperty('--primary', '#FF9900');
+  it('fills the squares with the theme accent, not the parser default', async () => {
+    // A sentinel rather than #FF9900: that is also brandOrange()'s own
+    // fallback, so asserting it would pass even if the theme were never
+    // read at all.
+    document.documentElement.style.setProperty('--primary', '#0000FF');
+    try {
+      const { component } = setup(of(blockResponse));
+      component.height = 800_000;
+
+      const vm = await firstValueFrom(component.vm$.pipe(toArray()));
+      // The stubbed sanitizer hands the markup straight back, so the view
+      // model's SafeHtml is the SVG string here.
+      const ready = vm[vm.length - 1] as unknown as { kind: 'ready'; svg: string };
+
+      expect(ready.svg).toContain('#0000FF');
+      // bitlodo's reference orange, the parser's fallback when no colour
+      // is passed -- what the viewer used to ship.
+      expect(ready.svg).not.toContain('#F7931A');
+    } finally {
+      document.documentElement.style.removeProperty('--primary');
+    }
+  });
+
+  it('falls back to ordpool orange when the theme defines no accent', async () => {
+    document.documentElement.style.removeProperty('--primary');
     const { component } = setup(of(blockResponse));
     component.height = 800_000;
 
     const vm = await firstValueFrom(component.vm$.pipe(toArray()));
-    // The stubbed sanitizer hands the markup straight back, so the view
-    // model's SafeHtml is the SVG string here.
     const ready = vm[vm.length - 1] as unknown as { kind: 'ready'; svg: string };
 
     expect(ready.svg).toContain('#FF9900');
-    // bitlodo's reference orange, the fallback when no colour is passed
-    expect(ready.svg).not.toContain('#F7931A');
   });
 
   it('stays in loading while the request is in flight', async () => {

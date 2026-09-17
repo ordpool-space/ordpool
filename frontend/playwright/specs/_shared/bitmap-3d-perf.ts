@@ -34,8 +34,18 @@ const heapMB = (page: Page) =>
  */
 const HEAP_CEILING_MB = 600;
 
-/** Nothing should take this long. Purely a canary against a hang. */
-const MOUNT_CEILING_MS = 60_000;
+/**
+ * Nothing should take this long. Purely a canary against a hang -- the
+ * per-mount octree build this branch removed cost 15 s on the desktop that
+ * measured it, so a return to it lands here.
+ *
+ * waitForState below is given more than this on purpose: at its 30 s
+ * default the wait aborted first and the canary could never fire, so a
+ * regression would have surfaced as an opaque wait timeout instead of a
+ * named budget.
+ */
+const MOUNT_CEILING_MS = 45_000;
+const MOUNT_WAIT_MS = MOUNT_CEILING_MS + 15_000;
 
 export const bitmapPerfSuite = (label: string): void => {
   // Block 500,000: the widest layout of any block sampled (160 units from
@@ -60,7 +70,7 @@ export const bitmapPerfSuite = (label: string): void => {
     test('a worst-case bitmap mounts quickly and keeps the heap flat', async ({ page }, testInfo) => {
       const startedAt = Date.now();
       await mountFixture(page, fixture.sizes);
-      await waitForState(page, 'orbit');
+      await waitForState(page, 'orbit', MOUNT_WAIT_MS);
       const mountMs = Date.now() - startedAt;
 
       const mb = await heapMB(page);
