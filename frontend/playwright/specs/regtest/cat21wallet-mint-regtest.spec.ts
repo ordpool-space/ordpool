@@ -298,6 +298,24 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintButton = page.getByTestId('mint-cat-button');
+  // TEMP DIAGNOSTIC (remove once green): the button gates on
+  // `form.invalid || !hasFundingSource()`. Dump both inputs so a red run
+  // says WHICH one is false instead of only "button disabled".
+  await page.waitForTimeout(3000);
+  const diag = await page.evaluate(() => {
+    const btn = document.querySelector('[data-testid="mint-cat-button"]') as HTMLButtonElement | null;
+    const fee = document.querySelector('[data-testid="cat21-fee-rate"]') as HTMLInputElement | null;
+    return {
+      btnDisabled: btn ? btn.disabled : 'no-btn',
+      feeValue: fee ? fee.value : 'no-fee',
+      feeClass: fee ? fee.className : '',
+      feeAriaInvalid: fee ? fee.getAttribute('aria-invalid') : '',
+      hasTotalCost: !!document.querySelector('[data-testid="mint-total-cost"]'),
+      hasEmptyState: !!document.querySelector('[data-testid="fund-payment-address"]'),
+      body: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 1500),
+    };
+  });
+  console.log('[mint-diag] ' + JSON.stringify(diag));
   await expect(mintButton).toBeEnabled({ timeout: 60_000 });
   await shot(page, '06-ready-to-mint');
 
