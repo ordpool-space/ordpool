@@ -235,7 +235,13 @@ jobs:
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          ref: main
+          # Pinned, not `main`: the harness (global-setup, seeded vault, .crx) is
+          # a sibling repo under active development, and an unpinned checkout means
+          # any push there can break this lane mid-deploy. It did: an SDK commit
+          # moved the seed directory out from under this workflow's fixed paths.
+          # Bump deliberately, so a harness change surfaces as a bump-time failure
+          # with an obvious cause, never as a mystery in the middle of a deploy.
+          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4
@@ -357,6 +363,13 @@ jobs:
       # they collide on host :18443. One bitcoind now: the consumer-environment's.
       - name: Run SDK's Xverse onboarding (produces seeded user-data-dir)
         working-directory: sdk
+        # Pin the seed location explicitly on the PRODUCER, so writer and reader
+        # agree by construction and the SDK's default can never move it out from
+        # under us. Deliberately OUTSIDE sdk/test-results: Playwright wipes its
+        # outputDir at the start of every run, so a seed written there by this
+        # step would be deleted when the consumer spec run starts.
+        env:
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
         run: |
           # globalSetup.ts is the side-effect target — running any
           # xverse spec triggers it. `xverse-loads.spec.ts` is the
@@ -367,8 +380,9 @@ jobs:
 
       - name: Verify seed user-data-dir landed
         run: |
-          test -d sdk/test-results/xverse-seed-user-data-dir/Default \
-            || { echo "no seed user-data-dir at expected path"; ls sdk/test-results/; exit 1; }
+          SEED_DIR="${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir"
+          test -d "$SEED_DIR/Default" \
+            || { echo "no seed user-data-dir at $SEED_DIR"; ls -la "$(dirname "$SEED_DIR")" 2>/dev/null; exit 1; }
 
       # ── Patch environment.ts + serve the frontend ──────────────────
       #
@@ -523,7 +537,7 @@ jobs:
           # Point the spec at the SDK's seeded vault + unpacked .crx
           # (the workflow's cache populated these one level up).
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
-          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
           FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
@@ -543,7 +557,7 @@ jobs:
         working-directory: frontend
         env:
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
-          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
           FRONTEND_URL: http://localhost:4200
           REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
           REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
@@ -562,7 +576,7 @@ jobs:
         working-directory: frontend
         env:
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
-          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
           FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \

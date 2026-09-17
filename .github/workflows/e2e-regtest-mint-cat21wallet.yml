@@ -159,7 +159,10 @@ jobs:
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          ref: main
+          # Pinned, not `main`: the SDK harness is a sibling repo under active
+          # development; an unpinned checkout lets any push there break this lane.
+          # Bump deliberately. (Matches the pin in e2e-regtest-mint.yml.)
+          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4
