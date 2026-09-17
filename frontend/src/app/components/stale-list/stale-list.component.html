@@ -56,9 +56,15 @@
                   <div class="transaction-count" *ngIf="chainTip.stale?.tx_count">
                     {{ chainTip.stale.tx_count | number }} transaction<ng-container *ngIf="chainTip.stale.tx_count !== 1">s</ng-container>
                   </div>
+                  <!-- HACK -- Ordpool: the cube's right face carries this now
+                       (see #isoRight). Commented out rather than hidden: the
+                       surrounding .block-body is only invisible, so a second
+                       app-time here would keep its own one-second timer
+                       running for text nobody can see.
                   <div class="time-difference" *ngIf="chainTip.stale?.timestamp">
                     <app-time kind="since" [time]="chainTip.stale.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
                   </div>
+                  -->
                 </div>
               </div>
               <div class="animated" *ngIf="chainTip.stale?.extras?.pool != undefined">
@@ -108,9 +114,12 @@
                   <div class="transaction-count" *ngIf="chainTip.canonical?.tx_count">
                     {{ chainTip.canonical.tx_count | number }} transaction<ng-container *ngIf="chainTip.canonical.tx_count !== 1">s</ng-container>
                   </div>
+                  <!-- HACK -- Ordpool: the cube's right face carries this now
+                       (see #isoRight); same reason as the stale block above.
                   <div class="time-difference" *ngIf="chainTip.canonical?.timestamp">
                     <app-time kind="since" [time]="chainTip.canonical.timestamp" [fastRender]="true" [precision]="1" minUnit="minute"></app-time>
                   </div>
+                  -->
                 </div>
               </div>
               <div class="animated" *ngIf="chainTip.canonical?.extras?.pool != undefined">

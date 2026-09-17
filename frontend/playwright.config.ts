@@ -27,6 +27,19 @@ import { defineConfig, devices } from '@playwright/test';
 // physics-grounded transitions need (waitForFunction itself polls via
 // setInterval inside the page). These flags keep the rendering pipeline
 // running at full rate.
+/**
+ * One literal for the readiness probe and for what the specs navigate to,
+ * matching the address `start:ordpool-e2e` is pinned to with `--host`.
+ *
+ * `localhost` is not usable here: it resolves to ::1 first on macOS and to
+ * 127.0.0.1 first on most Linux, while `ng serve` binds a single address.
+ * Probing one name that resolves differently than the server bound is how
+ * the readiness check ends up talking to nobody -- the run then dies on
+ * webServer.timeout with no hint as to why. Pinning both ends to the same
+ * literal removes the question.
+ */
+const E2E_ORIGIN = 'http://127.0.0.1:4242';
+
 const KEEP_ALIVE_FLAGS = [
   '--disable-renderer-backgrounding',
   '--disable-background-timer-throttling',
@@ -58,7 +71,7 @@ export default defineConfig({
     timeout: 15_000,
   },
   use: {
-    baseURL: 'http://localhost:4242',
+    baseURL: E2E_ORIGIN,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -86,11 +99,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run start:ordpool-e2e',
-    // 127.0.0.1, not localhost: Node resolves localhost to ::1 first, and
-    // `ng serve` binds IPv4 only. Probing localhost therefore never sees a
-    // running server, so reuseExistingServer can't fire and the spawned one
-    // is never detected as ready either -- the run dies on this timeout.
-    url: 'http://127.0.0.1:4242',
+    url: E2E_ORIGIN,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },

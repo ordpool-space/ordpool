@@ -155,12 +155,19 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   /** Bumped on each rebuild() so a superseded renderCubes() can bail after its
    *  async three.js import instead of constructing a second WebGLRenderer. */
   private rebuildToken = 0;
+  /** Set in ngOnDestroy; see the guard after the three.js import. */
+  private destroyed = false;
 
   async ngAfterViewInit(): Promise<void> {
     await this.rebuild();
   }
 
   ngOnDestroy(): void {
+    // Set before disposeStage so a renderCubes() still awaiting the three.js
+    // import bails instead of building a scene for a detached host. The
+    // rebuildToken can't carry this: rebuild() takes its token and then
+    // calls disposeStage(), so bumping it there would abort every mount.
+    this.destroyed = true;
     this.disposeStage();
   }
 
@@ -210,7 +217,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // A newer rebuild() superseded this one while the three.js import was in
     // flight; bail before constructing a second renderer so only the latest
     // rebuild builds a WebGLRenderer.
-    if (token !== this.rebuildToken || this._sizes === null || !this.host?.nativeElement) {
+    // `destroyed` covers the case the token cannot: the component was torn
+    // down while this import was in flight, so cleanup ran when there was
+    // nothing yet to clean up. Without it everything below -- renderer, GL
+    // context, rAF loop, both observers, the global listeners -- is built
+    // for a detached host and never released.
+    if (this.destroyed || token !== this.rebuildToken || this._sizes === null || !this.host?.nativeElement) {
       return;
     }
 
@@ -999,11 +1011,22 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       playerCollider.translate(moveDelta);
       collidePlayer();
     };
+    // Walking far enough out leaves the grid's fade radius, and past that
+    // there is nothing at all: no landmark, no horizon, no way back except
+    // the toolbar. The old ground box ended at 5x the layout and dropped
+    // you, which at least tripped the fall check below; the floor plane
+    // that replaced it is infinite, so the horizontal bound has to be
+    // stated. Sits just inside where the grid has finished fading.
+    const WORLD_RADIUS = maxSize * GRID_FADE_END_MULT;
+    const respawn = () => {
+      playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
+      playerCollider.end.set(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z);
+      playerVelocity.set(0, 0, 0);
+    };
     const teleportIfOob = () => {
-      if (camera.position.y < -10) {
-        playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
-        playerCollider.end.set(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z);
-        playerVelocity.set(0, 0, 0);
+      const p = playerCollider.end;
+      if (camera.position.y < -10 || Math.hypot(p.x, p.z) > WORLD_RADIUS) {
+        respawn();
       }
     };
     const physicsClock = new THREE.Clock();

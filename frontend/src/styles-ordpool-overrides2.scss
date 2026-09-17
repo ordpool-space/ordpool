@@ -178,6 +178,21 @@ body .bitcoin-block:has(app-iso-cube) .block-body,
 body .block-wrapper:has(app-iso-cube) > .block-body {
   visibility: hidden;
 }
+// The cube is drawn at 130 % of its block, so its top and bottom vertices
+// and a sliver either side fall outside the block's own box -- and the
+// click target and the hover trigger are that box. Clicking the visible
+// top of a cube did nothing. Grow the link to the cube's extent and clip
+// it to the same hexagon the SVG draws, so the target is exactly the
+// shape the reader sees: no dead vertices, and no rectangle claiming the
+// empty corners, which at this stride would overlap the neighbour. Hover
+// travels to `.bitcoin-block` from the link, so the lift follows.
+body .bitcoin-block:has(app-iso-cube) .blockLink {
+  inset: -15%;
+  width: auto;
+  height: auto;
+  clip-path: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+}
+
 // The hexagon is centred on the block, so the floating height label
 // needs none of the Necker silhouette's horizontal nudge. Its distance
 // and size follow the block (upstream pins 160px / 16px to a 125px

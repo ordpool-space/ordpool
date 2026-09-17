@@ -113,6 +113,10 @@ app-iso-cube {
     width: 50%;
     height: 50%;
     transform-origin: 0 0;
+    // The stat lines are nowrap and a busy block can outrun its face.
+    // Clipping at the face keeps the overflow off the neighbouring cube,
+    // which sits at the same z-index a few pixels away.
+    overflow: hidden;
   }
   .iso-left {
     left: 6.7%;

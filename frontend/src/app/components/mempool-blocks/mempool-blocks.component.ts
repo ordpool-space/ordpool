@@ -12,14 +12,20 @@ import { Location } from '@angular/common';
 import { DifficultyAdjustment, MempoolPosition } from '@interfaces/node-api.interface';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { ThemeService } from '@app/services/theme.service';
+import { timelineBlockSize } from '@components/_ordpool/iso-cube/iso-cube.constants';
 
 @Component({
   selector: 'app-mempool-blocks',
   templateUrl: './mempool-blocks.component.html',
   styleUrls: ['./mempool-blocks.component.scss'],
+  // HACK -- Ordpool: a new projected block slides in from exactly one
+  // stride away. The literal has to be computed here rather than read from
+  // blockWidth, because a decorator is evaluated once at class definition
+  // and never sees an instance; it was left at the 155 px of the old 125 px
+  // block while the strip moved to timelineBlockSize.
   animations: [trigger('blockEntryTrigger', [
     transition(':enter', [
-      style({ transform: 'translateX(-155px)' }),
+      style({ transform: `translateX(${-timelineBlockSize * 1.24}px)` }),
       animate('2s 0s ease', style({ transform: '' })),
     ]),
   ])],
