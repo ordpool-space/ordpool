@@ -64,6 +64,7 @@ on:
       - 'frontend/playwright/specs/regtest/cat21-mint-alby-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-warning-block-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-dirty-matrix-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
@@ -568,6 +569,26 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # The one-address counterpart of the guard-refusal spec above: on a wallet
+      # that keeps ONE address for everything (unisat), a dirty-only funding pool
+      # is a blocking WARNING, not a notice. Proves the CTA is DISABLED, the
+      # warning shows, the picker is offered and nothing is broadcast, and
+      # produces the family's one-address funding-panel screenshot. seedInscribedCoin
+      # docker-execs the ord wallets, hence the container env; unisat lives in the
+      # separate SDK checkout like the other unisat steps.
+      - name: Run the one-address warning + under-block spec (Unisat)
+        if: always()
+        working-directory: frontend
+        env:
+          UNISAT_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/unisat
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-warning-block-unisat-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       # Dirty-coin protection matrix for the MINT flow — all four asset classes
