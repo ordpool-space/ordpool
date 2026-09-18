@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
+import { cleanOutputFixture } from 'ordpool-sdk';
 
 // Shared regtest helpers + the Xverse approval-popup machinery, single-
 // sourced from the SDK's compiled `ordpool-sdk/e2e` barrel.
@@ -168,16 +169,19 @@ test.beforeAll(async () => {
   // page-level `**/output/*` route, which Playwright evaluates before this one, so
   // its cat-bearing outpoint still surfaces the "asset found" warning.
   await context.route('**/output/*', async (route) => {
+    // Canonical /output shape from the SDK's cleanOutputFixture, so this mock
+    // tracks the classifier contract instead of drifting from it. A hand-written
+    // body that omitted `sat_ranges` is what reddened both base mint lanes once
+    // the classifier began requiring proof-of-indexing; the fixture carries the
+    // ranges a real indexed output has, and an SDK spec pins it to the
+    // classifier. Route each host to its half: the stock ord (:8081) gets the
+    // ord response, cat21-ord (:8080) the cats.
+    const fx = cleanOutputFixture();
+    const body = route.request().url().includes(':8080') ? fx.cat21Ord : fx.ord;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      // `sat_ranges` is load-bearing: the SDK classifier treats an /output
-      // with no ranges as NOT-YET-INDEXED (fail-closed), never as clean, so a
-      // ranges-less body leaves the funding coin unspendable and the Mint
-      // button disabled. The range below sits inside block 0 (sats
-      // [0, 5_000_000_000)), excludes sat 0 and every block-first sat, so it
-      // classifies as a common (non-rare) sat -> the coin is clean.
-      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [], sat_ranges: [[1000000000, 1000000546]] }),
+      body: JSON.stringify(body),
     });
   });
 
