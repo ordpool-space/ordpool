@@ -43,12 +43,12 @@ import { calculateRecommendedFundingSats } from 'ordpool-sdk';
  * leftover ever undercuts it.
  *
  * ACCUMULATION: Scenario A does NOT spend the dirty coin, so every cell's coin
- * SURVIVES into the next cell's pool. The margins STRICTLY DECREASE across cells
- * (by more than the noise) so each cell's coin is the global smallest covering and
- * there are no ties — a tie would let best-fit take an EARLIER cell's coin under
- * the mutation, spending a different asset while this cell's survival assertion
- * passes (an invisible burn). To catch that anyway, every cell asserts not only
- * ITS coin survives but that EVERY previously-seeded dirty coin still survives.
+ * SURVIVES into the next cell's pool. The margins STRICTLY DECREASE across cells,
+ * by a step that EXCEEDS THE FLOW'S REQUIREMENT (see the CELLS margins), so each
+ * cell's coin is the global smallest covering with no ties AND so the mutated
+ * mint's change coin (dirty - requirement) still lands below the next rung rather
+ * than undercutting it. To catch a cross-cell burn anyway, every cell asserts not
+ * only ITS coin survives but that EVERY previously-seeded dirty coin still survives.
  *
  * No serial mode: the config is already workers:1 + fullyParallel:false, so tests
  * run sequentially and share module state; adding `serial` would only hide reds
@@ -65,13 +65,22 @@ const TEST_PASSWORD = 'TestPassword123!';
 
 const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the mint requirement and > every dirty coin
 
-// Per-cell margins ABOVE the measured requirement, STRICTLY DECREASING by 500 sat
-// (well over the noise) so each cell's dirty coin is the global smallest covering
-// and no two ever tie. All land far under the base spec's ~13k-30k leftovers.
+// Per-cell margins ABOVE the measured requirement, STRICTLY DECREASING. The step
+// between rungs must EXCEED THE FLOW'S REQUIREMENT, not merely the noise. Under the
+// clean-filter mutation a cell's mint spends its dirty coin and emits change =
+// dirty - postage - fee = dirty - requirement; a step <= requirement lets that
+// change land below the next rung and become the smallest covering coin, firing
+// the placement guard on the NEXT cell at setup before its survival assertion can
+// run (a setup red proves only that the premise was false, never that the
+// assertion can fail). The mint requirement is ~700, so a 1000-sat step clears it:
+// dirty = 4200 / 3200 / 2200 / 1200. The green path is unaffected either way (it
+// spends the 100k clean coin, change ~99k, no undercut); this only sharpens the
+// mutation into four own-assertion reds. See the placement recipe in the SDK's
+// E2E_BEST_PRACTICES for the general form.
 const CELLS: { asset: DirtyCoinAsset; marginSats: number; label: string }[] = [
-  { asset: 'rareSat', marginSats: 2_000, label: 'rare sat' },
-  { asset: 'rune', marginSats: 1_500, label: 'rune' },
-  { asset: 'cat', marginSats: 1_000, label: 'cat' },
+  { asset: 'rareSat', marginSats: 3_500, label: 'rare sat' },
+  { asset: 'rune', marginSats: 2_500, label: 'rune' },
+  { asset: 'cat', marginSats: 1_500, label: 'cat' },
   { asset: 'inscription', marginSats: 500, label: 'inscription' },
 ];
 
