@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, shareReplay, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, filter, firstValueFrom, interval, map, of, shareReplay, take, tap } from 'rxjs';
 
 import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
@@ -17,6 +17,12 @@ export interface ViableSimulation {
   scan: UtxoScanState;
   bucket: UtxoScanBucket;
 }
+
+/** How often to re-read the funding set while WAITING for funds (status
+ *  `insufficient`). Off once a covering coin appears, so a funded page never
+ *  polls. 15s balances "the CTA lights up soon after my deposit confirms"
+ *  against per-tab electrs cost. */
+const FUNDING_REFRESH_INTERVAL_MS = 15_000;
 
 @Component({
   selector: 'app-cat21-mint',
@@ -88,6 +94,20 @@ export class Cat21MintComponent implements OnInit {
       this.cd.markForCheck();
     });
     this.destroyRef.onDestroy(unsubscribe);
+
+    // Re-read the funding set while the page is WAITING for funds, so the CTA
+    // enables when they arrive without a manual reload. The orchestrator reads
+    // its UTXO set once, on connect: a page connected while a funding tx is
+    // still unconfirmed would otherwise sit disabled forever, and no fee change
+    // fixes it because the fee rate is not what is missing. Bounded on purpose:
+    // it only hits electrs while the status is `insufficient` (nothing covers
+    // yet) and goes quiet the moment a covering coin appears. refreshUtxos is a
+    // no-op with no wallet and preserves the fee rate + expert pick (it re-runs
+    // setWallet with the SAME wallet, so the wallet-changed reset never fires).
+    interval(FUNDING_REFRESH_INTERVAL_MS).pipe(
+      filter(() => this.fundingStatus() === 'insufficient'),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => { void this.orchestrator.refreshUtxos(); });
   }
 
   /** Asset-detail link bases sourced from cat21Config so dev / regtest / prod stay aligned with the scanner's own endpoints. */

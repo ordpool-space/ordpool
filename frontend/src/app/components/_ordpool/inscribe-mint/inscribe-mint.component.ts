@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
+import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
 import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
@@ -48,6 +48,11 @@ interface BatchEntry extends PickedFile {
 const MAX_CONTENT_BYTES = 350_000;
 
 /** JavaScript MIME types are blocked (XSS-flavoured inscribers). */
+/** How often to re-read the funding set while WAITING for funds (a file is set
+ *  and the status is `insufficient`). Off once a covering coin appears, so a
+ *  funded page never polls. Matches the mint page. */
+const FUNDING_REFRESH_INTERVAL_MS = 15_000;
+
 const BLOCKED_CONTENT_TYPES = [
   'application/javascript',
   'text/javascript',
@@ -117,6 +122,20 @@ export class InscribeMintComponent implements OnInit {
       this.cd.markForCheck();
     });
     this.destroyRef.onDestroy(unsubscribe);
+
+    // Re-read the funding set while WAITING for funds, so the CTA enables when
+    // they arrive without a manual reload. The orchestrator reads its UTXO set
+    // once, on connect, so a page connected while a funding tx is unconfirmed
+    // sits disabled forever otherwise, and no fee change fixes it. Gated on
+    // `hasContent` because the inscribe funding requirement is derived from the
+    // content, so `insufficient` only means "waiting for funds" once a file is
+    // set; and bounded, only hitting electrs while insufficient and going quiet
+    // the moment a covering coin appears. refreshUtxos is a no-op with no wallet
+    // and preserves the fee rate + expert pick.
+    interval(FUNDING_REFRESH_INTERVAL_MS).pipe(
+      filter(() => this.hasContent && this.fundingStatus() === 'insufficient'),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => { void this.orchestrator.refreshUtxos(); });
   }
 
   /** ord review base for inscription/rune links (dev/regtest/prod aligned). */

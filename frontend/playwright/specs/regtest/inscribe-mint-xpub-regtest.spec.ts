@@ -191,8 +191,14 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + watch-only
   await shot(page, '04-connected');
 
   // ─── 3. Drop the fixture, pin the fee, wait for Inscribe ───────
-  // getUtxos fired on connect and already sees the pre-funded coin (funded
-  // BEFORE connect), so no reload is needed.
+  // Funded BEFORE connect, so the connect-time getUtxos usually sees the coin
+  // and the button enables straight away. When that fetch loses the race and
+  // reads empty, the orchestrator would keep that empty set forever (it reads
+  // once on connect) and the button would stay disabled the full 60s. The
+  // component's bounded funding-refresh poll recovers it: once a file is set and
+  // the status is `insufficient`, it re-reads the set within one interval, so
+  // the button enables whether or not the connect fetch won. No page reload,
+  // which a watch-only (pasted-key) connection would not survive.
   await page.setInputFiles('[data-testid="inscribe-file-input"]', FIXTURE_PATH);
   await expect(page.locator('[data-testid="inscribe-file-name"]')).toContainText('inscribe-probe.svg', { timeout: 10_000 });
   await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE, { timeout: 10_000 });
