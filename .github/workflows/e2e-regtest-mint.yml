@@ -65,7 +65,6 @@ on:
       - 'frontend/playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-warning-block-unisat-regtest.spec.ts'
-      - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-dirty-matrix-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
@@ -595,25 +594,6 @@ jobs:
             --config=playwright.regtest.config.ts \
             --output=test-results/funding-guard-warning-block-unisat
 
-      # The separate-address NOTICE cell: on a wallet with a separate payment
-      # address (leather) and a genuinely dirty-only pool, the dirty coin is
-      # asset-notice, not a block: the notice names the coin and the CTA stays
-      # ENABLED. Needs a FRESH vault (leather onboards one per run) so the pool
-      # has no clean leftover; Xverse can't host it (shared vault). seedInscribedCoin
-      # docker-execs the ord wallets, hence the container env.
-      - name: Run the separate-address notice cell (Leather)
-        if: always()
-        working-directory: frontend
-        env:
-          LEATHER_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/leather
-          FRONTEND_URL: http://localhost:4200
-          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
-          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
-        run: |
-          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts \
-            --config=playwright.regtest.config.ts \
-            --output=test-results/funding-guard-notice-leather
 
       # Dirty-coin protection matrix for the MINT flow — all four asset classes
       # (rare sat, rune, cat, inscription). Each cell seeds a clean covering coin

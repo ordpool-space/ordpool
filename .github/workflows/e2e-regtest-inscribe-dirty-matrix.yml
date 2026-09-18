@@ -41,6 +41,7 @@ on:
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
@@ -519,7 +520,30 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-inscribe-dirty-matrix
+
+      # The separate-address NOTICE cell rides this lane because it needs the one
+      # thing the mint lane cannot give it: a FRESH separate-address wallet. The
+      # mint lane's unisat/wizz/leather specs all share ONE p2wpkh address (same
+      # test mnemonic), so leather's payment address there is contaminated with
+      # their seeds. Here only the Xverse-driven matrix runs, so leather's address
+      # (a different derivation) is untouched, and the cell gets a genuinely
+      # dirty-only pool. leather is already bootstrapped in this lane;
+      # seedInscribedCoin docker-execs the ord wallets, hence the container env.
+      - name: Run the separate-address notice cell (Leather)
+        if: always()
+        working-directory: frontend
+        env:
+          LEATHER_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/leather
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-notice-leather
 
       - name: Upload Playwright artifacts
         if: always()

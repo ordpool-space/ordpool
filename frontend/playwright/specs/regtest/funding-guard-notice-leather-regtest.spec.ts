@@ -18,12 +18,18 @@ import {
  * specs can't provide: a SEPARATE-address wallet (payment != ordinals) with a
  * genuinely DIRTY-ONLY pool. Leather is separate-address (its connector fills
  * paymentAddress and ordinalsAddress from two different derivations, so
- * isOneAddressWallet reads it as separate), and it onboards a FRESH user-data-dir
- * per run, so its payment address starts empty. That freshness is the whole point:
- * the Xverse funding-guard spec cannot host this cell because it runs on the
- * SHARED Xverse vault, whose payment address accumulates clean change from every
- * earlier lane spec, so a clean leftover auto-funds and the status is never
- * asset-notice. On a fresh leather address the ONLY coin is the one we seed.
+ * isOneAddressWallet reads it as separate).
+ *
+ * WHY THIS RUNS ON THE INSCRIBE-DIRTY-MATRIX LANE, not the mint lane: a
+ * dirty-only pool needs an UNCONTAMINATED payment address, and the mint lane
+ * cannot give leather one. The freshly-onboarded p2wpkh wallets (unisat, wizz,
+ * leather) all derive the SAME payment address from one test mnemonic, so on the
+ * mint lane leather's address is loaded with every unisat/wizz/leather spec's
+ * seeds (a fresh user-data-dir does NOT mean a fresh address). The
+ * inscribe-dirty-matrix lane runs only the Xverse-driven matrix, which seeds to
+ * the Xverse address, a different derivation, so leather's shared p2wpkh address
+ * is untouched here and the ONLY coin is the one we seed. The premise guard below
+ * enforces exactly that.
  *
  * THE PREMISE GUARD (this cell's equivalent of the matrices'
  * assertDirtyCoinIsBestFit): before the page reads anything, assert the pool is
@@ -71,7 +77,9 @@ async function shot(p: Page, name: string): Promise<void> {
   }).catch(() => undefined);
 }
 
-// Leather renders its connect approval; confirm/sign/approve, self-closing popup.
+// Leather's connect approval is the get-addresses popup; click its stable
+// testid (lifted verbatim from the proven inscribe-mint-leather spec, whose
+// generic text/role match was NOT reliable for this button).
 async function approveLeatherConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
   const popup = await waitForApprovalPopup({
     context,
@@ -79,16 +87,12 @@ async function approveLeatherConnect(knownPages: Set<Page>, timeoutMs: number): 
     timeoutMs,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.waitForFunction(() => {
-        const t = (document.body.innerText || '').toLowerCase();
-        return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
-      }, undefined, { timeout: timeoutMs, polling: 500 });
+      await p.getByTestId('get-addresses-approve-button').waitFor({ state: 'visible', timeout: timeoutMs });
       return true;
     },
   }).catch(() => null);
   if (popup) {
-    await popup.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first()
-      .click({ noWaitAfter: true }).catch(() => undefined);
+    await popup.getByTestId('get-addresses-approve-button').click();
     await popup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
   }
   return popup;
