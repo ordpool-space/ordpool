@@ -18,7 +18,7 @@ import {
   DirtyCoinAsset,
   SeededDirtyCoin,
 } from 'ordpool-sdk/e2e';
-import { calculateRecommendedFundingSats } from 'ordpool-sdk';
+import { calculateRecommendedFundingSats, calculateRecommendedPreferredSats } from 'ordpool-sdk';
 
 /**
  * E2E (regtest) — dirty-coin protection matrix for the MINT flow, all four asset
@@ -65,23 +65,32 @@ const TEST_PASSWORD = 'TestPassword123!';
 
 const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the mint requirement and > every dirty coin
 
-// Per-cell margins ABOVE the measured requirement, STRICTLY DECREASING. The step
-// between rungs must EXCEED THE FLOW'S REQUIREMENT, not merely the noise. Under the
-// clean-filter mutation a cell's mint spends its dirty coin and emits change =
-// dirty - postage - fee = dirty - requirement; a step <= requirement lets that
-// change land below the next rung and become the smallest covering coin, firing
-// the placement guard on the NEXT cell at setup before its survival assertion can
-// run (a setup red proves only that the premise was false, never that the
-// assertion can fail). The mint requirement is ~700, so a 1000-sat step clears it:
-// dirty = 4200 / 3200 / 2200 / 1200. The green path is unaffected either way (it
-// spends the 100k clean coin, change ~99k, no undercut); this only sharpens the
-// mutation into four own-assertion reds. See the placement recipe in the SDK's
-// E2E_BEST_PRACTICES for the general form.
-const CELLS: { asset: DirtyCoinAsset; marginSats: number; label: string }[] = [
-  { asset: 'rareSat', marginSats: 3_500, label: 'rare sat' },
-  { asset: 'rune', marginSats: 2_500, label: 'rune' },
-  { asset: 'cat', marginSats: 1_500, label: 'cat' },
-  { asset: 'inscription', marginSats: 500, label: 'inscription' },
+// The ladder is DERIVED from two MEASURED targets, not hardcoded:
+//   requirement (calculateRecommendedFundingSats) — the feasibility floor a coin
+//     must cover at all (~700 at 1 sat/vB).
+//   preferred (calculateRecommendedPreferredSats) — the CHANGE-HEADROOM target
+//     selection prefers whenever any candidate clears it (~1300 at 1 sat/vB): a
+//     coin covering only `requirement` is SKIPPED when something clears headroom,
+//     so a rung below `preferred` is UNREACHABLE and its coin survives the mutation
+//     for being never-selected, not for being protected.
+// Two constraints, both load-bearing under the mutation:
+//   1. Every rung >= preferred, so it is reachable (a rung below headroom is the
+//      trap that let the inscription cell silently survive before the guard knew).
+//   2. STEP > requirement, so the mutated mint's change (dirty - requirement) stays
+//      above the next rung instead of undercutting it (a step <= requirement fires
+//      the placement guard on the NEXT cell at setup, a false negative).
+// The bottom rung sits HEADROOM_BUFFER above `preferred`; each rung above adds STEP.
+// At 1 sat/vB: dirty = 4500 / 3500 / 2500 / 1500. Both numbers are re-measured per
+// cell, so a different fee rate moves the whole ladder. The green path is unaffected
+// (it spends the 100k clean coin); this only sharpens the mutation into four
+// own-assertion reds. General form: the SDK placement recipe in E2E_BEST_PRACTICES.
+const STEP_SATS = 1_000;             // > requirement (700): the mutated change can't undercut the next rung
+const HEADROOM_BUFFER_SATS = 200;    // the bottom rung clears `preferred` by this much
+const CELLS: { asset: DirtyCoinAsset; label: string }[] = [
+  { asset: 'rareSat', label: 'rare sat' },       // top rung
+  { asset: 'rune', label: 'rune' },
+  { asset: 'cat', label: 'cat' },
+  { asset: 'inscription', label: 'inscription' }, // bottom rung, clears headroom
 ];
 
 const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
@@ -201,15 +210,19 @@ test.afterAll(async () => {
  * the requirement, prove placement, mint (auto-picks clean), assert this coin AND
  * every earlier dirty coin survive.
  */
-async function runDirtyCoinCell(asset: DirtyCoinAsset, marginSats: number, label: string): Promise<void> {
-  // Measure the requirement PER CELL, not once for the matrix: if a cell's fee
-  // rate or pool shape ever changed the no-change vsize, a rung reused from the
-  // first cell could fall under this cell's real requirement and selection would
-  // reach past the dirty coin. It is one pure call and it keeps the ladder honest.
+async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex: number): Promise<void> {
+  // Measure BOTH targets PER CELL, not once for the matrix — a different fee rate
+  // moves both, and a rung reused from an earlier cell could fall under this cell's
+  // real requirement or headroom. Two pure calls, no wallet, no ports.
   const requirementSats = calculateRecommendedFundingSats(1);
-  const dirtyValueSats = requirementSats + marginSats;
-  expect(dirtyValueSats).toBeGreaterThan(requirementSats);
-  expect(dirtyValueSats).toBeLessThanOrEqual(50_000);
+  const preferredSats = calculateRecommendedPreferredSats(1);
+  // Rung = preferred + buffer, plus STEP for each cell BELOW this one, so the
+  // bottom rung clears headroom and every step exceeds the requirement.
+  const rungsBelow = CELLS.length - 1 - cellIndex;
+  const dirtyValueSats = preferredSats + HEADROOM_BUFFER_SATS + rungsBelow * STEP_SATS;
+  expect(STEP_SATS).toBeGreaterThan(requirementSats);        // change can't undercut the next rung
+  expect(dirtyValueSats).toBeGreaterThanOrEqual(preferredSats); // reachable (clears headroom)
+  expect(dirtyValueSats).toBeLessThanOrEqual(50_000);         // scanned, not left unscanned
 
   // Clean coin first (fundCommonSats routes the coinbase's uncommon sat to change,
   // so the payment output is genuinely common), then the dirty coin. Both land on
@@ -224,9 +237,12 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, marginSats: number, label
   await waitForOrdStockSync(tip);
   await waitForOrdSync(tip);
 
-  // Placement guard: this dirty coin is the best-fit an unguarded selection takes.
+  // Placement guard: this dirty coin is the coin an unguarded selection actually
+  // takes — passing `preferredSats` makes the guard mirror the flow's headroom
+  // preference, not just feasibility, so a rung below headroom fails HERE at setup
+  // instead of silently surviving the mutation as never-selected.
   const pool = (await getUtxos(paymentAddress)).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value }));
-  assertDirtyCoinIsBestFit(pool, dirty.outpoint, requirementSats);
+  assertDirtyCoinIsBestFit(pool, dirty.outpoint, requirementSats, preferredSats);
   seededDirty.push(dirty);
 
   // Reload so the orchestrator re-fetches + scans (re-approve if Xverse asks).
@@ -333,9 +349,9 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, marginSats: number, label
   }
 }
 
-for (const cell of CELLS) {
+CELLS.forEach((cell, cellIndex) => {
   test(`mint auto-picks clean; the ${cell.label} coin (and all prior) survive`, async () => {
     test.setTimeout(360_000);
-    await runDirtyCoinCell(cell.asset, cell.marginSats, cell.label);
+    await runDirtyCoinCell(cell.asset, cell.label, cellIndex);
   });
-}
+});
