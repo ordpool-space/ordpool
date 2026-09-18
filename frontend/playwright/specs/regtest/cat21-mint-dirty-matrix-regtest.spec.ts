@@ -295,19 +295,32 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, marginSats: number, label
   expect(mintTx.locktime).toBe(21);
   await shot(page, `${asset}-02-minted`);
 
-  // THE MUTATION TARGET — every dirty coin seeded so far still survives. The mint
-  // spent the clean coin, so this cell's coin AND all earlier cells' coins are
-  // still unspent. Under the mutation the smallest covering coin (this cell's, by
-  // the strictly-decreasing sizing) is spent, and this loop reds. Checking ALL
-  // prior coins turns an invisible cross-cell burn into a named failure.
+  // THE MUTATION TARGET — the dirty coins survive. The mint spent the clean coin,
+  // so this cell's coin AND every earlier cell's coin are still unspent.
   const survivors = await getUtxos(paymentAddress);
   const mintVins = mintTx.vin as Array<{ txid: string; vout: number }>;
+  const alive = (d: SeededDirtyCoin) => survivors.some((u) => u.txid === d.txid && u.vout === d.vout);
+  const notSpentBy = (d: SeededDirtyCoin) => !mintVins.some((v) => v.txid === d.txid && v.vout === d.vout);
+
+  // OWN coin FIRST. Under the clean-filter mutation, best-fit spends the smallest
+  // covering coin, which by the strictly-decreasing sizing is THIS cell's coin, so
+  // the cell reds on its OWN survival assertion and the prior checks below never
+  // run — one own-assertion red per cell, zero consequence reds. A consequence red
+  // would mean a ladder collision (two sizes tied, a rung under its requirement, a
+  // stray leftover between rungs), not this cell's class.
+  console.log(`[mint-dirty-matrix] after ${label} mint: own ${asset} ${dirty.outpoint} survives=${alive(dirty)}`);
+  expect(alive(dirty), `own dirty ${asset} coin ${dirty.outpoint} must survive its own mint`).toBe(true);
+  expect(notSpentBy(dirty), `${label} mint must not spend its own dirty coin as a fee`).toBe(true);
+
+  // Then every EARLIER coin. In the GREEN run a failure here is a real cross-cell
+  // burn (an earlier cell's asset spent by this mint) — a ladder bug this catches
+  // and names. Under the mutation the own assertion above has already failed, so
+  // these do not run, keeping the red count clean.
   for (const d of seededDirty) {
-    const alive = survivors.some((u) => u.txid === d.txid && u.vout === d.vout);
-    console.log(`[mint-dirty-matrix] after ${label} mint: dirty ${d.asset} ${d.outpoint} survives=${alive}`);
-    expect(alive, `dirty ${d.asset} coin ${d.outpoint} must survive the ${label} mint`).toBe(true);
-    // And this mint did not spend it as a fee.
-    expect(mintVins.some((v) => v.txid === d.txid && v.vout === d.vout)).toBe(false);
+    if (d.outpoint === dirty.outpoint) continue;
+    console.log(`[mint-dirty-matrix] after ${label} mint: prior ${d.asset} ${d.outpoint} survives=${alive(d)}`);
+    expect(alive(d), `earlier dirty ${d.asset} coin ${d.outpoint} must still survive the ${label} mint`).toBe(true);
+    expect(notSpentBy(d), `${label} mint must not spend the earlier ${d.asset} coin as a fee`).toBe(true);
   }
 }
 
