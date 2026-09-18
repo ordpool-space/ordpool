@@ -10,47 +10,39 @@ import {
 } from 'ordpool-sdk/e2e';
 
 /**
- * E2E (regtest) — the SEPARATE-ADDRESS NOTICE cell: the funding-safety guard
- * NAMES an inscribed coin and PROCEEDS with a notice.
+ * E2E (regtest) — the funding picker FLAGS and NAMES an inscribed coin.
  *
- * Xverse keeps a separate payment address, so a dirty-only funding pool is
- * `asset-notice`, not a block: the SDK does not refuse the coin, it steers the
- * user with a notice and leaves them in charge. The one-address BLOCK (the same
- * coin risk on a wallet that keeps ONE address for everything, where the CTA is
- * DISABLED) is the mirror of this spec and is proven in
- * `funding-guard-warning-block-unisat-regtest.spec.ts`. Neither spec asserts the
- * other's button state.
+ * This proves ONE property, and it is careful not to claim more: the funding
+ * picker surfaces an asset-bearing coin, flags it, and names the inscription by
+ * id, so a user can see what a coin carries before spending it. It does NOT
+ * assert the funding STATUS (auto vs asset-notice), and it must not, because it
+ * runs on the SHARED Xverse vault: the mint lane runs several Xverse specs
+ * before this one on the same address, and their change accumulates as clean
+ * leftover coins. So the pool here is not dirty-only, a clean leftover usually
+ * auto-funds, and the status is non-deterministic run to run. The dirty-only
+ * asset-notice path is proven separately, on a fresh-vault separate-address
+ * wallet, in `funding-guard-notice-leather-regtest.spec.ts`; the one-address
+ * block in `funding-guard-warning-block-unisat-regtest.spec.ts`.
  *
- * This is the proof the rest of the mint/inscribe suite could not give. Those
- * specs fund a plain payment coin and let the scan classify it clean, which
- * exercises the scan but never asks the guard the one question that matters:
- * when the only coin that can pay for a mint carries an inscription, is the user
- * told what it holds before spending it?
- *
- * Here the ONLY funding candidate on the wallet's payment address is a real
- * inscription-bearing UTXO, seeded through the regtest ord wallet by the SDK's
- * `seedInscribedCoin` fixture at 2,000,000 sat (large enough to be a covering
- * candidate — at 546 the scan would never consider it and the guard would never
- * be asked). The stock ord (:8081) reports it under `inscriptions`, cat21-ord
- * (:8080) reports its cats; the scan reads both. On a separate-address wallet the
- * coin lands in `asset-notice`, so the spec asserts BOTH halves of that state:
- *   - the NOTICE alert is shown and NAMES the inscription by id, and the Mint
- *     button stays ENABLED (notice-and-proceed, the user is informed not blocked),
- *   - the picker flags the coin: the "asset found" danger badge, a "Use anyway"
- *     override in place of "Use this UTXO", and the asset detail naming the real
- *     inscription by id.
- * The proof that isolates the INSCRIPTION half is the inscription id, which is
- * populated only from the stock ord's `inscriptions` field.
+ * The setup seeds a real inscription-bearing UTXO on the payment address via the
+ * SDK's `seedInscribedCoin` fixture at 2,000,000 sat (large enough to be a
+ * covering candidate). The stock ord (:8081) reports it under `inscriptions`,
+ * cat21-ord (:8080) reports its cats; the scan reads both. The picker then shows
+ * the coin flagged: the "asset found" danger badge, a "Use anyway" override in
+ * place of "Use this UTXO", and the asset detail naming the real inscription by
+ * id. That naming is the load-bearing proof and the only assertion the mutation
+ * check turns red; the badge and override fire for any asset and are necessary
+ * but not sufficient.
  *
  * THE MUTATION CHECK (run on a throwaway branch, not in CI): point `ordBaseUrls`
  * at :8080 instead of :8081. cat21-ord has no `inscriptions` field, so the
  * inscription becomes invisible and the "Inscription: <id>" line never renders,
- * turning the `toContainText(inscriptionId)` assertions RED. The generic "asset
+ * turning the `toContainText(inscriptionId)` assertion RED. The generic "asset
  * found" badge and "Use anyway" override do NOT flip, because this coin also
  * carries a rare sat and both ords run --index-sats, which is exactly why the
- * inscription-id assertions, not the badge, are the load-bearing proof. A guard
+ * inscription-id assertion, not the badge, is the load-bearing proof. A guard
  * spec that passed under both wirings would not be reading the inscription
- * verdict. Verified: at :8081 GREEN, at :8080 RED on the inscription-id lines.
+ * verdict. Verified: at :8081 GREEN, at :8080 RED on the inscription-id line.
  * No mock: a real inscribed coin, real stock ord reporting it, real detection.
  *
  * CI-only (unverified Xverse .crx). See `playwright.regtest.config.ts`.
@@ -124,7 +116,7 @@ test.afterAll(async () => {
   await context?.close();
 });
 
-test('separate-address wallet: the guard names an inscribed coin and proceeds with a notice (real ord, no mock)', async () => {
+test('the funding picker flags and names an inscribed coin (real ord, no mock)', async () => {
   test.setTimeout(300_000);
 
   // ─── 1. Unlock the vault ───────────────────────────────────────
@@ -182,7 +174,10 @@ test('separate-address wallet: the guard names an inscribed coin and proceeds wi
   console.log(`[guard-refusal] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1q/);
 
-  // ─── 3. Seed a REAL inscribed coin as the ONLY funding candidate ──
+  // ─── 3. Seed a REAL inscribed coin among the vault's coins ────────
+  // Not the only candidate: the shared Xverse vault carries clean change from
+  // earlier lane specs, so a clean leftover usually auto-funds. That is fine
+  // here, this spec asserts the picker flags the dirty coin, not the status.
   // seedInscribedCoin inscribes through the regtest ord wallet, sends the
   // inscription-bearing output to this payment address, mines, and waits
   // until the stock ord reports it under /output.inscriptions before
@@ -215,33 +210,12 @@ test('separate-address wallet: the guard names an inscribed coin and proceeds wi
   await page.bringToFront();
   await shot(page, '01-after-seed-reload');
 
-  // ─── 5a. THE NOTICE: asset-notice on a separate-address wallet ───
-  // The inscribed coin is the only covering candidate. On Xverse (separate
-  // payment address) that is asset-notice, not a block: the notice NAMES what
-  // the coin carries and the Mint button stays ENABLED, so the user is informed
-  // and stays in charge (the one-address BLOCK is the unisat mirror spec). Pin a
-  // fee first so the form is valid and the button's only remaining gate is the
-  // funding decision.
-  const feeRateInput = page.locator('[data-testid="cat21-fee-rate"]').first();
-  await feeRateInput.fill('1');
-  await feeRateInput.press('Tab');
-
-  const noticeAlert = page.locator('.alert.alert-warning', {
-    hasText: /we'll fund this mint from a coin that carries an asset/i,
-  }).first();
-  await expect(noticeAlert).toBeVisible({ timeout: 90_000 });
-  // The notice must NAME the inscription (a notice that doesn't say what the coin
-  // carries is not a notice). This is the same load-bearing inscription-id proof
-  // as the picker detail below, and the same line the :8080 mutation turns red.
-  await expect(noticeAlert).toContainText(inscribed.inscriptionId);
-
-  const mintButton = page.getByTestId('mint-cat-button');
-  await expect(mintButton).toBeVisible({ timeout: 30_000 });
-  await expect(mintButton).toBeEnabled();
-  await shot(page, '01b-notice-enabled');
-
-  // ─── 5b. THE PICKER flags the coin ───────────────────────────────
-  // Open the funding-source picker so its rows (and the badge) are in the DOM.
+  // ─── 5. THE PROOF: the picker flags and names the inscribed coin ─
+  // Reading the real stock ord, the scan classifies the inscribed coin unsafe.
+  // Open the funding-source picker so its rows (and the badge) are in the DOM,
+  // then assert the coin is flagged and the inscription is named. The Mint
+  // button state is deliberately NOT asserted: a clean leftover on the shared
+  // vault usually auto-funds it, and the status is non-deterministic here.
   const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
   if (await pickerSummary.isVisible({ timeout: 30_000 }).catch(() => false)) {
     await pickerSummary.click();
@@ -278,9 +252,9 @@ test('separate-address wallet: the guard names an inscribed coin and proceeds wi
   await expect(detail).toContainText(inscribed.inscriptionId);
   await shot(page, '04-inscription-named');
 
-  // On a separate-address wallet the guard is notice-and-proceed, not a block:
-  // it names the coin and steers auto-funding, but leaves the Mint button enabled
-  // (asserted above), so the user stays in charge and may consciously override
-  // with "Use anyway". The block — same coin risk, CTA disabled — is the
-  // one-address mirror in funding-guard-warning-block-unisat-regtest.spec.ts.
+  // The proof is the detection + naming of the inscription above. Whether the
+  // Mint button is enabled here depends on the shared vault's clean leftovers,
+  // so it is not asserted. The dirty-only asset-notice (button enabled, notice
+  // naming the coin) and the one-address block (button disabled) are proven in
+  // their own fresh-vault specs; this one owns only the picker-flags-it property.
 });
