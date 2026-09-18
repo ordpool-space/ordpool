@@ -404,6 +404,17 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   await waitForTxConfirmed(revealTxId);
   // The SDK builder convention sets nLockTime=21 on the commit (a bonus cat).
   expect(commitTx.locktime).toBe(21);
+
+  // THE "IT HAPPENED" ANCHOR — forecloses the inscribe-only vacuity risk. A mint
+  // is one tx, so a failure to broadcast dies visibly; an inscribe is commit+reveal
+  // with more places to throw between the funding decision and a tx on-chain (build,
+  // sign, reveal-fee). If any of those threw before broadcast, the dirty coin would
+  // survive TRIVIALLY (nothing spent it) and, under the mutation, the survival check
+  // below would PASS and read as "the guard protected it" — the exact opposite of the
+  // truth. So assert POSITIVELY that the commit confirmed on-chain (its inputs, read
+  // below, are the real chain inputs) before trusting survival either way. Green:
+  // commit spent the clean coin. Mutation: commit spent THIS dirty coin -> survival reds.
+  expect(commitTx.status.block_hash, `the ${label} commit must actually confirm on-chain (not a pre-broadcast throw)`).toBeTruthy();
   await shot(page, `${asset}-02-inscribed`);
 
   // THE MUTATION TARGET — the dirty coins survive. The commit spent the clean coin,
