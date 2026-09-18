@@ -60,16 +60,21 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/cat21-mint';
 const TEST_PASSWORD = 'TestPassword123!';
 
-// Placement (see assertDirtyCoinIsBestFit): the dirty coin JUST above the mint
-// requirement so it is the smallest covering candidate, and ≤ AUTO_SCAN_MAX_VALUE_SAT
-// (50k) so the scanner bucket it instead of leaving it unscanned/`scanning`.
-// The clean coin WELL above, and larger than the dirty coin, so best-fit prefers
-// the dirty one under the mutation. 40k is this cell's dirty size; the matrix
-// uses STRICTLY DECREASING dirty sizes across cells so a surviving coin from an
-// earlier cell (same seeded vault → same payment address → same chain) can never
-// be the best-fit for a later cell.
-const DIRTY_VALUE_SATS = 40_000;
-const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the ~1k mint requirement and > the dirty coin
+// Placement (see assertDirtyCoinIsBestFit): the dirty coin is sized JUST above
+// the MEASURED mint requirement (requirement + DIRTY_MARGIN_SATS), never a round
+// number. "Just above" is what makes it the smallest covering coin in almost any
+// pool: this spec shares the seeded Xverse payment address with the base mint
+// spec, which leaves ~13k-30k covering coins on it, and a dirty coin sized at
+// requirement-plus-a-little (~a few thousand) lands well under those, so it is
+// the smallest covering candidate without any address isolation. The margin has
+// a FLOOR — the requirement itself — so this is not a race to the bottom; if a
+// foreign leftover ever lands below the requirement, assertDirtyCoinIsBestFit
+// says so at setup and the answer then is a distinct address, not a smaller coin.
+// The clean coin is WELL above and larger than the dirty coin. Across the matrix
+// the margins STRICTLY DECREASE so a coin surviving from an earlier cell (same
+// vault → same address → same chain) can never be the best-fit for a later cell.
+const DIRTY_MARGIN_SATS = 2_000;
+const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the mint requirement and > the dirty coin
 
 const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
@@ -193,9 +198,10 @@ test('mint auto-picks the clean coin; the rare-sat coin survives', async () => {
   // assertDirtyCoinIsBestFit needs the real requirement to know which placement
   // trap it is in; a guessed number silently moves the trap.
   const requirementSats = calculateRecommendedFundingSats(1);
-  console.log(`[mint-dirty-raresat] requirement at 1 sat/vB = ${requirementSats} sat`);
-  expect(DIRTY_VALUE_SATS).toBeGreaterThan(requirementSats); // covers
-  expect(DIRTY_VALUE_SATS).toBeLessThanOrEqual(50_000);      // scanned, not left unscanned/scanning
+  const dirtyValueSats = requirementSats + DIRTY_MARGIN_SATS;
+  console.log(`[mint-dirty-raresat] requirement at 1 sat/vB = ${requirementSats} sat; dirty = ${dirtyValueSats} sat`);
+  expect(dirtyValueSats).toBeGreaterThan(requirementSats); // covers
+  expect(dirtyValueSats).toBeLessThanOrEqual(50_000);      // scanned, not left unscanned/scanning
 
   // ─── 4. Seed a CLEAN covering coin, then the dirty rare-sat coin ──
   // Clean first (fundCommonSats routes the coinbase's leading uncommon sat into
@@ -203,9 +209,9 @@ test('mint auto-picks the clean coin; the rare-sat coin survives', async () => {
   // an accidental rare sat). Then the dirty coin. Both land on the payment
   // address; both helpers mine and wait for electrs + both ords to index.
   await fundCommonSats(paymentAddress, CLEAN_FUND_BTC);
-  const dirty = await seedDirtyCoin({ asset: 'rareSat', address: paymentAddress, valueSats: DIRTY_VALUE_SATS });
+  const dirty = await seedDirtyCoin({ asset: 'rareSat', address: paymentAddress, valueSats: dirtyValueSats });
   console.log(`[mint-dirty-raresat] dirty rare-sat coin ${dirty.outpoint} value=${dirty.value}`);
-  expect(dirty.value).toBe(DIRTY_VALUE_SATS);
+  expect(dirty.value).toBe(dirtyValueSats);
 
   const tip = mineBlocks(1);
   await waitForElectrsSync(tip);
