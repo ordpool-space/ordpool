@@ -16,6 +16,7 @@ import {
   mineBlocks,
   waitForTxConfirmed,
   waitForApprovalPopup,
+  clickUntilEffect,
   DirtyCoinAsset,
   SeededDirtyCoin,
 } from 'ordpool-sdk/e2e';
@@ -356,18 +357,31 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
 
   // Inscribe + approve the ONE Xverse sign popup (the commit funding input; the
   // reveal is finalized inside the orchestrator with an ephemeral key).
+  // clickUntilEffect re-clicks only while inscribe-btn stays visible+enabled with
+  // no popup (a swallowed click); once the inscribe registers the button leaves
+  // that state, so a slow-but-registered click is never double-sent. clicks===1
+  // is the diagnostic: this surface waits for toBeEnabled first, so it should be
+  // clean, and a clicks>1 here is real evidence of the mechanism, not a guess.
   const knownBeforeSign = new Set(context.pages());
-  await inscribeButton.click();
-  const approvalSign = await waitForApprovalPopup({
-    context,
-    knownPages: knownBeforeSign,
-    timeoutMs: 120_000,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByText(/review transaction/i).first().waitFor({ state: 'visible', timeout: 120_000 });
-      return true;
+  let approvalSign!: Page;
+  const signPopupEffect = {
+    waitFor: async ({ timeout }: { state: 'visible'; timeout: number }) => {
+      approvalSign = await waitForApprovalPopup({
+        context,
+        knownPages: knownBeforeSign,
+        timeoutMs: timeout,
+        isApproval: async (p) => {
+          if (!p.url().startsWith('chrome-extension://')) return false;
+          await p.getByText(/review transaction/i).first().waitFor({ state: 'visible', timeout });
+          return true;
+        },
+      });
     },
+  };
+  const { clicks } = await clickUntilEffect(inscribeButton, signPopupEffect, {
+    label: 'inscribe-btn', settleMs: 60_000, maxClicks: 3,
   });
+  expect(clicks, 'inscribe-btn opened the sign popup on ONE click; >1 means a swallowed click').toBe(1);
   await approvalSign.waitForFunction(() => {
     const buttons = Array.from(document.querySelectorAll('button'));
     return buttons.some((b) => {

@@ -15,6 +15,7 @@ import {
   mineBlocks,
   waitForTxConfirmed,
   waitForApprovalPopup,
+  clickUntilEffect,
   DirtyCoinAsset,
   SeededDirtyCoin,
 } from 'ordpool-sdk/e2e';
@@ -275,19 +276,34 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   const mintButton = page.getByTestId('mint-cat-button');
   await expect(mintButton).toBeEnabled({ timeout: 60_000 });
 
-  // Mint + approve the Xverse sign popup.
+  // Mint + approve the Xverse sign popup. clickUntilEffect re-clicks the CTA
+  // ONLY while it stays visible+enabled with no popup (the signature of a
+  // swallowed click); once the mint registers the button leaves that state
+  // (state='minting'), so a slow-but-registered click is never double-sent and
+  // never double-mints. clicks===1 is the diagnostic the SDK's helper is built
+  // for: this surface waits for toBeEnabled before clicking, so it should be
+  // clean, and a clicks>1 here would be real evidence that this repo reproduces
+  // the swallowed-click mechanism rather than a guess that it might.
   const knownBeforeSign = new Set(context.pages());
-  await mintButton.click();
-  const approvalSign = await waitForApprovalPopup({
-    context,
-    knownPages: knownBeforeSign,
-    timeoutMs: 120_000,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByText(/review transaction/i).first().waitFor({ state: 'visible', timeout: 120_000 });
-      return true;
+  let approvalSign!: Page;
+  const signPopupEffect = {
+    waitFor: async ({ timeout }: { state: 'visible'; timeout: number }) => {
+      approvalSign = await waitForApprovalPopup({
+        context,
+        knownPages: knownBeforeSign,
+        timeoutMs: timeout,
+        isApproval: async (p) => {
+          if (!p.url().startsWith('chrome-extension://')) return false;
+          await p.getByText(/review transaction/i).first().waitFor({ state: 'visible', timeout });
+          return true;
+        },
+      });
     },
+  };
+  const { clicks } = await clickUntilEffect(mintButton, signPopupEffect, {
+    label: 'mint-cat-button', settleMs: 60_000, maxClicks: 3,
   });
+  expect(clicks, 'mint-cat-button opened the sign popup on ONE click; >1 means a swallowed click').toBe(1);
   await approvalSign.waitForFunction(() => {
     const buttons = Array.from(document.querySelectorAll('button'));
     return buttons.some((b) => {
