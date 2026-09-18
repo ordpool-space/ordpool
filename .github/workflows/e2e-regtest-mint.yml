@@ -547,7 +547,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint
 
       # THE funding-safety guard proof. The only funding candidate is a REAL
       # inscribed coin (seedInscribedCoin, 2M sat so it's a covering candidate).
@@ -569,7 +570,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-inscription-refusal
 
       # The one-address counterpart of the guard-refusal spec above: on a wallet
       # that keeps ONE address for everything (unisat), a dirty-only funding pool
@@ -589,7 +591,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/funding-guard-warning-block-unisat-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-warning-block-unisat
 
       # Dirty-coin protection matrix for the MINT flow — all four asset classes
       # (rare sat, rune, cat, inscription). Each cell seeds a clean covering coin
@@ -611,7 +614,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-dirty-matrix-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-dirty-matrix
 
       # Same stack, second spec: drive the /inscribe page through a full
       # single-file inscription (commit + reveal). `if: always()` so a
@@ -628,7 +632,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint
 
       # Same stack, non-native wallet: /inscribe via Unisat. Proves the
       # connector's mainnet→bcrt address shim carries the page-driven flow.
@@ -641,7 +646,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-unisat
 
       # Same stack, non-native wallet on the OTHER action: /cat21-mint via
       # Unisat. First of the cat21-mint wallet matrix, mock-free against the
@@ -655,7 +661,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-unisat
 
       # cat21-mint via Leather (second running cat21-mint wallet).
       - name: Run the page-driven cat21-mint regtest spec (Leather)
@@ -667,7 +674,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-leather-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-leather
 
       # cat21-mint via OKX.
       - name: Run the page-driven cat21-mint regtest spec (OKX)
@@ -679,7 +687,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-okx-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-okx
 
       # cat21-mint via Alby (SW-bypass sign, native regtest wallet).
       - name: Run the page-driven cat21-mint regtest spec (Alby)
@@ -691,7 +700,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-alby-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-alby
 
       # cat21-mint via Wizz is PARKED (spec file kept, not run). Wizz's sign
       # popup only enables "Sign" once its balance backends are stubbed
@@ -711,7 +721,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-wizz
 
       # Same stack, non-native wallet: /inscribe via Leather.
       - name: Run the page-driven inscribe regtest spec (Leather)
@@ -723,7 +734,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-leather-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-leather
 
       # Same stack, non-native wallet: /inscribe via OKX.
       - name: Run the page-driven inscribe regtest spec (OKX)
@@ -735,7 +747,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-okx
 
       # Same stack, native-regtest wallet with SW-bypass signing:
       # /inscribe via Alby.
@@ -748,7 +761,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-alby
 
       # The two matrix cells with no browser extension: /inscribe AND /cat21-mint
       # via a watch-only (xpub) wallet. Both sign the exported PSBT with the
@@ -763,7 +777,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-xpub
 
       - name: Run the page-driven cat21-mint regtest spec (watch-only xpub)
         if: always()
@@ -773,7 +788,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-xpub
 
       # cat21-mint via Wizz. Runs LAST, after inscribe-wizz: the two wizz specs
       # contend when adjacent (a wizz sign popup intermittently stalls past the
@@ -791,7 +807,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-wizz-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-wizz
 
       - name: Upload Playwright artifacts
         if: always()
