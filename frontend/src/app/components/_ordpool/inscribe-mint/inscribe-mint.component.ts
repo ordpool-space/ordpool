@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, firstValueFrom, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -89,6 +89,11 @@ export class InscribeMintComponent implements OnInit {
     scan: this.scanner,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
+    // Derive the wallet topology from the connected wallet, so a dirty-only
+    // funding pool produces a NOTICE (separate payment address) instead of a
+    // blocking WARNING (one address for everything). Same 'derive' the other
+    // SDK consumers pass; omitting it keeps the always-block default.
+    fundingTopology: 'derive',
     // Resolves a batch's parentIds to their current outpoints (snapshot.parents).
     ordBaseUrl: environment.ordBaseUrls[0],
   });
@@ -218,19 +223,62 @@ export class InscribeMintComponent implements OnInit {
   // safe auto-recommendation funds the inscription.
   selectedPaymentOutput: ViableInscribeSimulation | undefined;
 
-  /** Current funding status from the snapshot: `auto` (safe-auto covers),
-   *  `expert-required` (only asset coins cover), `insufficient` (nothing covers),
-   *  `scanning` (deciding). The template branches the notices on this. */
+  /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
+   *  `asset-notice` (dirty covers, separate-address wallet), `expert-required`
+   *  (dirty covers, one-address wallet), `insufficient`, `scanning`. The CTA and
+   *  the notices derive from {@link fundingCta}, never from this directly, so the
+   *  button state and the message can't disagree. */
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
-  /** The inscription is fundable when the user MANUALLY picked a coin (an explicit
-   *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
-   *  can safe-auto-fund (`status === 'auto'`). `expert-required` / `insufficient`
-   *  / `scanning` leave it unfundable until the user acts. Gates the inscribe
-   *  button so removing the consumer-side auto-pick never leaves it stuck. */
-  readonly hasFundingSource = computed(
-    () => !!this.snap().selectedUtxo || this.fundingStatus() === 'auto',
-  );
+  /**
+   * The SINGLE value the CTA button state AND the funding notice both derive
+   * from, so they can never disagree (two surfaces reading one status
+   * independently is exactly what split them before). An explicit manual pick
+   * makes the flow ready regardless of the auto-recommendation; otherwise it
+   * switches on the SDK's status EXHAUSTIVELY, so a new status is a compile error
+   * here rather than a silently-disabled button. Sites render the SDK's status;
+   * they never recompute the safe/notice/block decision (FAMILY_UX funding-panel
+   * rule).
+   */
+  readonly fundingCta = computed<
+    | { kind: 'ready' }
+    | { kind: 'notice'; assets: UtxoAssetDetail | undefined }
+    | { kind: 'warning' }
+    | { kind: 'insufficient' }
+    | { kind: 'scanning' }
+  >(() => {
+    if (this.snap().selectedUtxo) return { kind: 'ready' };
+    const rec = this.snap().fundingRecommendation;
+    switch (rec.status) {
+      case 'auto': return { kind: 'ready' };
+      case 'asset-notice': return { kind: 'notice', assets: rec.recommended?.assets };
+      case 'expert-required': return { kind: 'warning' };
+      case 'insufficient': return { kind: 'insufficient' };
+      case 'scanning': return { kind: 'scanning' };
+    }
+    const _exhaustive: never = rec.status;
+    return _exhaustive;
+  });
+
+  /** The inscription is fundable when a clean coin auto-covers (`ready`) or a dirty
+   *  coin covers on a separate-address wallet (`notice`: CTA stays ENABLED with the
+   *  notice shown before the click). `warning` (one-address block), `insufficient`
+   *  and `scanning` leave it unfundable until the user acts in the picker. Derived
+   *  from {@link fundingCta} so the button can't enable while the notice says
+   *  otherwise. */
+  readonly hasFundingSource = computed(() => {
+    const kind = this.fundingCta().kind;
+    return kind === 'ready' || kind === 'notice';
+  });
+
+  /** The assets the auto-funding coin carries when the CTA is in the `notice`
+   *  state, so the template can NAME them (a notice that doesn't say what the coin
+   *  carries is not a notice). Null in every other state. A projection of the
+   *  single {@link fundingCta} value, not an independent recompute. */
+  readonly assetNotice = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'notice' ? cta.assets ?? null : null;
+  });
 
   // ---- State-machine projections ------------------------------------------
 

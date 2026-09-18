@@ -82,14 +82,37 @@
             </div>
           </div>
 
-          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
+          <!-- asset-notice (FAMILY_UX funding-panel rule): a dirty coin covers the
+               fee on a wallet that keeps a SEPARATE payment address. The CTA stays
+               ENABLED, but this notice names what the recommended coin carries and
+               must be read BEFORE the click, kept in the same viewport as the Mint
+               button (the picker below is collapsed by default). -->
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !selectedPaymentOutput && !utxoLoading()">
+            We'll fund this mint from a coin that carries an asset. Your wallet keeps a
+            separate payment address, so this is usually safe, but you should know what
+            the coin holds before you mint:
+            <ng-container *ngIf="assetNotice() as a">
+              <ul class="m-0 mt-1">
+                <li *ngIf="a.inscriptionIds.length">
+                  Inscription{{ a.inscriptionIds.length === 1 ? '' : 's' }}:
+                  <ng-container *ngFor="let id of a.inscriptionIds; let last = last"><a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container></ng-container>
+                </li>
+                <li *ngIf="a.runeNames.length">Rune{{ a.runeNames.length === 1 ? '' : 's' }}: {{ a.runeNames.join(', ') }}</li>
+                <li *ngIf="a.catIds.length">Cat{{ a.catIds.length === 1 ? '' : 's' }}: {{ a.catIds.join(', ') }}</li>
+                <li *ngIf="a.rareSat">Rare sat: {{ a.rareSat.sat }} ({{ a.rareSat.rarity }})</li>
+              </ul>
+            </ng-container>
+            Prefer to use a different coin? Open <strong>Choose a different funding source</strong> below. 😼
+          </div>
+
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'warning' && !selectedPaymentOutput && !utxoLoading()">
             We found funds, but every coin big enough to cover the fee also carries an asset
             (an inscription, rune, rare sat, or cat). Minting with one would send that asset to the
             miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
             below and pick a coin yourself if you're sure it is safe to spend. 😼
           </div>
 
-          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingStatus() === 'insufficient' && !utxoLoading()">
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingCta().kind === 'insufficient' && !utxoLoading()">
             There isn't enough Bitcoin in your payment address to cover the mint at
             <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>. 😿<br>
             Add at least
