@@ -64,6 +64,7 @@ on:
       - 'frontend/playwright/specs/regtest/cat21-mint-alby-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-dirty-raresat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
@@ -567,6 +568,26 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # Dirty-coin protection matrix, cell 1: mint + rare-sat. Seeds a clean
+      # covering coin AND a dirty rare-sat coin (seedDirtyCoin docker-execs the
+      # ord wallets, hence the container env), proves the dirty coin is the
+      # best-fit an unguarded selection would take, mints, and asserts the dirty
+      # coin SURVIVES (survival is the mutation target for ordpool's mint — no UI
+      # bucket-gate). Real ords, no /output mock.
+      - name: Run the dirty-coin survival spec (mint + rare-sat)
+        if: always()
+        working-directory: frontend
+        env:
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-dirty-raresat-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       # Same stack, second spec: drive the /inscribe page through a full
