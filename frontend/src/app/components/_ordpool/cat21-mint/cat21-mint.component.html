@@ -176,6 +176,12 @@
                   <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
                 </span>
 
+                <!-- The coin selection picks on its own, marked in place on its
+                     natural value-sorted row (FAMILY_UX): the cost breakdown
+                     below then answers "why not the cheaper row above it?". -->
+                <span *ngIf="isRecommendedRow(x)" class="badge bg-primary ms-2"
+                  title="The safest, best-fit coin we'd pay with automatically. You can still pick another." data-testid="utxo-recommended">recommended</span>
+
                 <button type="button" *ngIf="x.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(x)">Scan</button>
                 <button type="button" *ngIf="x.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(x)">Retry scan</button>
 
@@ -235,7 +241,16 @@
                 Change back to you
                 <br>
 
-
+                <!-- Over-pay signal (FAMILY_UX three-state fee): when this coin's
+                     change lands below the dust floor it can't be returned, so
+                     it's folded into the miner fee. Informational, never a block
+                     (the coin is usable). This is why a bigger coin can be the
+                     cheaper pick: it returns the leftover instead of burning it. -->
+                <p class="small text-muted mt-2 mb-0" *ngIf="overPaidSats(x) as folded" data-testid="utxo-overpay-note">
+                  &#9888; This coin&rsquo;s {{ folded | number }} <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  of change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
+                  A larger coin returns it as change.
+                </p>
 
               </div>
 

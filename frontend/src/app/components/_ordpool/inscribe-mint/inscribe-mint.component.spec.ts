@@ -127,6 +127,10 @@ jest.mock('ordpool-sdk', () => {
       `${pile.amount} ${pile.symbol ?? '¤'}`,
     // Four-character grouping for the "Fund <addr>" verification instruction.
     addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
+    // The shared outpoint key the component uses to mark the recommended coin in
+    // place. Faithful to the SDK's one-liner; a value import, so the mock must
+    // provide it or `outpointKey(...)` is undefined at runtime.
+    outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
     // Display labels keyed by type — the component reads
     // KnownOrdinalWallets[wallet.type].label to name the wallet in the caveat.
     KnownOrdinalWallets: {
@@ -213,10 +217,10 @@ jest.mock('ordpool-parser', () => ({
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 
-import { Cat21Service, UtxoContentScanner, WalletService, singleAddressCaveat, type TxnOutput, type WalletInfo } from 'ordpool-sdk';
+import { Cat21Service, UtxoContentScanner, WalletService, singleAddressCaveat, type SimulateInscribeFeesResult, type TxnOutput, type WalletInfo } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
-import { InscribeMintComponent } from './inscribe-mint.component';
+import { InscribeMintComponent, type ViableInscribeSimulation } from './inscribe-mint.component';
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
 
@@ -701,6 +705,30 @@ describe('InscribeMintComponent', () => {
       expect(component.hasFundingSource()).toBe(false);
       orchestrator.setSelectedUtxo({ txid: 'a'.repeat(64), vout: 0, value: 50_000 } as TxnOutput);
       expect(component.hasFundingSource()).toBe(true);
+    });
+  });
+
+  // The recommended-coin mark (FAMILY_UX per-coin fee column): the inscribe row
+  // carries no over-pay note (the SDK does not surface a per-coin sub-dust fold
+  // for the commit+reveal package), but it DOES mark, in place, the coin
+  // selection would auto-pick, joined by outpoint.
+  describe('recommended-coin mark (in place)', () => {
+    const out = (v: number): TxnOutput =>
+      ({ txid: String(v).repeat(64).slice(0, 64), vout: 0, value: v, status: { confirmed: true } } as TxnOutput);
+    const row = (u: TxnOutput): ViableInscribeSimulation =>
+      ({ paymentOutput: u, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000 } as SimulateInscribeFeesResult, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+
+    it('marks the auto-pick coin, and only that one, by outpoint', () => {
+      const recCoin = out(40_000);
+      const other = out(50_000);
+      orchestrator.fundingRecommendationSubject.next({ status: 'auto', recommended: recCoin, candidates: [recCoin, other] });
+      expect(component.isRecommendedRow(row(recCoin))).toBe(true);
+      expect(component.isRecommendedRow(row(other))).toBe(false);
+    });
+
+    it('marks nothing when there is no recommendation', () => {
+      orchestrator.fundingRecommendationSubject.next({ status: 'scanning', recommended: null, candidates: [] });
+      expect(component.isRecommendedRow(row(out(50_000)))).toBe(false);
     });
   });
 

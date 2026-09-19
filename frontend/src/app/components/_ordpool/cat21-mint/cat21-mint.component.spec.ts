@@ -47,12 +47,13 @@ jest.mock('ordpool-sdk', () => {
         selectedUtxo: TxnOutput | null;
         fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
         simulations: { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean }[];
+        candidateFees: { txid: string; vout: number; finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }[];
         errorMessage: string | null;
         successTxId: string | null;
       } = {
         state: 'idle', feeRate: null, selectedUtxo: null,
         fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
-        simulations: [], errorMessage: null, successTxId: null,
+        simulations: [], candidateFees: [], errorMessage: null, successTxId: null,
       };
       _listeners: Array<(s: unknown) => void> = [];
       constructor(deps: unknown) { this.deps = deps; }
@@ -118,6 +119,11 @@ jest.mock('ordpool-sdk', () => {
       `${pile.amount} ${pile.symbol ?? '¤'}`,
     // Four-character grouping for the "Fund <addr>" verification instruction.
     addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
+    // The shared outpoint key the component uses to join candidateFees +
+    // fundingRecommendation to a picker row. Faithful to the SDK's one-liner
+    // (canonical in candidate-fees.ts); a value import, so the mock must provide
+    // it or `outpointKey(...)` is undefined at runtime.
+    outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
     // wallet-ux-round3 single-address custody API. Faithful re-implementations
     // (canonical versions live in the SDK's wallet-capabilities.ts):
     // usesSingleAddress compares the two returned addresses; singleAddressCaveat
@@ -1100,6 +1106,79 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       }
     });
   });
+
+  // -------------------------------------------------------------------
+  // N. per-coin fee column (FAMILY_UX three-state) — the over-pay signal
+  //    and the recommended-in-place mark. Both READ the shared candidateFees
+  //    (keyed by outpoint), so these assert the component's interpretation of
+  //    that array, not a re-derivation. Mutation-checked: the 0-vs-positive
+  //    boundary is exactly the "usable but over-paying" vs "emits change"
+  //    distinction the SDK ships as a field so no surface re-computes it.
+  // -------------------------------------------------------------------
+
+  describe('N. per-coin fee column', () => {
+    const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
+    const row = (u: TxnOutput): ViableSimulation =>
+      ({ paymentOutput: u, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+    const feeRow = (u: TxnOutput, over: Partial<{ finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }> = {}) =>
+      ({ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0, ...over });
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+      fixture.detectChanges();
+    });
+
+    it('N1: overPaidSats is the folded sats when a coin over-pays (absorbedSubDustSats > 0)', () => {
+      const u = big(50_000);
+      orch._patch({ candidateFees: [feeRow(u, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 })] });
+      expect(component.overPaidSats(row(u))).toBe(1_200);
+    });
+
+    it('N2: overPaidSats is null when the coin emits change (absorbedSubDustSats === 0) — NOT 0', () => {
+      // The 0-vs-positive boundary: a coin that emits change is not over-paying,
+      // and the template shows the note only on a truthy value. Returning 0 here
+      // (the mutation) would misfire "change folded into the fee" on every roomy
+      // coin. Assert null explicitly so that mutation goes red.
+      const u = big(50_000);
+      orch._patch({ candidateFees: [feeRow(u, { absorbedSubDustSats: 0 })] });
+      expect(component.overPaidSats(row(u))).toBeNull();
+    });
+
+    it('N3: overPaidSats is null when the fee cannot be computed (absorbedSubDustSats === null)', () => {
+      const u = big(50_000);
+      orch._patch({ candidateFees: [feeRow(u, { finalFeeSats: null, vsize: null, absorbedSubDustSats: null })] });
+      expect(component.overPaidSats(row(u))).toBeNull();
+    });
+
+    it('N4: overPaidSats is null when this coin has no candidateFees row yet', () => {
+      const u = big(50_000);
+      orch._patch({ candidateFees: [] });
+      expect(component.overPaidSats(row(u))).toBeNull();
+    });
+
+    it('N5: candidateFee joins the shared row by outpoint (not by index/order)', () => {
+      const a = big(50_000);
+      const b = big(30_000);
+      // Deliberately out of row order: the join must key on txid:vout.
+      orch._patch({ candidateFees: [feeRow(b, { finalFeeSats: 900 }), feeRow(a, { finalFeeSats: 300 })] });
+      expect(component.candidateFee(row(a))?.finalFeeSats).toBe(300);
+      expect(component.candidateFee(row(b))?.finalFeeSats).toBe(900);
+    });
+
+    it('N6: isRecommendedRow marks the coin selection would auto-pick, and only that one', () => {
+      const rec = big(40_000);
+      const other = big(50_000);
+      orch.fundingRecommendationSubject.next({ status: 'auto', recommended: rec, candidates: [rec, other] });
+      expect(component.isRecommendedRow(row(rec))).toBe(true);
+      expect(component.isRecommendedRow(row(other))).toBe(false);
+    });
+
+    it('N7: isRecommendedRow is false for every row when there is no recommendation', () => {
+      orch.fundingRecommendationSubject.next({ status: 'scanning', recommended: null, candidates: [] });
+      expect(component.isRecommendedRow(row(big(50_000)))).toBe(false);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1223,5 +1302,44 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
     // the single-address info note also shows, distinct from the per-coin one
     expect(q('[data-testid="single-address-note"]')).toBeTruthy();
+  });
+
+  // The per-coin fee column, rendered against the REAL production HTML (not the
+  // sentinel template): a data-gated state the live browser can't be driven into
+  // without the regtest wallet stack, so the actual *ngIf on real data is the
+  // proof the markup renders. Mutation-checked: dropping the *ngIf value flips
+  // the presence assertion.
+  it('renders the over-pay note + recommended badge inside the picker on the real template', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    const u = utxo({ value: 50_000 });
+    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'scanned-clean' } as UtxoScanState]]);
+    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
+    // This coin over-pays: its would-be change fell below dust and was folded.
+    orch._patch({
+      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 1_400, vsize: 150, absorbedSubDustSats: 1_200 }],
+      fundingRecommendation: { status: 'auto', recommended: u, candidates: [u] },
+    });
+    fixture.detectChanges();
+
+    const overpay = q('[data-testid="utxo-overpay-note"]');
+    expect(overpay).toBeTruthy();
+    // Names the folded amount, so the note says WHAT goes to the miner.
+    expect(overpay!.textContent).toContain('1,200');
+    // The recommended coin is marked in place on its row.
+    expect(q('[data-testid="utxo-recommended"]')).toBeTruthy();
+  });
+
+  it('does NOT render the over-pay note for a coin that emits change (absorbedSubDustSats 0)', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    const u = utxo({ value: 50_000 });
+    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'scanned-clean' } as UtxoScanState]]);
+    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
+    orch._patch({
+      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0 }],
+      fundingRecommendation: { status: 'auto', recommended: u, candidates: [u] },
+    });
+    fixture.detectChanges();
+
+    expect(q('[data-testid="utxo-overpay-note"]')).toBeNull();
   });
 });

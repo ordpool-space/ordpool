@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -148,6 +148,25 @@ export class InscribeMintComponent implements OnInit {
   /** Change returned to the payment address (0 when folded into fee below dust). */
   changeSats(row: ViableInscribeSimulation): number {
     return Math.max(0, row.paymentOutput.value - row.simulation.fundingRequirementSats);
+  }
+
+  /** The auto-recommended funding coin's outpoint, or null before one exists. */
+  private recommendedOutpoint = computed(() => {
+    const rec = this.snap().fundingRecommendation.recommended;
+    return rec ? outpointKey(rec) : null;
+  });
+
+  /**
+   * Whether this row is the coin selection would pick on its own. Marked IN
+   * PLACE on its natural value-sorted row (FAMILY_UX), never sorted to the top,
+   * so the per-coin fee breakdown below stays answerable to "why not the cheaper
+   * row above it?". The inscribe fee is the COMMIT + REVEAL package total, which
+   * the row cell qualifies; the SDK does not surface a per-coin sub-dust fold for
+   * inscribe, so no over-pay note is shown here (saying 0 would be a claim the
+   * data can't make).
+   */
+  isRecommendedRow(row: ViableInscribeSimulation): boolean {
+    return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
   }
 
   recommendedFees$ = inject(StateService).recommendedFees$;

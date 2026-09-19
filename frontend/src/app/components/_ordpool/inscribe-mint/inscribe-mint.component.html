@@ -541,6 +541,12 @@
                   <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
                 </span>
 
+                <!-- The coin selection picks on its own, marked in place on its
+                     natural value-sorted row (FAMILY_UX): the cost breakdown
+                     below then answers "why not the cheaper row above it?". -->
+                <span *ngIf="isRecommendedRow(row)" class="badge bg-primary ms-2"
+                  title="The safest, best-fit coin we'd pay with automatically. You can still pick another." data-testid="utxo-recommended">recommended</span>
+
                 <button type="button" *ngIf="row.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Scan</button>
                 <button type="button" *ngIf="row.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Retry scan</button>
 
@@ -577,7 +583,7 @@
 
                 - {{ row.simulation.totalFeeSats | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees<br>
+                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees (commit + reveal)<br>
 
                 - {{ postageSats | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>

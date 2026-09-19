@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, filter, firstValueFrom, interval, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -558,5 +558,51 @@ export class Cat21MintComponent implements OnInit {
   catPostageSats(): number | null {
     const sim = this.activeSimulation();
     return sim ? this.toNumber(sim.amountToRecipient) : null;
+  }
+
+  /**
+   * The SDK's per-coin fee rows keyed by outpoint. The picker reads the fee's
+   * three-state meaning (emits change / over-pays / cannot fund) from HERE, the
+   * one shared computation every surface consumes, so the number and its
+   * interpretation can't drift from cat21.space and cubes. Rebuilt on each
+   * snapshot; a small Map so a row lookup is O(1) rather than a scan per row.
+   */
+  private candidateFeeByOutpoint = computed(
+    () => new Map(this.snap().candidateFees.map((f) => [outpointKey(f), f] as const)),
+  );
+
+  /** The shared per-coin fee row for a picker row, or undefined if not computed yet. */
+  candidateFee(row: ViableSimulation): CandidateFeeRow | undefined {
+    return this.candidateFeeByOutpoint().get(outpointKey(row.paymentOutput));
+  }
+
+  /**
+   * When this coin's would-be change fell below the dust floor, the sats that
+   * got folded into the miner fee instead of returning as change; null when the
+   * coin emits change (`absorbedSubDustSats === 0`) or the fee is not known. A
+   * positive value is the FAMILY_UX over-pay signal: the coin is usable and
+   * over-paying, which is why the recommended coin can be the cheaper one a row
+   * above it. Never a block — folding sub-dust change is deliberate behaviour.
+   */
+  overPaidSats(row: ViableSimulation): number | null {
+    const folded = this.candidateFee(row)?.absorbedSubDustSats;
+    return folded && folded > 0 ? folded : null;
+  }
+
+  /** The auto-recommended funding coin's outpoint, or null before one exists. */
+  private recommendedOutpoint = computed(() => {
+    const rec = this.snap().fundingRecommendation.recommended;
+    return rec ? outpointKey(rec) : null;
+  });
+
+  /**
+   * Whether this row is the coin selection would pick on its own. Marked IN
+   * PLACE (a badge on its natural value-sorted row), never sorted to the top:
+   * the cost column exists so a reader can see the recommended coin is cheaper
+   * for a reason, and "why not the cheaper one above it?" is only answerable
+   * while that cheaper row stays visible above it (FAMILY_UX).
+   */
+  isRecommendedRow(row: ViableSimulation): boolean {
+    return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
   }
 }
