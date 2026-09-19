@@ -533,6 +533,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     OtsPendingQueueComponent,
     OrdpoolFeesBoxClickableComponent,
     Bitmap3dRendererComponent,
+    BitmapViewerComponent,
   ]
 })
 export class SharedModule {

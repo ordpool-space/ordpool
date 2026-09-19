@@ -33,6 +33,8 @@
       <!-- Fullscreen toggle: always visible. Leftmost in the row. -->
       <button type="button" class="bitmap-toggle" (click)="toggleFullscreen()"
         [attr.aria-label]="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+        placement="top-end"
+        [disableTooltip]="isCoarsePointer()"
         [ngbTooltip]="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
         @if (fullscreen) {
           <!-- collapse arrows -->
@@ -53,6 +55,8 @@
       @if (mode !== '2d') {
         <button type="button" class="bitmap-toggle" (click)="togglePfp()"
           [attr.aria-label]="mode === 'pfp' ? 'Exit walk mode' : 'Enter walk mode'"
+          placement="top-end"
+          [disableTooltip]="isCoarsePointer()"
           [ngbTooltip]="mode === 'pfp' ? 'Exit walk mode' : 'Walk through the block (WASD + mouse)'">
           @if (mode === 'pfp') {
             <!-- door / exit icon -->
@@ -70,8 +74,17 @@
         </button>
       }
       <!-- Disabled once the renderer reports no WebGL: without this the
-           button stays live and does nothing, which reads as broken. -->
+           button stays live and does nothing, which reads as broken.
+           placement + disableTooltip, here and on the two buttons above:
+           left to choose for itself, the tooltip lands beside the button
+           it belongs to and covers its neighbour, and at the right edge of
+           the stage it hangs off the side. Above the row, right-aligned,
+           it clears both. On a touch screen there is no hover, so the
+           tooltip only appears after the tap has already done the thing --
+           pure occlusion; the aria-label still serves assistive tech. -->
       <button type="button" class="bitmap-toggle" (click)="toggleView()"
+        placement="top-end"
+        [disableTooltip]="isCoarsePointer()"
         [disabled]="webglUnsupported"
         [attr.aria-label]="webglUnsupported
           ? 'The 3D view needs WebGL, which this browser does not provide'

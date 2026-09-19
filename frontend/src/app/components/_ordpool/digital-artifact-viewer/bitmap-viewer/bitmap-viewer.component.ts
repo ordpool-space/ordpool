@@ -134,7 +134,7 @@ export class BitmapViewerComponent {
     }
   }
 
-  private isCoarsePointer(): boolean {
+  isCoarsePointer(): boolean {
     return window.matchMedia?.('(pointer: coarse)').matches
       || ('ontouchstart' in window);
   }

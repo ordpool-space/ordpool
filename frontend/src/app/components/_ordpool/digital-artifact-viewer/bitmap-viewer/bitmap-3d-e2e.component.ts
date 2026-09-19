@@ -37,9 +37,17 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
         No fixture: set window.__bitmap3dFixture before navigation.
       </div>
     </div>
+    <!-- The whole viewer, toolbar included, for specs about the chrome
+         rather than the scene. Opt-in via a second fixture key so the
+         renderer specs above are unaffected; the spec stubs the bitmap
+         endpoint, so this needs no network either. -->
+    <div class="e2e-viewer" data-testid="bitmap-viewer-e2e-host" *ngIf="viewerHeight !== null">
+      <app-bitmap-viewer [height]="viewerHeight"></app-bitmap-viewer>
+    </div>
   `,
   styles: [`
     .e2e-host { display: block; width: 600px; height: 600px; }
+    .e2e-viewer { display: block; width: 600px; max-width: 100%; padding: 8px; }
     .e2e-controls { display: flex; gap: 8px; padding: 8px; }
     .e2e-controls button { padding: 4px 12px; }
   `],
@@ -51,6 +59,8 @@ export class Bitmap3dE2EComponent {
   // these setters don't need an explicit markForCheck.
   sizes: number[] | null = ((window as unknown as { __bitmap3dFixture?: { sizes: number[] } })
     .__bitmap3dFixture?.sizes) ?? null;
+  viewerHeight: number | null = ((window as unknown as { __bitmapViewerHeight?: number })
+    .__bitmapViewerHeight) ?? null;
   pfp = false;
   exit = false;
 
