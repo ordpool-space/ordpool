@@ -6,10 +6,11 @@ import { map, Observable, of, startWith } from 'rxjs';
 import { BitmapApiService, BitmapResponse } from '../../../../services/ordinals/bitmap-api.service';
 
 /**
- * The three states the viewer can be in. Previously the template tested a
- * nullable view-model, which made "the request is still in flight" and
- * "this block has no data" render identically -- as nothing at all, with
- * no hint that anything was ever going to appear.
+ * The three states the viewer can be in. Kept as a discriminated union so
+ * "the request is still in flight" and "this block has no data" stay
+ * distinguishable in the template: they read the same to a nullable
+ * view-model, and rendering both as nothing leaves no hint that anything
+ * was ever going to appear.
  */
 type BitmapVm =
   | { kind: 'loading' }
@@ -104,6 +105,10 @@ export class BitmapViewerComponent {
   }
 
   toggleView(): void {
+    // The button stays focusable and hoverable while there is no WebGL (a
+    // `disabled` one would swallow the hover its tooltip needs), so the
+    // action is declined here instead.
+    if (this.webglUnsupported) return;
     // 2D button:
     //   from 2D: jump to 3D (the renderer mounts and plays the intro).
     //   from 3D / PFP: ask the renderer to back-fly to its initial iso pose
@@ -129,14 +134,25 @@ export class BitmapViewerComponent {
     // Fullscreen tracks the actual viewport, so orientation changes work
     // automatically. The browser requires this be called within a user-
     // gesture handler -- the click on the PFP toggle qualifies.
-    if (enteringPfp && this.isCoarsePointer() && !document.fullscreenElement) {
+    if (enteringPfp && this.coarsePointer && !document.fullscreenElement) {
       this.stage?.nativeElement.requestFullscreen?.();
     }
   }
 
-  isCoarsePointer(): boolean {
-    return window.matchMedia?.('(pointer: coarse)').matches
-      || ('ontouchstart' in window);
+  /**
+   * Held as one live MediaQueryList instead of calling matchMedia on every
+   * read: the template asks for this on each change-detection pass, and
+   * `.matches` on an existing list is a property read.
+   *
+   * The query is deliberately narrow. `'ontouchstart' in window` is true on
+   * any laptop with a touch screen, and widening it that way would strip the
+   * tooltips from readers who do have a mouse to hover with.
+   */
+  private readonly coarsePointerQuery = window.matchMedia?.('(pointer: coarse)') ?? null;
+
+  /** True on a pointer that cannot hover, so a tooltip only ever occludes. */
+  get coarsePointer(): boolean {
+    return this.coarsePointerQuery?.matches ?? false;
   }
 
   onExitDone(): void {

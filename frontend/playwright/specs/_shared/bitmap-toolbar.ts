@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -32,10 +32,17 @@ export const mountViewer = async (page: Page): Promise<void> => {
   await expect(page.getByTestId('bitmap-viewer-e2e-host')).toBeAttached();
 };
 
+type Box = { x: number; y: number; width: number; height: number };
+
 const overlaps = (a: Box, b: Box) =>
   !(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y);
 
-type Box = { x: number; y: number; width: number; height: number };
+/** A bounding box, or a failure that names what had none. */
+const boxOf = async (locator: Locator, what: string): Promise<Box> => {
+  const box = await locator.boundingBox();
+  if (!box) { throw new Error(`${what} has no bounding box`); }
+  return box;
+};
 
 const toolbar = (page: Page) => page.locator('app-bitmap-viewer .bitmap-toolbar button');
 
@@ -44,7 +51,9 @@ const reveal = async (page: Page) => {
   const buttons = toolbar(page);
   await expect(buttons.first()).toBeVisible();
   await buttons.last().scrollIntoViewIfNeeded();
-  await page.waitForTimeout(300);
+  // Scrolling is animated, so the boxes measured below are only meaningful
+  // once it has come to rest -- which is what being in the viewport says.
+  await expect(buttons.last()).toBeInViewport();
 };
 
 export const bitmapToolbarSuite = (label: 'desktop' | 'mobile'): void => {
@@ -76,23 +85,26 @@ export const bitmapToolbarSuite = (label: 'desktop' | 'mobile'): void => {
         await mountViewer(page);
         await reveal(page);
         const buttons = toolbar(page);
-        const stage = (await page.locator('app-bitmap-viewer .bitmap-stage').boundingBox())!;
+        const tooltip = page.locator('ngb-tooltip-window');
+        const stage = await boxOf(page.locator('app-bitmap-viewer .bitmap-stage'), 'the stage');
         const count = await buttons.count();
 
         for (let i = 0; i < count; i++) {
           await buttons.nth(i).hover();
-          const tip = (await page.locator('ngb-tooltip-window').first().boundingBox())!;
-          expect(tip, `button ${i} shows no tooltip on hover`).not.toBeNull();
+          await expect(tooltip, `button ${i} shows no tooltip on hover`).toBeVisible();
+          const tip = await boxOf(tooltip.first(), `the tooltip of button ${i}`);
           expect(tip.x + tip.width, 'tooltip leaves the stage on the right')
             .toBeLessThanOrEqual(stage.x + stage.width + 1);
 
           for (let j = 0; j < count; j++) {
             if (j === i) { continue; }
-            const other = (await buttons.nth(j).boundingBox())!;
+            const other = await boxOf(buttons.nth(j), `button ${j}`);
             expect(overlaps(tip, other), `tooltip of button ${i} covers button ${j}`).toBe(false);
           }
+          // Park the pointer away from the toolbar and let the tooltip go,
+          // so the next iteration cannot measure this one.
           await page.mouse.move(2, 2);
-          await page.waitForTimeout(250);
+          await expect(tooltip).toHaveCount(0);
         }
       });
     } else {
@@ -109,9 +121,12 @@ export const bitmapToolbarSuite = (label: 'desktop' | 'mobile'): void => {
         // action has already run, on top of a control the reader can then no
         // longer see. Tapping further buttons would change the toolbar under
         // the assertion, which is a different test.
-        const box = (await buttons.last().boundingBox())!;
+        const box = await boxOf(buttons.last(), 'the view toggle');
         await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-        await page.waitForTimeout(600);
+        // The tap lands on the 2D/3D toggle, so the renderer mounting is
+        // proof the tap was delivered -- and by then a tooltip triggered by
+        // the same tap (ng-bootstrap opens on focus too) would be on screen.
+        await expect(page.locator('app-bitmap-3d-renderer')).toBeAttached();
         await expect(page.locator('ngb-tooltip-window')).toHaveCount(0);
       });
     }

@@ -2,7 +2,7 @@
 @if (vm.kind === 'loading') {
   <div class="bitmap-stage bitmap-placeholder" role="status" aria-live="polite">
     <span class="skeleton-loader"></span>
-    <span class="visually-hidden" i18n="bitmap.loading">Loading the block&rsquo;s transactions&hellip;</span>
+    <span class="bitmap-status-text" i18n="bitmap.loading">Loading the block&rsquo;s transactions&hellip;</span>
   </div>
 } @else if (vm.kind === 'unavailable') {
   <div class="bitmap-stage bitmap-placeholder">
@@ -34,7 +34,7 @@
       <button type="button" class="bitmap-toggle" (click)="toggleFullscreen()"
         [attr.aria-label]="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
         placement="top-end"
-        [disableTooltip]="isCoarsePointer()"
+        [disableTooltip]="coarsePointer"
         [ngbTooltip]="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
         @if (fullscreen) {
           <!-- collapse arrows -->
@@ -56,7 +56,7 @@
         <button type="button" class="bitmap-toggle" (click)="togglePfp()"
           [attr.aria-label]="mode === 'pfp' ? 'Exit walk mode' : 'Enter walk mode'"
           placement="top-end"
-          [disableTooltip]="isCoarsePointer()"
+          [disableTooltip]="coarsePointer"
           [ngbTooltip]="mode === 'pfp' ? 'Exit walk mode' : 'Walk through the block (WASD + mouse)'">
           @if (mode === 'pfp') {
             <!-- door / exit icon -->
@@ -73,8 +73,11 @@
           }
         </button>
       }
-      <!-- Disabled once the renderer reports no WebGL: without this the
-           button stays live and does nothing, which reads as broken.
+      <!-- Marked disabled once the renderer reports no WebGL: without it the
+           button stays live and does nothing, which reads as broken. It is
+           aria-disabled rather than disabled because a disabled button fires
+           neither hover nor focus, and the tooltip is the only place the
+           reason is spelled out; toggleView() declines the action instead.
            placement + disableTooltip, here and on the two buttons above:
            left to choose for itself, the tooltip lands beside the button
            it belongs to and covers its neighbour, and at the right edge of
@@ -84,8 +87,8 @@
            pure occlusion; the aria-label still serves assistive tech. -->
       <button type="button" class="bitmap-toggle" (click)="toggleView()"
         placement="top-end"
-        [disableTooltip]="isCoarsePointer()"
-        [disabled]="webglUnsupported"
+        [disableTooltip]="coarsePointer"
+        [attr.aria-disabled]="webglUnsupported ? 'true' : null"
         [attr.aria-label]="webglUnsupported
           ? 'The 3D view needs WebGL, which this browser does not provide'
           : (mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view')"

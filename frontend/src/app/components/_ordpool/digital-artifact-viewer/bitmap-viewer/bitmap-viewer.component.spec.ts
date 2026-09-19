@@ -6,9 +6,9 @@ import { BitmapApiService, BitmapResponse } from '@app/services/ordinals/bitmap-
 import { BitmapViewerComponent } from './bitmap-viewer.component';
 
 /**
- * The viewer's three view states. Before these existed the template tested
- * a nullable view-model, so "still fetching" and "no data for this block"
- * both rendered as an empty column with no indication either way.
+ * The viewer's three view states. They exist so "still fetching" and "no
+ * data for this block" stay distinguishable: a nullable view-model renders
+ * both as an empty column, with no indication either way.
  */
 describe('BitmapViewerComponent view states', () => {
 
@@ -53,7 +53,7 @@ describe('BitmapViewerComponent view states', () => {
 
       expect(ready.svg).toContain('#0000FF');
       // bitlodo's reference orange, the parser's fallback when no colour
-      // is passed -- what the viewer used to ship.
+      // is passed.
       expect(ready.svg).not.toContain('#F7931A');
     } finally {
       document.documentElement.style.removeProperty('--primary');
@@ -89,12 +89,18 @@ describe('BitmapViewerComponent view states', () => {
     expect(emissions[emissions.length - 1]).toEqual({ kind: 'unavailable' });
   });
 
-  it('reports unavailable without asking the API when there is no height', async () => {
+  it('goes back to unavailable, without a new request, when the height is cleared', async () => {
     const { component, getBitmapData } = setup(of(blockResponse));
+    // Reaching the null branch takes a real height first: the setter's
+    // identity guard returns on null-to-null, so assigning null to a fresh
+    // component asserts the field initializer and nothing else.
+    component.height = 800_000;
+    expect(getBitmapData).toHaveBeenCalledTimes(1);
+
     component.height = null;
 
     expect(await firstValueFrom(component.vm$)).toEqual({ kind: 'unavailable' });
-    expect(getBitmapData).not.toHaveBeenCalled();
+    expect(getBitmapData).toHaveBeenCalledTimes(1);
   });
 
   it('does not re-request when the same height is set again', () => {

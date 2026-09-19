@@ -1134,11 +1134,6 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
 
     const flyLookAtSpawn = new THREE.Vector3();
     const beginFlyToPfp = () => {
-      // Build the collision octree here rather than on the first walking
-      // frame: the sweep that follows is FLY_MS long, so the one-off cost
-      // lands before the player has any control instead of as a hitch on
-      // their first step.
-      ensureOctree();
       flyStartPos.copy(camera.position);
       flyStartQuat.copy(camera.quaternion);
       flyStartFov = camera.fov;
@@ -1146,13 +1141,19 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       captureLookAtQuat(spawnEye, finalUp, flyLookAtSpawn, flyEndQuat);
       flyEndPos.copy(spawnEye);
       flyEndFov = FOV_PFP;
-      flyStartedAt = performance.now();
       controls.enabled = false;
       // Cubes must be at full height for PFP (they are during orbit; mid-
       // intro they're growing -- force-finish the scale if we leave early).
       container.scale.y = 1;
       directional.shadow.needsUpdate = true;
       state = 'fly-to-pfp';
+      // Build the collision octree here rather than on the first walking
+      // frame, so the cost lands on the click instead of as a hitch on the
+      // player's first step. It has to finish before the clock starts: the
+      // sweep is driven by elapsed wall time, so a build counted inside it
+      // would be skipped over rather than played.
+      ensureOctree();
+      flyStartedAt = performance.now();
     };
 
     const beginFlyToIso = (afterFly: 'orbit' | 'exit') => {
@@ -1256,33 +1257,46 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     let refined = false;
     let refineTimer: number | null = null;
     const scheduleRefine = () => {
-      if (refineTimer !== null) clearTimeout(refineTimer);
-      refineTimer = window.setTimeout(() => {
-        refineTimer = null;
-        refined = true;
-        requestRender();
-      }, REFINE_DELAY_MS);
+      this.zone.runOutsideAngular(() => {
+        if (refineTimer !== null) clearTimeout(refineTimer);
+        refineTimer = window.setTimeout(() => {
+          refineTimer = null;
+          refined = true;
+          requestRender();
+        }, REFINE_DELAY_MS);
+      });
     };
     const onControlsChange = () => {
       refined = false;
       requestRender();
       scheduleRefine();
     };
-    controls.addEventListener('change', onControlsChange);
 
     // Viewport gating. Starts true so a viewer that is already on screen
     // (or a browser without IntersectionObserver) renders immediately; the
     // observer corrects it on its first callback.
     let onScreen = true;
-    const visibilityObserver = new IntersectionObserver((entries) => {
-      const wasOnScreen = onScreen;
-      onScreen = entries.some(e => e.isIntersecting);
-      // Coming back into view: the canvas still holds the last frame, but
-      // anything that changed while we were away (a resize) needs one.
-      if (onScreen && !wasOnScreen) requestRender();
-    }, { threshold: 0 });
-    visibilityObserver.observe(hostEl);
-    document.addEventListener('visibilitychange', requestRender);
+    let visibilityObserver: IntersectionObserver;
+
+    // All of this is registered outside Angular. Every one of these
+    // callbacks only flips a local boolean, but zone.js patches
+    // addEventListener, setTimeout and IntersectionObserver alike, so
+    // registered inside the zone they each end in an application-wide
+    // change-detection pass -- and 'change' fires once per pointer sample
+    // while dragging, which is precisely the case this whole mechanism
+    // exists to make cheaper.
+    this.zone.runOutsideAngular(() => {
+      controls.addEventListener('change', onControlsChange);
+      visibilityObserver = new IntersectionObserver((entries) => {
+        const wasOnScreen = onScreen;
+        onScreen = entries.some(e => e.isIntersecting);
+        // Coming back into view: the canvas still holds the last frame, but
+        // anything that changed while we were away (a resize) needs one.
+        if (onScreen && !wasOnScreen) requestRender();
+      }, { threshold: 0 });
+      visibilityObserver.observe(hostEl);
+      document.addEventListener('visibilitychange', requestRender);
+    });
 
     this.zone.runOutsideAngular(() => {
       const animate = () => {
@@ -1331,7 +1345,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
               // scene is static and the map stays frozen.
               directional.shadow.needsUpdate = true;
               state = 'orbit';
-              // Settle into the refined still frame.
+              // 'orbit' draws only on demand, and OrbitControls announces no
+              // change because the camera landed where the intro left it. Ask
+              // for the frame that carries the full-height cubes and their
+              // last shadow refresh, then settle into the refined one.
+              requestRender();
               scheduleRefine();
             }
             break;
@@ -1415,11 +1433,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           }
           case 'pfp': {
             // Physics for a view nobody is looking at is the one piece of
-            // per-frame work worth dropping outright; the clock is still
+            // per-frame work worth dropping outright; both clocks are still
             // read so the first frame back does not integrate the whole
-            // absence in one step.
+            // absence in one step -- the look clock included, or a held
+            // arrow key would whip the camera round on return.
             const dt = physicsClock.getDelta();
-            if (!offScreen) pfpFrame(dt);
+            if (offScreen) lookClock.getDelta(); else pfpFrame(dt);
             break;
           }
           case 'exit-done': {
@@ -1442,6 +1461,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         if (offScreen || !needsRender) return;
         needsRender = false;
         // Sun stays fixed in world space; only the camera and state change.
+        // The composer (SSAA + ambient occlusion) is the still-frame path
+        // only: `refined` is cleared above for every state but 'orbit', so
+        // walking and the fly-throughs render straight, which is what keeps
+        // them at frame rate on a phone.
         if (composer && refined) composer.render(); else renderer.render(scene, camera);
       };
 
