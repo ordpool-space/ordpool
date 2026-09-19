@@ -6,10 +6,8 @@ import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 
 import {
   makeWatchOnlyTestAccount,
-  waitForUtxoAt,
+  fundCommonSats,
   waitForElectrsSync,
-  waitForOrdSync,
-  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
@@ -51,7 +49,6 @@ const MINT_PATH = '/cat21-mint';
 // >50k sats: over AUTO_SCAN_MAX_VALUE_SAT, so the orchestrator treats the coin
 // as unscanned and auto-picks it, enabling Mint without a manual UTXO pick.
 const FUND_AMOUNT_BTC = 0.001;
-const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 
 const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
 
@@ -95,13 +92,16 @@ test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-
   console.log(`[cat21-mint-xpub] account tpub=${accountTpub.slice(0, 12)}... payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1p/);
 
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
-  console.log(`[cat21-mint-xpub] funded ${paymentAddress} with ${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  const fundedTip = mineBlocks(1);
-  await waitForElectrsSync(fundedTip);
-  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
-  await waitForOrdStockSync(fundedTip);
-  await waitForOrdSync(fundedTip);
+  // Fund on COMMON (mid-block) sats via the SDK harness faucet, NOT a raw
+  // sendtoaddress: with --index-sats the coinbase boundary sat is an uncommon
+  // rare sat, so a plain send can hand this ONE-ADDRESS (xpub) wallet a coin the
+  // funding-safety scan correctly flags as asset-bearing, which disables the CTA
+  // (expert-required) and makes this lane roll dice run to run. fundCommonSats
+  // spends one mature input with the boundary sat absorbed into vout-0 change so
+  // the payment inherits common sats, then mines and waits for electrs + BOTH ord
+  // instances to index the funding block.
+  console.log(`[cat21-mint-xpub] funding ${paymentAddress} with ${FUND_AMOUNT_BTC} BTC on common sats`);
+  await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
 
   // ─── 2. Open /cat21-mint, connect the watch-only (xpub) wallet ─
   const page = await context.newPage();
