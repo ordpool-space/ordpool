@@ -92,10 +92,15 @@ app-iso-cube {
     box-sizing: border-box;
   }
 
-  // Label ink follows the face: the page-background navy on light faces
-  // (brand orange, the bright fee levels; white on #FF9900 sits at ~2:1
-  // contrast, navy at ~7:1), white on the dark fee levels. The component
-  // sets --iso-ink from the face colour's luminance.
+  // Label ink follows the face: navy on light faces (brand orange, the
+  // bright fee levels; white on #FF9900 sits at ~2:1 contrast, navy at
+  // ~7:1), white on the dark fee levels. The component sets --iso-ink from
+  // the face colour's luminance.
+  //
+  // The dark ink is the literal navy, not var(--bg): the face colour comes
+  // from the fee palette and the ink has to answer that, not the page. The
+  // light nymkappa theme would otherwise put a near-white label on the
+  // faces that need the dark one.
   .iso-top {
     left: 6.7%;
     top: 0;
@@ -104,7 +109,7 @@ app-iso-cube {
     font-size: 1.15em;
     font-weight: 700;
     white-space: nowrap;
-    color: var(--iso-ink, var(--bg));
+    color: var(--iso-ink, #1d1f31);
     text-shadow: none;
   }
 

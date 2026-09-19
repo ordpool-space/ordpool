@@ -12,21 +12,22 @@ import { Location } from '@angular/common';
 import { DifficultyAdjustment, MempoolPosition } from '@interfaces/node-api.interface';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { ThemeService } from '@app/services/theme.service';
-import { timelineBlockSize } from '@components/_ordpool/iso-cube/iso-cube.constants';
 
 @Component({
   selector: 'app-mempool-blocks',
   templateUrl: './mempool-blocks.component.html',
   styleUrls: ['./mempool-blocks.component.scss'],
   // HACK -- Ordpool: a new projected block slides in from exactly one
-  // stride away. Computed here rather than read from blockWidth because a
-  // decorator is evaluated once at class definition and never sees an
-  // instance, so it cannot track the input.
+  // stride away. The decorator is evaluated once at class definition and
+  // never sees an instance, so the distance arrives as an animation param
+  // the template fills from blockOffset -- the strip is rendered at three
+  // different block widths (dashboard, clock, API docs) and a baked-in
+  // pixel count is right for at most one of them.
   animations: [trigger('blockEntryTrigger', [
     transition(':enter', [
-      style({ transform: `translateX(${-timelineBlockSize * 1.24}px)` }),
+      style({ transform: 'translateX({{ entryOffset }}px)' }),
       animate('2s 0s ease', style({ transform: '' })),
-    ]),
+    ], { params: { entryOffset: -155 } }),
   ])],
   standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,

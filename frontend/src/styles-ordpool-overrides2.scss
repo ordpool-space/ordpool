@@ -159,8 +159,10 @@ body .bitcoin-block.blink-bg app-iso-cube {
   // The ink has to move with the face. The cube picks it from the FEE
   // colour's luminance, and for the dark half of the palette that is
   // white -- which on taproot gold (luminance 0.457) is 2.07:1. Taproot
-  // is a light face, so it takes the dark default, 7.85:1.
-  --iso-ink: var(--bg) !important;
+  // is a light face, so it takes the dark ink, 7.85:1. The literal navy,
+  // for the same reason the cube's own default is one: the face is
+  // taproot gold under every theme, including the light one.
+  --iso-ink: #1d1f31 !important;
 }
 body .bitcoin-block.blink-bg app-iso-cube .iso-shape {
   animation: ordpool-cube-special 1s infinite;
