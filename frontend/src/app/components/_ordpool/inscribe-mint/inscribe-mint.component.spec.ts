@@ -1246,6 +1246,21 @@ describe('InscribeMintComponent', () => {
       );
     });
 
+    it('a duplicate same-identity re-emission does NOT re-drive setWallet', () => {
+      // The WalletService BehaviorSubject replays the SAME wallet identity on
+      // every onAccountChange (fires repeatedly on regtest). A re-fired
+      // setWallet drops the orchestrator to 'loading-utxos' and tears the
+      // Inscribe button out of the DOM for a frame, swallowing an in-flight
+      // click. The component must dedupe.
+      const w = wallet();
+      walletSubject.next(w);
+      fixture.detectChanges();
+      const callsAfterFirst = (orchestrator.setWallet as jest.Mock).mock.calls.length;
+      walletSubject.next({ ...w }); // same identity, fresh object reference
+      fixture.detectChanges();
+      expect((orchestrator.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst);
+    });
+
     it('resolvedParents surfaces snapshot.parents', () => {
       expect(component.resolvedParents()).toBeNull();
       orchestrator._patch({ parents: [{ id: 'a'.repeat(64) + 'i0', address: 'bc1p-parent', value: 546, outpoint: 'a'.repeat(64) + ':0' }] });

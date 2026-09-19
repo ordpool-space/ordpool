@@ -419,8 +419,23 @@ export class Cat21MintComponent implements OnInit {
     // takeUntilDestroyed: connectedWallet$ is the root WalletService's
     // never-completing BehaviorSubject, so the `this`-capturing subscription
     // must be torn down or every visit to this routed component leaks.
+    // connectedWallet$ is the raw WalletService BehaviorSubject, not the
+    // bucket-deduped derived stream, so it replays the SAME wallet identity on
+    // every onAccountChange (Xverse and cat21wallet fire that repeatedly on
+    // regtest and on chain-changes). setWallet unconditionally drops the
+    // orchestrator to 'loading-utxos' and refetches, which tears the Mint
+    // button out of the DOM for a frame (*ngIf="!utxoLoading()") and swallows
+    // an in-flight click. Dedupe on the full identity tuple the orchestrator
+    // consumes so only a real wallet change reaches setWallet.
+    let lastWalletKey: string | null = null;
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      const key = w
+        ? `${w.type}|${w.ordinalsAddress}|${w.paymentAddress}|${w.paymentPublicKey}`
+        : null;
+      if (key === lastWalletKey) return;
+      lastWalletKey = key;
+
       void this.orchestrator.setWallet(
         w
           ? {

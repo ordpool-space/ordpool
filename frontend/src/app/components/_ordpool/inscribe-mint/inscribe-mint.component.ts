@@ -595,8 +595,21 @@ export class InscribeMintComponent implements OnInit {
     // takeUntilDestroyed: connectedWallet$ is the root WalletService's
     // never-completing BehaviorSubject, so without teardown each visit to this
     // routed component leaks the instance (and its captured file bytes).
+    // The raw BehaviorSubject replays the SAME wallet identity on every
+    // onAccountChange (Xverse and cat21wallet fire that repeatedly on regtest
+    // and on chain-changes); setWallet unconditionally drops the orchestrator
+    // to 'loading-utxos' and refetches, which tears the Inscribe button out of
+    // the DOM for a frame and swallows an in-flight click. Dedupe on the full
+    // identity tuple so only a real wallet change reaches setWallet.
+    let lastWalletKey: string | null = null;
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      const key = w
+        ? `${w.type}|${w.ordinalsAddress}|${w.paymentAddress}|${w.paymentPublicKey}|${w.ordinalsPublicKey}`
+        : null;
+      if (key === lastWalletKey) return;
+      lastWalletKey = key;
+
       this.currentWallet = w ?? null;
       void this.orchestrator.setWallet(
         w

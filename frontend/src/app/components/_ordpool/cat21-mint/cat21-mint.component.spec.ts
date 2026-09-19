@@ -962,6 +962,33 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(scanner.reset).not.toHaveBeenCalled();
     });
 
+    it('MATRIX-A7(O): a duplicate same-identity re-emission does NOT re-drive setWallet', () => {
+      // The WalletService BehaviorSubject replays the SAME wallet identity on
+      // every onAccountChange (Xverse and cat21wallet fire that repeatedly on
+      // regtest). A re-fired setWallet drops the orchestrator to
+      // 'loading-utxos' and tears the Mint button out of the DOM for a frame,
+      // swallowing an in-flight click. The component must dedupe.
+      const w = wallet();
+      wallets.connectedWalletSubject.next(w);
+      fixture.detectChanges();
+      const callsAfterFirst = (orch.setWallet as jest.Mock).mock.calls.length;
+      // Same identity, fresh object reference (what onAccountChange delivers).
+      wallets.connectedWalletSubject.next({ ...w });
+      fixture.detectChanges();
+      expect((orch.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst);
+    });
+
+    it('MATRIX-A8(O): a real identity change DOES re-drive setWallet', () => {
+      const w1 = wallet({ ordinalsAddress: 'addr-1', paymentAddress: 'pay-1' });
+      wallets.connectedWalletSubject.next(w1);
+      fixture.detectChanges();
+      const callsAfterFirst = (orch.setWallet as jest.Mock).mock.calls.length;
+      const w2 = wallet({ ordinalsAddress: 'addr-2', paymentAddress: 'pay-2' });
+      wallets.connectedWalletSubject.next(w2);
+      fixture.detectChanges();
+      expect((orch.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst + 1);
+    });
+
     it('MATRIX-A9(B): disconnect returns to idle state', () => {
       connectXverse();
       const el: HTMLElement = fixture.nativeElement;
