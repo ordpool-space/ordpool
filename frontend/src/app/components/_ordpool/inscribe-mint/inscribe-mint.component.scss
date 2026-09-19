@@ -41,6 +41,13 @@
   border: 1px solid rgba(40, 167, 69, 0.4);
 }
 
+// A coin that can't cover the commit + reveal fee at the current rate: shown
+// (not hidden) but dimmed and unpickable, so it reads as "too small at this
+// rate", not missing.
+.shape-border.utxo-row-unavailable {
+  opacity: 0.55;
+}
+
 .utxo-bucket-badge .badge {
   font-size: 0.7rem;
   vertical-align: middle;

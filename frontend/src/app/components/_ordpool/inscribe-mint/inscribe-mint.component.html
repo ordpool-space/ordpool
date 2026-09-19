@@ -521,11 +521,11 @@
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let row of paymentOutputs$ | async"
-                [ngClass]="{ selected: row === this.selectedPaymentOutput, 'utxo-row-assets': row.bucket === 'assets', 'utxo-row-clean': row.bucket === 'clean' }">
+                [ngClass]="{ selected: row === this.selectedPaymentOutput, 'utxo-row-assets': row.bucket === 'assets', 'utxo-row-clean': row.bucket === 'clean', 'utxo-row-unavailable': !row.available }">
 
-                <button *ngIf="row !== this.selectedPaymentOutput && row.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
+                <button *ngIf="row.available && row !== this.selectedPaymentOutput && row.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
                   (click)="selectPaymentOutput(row)" type="button">Use this UTXO</button>
-                <button *ngIf="row !== this.selectedPaymentOutput && row.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
+                <button *ngIf="row.available && row !== this.selectedPaymentOutput && row.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
                   (click)="selectPaymentOutput(row)" type="button">Use anyway</button>
 
                 UTXO {{ row.paymentOutput.txid }}:{{ row.paymentOutput.vout }}
@@ -547,8 +547,8 @@
                 <span *ngIf="isRecommendedRow(row)" class="badge bg-primary ms-2"
                   title="The safest, best-fit coin we'd pay with automatically. You can still pick another." data-testid="utxo-recommended">recommended</span>
 
-                <button type="button" *ngIf="row.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Scan</button>
-                <button type="button" *ngIf="row.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Retry scan</button>
+                <button type="button" *ngIf="row.available && row.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Scan</button>
+                <button type="button" *ngIf="row.available && row.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Retry scan</button>
 
                 <div *ngIf="row.bucket === 'assets' && row.scan.kind === 'scanned-with-assets'" class="mt-2 ps-2 pe-2 pt-1 pb-1 utxo-assets-detail">
                   <strong>Assets on this UTXO:</strong><br>
@@ -581,28 +581,45 @@
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
                 <app-fiat [value]="row.paymentOutput.value"></app-fiat> Available Value<br>
 
-                - {{ row.simulation.totalFeeSats | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees (commit + reveal)<br>
+                <!-- The cost breakdown only exists for a coin that can fund the
+                     inscription at the current rate; `row.simulation as sim` both
+                     renders it for those rows and narrows the type so no null slips
+                     in. The fee is the COMMIT + REVEAL package total. -->
+                <ng-container *ngIf="row.simulation as sim">
+                  - {{ sim.totalFeeSats | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="sim.totalFeeSats"></app-fiat> Miner Fees (commit + reveal)<br>
 
-                - {{ postageSats | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="postageSats"></app-fiat> Your inscription<br>
+                  - {{ postageSats | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="postageSats"></app-fiat> Your inscription<br>
 
-                = {{ changeSats(row) | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
+                  = {{ changeSats(row) | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
 
-                <!-- Over-pay signal (FAMILY_UX three-state fee): when this coin's
-                     COMMIT change lands below the dust floor it can't be returned,
-                     so it's folded into the miner fee. Informational, never a
-                     block. This is why a bigger coin can be the cheaper pick. Only
-                     the commit has this: the reveal's fee is reserved in the commit
-                     output. -->
-                <p class="small text-muted mt-2 mb-0" *ngIf="overPaidSats(row) as folded" data-testid="utxo-overpay-note">
-                  &#9888; This coin&rsquo;s {{ folded | number }} <span class="symbol" i18n="shared.sat|sat">sat</span>
-                  of commit change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
-                  A larger coin returns it as change.
+                  <!-- Over-pay signal (FAMILY_UX three-state fee): when this coin's
+                       COMMIT change lands below the dust floor it can't be returned,
+                       so it's folded into the miner fee. Informational, never a
+                       block. This is why a bigger coin can be the cheaper pick. Only
+                       the commit has this: the reveal's fee is reserved in the commit
+                       output. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="overPaidSats(row) as folded" data-testid="utxo-overpay-note">
+                    &#9888; This coin&rsquo;s {{ folded | number }} <span class="symbol" i18n="shared.sat|sat">sat</span>
+                    of commit change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
+                    A larger coin returns it as change.
+                  </p>
+                </ng-container>
+
+                <!-- Unavailable coin (FAMILY_UX show-the-row): too small to cover
+                     the commit + reveal fee at THIS rate. Named, not hidden, and
+                     the rate is the variable, so a user who lowers it can predict
+                     the row flipping to usable. Dimmed + unpickable (no Use button;
+                     selectPaymentOutput refuses it). -->
+                <p class="small text-warning mt-1 mb-0" *ngIf="!row.available" data-testid="utxo-cant-fund">
+                  &#9888; Can&rsquo;t fund at this rate: too small to cover the commit + reveal fee at
+                  <strong>{{ cfeeRate.value || 1 }}</strong> <span class="symbol">sat/vB</span>.
+                  Lower the fee rate to use this coin.
                 </p>
               </div>
 

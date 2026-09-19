@@ -12,10 +12,18 @@ import { runeLabel } from '../rune-label.helper';
 import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 
 export interface ViableSimulation {
-  simulation: SimulateTransactionResult;
+  /** The mint simulation for this coin; null when the coin can't fund the mint
+   *  at the current fee rate (`available === false`). */
+  simulation: SimulateTransactionResult | null;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
   bucket: UtxoScanBucket;
+  /** Whether this coin can fund the mint at the current fee rate. A false row is
+   *  rendered "can't fund at this rate", dimmed and unpickable (FAMILY_UX): it
+   *  names the RATE as the variable so a user lowering the rate can predict the
+   *  row flipping. The picker no longer hides these — hiding them read as coins
+   *  gone missing rather than coins too small. */
+  available: boolean;
 }
 
 /** How often to re-read the funding set while WAITING for funds (status
@@ -159,22 +167,29 @@ export class Cat21MintComponent implements OnInit {
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableSimulation[] => {
+      // Show EVERY coin, tagging whether it can fund the mint at the current rate
+      // rather than hiding the ones that can't (FAMILY_UX show-the-row). Value-
+      // sorted, so covering coins lead and the not-yet-covering ones (always the
+      // smaller) trail as dimmed "can't fund at this rate" rows; capped so the
+      // panel never renders hundreds, and the trailing unavailable rows are the
+      // largest sub-threshold coins, i.e. the ones closest to flipping if the
+      // user lowers the rate.
       return rows
-        .filter((r): r is { utxo: TxnOutput; simulation: SimulateTransactionResult; insufficient: false } =>
-          !r.insufficient && r.simulation !== null,
-        )
         .sort((a, b) => b.utxo.value - a.utxo.value)
         .slice(0, 10)
         .map((r): ViableSimulation => {
           const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
           const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
-          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan) };
+          const available = !r.insufficient && r.simulation !== null;
+          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available };
         });
     }),
     tap((rows) => {
-      // Eager-scan small UTXOs. The scanner dedupes by outpoint so
-      // repeat triggers from re-emissions are free.
-      this.scanner.autoScan(rows.map((r) => ({
+      // Eager-scan small UTXOs, but only the ones the user could actually pick
+      // (available): an unavailable coin can't be spent, so scanning it for asset
+      // safety is wasted ord traffic. The scanner dedupes by outpoint so repeat
+      // triggers from re-emissions are free.
+      this.scanner.autoScan(rows.filter((r) => r.available).map((r) => ({
         txid: r.paymentOutput.txid,
         vout: r.paymentOutput.vout,
         value: r.paymentOutput.value,
@@ -202,7 +217,7 @@ export class Cat21MintComponent implements OnInit {
       // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
       const current = this.selectedPaymentOutput;
       const stillThere = current && rows.find(
-        (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
+        (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
       if (stillThere) {
         // Preserve the user's manual pick across re-emissions; refresh the row
@@ -439,8 +454,12 @@ export class Cat21MintComponent implements OnInit {
     this.cfeeRate.setValue(Number.isFinite(n) ? n : null);
   }
 
-  /** Template handler: user clicked "Use this UTXO" on an expert-mode row. */
+  /** Template handler: user clicked "Use this UTXO" on an expert-mode row. A row
+   *  that can't fund the mint at the current rate is unpickable: the rule lives
+   *  HERE, in the handler, not only in the template's hidden button, so a coin
+   *  the user can't spend can never become the selection (FAMILY_UX). */
   selectPaymentOutput(row: ViableSimulation): void {
+    if (!row.available) { return; }
     this.selectedPaymentOutput = row;
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }

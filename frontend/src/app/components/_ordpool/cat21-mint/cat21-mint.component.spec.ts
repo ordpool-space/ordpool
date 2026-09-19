@@ -501,7 +501,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: chosen, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
       expect(orch.selectedUtxo()!.value).toBe(20_000);
     });
@@ -512,7 +512,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
@@ -527,7 +527,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: gone, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       expect(orch.selectedUtxo()).toBeNull();
@@ -616,7 +616,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     it('F2: scanRow(row) delegates to scanner.scan with the outpoint', () => {
       const u = utxo({ txid: 'c'.repeat(64), vout: 7 });
       pushRows([{ u, scan: { kind: 'not-scanned' } }]);
-      component.scanRow({ paymentOutput: u, simulation: simulation(), scan: { kind: 'not-scanned' }, bucket: 'unscanned' });
+      component.scanRow({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'not-scanned' }, bucket: 'unscanned' });
       expect(scanner.scan).toHaveBeenCalledWith(`${'c'.repeat(64)}:7`);
     });
 
@@ -669,7 +669,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       pushRows([{ u, scan }]);
       // No consumer-side auto-pick: the user must choose the funding coin.
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: bucket as ViableSimulation['bucket'] });
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan, bucket: bucket as ViableSimulation['bucket'] });
       expect(component.selectedPaymentOutput!.bucket).toBe(bucket);
     });
 
@@ -677,14 +677,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const scan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['x'], runes: null, catIds: [], catSat: null, rareSat: null } };
       pushRows([{ u, scan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: 'assets' });
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan, bucket: 'assets' });
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
 
     it('G3: scanning row never auto-picks but is selectable', () => {
       pushRows([{ u, scan: { kind: 'scanning' } }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan: { kind: 'scanning' }, bucket: 'scanning' });
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'scanning' }, bucket: 'scanning' });
       expect(component.selectedPaymentOutput!.bucket).toBe('scanning');
     });
   });
@@ -815,12 +815,12 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('L2: once picked, it is the miner fee plus the cat postage, not just one', () => {
       // simulation(): finalTransactionFee 200n + amountToRecipient 546n
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.totalMintSpendSats()).toBe(746);
     });
 
     it('L3: tracks the fee, so it is a real total and not a hardcoded 546', () => {
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.totalMintSpendSats()).toBe(2_000); // 1454 fee + 546 cat
     });
 
@@ -1035,7 +1035,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
       expect(rows!.length).toBeGreaterThan(0);
       // No consumer-side auto-pick: the user selects the funding coin explicitly.
-      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput).toBeDefined();
     });
 
@@ -1085,7 +1085,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       // Pre: no selection
       expect(component.selectedPaymentOutput).toBeUndefined();
       // Explicit override
-      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), scan: assetsScan, bucket: 'assets' });
+      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), available: true, scan: assetsScan, bucket: 'assets' });
       expect(component.selectedPaymentOutput).toBeDefined();
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
@@ -1119,7 +1119,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   describe('N. per-coin fee column', () => {
     const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
     const row = (u: TxnOutput): ViableSimulation =>
-      ({ paymentOutput: u, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      ({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
     const feeRow = (u: TxnOutput, over: Partial<{ finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }> = {}) =>
       ({ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0, ...over });
 
@@ -1179,6 +1179,77 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(component.isRecommendedRow(row(big(50_000)))).toBe(false);
     });
   });
+
+  // -------------------------------------------------------------------
+  // P. show-the-row (FAMILY_UX): a coin that can't fund the mint at the current
+  //    rate is SHOWN (available:false), not filtered out, and is unpickable. The
+  //    handler is the authority, not just the hidden button.
+  // -------------------------------------------------------------------
+
+  describe('P. show-the-row (unavailable coins)', () => {
+    const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
+
+    // Push a mix of a covering row and an insufficient one (simulation null,
+    // insufficient true — the shape the orchestrator emits for a coin too small).
+    function pushMixed(): { covering: TxnOutput; small: TxnOutput } {
+      const covering = big(80_000);
+      const small = big(500);
+      scanner.setStates([
+        [`${covering.txid}:${covering.vout}`, { kind: 'scanned-clean' }],
+        [`${small.txid}:${small.vout}`, { kind: 'not-scanned' }],
+      ]);
+      orch.simulationsSubject.next([
+        { utxo: covering, simulation: simulation(), insufficient: false },
+        { utxo: small, simulation: null, insufficient: true },
+      ]);
+      fixture.detectChanges();
+      return { covering, small };
+    }
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+      fixture.detectChanges();
+    });
+
+    it('P1: the insufficient coin is SHOWN as available:false, not filtered out', () => {
+      const { covering, small } = pushMixed();
+      let captured: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
+      // Both coins present (the old behaviour dropped the small one entirely).
+      expect(captured!.map((r) => r.paymentOutput.value).sort((a, b) => a - b)).toEqual([500, 80_000]);
+      const smallRow = captured!.find((r) => r.paymentOutput.txid === small.txid)!;
+      const coveringRow = captured!.find((r) => r.paymentOutput.txid === covering.txid)!;
+      expect(smallRow.available).toBe(false);
+      expect(smallRow.simulation).toBeNull();
+      expect(coveringRow.available).toBe(true);
+    });
+
+    it('P2: selectPaymentOutput REFUSES an unavailable row (handler is the authority)', () => {
+      const { small } = pushMixed();
+      const unavailableRow: ViableSimulation = { paymentOutput: small, simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
+      component.selectPaymentOutput(unavailableRow);
+      // The pick was refused: no selection, orchestrator untouched.
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
+    });
+
+    it('P3: a pick that flips to unavailable on a re-emit is cleared', () => {
+      const chosen = big(80_000);
+      scanner.setStates([[`${chosen.txid}:${chosen.vout}`, { kind: 'scanned-clean' }]]);
+      orch.simulationsSubject.next([{ utxo: chosen, simulation: simulation(), insufficient: false }]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
+      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      expect(component.selectedPaymentOutput).toBeDefined();
+      // The same coin re-emits as insufficient (e.g. the user raised the rate).
+      orch.simulationsSubject.next([{ utxo: chosen, simulation: null, insufficient: true }]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1213,6 +1284,7 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     return {
       paymentOutput: utxo(),
       simulation: simulation(),
+      available: true,
       scan: { kind: 'scanned-clean' } as UtxoScanState,
       bucket: 'clean',
       ...over,
@@ -1341,5 +1413,22 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     fixture.detectChanges();
 
     expect(q('[data-testid="utxo-overpay-note"]')).toBeNull();
+  });
+
+  it('renders an insufficient coin as a dimmed "can\'t fund at this rate" row with no Use button (real template)', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    const small = utxo({ txid: 's'.repeat(64), value: 500 });
+    scanner.setStates([[`${small.txid}:${small.vout}`, { kind: 'not-scanned' } as UtxoScanState]]);
+    // Insufficient shape: null simulation, insufficient true.
+    orch.simulationsSubject.next([{ utxo: small, simulation: null, insufficient: true }]);
+    fixture.detectChanges();
+
+    const cantFund = q('[data-testid="utxo-cant-fund"]');
+    expect(cantFund).toBeTruthy();
+    // The row is present and dimmed (not hidden).
+    expect(q('.shape-border.utxo-row-unavailable')).toBeTruthy();
+    // No "Use this UTXO" / "Use anyway" button on an unavailable row.
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll('.shape-border.utxo-row-unavailable button');
+    expect(buttons.length).toBe(0);
   });
 });

@@ -15,12 +15,19 @@ import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-promp
 import { runeLabel } from '../rune-label.helper';
 import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 
-/** One viable funding UTXO joined with its content-scan bucket. */
+/** One funding UTXO joined with its content-scan bucket. */
 export interface ViableInscribeSimulation {
-  simulation: SimulateInscribeFeesResult;
+  /** The inscribe simulation for this coin; null when the coin can't fund the
+   *  inscription at the current fee rate (`available === false`). */
+  simulation: SimulateInscribeFeesResult | null;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
   bucket: UtxoScanBucket;
+  /** Whether this coin can fund the inscription at the current fee rate. A false
+   *  row is rendered "can't fund at this rate", dimmed and unpickable (FAMILY_UX):
+   *  the rate is named as the variable so a user lowering it can predict the row
+   *  flipping. The picker shows these rather than hiding them. */
+  available: boolean;
 }
 
 /** The uploaded file resolved to inscription-ready bytes + a content-type. */
@@ -145,8 +152,11 @@ export class InscribeMintComponent implements OnInit {
   smallUtxoWarningThreshold = SMALL_UTXO_WARNING_THRESHOLD_SAT;
   readonly postageSats = INSCRIBE_POSTAGE_SATS;
 
-  /** Change returned to the payment address (0 when folded into fee below dust). */
+  /** Change returned to the payment address (0 when folded into fee below dust,
+   *  or when the coin can't fund the inscription at all). Only meaningful on an
+   *  available row; the template reads it inside the `simulation as sim` guard. */
   changeSats(row: ViableInscribeSimulation): number {
+    if (!row.simulation) { return 0; }
     return Math.max(0, row.paymentOutput.value - row.simulation.fundingRequirementSats);
   }
 
@@ -178,8 +188,8 @@ export class InscribeMintComponent implements OnInit {
    * commit output, not funded by a coin whose change could fall below dust.
    */
   overPaidSats(row: ViableInscribeSimulation): number | null {
-    const folded = row.simulation.commitAbsorbedSubDustSats;
-    return folded > 0 ? folded : null;
+    const folded = row.simulation?.commitAbsorbedSubDustSats;
+    return folded && folded > 0 ? folded : null;
   }
 
   recommendedFees$ = inject(StateService).recommendedFees$;
@@ -206,20 +216,26 @@ export class InscribeMintComponent implements OnInit {
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableInscribeSimulation[] => {
+      // Show EVERY coin, tagging whether it can fund the inscription at the
+      // current rate rather than hiding the ones that can't (FAMILY_UX
+      // show-the-row). Value-sorted so covering coins lead and the not-yet-
+      // covering ones trail as dimmed "can't fund at this rate" rows; capped so
+      // the trailing unavailable rows are the largest sub-threshold coins, the
+      // ones closest to flipping if the user lowers the rate.
       return (rows as InscribeUtxoSimulation[])
-        .filter((r): r is InscribeUtxoSimulation & { simulation: SimulateInscribeFeesResult; insufficient: false } =>
-          !r.insufficient && r.simulation !== null,
-        )
         .sort((a, b) => b.utxo.value - a.utxo.value)
         .slice(0, 10)
         .map((r): ViableInscribeSimulation => {
           const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
           const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
-          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan) };
+          const available = !r.insufficient && r.simulation !== null;
+          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available };
         });
     }),
     tap((rows) => {
-      this.scanner.autoScan(rows.map((r) => ({
+      // Only scan the coins the user could actually pick (available); scanning an
+      // unspendable coin for asset safety is wasted ord traffic.
+      this.scanner.autoScan(rows.filter((r) => r.available).map((r) => ({
         txid: r.paymentOutput.txid,
         vout: r.paymentOutput.vout,
         value: r.paymentOutput.value,
@@ -247,7 +263,7 @@ export class InscribeMintComponent implements OnInit {
       // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
       const current = this.selectedPaymentOutput;
       const stillThere = current && rows.find(
-        (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
+        (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
       if (stillThere) {
         // Preserve the user's manual pick across re-emissions; refresh the row
@@ -1510,7 +1526,12 @@ export class InscribeMintComponent implements OnInit {
     this.cfeeRate.setValue(Number.isFinite(n) ? n : null);
   }
 
+  /** A row that can't fund the inscription at the current rate is unpickable:
+   *  the rule lives HERE, in the handler, not only in the template's hidden
+   *  button, so a coin the user can't spend can never become the selection
+   *  (FAMILY_UX). */
   selectPaymentOutput(row: ViableInscribeSimulation): void {
+    if (!row.available) { return; }
     this.selectedPaymentOutput = row;
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }

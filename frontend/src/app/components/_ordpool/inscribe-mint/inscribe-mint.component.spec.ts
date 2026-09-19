@@ -717,7 +717,7 @@ describe('InscribeMintComponent', () => {
     const out = (v: number): TxnOutput =>
       ({ txid: String(v).repeat(64).slice(0, 64), vout: 0, value: v, status: { confirmed: true } } as TxnOutput);
     const row = (u: TxnOutput, commitAbsorbedSubDustSats = 0): ViableInscribeSimulation =>
-      ({ paymentOutput: u, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000, commitAbsorbedSubDustSats } as SimulateInscribeFeesResult, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      ({ paymentOutput: u, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000, commitAbsorbedSubDustSats } as SimulateInscribeFeesResult, available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
 
     it('marks the auto-pick coin, and only that one, by outpoint', () => {
       const recCoin = out(40_000);
@@ -740,6 +740,22 @@ describe('InscribeMintComponent', () => {
       // The 0-vs-positive boundary: returning 0 here (the mutation) would misfire
       // the "change folded into the fee" note on every roomy coin. Assert null.
       expect(component.overPaidSats(row(out(50_000), 0))).toBeNull();
+    });
+
+    it('overPaidSats is null on an unavailable row (null simulation), never a crash', () => {
+      const unavailable: ViableInscribeSimulation = { paymentOutput: out(500), simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
+      expect(component.overPaidSats(unavailable)).toBeNull();
+      expect(component.changeSats(unavailable)).toBe(0);
+    });
+
+    // show-the-row (FAMILY_UX): a coin that can't fund the inscription at the
+    // current rate is unpickable, and the rule lives in the HANDLER, not only the
+    // hidden button. Mutation-checkable: dropping the guard lets the pick land.
+    it('selectPaymentOutput REFUSES an unavailable row (handler is the authority)', () => {
+      const unavailable: ViableInscribeSimulation = { paymentOutput: out(500), simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
+      component.selectPaymentOutput(unavailable);
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orchestrator.selectedUtxo()).toBeNull();
     });
   });
 
