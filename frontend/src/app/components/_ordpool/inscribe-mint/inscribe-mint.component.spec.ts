@@ -708,15 +708,16 @@ describe('InscribeMintComponent', () => {
     });
   });
 
-  // The recommended-coin mark (FAMILY_UX per-coin fee column): the inscribe row
-  // carries no over-pay note (the SDK does not surface a per-coin sub-dust fold
-  // for the commit+reveal package), but it DOES mark, in place, the coin
-  // selection would auto-pick, joined by outpoint.
-  describe('recommended-coin mark (in place)', () => {
+  // The per-coin fee column (FAMILY_UX): the inscribe row marks, in place, the
+  // coin selection would auto-pick (joined by outpoint), AND carries the over-pay
+  // note, read off the per-row simulation's commitAbsorbedSubDustSats (the
+  // inscribe orchestrator exposes no candidateFees map). Only the commit folds
+  // sub-dust change; the reveal's fee is reserved in the commit output.
+  describe('per-coin fee column (recommended mark + over-pay)', () => {
     const out = (v: number): TxnOutput =>
       ({ txid: String(v).repeat(64).slice(0, 64), vout: 0, value: v, status: { confirmed: true } } as TxnOutput);
-    const row = (u: TxnOutput): ViableInscribeSimulation =>
-      ({ paymentOutput: u, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000 } as SimulateInscribeFeesResult, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+    const row = (u: TxnOutput, commitAbsorbedSubDustSats = 0): ViableInscribeSimulation =>
+      ({ paymentOutput: u, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000, commitAbsorbedSubDustSats } as SimulateInscribeFeesResult, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
 
     it('marks the auto-pick coin, and only that one, by outpoint', () => {
       const recCoin = out(40_000);
@@ -729,6 +730,16 @@ describe('InscribeMintComponent', () => {
     it('marks nothing when there is no recommendation', () => {
       orchestrator.fundingRecommendationSubject.next({ status: 'scanning', recommended: null, candidates: [] });
       expect(component.isRecommendedRow(row(out(50_000)))).toBe(false);
+    });
+
+    it('overPaidSats is the folded sats when the commit over-pays (commitAbsorbedSubDustSats > 0)', () => {
+      expect(component.overPaidSats(row(out(50_000), 1_200))).toBe(1_200);
+    });
+
+    it('overPaidSats is null when the commit emits change (commitAbsorbedSubDustSats === 0) — NOT 0', () => {
+      // The 0-vs-positive boundary: returning 0 here (the mutation) would misfire
+      // the "change folded into the fee" note on every roomy coin. Assert null.
+      expect(component.overPaidSats(row(out(50_000), 0))).toBeNull();
     });
   });
 

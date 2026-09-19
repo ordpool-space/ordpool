@@ -592,6 +592,18 @@
                 = {{ changeSats(row) | number }}
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
                 <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
+
+                <!-- Over-pay signal (FAMILY_UX three-state fee): when this coin's
+                     COMMIT change lands below the dust floor it can't be returned,
+                     so it's folded into the miner fee. Informational, never a
+                     block. This is why a bigger coin can be the cheaper pick. Only
+                     the commit has this: the reveal's fee is reserved in the commit
+                     output. -->
+                <p class="small text-muted mt-2 mb-0" *ngIf="overPaidSats(row) as folded" data-testid="utxo-overpay-note">
+                  &#9888; This coin&rsquo;s {{ folded | number }} <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  of commit change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
+                  A larger coin returns it as change.
+                </p>
               </div>
 
               <!-- Per-UTXO note (wallet-ux-round3 §7.8): a DIFFERENT warning

@@ -160,13 +160,26 @@ export class InscribeMintComponent implements OnInit {
    * Whether this row is the coin selection would pick on its own. Marked IN
    * PLACE on its natural value-sorted row (FAMILY_UX), never sorted to the top,
    * so the per-coin fee breakdown below stays answerable to "why not the cheaper
-   * row above it?". The inscribe fee is the COMMIT + REVEAL package total, which
-   * the row cell qualifies; the SDK does not surface a per-coin sub-dust fold for
-   * inscribe, so no over-pay note is shown here (saying 0 would be a claim the
-   * data can't make).
+   * row above it?". The inscribe fee cell qualifies itself as the COMMIT + REVEAL
+   * package total.
    */
   isRecommendedRow(row: ViableInscribeSimulation): boolean {
     return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
+  }
+
+  /**
+   * When this coin's would-be COMMIT change fell below the dust floor, the sats
+   * folded into the miner fee instead of returning as change; null when the
+   * commit emits change (`commitAbsorbedSubDustSats === 0`). Read straight off
+   * the per-row simulation (the inscribe orchestrator does not expose a
+   * candidateFees map), so it exists only on a viable row, whose simulation is
+   * non-null. A positive value is the FAMILY_UX over-pay signal, symmetric with
+   * the mint page. Only the commit has this: the reveal's fee is reserved in the
+   * commit output, not funded by a coin whose change could fall below dust.
+   */
+  overPaidSats(row: ViableInscribeSimulation): number | null {
+    const folded = row.simulation.commitAbsorbedSubDustSats;
+    return folded > 0 ? folded : null;
   }
 
   recommendedFees$ = inject(StateService).recommendedFees$;
