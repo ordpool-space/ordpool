@@ -5,10 +5,20 @@ import * as fs from 'node:fs';
 
 import {
   seedInscribedCoin,
+  fundCommonSats,
   rpc,
   waitForApprovalPopup,
   onboardUnisat,
 } from 'ordpool-sdk/e2e';
+
+// A CLEAN coin sized at exactly the CAT-21 postage: it can cover the 546-sat cat
+// output but leaves ZERO for the miner fee, so the mint requirement (postage +
+// a strictly-positive fee) always exceeds it — it stays below the feasibility
+// floor for ANY fee rate or vsize, never becoming a covering option. This is the
+// show-the-row "Can't fund at this rate" row, seeded so it appears in the
+// picker-open screenshot this spec already captures. 0.00000546 BTC = 546 sats,
+// above the p2wpkh dust floor so it relays as a standalone output.
+const SUB_FLOOR_COIN_BTC = 0.00000546;
 
 /**
  * E2E (regtest) — the ONE-ADDRESS WARNING + under-block proof, and the family's
@@ -157,6 +167,13 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   console.log(`[warning-block-unisat] inscribed coin ${inscribedOutpoint} value=${inscribed.value} id=${inscribed.inscriptionId}`);
   expect(inscribed.value).toBe(INSCRIBED_POSTAGE_SATS);
 
+  // ─── 2b. Seed a CLEAN sub-floor coin so the show-the-row unavailable state
+  // is exercised + captured. It doesn't cover (below the feasibility floor), so
+  // the ONLY covering coin is still the dirty one and the block premise holds;
+  // it renders as the dimmed "Can't fund at this rate" row in the picker frame.
+  await fundCommonSats(paymentAddress, SUB_FLOOR_COIN_BTC);
+  console.log(`[warning-block-unisat] seeded clean sub-floor coin ${Math.round(SUB_FLOOR_COIN_BTC * 1e8)} sat`);
+
   // ─── 3. Reload so the orchestrator re-fetches UTXOs and scans ─────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -215,6 +232,19 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   const detail = assetRow.locator('.utxo-assets-detail');
   await expect(detail).toContainText('Inscription');
   await expect(detail).toContainText(inscribed.inscriptionId);
+
+  // ─── 6b. The show-the-row UNAVAILABLE state, proven + in the frame ────
+  // The clean sub-floor coin is too small to cover the fee, so it renders as a
+  // dimmed, unpickable "Can't fund at this rate" row (naming the rate as the
+  // variable). This is the one thing a picture answers that a DOM assertion
+  // can't — whether dimmed reads as deliberate — so it is captured in the
+  // screenshot below, and asserted here so the spec fails if the state regresses.
+  const unavailableRow = page.locator('.shape-border.utxo-row-unavailable').first();
+  await expect(unavailableRow).toBeVisible({ timeout: 30_000 });
+  await expect(unavailableRow.locator('[data-testid="utxo-cant-fund"]')).toContainText(/can.?t fund at this rate/i);
+  // Unpickable: no Use button on it (the handler refuses it too).
+  await expect(unavailableRow.getByRole('button')).toHaveCount(0);
+
   await shot(page, '03-picker-open-dirty-proof', true);
 
   // The button stays disabled with the picker open too: the block is not lifted
