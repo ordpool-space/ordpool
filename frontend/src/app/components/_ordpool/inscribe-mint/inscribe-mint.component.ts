@@ -160,6 +160,13 @@ export class InscribeMintComponent implements OnInit {
     return Math.max(0, row.paymentOutput.value - row.simulation.fundingRequirementSats);
   }
 
+  /** Total coins the wallet has (all simulation rows). The picker caps how many
+   *  it renders, so the template states "Showing N of {{ totalCoinCount() }}"
+   *  when it truncates: a silent cut reads as coins gone missing (FAMILY_UX). */
+  totalCoinCount(): number {
+    return this.snap().simulations.length;
+  }
+
   /** The auto-recommended funding coin's outpoint, or null before one exists. */
   private recommendedOutpoint = computed(() => {
     const rec = this.snap().fundingRecommendation.recommended;
@@ -216,21 +223,24 @@ export class InscribeMintComponent implements OnInit {
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableInscribeSimulation[] => {
-      // Show EVERY coin, tagging whether it can fund the inscription at the
-      // current rate rather than hiding the ones that can't (FAMILY_UX
-      // show-the-row). Value-sorted so covering coins lead and the not-yet-
-      // covering ones trail as dimmed "can't fund at this rate" rows; capped so
-      // the trailing unavailable rows are the largest sub-threshold coins, the
-      // ones closest to flipping if the user lowers the rate.
-      return (rows as InscribeUtxoSimulation[])
-        .sort((a, b) => b.utxo.value - a.utxo.value)
-        .slice(0, 10)
-        .map((r): ViableInscribeSimulation => {
-          const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
-          const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
-          const available = !r.insufficient && r.simulation !== null;
-          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available };
-        });
+      // Show coins, tagging whether each can fund the inscription at the current
+      // rate rather than hiding the ones that can't (FAMILY_UX show-the-row).
+      // Covering coins (up to 10) lead; a SHORT tail of the largest not-yet-
+      // covering coins (up to 3) trails as dimmed "can't fund at this rate" rows —
+      // enough to show the fee rate is the lever without turning a wallet of dust
+      // into a wall. All covering coins outvalue every unavailable one, so this
+      // stays globally value-sorted.
+      const isAvailable = (r: InscribeUtxoSimulation) => !r.insufficient && r.simulation !== null;
+      const sorted = [...(rows as InscribeUtxoSimulation[])].sort((a, b) => b.utxo.value - a.utxo.value);
+      const shown = [
+        ...sorted.filter(isAvailable).slice(0, 10),
+        ...sorted.filter((r) => !isAvailable(r)).slice(0, 3),
+      ];
+      return shown.map((r): ViableInscribeSimulation => {
+        const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
+        const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
+        return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available: isAvailable(r) };
+      });
     }),
     tap((rows) => {
       // Only scan the coins the user could actually pick (available); scanning an

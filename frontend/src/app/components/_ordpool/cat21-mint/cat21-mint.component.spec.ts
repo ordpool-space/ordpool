@@ -1234,6 +1234,33 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(orch.selectedUtxo()).toBeNull();
     });
 
+    it('P4: the unavailable tail is capped at 3 (a wallet of dust is not a wall)', () => {
+      const covering = big(80_000);
+      const dust = Array.from({ length: 7 }, (_, i) => big(300 + i));
+      const states: [string, UtxoScanState][] = [
+        [`${covering.txid}:${covering.vout}`, { kind: 'scanned-clean' }],
+        ...dust.map((d): [string, UtxoScanState] => [`${d.txid}:${d.vout}`, { kind: 'not-scanned' }]),
+      ];
+      scanner.setStates(states);
+      orch.simulationsSubject.next([
+        { utxo: covering, simulation: simulation(), insufficient: false },
+        ...dust.map((d) => ({ utxo: d, simulation: null, insufficient: true })),
+      ]);
+      fixture.detectChanges();
+      let captured: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
+      const shownUnavailable = captured!.filter((r) => !r.available);
+      // 7 dust coins present, but at most 3 render (the largest, closest to flipping).
+      expect(shownUnavailable.length).toBe(3);
+      expect(captured!.filter((r) => r.available).length).toBe(1);
+      // The 3 shown are the LARGEST dust (306, 305, 304), not an arbitrary slice.
+      expect(shownUnavailable.map((r) => r.paymentOutput.value).sort((a, b) => b - a)).toEqual([306, 305, 304]);
+      // Truncation is stated, not silent: 8 coins total, 4 shown -> the template
+      // renders "Showing 4 of 8". totalCoinCount is the denominator.
+      expect(component.totalCoinCount()).toBe(8);
+      expect(captured!.length).toBe(4);
+    });
+
     it('P3: a pick that flips to unavailable on a re-emit is cleared', () => {
       const chosen = big(80_000);
       scanner.setStates([[`${chosen.txid}:${chosen.vout}`, { kind: 'scanned-clean' }]]);
@@ -1430,5 +1457,46 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     // No "Use this UTXO" / "Use anyway" button on an unavailable row.
     const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll('.shape-border.utxo-row-unavailable button');
     expect(buttons.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Contrast of the unavailable-row label, MEASURED, not inferred (the cubes /
+// cat21-indexer lesson: "same colour family as a legible sibling" is not
+// evidence — cubes measured 3.48:1 that way). The row's `opacity` dims the amber
+// "Can't fund at this rate" text, so the composited pair must still clear WCAG AA
+// for small text (4.5:1). The opacity is read LIVE from the scss so lowering it
+// re-computes and fails; the palette colours are the documented theme constants.
+// ---------------------------------------------------------------------------
+
+describe('unavailable-row label contrast (WCAG AA, small text)', () => {
+  const srgbToLin = (c: number): number => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const relLum = ([r, g, b]: number[]): number => 0.2126 * srgbToLin(r) + 0.7152 * srgbToLin(g) + 0.0722 * srgbToLin(b);
+  const contrast = (a: number[], b: number[]): number => {
+    const la = relLum(a), lb = relLum(b), hi = Math.max(la, lb), lo = Math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const hexToRgb = (h: string): number[] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const over = (fg: number[], bg: number[], alpha: number): number[] => fg.map((c, i) => Math.round(alpha * c + (1 - alpha) * bg[i]));
+
+  // Documented theme constants (bootstrap --bs-warning; styles-ordpool-overrides2
+  // --panel-bg; styles.scss page ground).
+  const TEXT_WARNING = '#ffc107';
+  const PANEL_BG = '#26262f';
+  const PAGE_BG = '#1c2031';
+
+  it('the dimmed amber "Can\'t fund at this rate" label clears 4.5:1', () => {
+    const scss = fs.readFileSync(path.join(__dirname, 'cat21-mint.component.scss'), 'utf8');
+    const m = scss.match(/\.utxo-row-unavailable\s*\{[^}]*opacity:\s*([\d.]+)/);
+    expect(m).toBeTruthy();
+    const opacity = parseFloat(m![1]);
+    // The row's opacity composites the whole row over the page ground.
+    const effectiveText = over(hexToRgb(TEXT_WARNING), hexToRgb(PAGE_BG), opacity);
+    const effectiveBg = over(hexToRgb(PANEL_BG), hexToRgb(PAGE_BG), opacity);
+    const ratio = contrast(effectiveText, effectiveBg);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -167,22 +167,24 @@ export class Cat21MintComponent implements OnInit {
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableSimulation[] => {
-      // Show EVERY coin, tagging whether it can fund the mint at the current rate
-      // rather than hiding the ones that can't (FAMILY_UX show-the-row). Value-
-      // sorted, so covering coins lead and the not-yet-covering ones (always the
-      // smaller) trail as dimmed "can't fund at this rate" rows; capped so the
-      // panel never renders hundreds, and the trailing unavailable rows are the
-      // largest sub-threshold coins, i.e. the ones closest to flipping if the
-      // user lowers the rate.
-      return rows
-        .sort((a, b) => b.utxo.value - a.utxo.value)
-        .slice(0, 10)
-        .map((r): ViableSimulation => {
-          const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
-          const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
-          const available = !r.insufficient && r.simulation !== null;
-          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available };
-        });
+      // Show coins, tagging whether each can fund the mint at the current rate
+      // rather than hiding the ones that can't (FAMILY_UX show-the-row). Covering
+      // coins (up to 10) lead; a SHORT tail of the largest not-yet-covering coins
+      // (up to 3) trails as dimmed "can't fund at this rate" rows — enough to show
+      // the fee rate is the lever without turning a wallet of dust into a wall.
+      // All covering coins outvalue every unavailable one, so this stays globally
+      // value-sorted.
+      const isAvailable = (r: UtxoSimulationRow) => !r.insufficient && r.simulation !== null;
+      const sorted = [...rows].sort((a, b) => b.utxo.value - a.utxo.value);
+      const shown = [
+        ...sorted.filter(isAvailable).slice(0, 10),
+        ...sorted.filter((r) => !isAvailable(r)).slice(0, 3),
+      ];
+      return shown.map((r): ViableSimulation => {
+        const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
+        const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
+        return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available: isAvailable(r) };
+      });
     }),
     tap((rows) => {
       // Eager-scan small UTXOs, but only the ones the user could actually pick
@@ -606,6 +608,13 @@ export class Cat21MintComponent implements OnInit {
   overPaidSats(row: ViableSimulation): number | null {
     const folded = this.candidateFee(row)?.absorbedSubDustSats;
     return folded && folded > 0 ? folded : null;
+  }
+
+  /** Total coins the wallet has (all simulation rows). The picker caps how many
+   *  it renders, so the template states "Showing N of {{ totalCoinCount() }}"
+   *  when it truncates: a silent cut reads as coins gone missing (FAMILY_UX). */
+  totalCoinCount(): number {
+    return this.snap().simulations.length;
   }
 
   /** The auto-recommended funding coin's outpoint, or null before one exists. */

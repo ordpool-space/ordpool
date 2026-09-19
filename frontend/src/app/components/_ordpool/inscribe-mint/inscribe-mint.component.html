@@ -623,6 +623,16 @@
                 </p>
               </div>
 
+              <!-- Truncation is STATED, not silent (FAMILY_UX): the picker caps
+                   how many coins it lists, so when the wallet has more, say how
+                   many — a silent cut reads as coins gone missing. -->
+              <p class="small text-muted mt-2 mb-0" *ngIf="(paymentOutputs$ | async)?.length as shown"
+                data-testid="coin-count-note">
+                <ng-container *ngIf="totalCoinCount() > shown">
+                  Showing {{ shown }} of {{ totalCoinCount() | number }} coins in your wallet (largest first).
+                </ng-container>
+              </p>
+
               <!-- Per-UTXO note (wallet-ux-round3 §7.8): a DIFFERENT warning
                    from the custody caveat above. That one is about the wallet
                    model and is unfixable by coin choice; this one flags one
