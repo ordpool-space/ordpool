@@ -609,6 +609,14 @@
                     of commit change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
                     A larger coin returns it as change.
                   </p>
+
+                  <!-- overpay-unknown (FAMILY_UX): fee known, fold not, so we say
+                       we can't tell rather than falsely claim no over-pay. Defensive
+                       against the reading drifting back to a silent 0. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="feeClass(row) === 'overpay-unknown'" data-testid="utxo-overpay-unknown-note">
+                    &#9888; This coin may fold sub-dust commit change into the miner fee; we can&rsquo;t tell at this rate.
+                    A larger coin returns any change to you.
+                  </p>
                 </ng-container>
 
                 <!-- Unavailable coin (FAMILY_UX show-the-row): too small to cover

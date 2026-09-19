@@ -124,6 +124,15 @@ jest.mock('ordpool-sdk', () => {
     // (canonical in candidate-fees.ts); a value import, so the mock must provide
     // it or `outpointKey(...)` is undefined at runtime.
     outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
+    // Faithful re-implementation of the SDK's four-state fee classifier
+    // (canonical in candidate-fees.ts). The component routes its over-pay reading
+    // through this so it can't drift from cat21.space; a value import, so the mock
+    // must provide it.
+    classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
+      if (row.finalFeeSats === null) { return 'unavailable'; }
+      if (row.absorbedSubDustSats === null) { return 'overpay-unknown'; }
+      return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
+    },
     // wallet-ux-round3 single-address custody API. Faithful re-implementations
     // (canonical versions live in the SDK's wallet-capabilities.ts):
     // usesSingleAddress compares the two returned addresses; singleAddressCaveat
@@ -1127,6 +1136,24 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       connectXverse();
       orch.feeRate.set(5);
       fixture.detectChanges();
+    });
+
+    it('N0: feeClass routes the four states through the shared classifier (no drift)', () => {
+      const normal = big(50_001), over = big(50_002), unknown = big(50_003), unavail = big(50_004);
+      orch._patch({ candidateFees: [
+        feeRow(normal, { finalFeeSats: 200, absorbedSubDustSats: 0 }),
+        feeRow(over, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 }),
+        feeRow(unknown, { finalFeeSats: 200, absorbedSubDustSats: null }),
+        feeRow(unavail, { finalFeeSats: null, absorbedSubDustSats: null }),
+      ] });
+      expect(component.feeClass(row(normal))).toBe('normal');
+      expect(component.feeClass(row(over))).toBe('overpay');
+      // The drift fix: a KNOWN-fee coin whose fold the simulator can't see is
+      // 'overpay-unknown', NOT 'normal'. overPaidSats stays null there (no false
+      // number), but the state is distinct so the template can say "can't tell".
+      expect(component.feeClass(row(unknown))).toBe('overpay-unknown');
+      expect(component.overPaidSats(row(unknown))).toBeNull();
+      expect(component.feeClass(row(unavail))).toBe('unavailable');
     });
 
     it('N1: overPaidSats is the folded sats when a coin over-pays (absorbedSubDustSats > 0)', () => {

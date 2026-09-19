@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -194,9 +194,38 @@ export class InscribeMintComponent implements OnInit {
    * the mint page. Only the commit has this: the reveal's fee is reserved in the
    * commit output, not funded by a coin whose change could fall below dust.
    */
+  /**
+   * A shared {@link CandidateFeeRow} built from this row's inscribe simulation
+   * (the inscribe orchestrator exposes no candidateFees map). `finalFeeSats` is
+   * the COMMIT + REVEAL package total; `absorbedSubDustSats` is the commit's
+   * sub-dust fold. Null when the coin can't fund (no simulation). vsize is unused
+   * by the classifier, so it is not carried.
+   */
+  private inscribeFeeRow(row: ViableInscribeSimulation): CandidateFeeRow | null {
+    const sim = row.simulation;
+    if (!sim) { return null; }
+    return { txid: row.paymentOutput.txid, vout: row.paymentOutput.vout, finalFeeSats: sim.totalFeeSats, vsize: null, absorbedSubDustSats: sim.commitAbsorbedSubDustSats };
+  }
+
+  /**
+   * The four-state reading of this coin's fee, routed through the SDK's shared
+   * {@link classifyCandidateFee} so the inscribe picker cannot drift from the
+   * mint page and cat21.space. `unavailable` when the coin can't fund.
+   */
+  feeClass(row: ViableInscribeSimulation): CandidateFeeState {
+    const r = this.inscribeFeeRow(row);
+    return r ? classifyCandidateFee(r) : 'unavailable';
+  }
+
+  /**
+   * The sub-dust sats folded into the fee, for the over-pay note — only when
+   * this coin DEFINITELY over-pays (`overpay`), never collapsing an unknown fold
+   * into a false "no over-pay". Only the commit folds; the reveal's fee is
+   * reserved in the commit output.
+   */
   overPaidSats(row: ViableInscribeSimulation): number | null {
-    const folded = row.simulation?.commitAbsorbedSubDustSats;
-    return folded && folded > 0 ? folded : null;
+    const r = this.inscribeFeeRow(row);
+    return r && classifyCandidateFee(r) === 'overpay' ? r.absorbedSubDustSats : null;
   }
 
   recommendedFees$ = inject(StateService).recommendedFees$;

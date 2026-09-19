@@ -255,6 +255,16 @@
                     of change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
                     A larger coin returns it as change.
                   </p>
+
+                  <!-- overpay-unknown (FAMILY_UX): the fee is known but the fold
+                       isn't, so we say we can't tell rather than falsely claim no
+                       over-pay. Doesn't arise on the current SDK (the fold is
+                       always a number), a defensive branch against the reading
+                       drifting back to a silent 0. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="feeClass(x) === 'overpay-unknown'" data-testid="utxo-overpay-unknown-note">
+                    &#9888; This coin may fold sub-dust change into the miner fee; we can&rsquo;t tell at this rate.
+                    A larger coin returns any change to you.
+                  </p>
                 </ng-container>
 
                 <!-- Unavailable coin (FAMILY_UX show-the-row): too small to cover

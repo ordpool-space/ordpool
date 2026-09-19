@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, filter, firstValueFrom, interval, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, CandidateFeeState, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, UtxoSimulationView, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, classifyCandidateFee, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -14,7 +14,7 @@ import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 export interface ViableSimulation {
   /** The mint simulation for this coin; null when the coin can't fund the mint
    *  at the current fee rate (`available === false`). */
-  simulation: SimulateTransactionResult | null;
+  simulation: UtxoSimulationView | null;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
   bucket: UtxoScanBucket;
@@ -550,7 +550,7 @@ export class Cat21MintComponent implements OnInit {
    * orchestrator's auto-recommended source. This is why the total below shows
    * in the collapsed default, before anyone opens the picker.
    */
-  private activeSimulation(): SimulateTransactionResult | null {
+  private activeSimulation(): UtxoSimulationView | null {
     if (this.selectedPaymentOutput) { return this.selectedPaymentOutput.simulation; }
     const rec = this.snap().fundingRecommendation.recommended;
     if (!rec) { return null; }
@@ -598,16 +598,28 @@ export class Cat21MintComponent implements OnInit {
   }
 
   /**
-   * When this coin's would-be change fell below the dust floor, the sats that
-   * got folded into the miner fee instead of returning as change; null when the
-   * coin emits change (`absorbedSubDustSats === 0`) or the fee is not known. A
-   * positive value is the FAMILY_UX over-pay signal: the coin is usable and
-   * over-paying, which is why the recommended coin can be the cheaper one a row
-   * above it. Never a block — folding sub-dust change is deliberate behaviour.
+   * The four-state reading of this coin's fee — `normal` / `overpay` /
+   * `overpay-unknown` / `unavailable` — routed through the SDK's shared
+   * {@link classifyCandidateFee} so ordpool's picker cannot drift from
+   * cat21.space's reading of the same row. `normal` (no note) when the fee row
+   * has not been computed yet.
+   */
+  feeClass(row: ViableSimulation): CandidateFeeState {
+    const cf = this.candidateFee(row);
+    return cf ? classifyCandidateFee(cf) : 'normal';
+  }
+
+  /**
+   * The sub-dust sats folded into the miner fee, for the over-pay note — only
+   * when this coin DEFINITELY over-pays (`overpay`). Null for a coin that emits
+   * change, an unavailable one, OR one whose fold the simulator cannot see
+   * (`overpay-unknown`) — that last one gets its own note rather than being
+   * collapsed into a false "no over-pay". A positive value is the FAMILY_UX
+   * over-pay signal; never a block, folding sub-dust change is deliberate.
    */
   overPaidSats(row: ViableSimulation): number | null {
-    const folded = this.candidateFee(row)?.absorbedSubDustSats;
-    return folded && folded > 0 ? folded : null;
+    const cf = this.candidateFee(row);
+    return cf && classifyCandidateFee(cf) === 'overpay' ? cf.absorbedSubDustSats : null;
   }
 
   /** Total coins the wallet has (all simulation rows). The picker caps how many

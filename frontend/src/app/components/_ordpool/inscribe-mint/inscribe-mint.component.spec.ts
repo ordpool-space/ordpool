@@ -131,6 +131,13 @@ jest.mock('ordpool-sdk', () => {
     // place. Faithful to the SDK's one-liner; a value import, so the mock must
     // provide it or `outpointKey(...)` is undefined at runtime.
     outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
+    // Faithful re-implementation of the SDK's four-state fee classifier; the
+    // component routes its over-pay reading through this. Value import.
+    classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
+      if (row.finalFeeSats === null) { return 'unavailable'; }
+      if (row.absorbedSubDustSats === null) { return 'overpay-unknown'; }
+      return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
+    },
     // Display labels keyed by type — the component reads
     // KnownOrdinalWallets[wallet.type].label to name the wallet in the caveat.
     KnownOrdinalWallets: {
@@ -740,6 +747,15 @@ describe('InscribeMintComponent', () => {
       // The 0-vs-positive boundary: returning 0 here (the mutation) would misfire
       // the "change folded into the fee" note on every roomy coin. Assert null.
       expect(component.overPaidSats(row(out(50_000), 0))).toBeNull();
+    });
+
+    it('feeClass routes through the shared classifier (normal / overpay / unavailable)', () => {
+      // Inscribe builds a CandidateFeeRow from the per-row simulation and classifies
+      // it with the same SDK function the mint page uses, so the two can't drift.
+      expect(component.feeClass(row(out(50_000), 0))).toBe('normal');
+      expect(component.feeClass(row(out(50_000), 1_200))).toBe('overpay');
+      const unavailable: ViableInscribeSimulation = { paymentOutput: out(500), simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
+      expect(component.feeClass(unavailable)).toBe('unavailable');
     });
 
     it('overPaidSats is null on an unavailable row (null simulation), never a crash', () => {
