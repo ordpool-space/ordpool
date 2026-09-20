@@ -1,188 +1,61 @@
 # CLAUDE.md
 
-Repo-level guidance for `ordpool-space/ordpool`. The two halves of the repo
-(`backend/` and `frontend/`) each have their own deeper `.claude/CLAUDE.md`
-with stack-specific conventions; this file documents cross-cutting rules
-that apply to the whole repo.
+Repo-level guidance for `ordpool-space/ordpool` (a `mempool/mempool` fork). `backend/` and `frontend/` each carry a deeper `.claude/CLAUDE.md` with stack-specific conventions; this file holds the cross-cutting rules.
 
 ## HARD RULE: Keep useful comments
-
-**Don't strip JSDoc or "why" inline comments under the banner of
-"simplification".** The text inside a comment can be trimmed (no
-bombast, no LLM-speak, no before-after history); the block itself
-stays. The 2026-05-20 alkanes `/simplify` pass (commit `1d8d82a15`)
-stripped 10 useful comments in this repo and had to be rolled back
-in commit `6a880bfd3` on 2026-05-21. Full decision tree in the
-workspace `CLAUDE.md` HARD RULE "Keep useful comments (JSDoc AND
-inline 'why')".
+- Don't strip JSDoc or "why" inline comments under the banner of "simplification". Trim the text inside a comment (no bombast, no LLM-speak, no before/after history); keep the block.
+- Applies to our code and to inherited upstream comments.
+Why: JSDoc and "why" comments carry intent the type system can't; a `/simplify` pass once stripped 10 here and was reverted.
+Ref: workspace `CLAUDE.md` "Keep useful comments (JSDoc AND inline 'why')"; rollback `6a880bfd3`.
 
 ## HARD RULE: Dependabot is BANNED
-
-**Dependabot stays off in this repo. No exceptions.**
-
-Why: auto-bumping dependencies on a daily/weekly cadence is an open door for
-supply-chain attacks. Each Dependabot PR that lands without human-eyes
-review brings whatever upstream maintainers (and any of their compromised
-contributors) shipped during the cooldown window. For a low-velocity,
-security-sensitive Bitcoin codebase the cost of "patches behind by 30 days"
-is vastly lower than the cost of "we shipped a compromised package because
-a bot decided to".
-
-History: disabled on 2026-04-28 after Dependabot opened 7 PRs in one wave
-(`mysql2`, `axios`, `@types/node`, `@scure/btc-signer`, `echarts`,
-`zone.js`, `@noble/secp256k1`) and queued ~50 CI runs against them. Every
-Dependabot PR ever opened on this repo was closed unmerged. The 153
-Dependabot commits visible in `git log main --author=dependabot` are
-mempool's own history brought in wholesale by the upstream merges
-(`5ac7ae12e`, `464fc6c12`) — not ours; leave them in place to keep the
-upstream merge history clean.
-
-What's been done (this commit + sibling API calls):
-- `.github/dependabot.yml` deleted (was commit `23d173561`).
-- Repo-level `vulnerability-alerts` and `automated-security-fixes` toggled
-  OFF via the GitHub API.
-
-**Every future upstream merge from `mempool/mempool` MUST:**
-1. Check whether mempool re-shipped `.github/dependabot.yml`. If yes,
-   `git rm` it in the merge commit. Do **not** let it land.
-2. Re-disable the repo settings if the merge changed them:
-   ```bash
-   GH_TOKEN=<hans-crypto> gh api -X DELETE repos/ordpool-space/ordpool/vulnerability-alerts
-   GH_TOKEN=<hans-crypto> gh api -X DELETE repos/ordpool-space/ordpool/automated-security-fixes
-   ```
-3. Do **not** restore Dependabot for "just security alerts" or "just
-   version-update PRs". The whole tool is banned, not just one feature.
-
-Dependency freshness in this codebase is maintained by human review during
-the planned upstream-mempool merge cycle. That's already the cadence we
-ship at and is the only safe surface for taking new package versions.
+- Dependabot stays off in this repo. No exceptions. Do not restore it for "just security alerts" or "just version-update PRs".
+- Current state: `.github/dependabot.yml` deleted; repo `vulnerability-alerts` + `automated-security-fixes` OFF via GitHub API.
+- The 153 `git log main --author=dependabot` commits are mempool's history pulled in by upstream merges (`5ac7ae12e`, `464fc6c12`); leave them.
+- On every `mempool/mempool` merge: if `.github/dependabot.yml` returns, `git rm` it in the merge commit; re-disable settings if the merge changed them:
+  ```bash
+  GH_TOKEN=<hans-crypto> gh api -X DELETE repos/ordpool-space/ordpool/vulnerability-alerts
+  GH_TOKEN=<hans-crypto> gh api -X DELETE repos/ordpool-space/ordpool/automated-security-fixes
+  ```
+Why: unreviewed daily dep-bumps are a supply-chain door; a low-velocity Bitcoin codebase prefers "30 days behind" over a compromised package. Freshness comes from human review during the upstream-merge cycle.
+<!-- long-rule: upstream-merge checklist + API commands -->
 
 ## CI workflows: which are REAL, which are inherited-dead
 
-This repo is a `mempool/mempool` fork, so `.github/workflows/` carries both
-our own CI and upstream's. The upstream ones target infrastructure we don't
-run (`runs-on: mempool-ci` — a self-hosted runner pool with **0 runners
-registered** — and/or `push: master`, but our default branch is `main`).
-They therefore CANNOT run: they queue until auto-cancelled, yet appear
-"active" in the Actions tab and read as safety nets they are not.
+This repo is a `mempool/mempool` fork, so `.github/workflows/` carries both our CI and upstream's. Upstream's target infra we don't run (`runs-on: mempool-ci`, a self-hosted pool with 0 runners registered; and/or `push: master`, but our default branch is `main`). They queue until auto-cancelled yet appear "active" in the Actions tab.
 
-**REAL CI (ubuntu-latest, main/stage_prod-triggered — trust these):**
-`test-backend`, `test-frontend`, `backend-integration` (MariaDB),
-`check-locktime-framing`, `test-count-floor-{backend,frontend}`,
-`e2e-regtest-mint` + `e2e-regtest-mint-cat21wallet` + `ordpool-e2e-nightly`
-(Playwright/regtest), `build-{backend,frontend}` (deploy → `*-build` repos),
-`dependabot-provenance-check`, and **`supply-chain-audit`** (see below).
+**REAL CI (ubuntu-latest, main/stage_prod-triggered, trust these):** `test-backend`, `test-frontend`, `backend-integration` (MariaDB), `check-locktime-framing`, `test-count-floor-{backend,frontend}`, `e2e-regtest-mint` + `e2e-regtest-mint-cat21wallet` + `ordpool-e2e-nightly` (Playwright/regtest), `build-{backend,frontend}` (deploy to `*-build` repos), `dependabot-provenance-check`, `supply-chain-audit`.
 
-**INHERITED-DEAD — DISABLED at the GitHub level, NOT deleted:** `ci.yml`,
-`docker.yml`, `e2e_parameterized.yml`, `get_backend_block_height.yml`,
-`get_backend_hash.yml`, `get_image_digest.yml`. Disable with
-`gh workflow disable <name>`; do NOT `git rm` them (upstream files — deleting
-conflicts on every future mempool merge, per the never-delete-upstream
-convention). Disabling drops them from the "active" list so audits stop
-counting them as live nets, while the files stay mergeable. Re-check on every
-upstream merge (a merge can re-activate them).
+**INHERITED-DEAD, DISABLED at the GitHub level, NOT deleted:** `ci.yml`, `docker.yml`, `e2e_parameterized.yml`, `get_backend_block_height.yml`, `get_backend_hash.yml`, `get_image_digest.yml`. Disable with `gh workflow disable <name>`; never `git rm` (upstream files conflict on merge). Re-check on every upstream merge (a merge can re-activate them).
 
-**Do NOT chase `mempool-ci` / stand up a self-hosted runner.** Maintainer's
-ruling (HQ `CLAUDE.md` "CI workflows", commit `773d197`): `ci.yml`'s jobs are
-backend/frontend build+lint+test (already green on ubuntu-latest via the REAL
-workflows above) plus a Cypress matrix over `mempool`/`liquid`/`testnet4` —
-Liquid and testnet4 are products v2 does not ship (mainnet-only). So `ci.yml`
-is redundant-or-irrelevant, not a missing net. A runner is the wrong trade:
-the only box is happysrv, which runs the prod node; a GH Actions runner there
-executes arbitrary workflow code = a supply-chain foothold on the node.
+**Do NOT stand up a `mempool-ci` self-hosted runner.** `ci.yml`'s jobs are backend/frontend build+lint+test (already green on ubuntu-latest via the REAL workflows) plus a Cypress matrix over `mempool`/`liquid`/`testnet4`, products v2 does not ship (mainnet-only). The only box is happysrv (runs the prod node); a runner there executes arbitrary workflow code = a supply-chain foothold on the node. Maintainer ruling: HQ `CLAUDE.md` "CI workflows", commit `773d197`.
 
-**`supply-chain-audit.yml` is the EXCEPTION — revived, never disable it.** It
-runs `backend/meta/scripts/check-install-scripts.sh` (fails the build if any
-package outside a whitelist has `hasInstallScript: true`) + `safe-install.sh`.
-That is the compensating control the workspace `.npmrc` posture depends on
-(`ignore-scripts=false` workspace-wide, "lockfile discipline" as the named
-Shai-Hulud mitigation). It was silently dead since the `master`→`main` rename;
-revived with the two-line fix `master`→`main`, `mempool-ci`→`ubuntu-latest`.
+**`supply-chain-audit.yml` is the EXCEPTION, never disable it.** It runs `backend/meta/scripts/check-install-scripts.sh` (fails if any package outside a whitelist has `hasInstallScript: true`) + `safe-install.sh`, the compensating control for the workspace `ignore-scripts=false` posture. Kept alive by the `master`->`main`, `mempool-ci`->`ubuntu-latest` fix.
 
-**Lint is NOT enforced in CI, and never will be (see the HARD RULE
-"Linting is FORBIDDEN" below).** `npm run lint` runs in NONE of the active
-workflows and is NOT chained into `build` / `test` / `start` (only the disabled
-`ci.yml` ever ran it). The backend alone trips ~1,376 ESLint problems (239
-errors), all inherited mempool-fork debt. This is deliberate policy, not a
-pending follow-up.
+**Audit method:** never trust HEAD check-runs (blind to path-filtered / dead workflows) or a bounded `gh run list --limit N`. Enumerate EVERY workflow and take ITS OWN latest run.
 
-**Audit method (how to check green honestly):** never trust HEAD check-runs
-(blind to path-filtered / dead workflows) or a bounded `gh run list --limit N`
-(blind to anything last run outside the window). Enumerate EVERY workflow and
-take ITS OWN latest run.
+## HARD RULE: Linting is FORBIDDEN (mergeability with upstream)
+- Never lint, auto-format, or wire lint into CI here. Permanent policy, not pending debt.
+- Do NOT run `npm run lint:fix` / `eslint --fix` / `prettier --write` on any code here (upstream or ours).
+- Do NOT hand-fix lint warnings to satisfy the linter. Do NOT wire `lint` into CI or into `build`/`test`/`start` (it's in none today).
+- `lint` / `lint:fix` are neutered to `echo …; exit 1` (the mechanical backstop). Do NOT restore their eslint bodies, and do NOT delete them or `.eslintrc` (deleting upstream files conflicts on merge). On conflict, keep ours.
+- New code: match surrounding style by hand (2-space indent, single quotes, trailing commas). By-eye, never an eslint gate.
+- On every upstream merge: verify it didn't re-add a lint CI workflow or chain `build`/`test`/`start` into `lint`; undo if it did.
+Why: upstream never linted (backend alone: ~1,376 ESLint problems, 239 errors, all inherited); auto-format rewrites thousands of upstream lines into permanent merge conflicts.
+<!-- long-rule: forbidden-list + merge checklist -->
 
-## HARD RULE: Linting is FORBIDDEN in this repo (mergeability with upstream)
+## HARD RULE: edge caching is Cloudflare's job, not mempool's nginx
+- API edge caching is delegated to the Cloudflare edge. We do NOT run mempool's self-hosted nginx `proxy_cache` tier. Do not re-litigate or "simplify" this away.
+- `backend/src/api/_ordpool/single-flight-cache.ts` (single-flight + SWR) covers the one thing Cloudflare's free plan can't: with no origin shield, concurrent edge-misses all reach origin. It is NOT redundant with the edge cache. Never delete it because "Cloudflare caches now".
 
-**Never lint this repo, never auto-format it, never wire lint into CI.** This is
-not "lint debt we will get to" — it is a deliberate, permanent policy.
-
-Why: `ordpool` is a `mempool/mempool` fork and MUST stay mergeable. Upstream
-never linted their TypeScript (the backend alone trips ~1,376 ESLint problems,
-239 of them errors, all inherited, none ours). Running `eslint --fix` /
-`prettier` / any auto-formatter would rewrite thousands of upstream lines to
-satisfy a linter, and every one of those cosmetic edits becomes a merge conflict
-on the next mempool merge. The cost (permanent merge hell) dwarfs the benefit
-(code that is not ours anyway looking tidier).
-
-Forbidden, concretely:
-- **Do NOT run `npm run lint:fix`, `eslint --fix`, `prettier --write`, or any
-  auto-formatter** on this repo — not on upstream code, not on our own.
-- **Do NOT hand-fix lint warnings/errors** to make the linter pass. Leave them.
-- **Do NOT wire `lint` into any CI workflow**, nor into the `build` / `test` /
-  `start` npm scripts. It runs in NONE of them today; keep it that way.
-- **The `lint` / `lint:fix` scripts are NEUTERED to `echo … ; exit 1`** (they
-  print this rule and fail). This is the mechanical backstop: any attempt to run
-  them, locally or from a re-wired CI step, fails loudly with a pointer here,
-  BEFORE eslint can reformat a single line. Do NOT restore their eslint bodies,
-  and do NOT delete them or the `.eslintrc` (deleting upstream files ALSO
-  conflicts on merge). One-line merge note: our neutered value wins cleanly
-  unless upstream edits that exact line (they don't); if it ever conflicts, keep
-  ours.
-
-Our own new code: match the surrounding style by hand (2-space indent, single
-quotes, trailing commas) so it reads consistently. That is a by-eye convention,
-NOT a linter gate — we never run eslint to enforce it.
-
-**On every upstream merge from `mempool/mempool`** (same checklist slot as the
-Dependabot ban): verify the merge did not (a) re-enable or add a lint CI
-workflow, or (b) make `build` / `test` / `start` chain into `lint`. If it did,
-undo that part in the merge commit.
-
-## HARD RULE: edge caching is Cloudflare's job — we do NOT run mempool's nginx
-
-**DECISION (do not re-litigate, do not "simplify" away): API edge caching is
-delegated to the Cloudflare edge. We deliberately do NOT run mempool's
-self-hosted nginx `proxy_cache` tier.** mempool front their explorer with a
-multi-region nginx fleet and *refuse* Cloudflare — because they want full
-independence and operate at a scale that justifies it. **Neither applies to
-us:** we don't care about Cloudflare-independence, and our traffic is a few
-hundred req/s (mostly crawlers). Cloudflare gives us the cache tier + Pages +
-TLS/HTTP3 + DDoS absorption for **free, with zero infra to run or patch**.
-Standing up nginx would re-implement what Cloudflare already gives us, plus an
-ops burden, for no benefit here.
-
-**The one nginx feature Cloudflare's FREE plan cannot provide**, and how we
-cover it — memorise this, it is the trap:
-
-> nginx's `proxy_cache_use_stale updating` does concurrent-miss **coalescing**
-> + edge **stale-while-revalidate**. Cloudflare's free plan has **no origin
-> shield**: concurrent edge-misses (per PoP, per TTL rollover) ALL reach the
-> origin. So the edge cache does NOT make the origin stampede-proof by itself.
-> **`backend/src/api/_ordpool/single-flight-cache.ts` (single-flight + SWR) is
-> the in-process stand-in for that one nginx feature. It is NOT redundant with
-> the Cloudflare edge cache. Never delete it because "Cloudflare caches now."**
-
-The three pieces that make up our caching, and where each lives:
-
-| piece | file | role (nginx analogue) |
+| piece | file | nginx analogue |
 |---|---|---|
-| per-endpoint `Cache-Control` (`max-age`/`s-maxage`) | `backend/src/ordpool-cache-policy-middleware.ts` | nginx `expires` |
-| Cloudflare edge Cache Rule (respect-origin, allowlist) | `cloudflare/cache-rules.sh` + `cloudflare/rules/*.json` | nginx `proxy_cache` |
-| single-flight + SWR (origin herd-control) | `backend/src/api/_ordpool/single-flight-cache.ts` | nginx `proxy_cache_use_stale updating` |
-| API path-routing (`/api/v1/*`→backend, `/api/*`→electrs) | `backend/src/electrs-proxy-middleware.ts` | nginx `location` blocks |
+| per-endpoint `Cache-Control` (`max-age`/`s-maxage`) | `backend/src/ordpool-cache-policy-middleware.ts` | `expires` |
+| Cloudflare edge Cache Rule (respect-origin, allowlist) | `cloudflare/cache-rules.sh` + `cloudflare/rules/*.json` | `proxy_cache` |
+| single-flight + SWR (origin herd-control) | `backend/src/api/_ordpool/single-flight-cache.ts` | `proxy_cache_use_stale updating` |
+| API path-routing (`/api/v1/*`->backend, `/api/*`->electrs) | `backend/src/electrs-proxy-middleware.ts` | `location` blocks |
 
-TTL tiers are adopted from mempool's own observed prod values / nginx tiers:
-immutable block-by-hash 30d, mining/statistics 120s, fees/tip 10-15s, dynamic
-(address/tx/ws/POST) uncached. Full role-by-role comparison + the measurements
-behind this decision live in the workspace `cloudflare/CACHING.md` §0.
-**Read it before changing anything about caching.**
+- TTL tiers (from mempool's observed prod values): immutable block-by-hash 30d, mining/statistics 120s, fees/tip 10-15s, dynamic (address/tx/ws/POST) uncached.
+Why: Cloudflare gives cache + Pages + TLS/HTTP3 + DDoS free; our traffic is a few hundred req/s (mostly crawlers). nginx would re-implement that plus an ops burden for no benefit here.
+Ref: workspace `cloudflare/CACHING.md` §0, read before changing anything about caching.
+<!-- long-rule: caching decision table -->
