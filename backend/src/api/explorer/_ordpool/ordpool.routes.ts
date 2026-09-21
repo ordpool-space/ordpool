@@ -2,6 +2,7 @@ import express, { Application, Request, Response } from 'express';
 import { AtomicalFile, getFirstInscriptionHeight, InscriptionPreviewService, isValidTxid, logTxSize, ParsedInscription, ParsedStamp, PreviewInstructions } from 'ordpool-parser';
 
 import config from '../../../config';
+import logger from '../../../logger';
 import blocks from '../../blocks';
 import bitcoinApi from '../../bitcoin/bitcoin-api-factory';
 import OrdpoolMissingStats from '../../ordpool-missing-stats';
@@ -459,7 +460,11 @@ class GeneralOrdpoolRoutes {
       sendInscription(res, inscription);
 
     } catch (error) {
-      res.status(500).send('Internal server error: ' + error);
+      // Never leak the upstream error string to a public response body; log it
+      // server-side. A not-found tx is already a 404 above ($fetchTxByTxid maps
+      // esplora 404 / Core RPC -5 to undefined), so this branch is a genuine fault.
+      logger.err('/content error: ' + (error instanceof Error ? error.message : error));
+      res.status(500).send('Internal server error.');
     }
   }
 
@@ -506,7 +511,8 @@ class GeneralOrdpoolRoutes {
       }
 
     } catch (error) {
-      res.status(500).send('Internal server error: ' + error);
+      logger.err('/preview error: ' + (error instanceof Error ? error.message : error));
+      res.status(500).send('Internal server error.');
     }
   }
 
@@ -536,7 +542,8 @@ class GeneralOrdpoolRoutes {
       }
       sendStamp(res, stamp);
     } catch (error) {
-      res.status(500).send('Internal server error: ' + error);
+      logger.err('/stamp-content error: ' + (error instanceof Error ? error.message : error));
+      res.status(500).send('Internal server error.');
     }
   }
 
@@ -565,7 +572,8 @@ class GeneralOrdpoolRoutes {
       }
       sendAtomicalFile(res, file);
     } catch (error) {
-      res.status(500).send('Internal server error: ' + error);
+      logger.err('/atomical-content error: ' + (error instanceof Error ? error.message : error));
+      res.status(500).send('Internal server error.');
     }
   }
 }
