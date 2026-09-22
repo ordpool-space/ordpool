@@ -1,5 +1,7 @@
+import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, ElementRef, inject, Input, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { ActivatedRoute, Router } from '@angular/router';
 import { renderBitmapSvg } from 'ordpool-parser';
 import { map, Observable, of, startWith } from 'rxjs';
 
@@ -26,6 +28,9 @@ type BitmapVm =
 const brandOrange = (): string =>
   getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#FF9900';
 
+/** Query parameter carrying the height of the claim shown in 3D. */
+const deepLinkParam = 'bitmap3d';
+
 @Component({
   selector: 'app-bitmap-viewer',
   templateUrl: './bitmap-viewer.component.html',
@@ -39,6 +44,9 @@ export class BitmapViewerComponent {
   private sanitizer = inject(DomSanitizer);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private location = inject(Location);
 
   @ViewChild('stage') stage!: ElementRef<HTMLElement>;
 
@@ -150,6 +158,16 @@ export class BitmapViewerComponent {
       return;
     }
     this._height = value;
+    // A link that carries this claim's height opens on the 3D view. Keyed
+    // by height rather than a bare flag because a transaction can hold
+    // several bitmaps, and a flag would apply to all of them at once. Only
+    // the iso view is reachable this way: the walk takes over the pointer
+    // and the screen, which is not something a link should do to a reader
+    // who has not asked for it yet.
+    if (value !== null && this.route.snapshot?.queryParamMap?.get(deepLinkParam) === String(value)) {
+      this.mode = '3d';
+      this.sceneLoading = true;
+    }
     this.vm$ = value === null
       ? of<BitmapVm>({ kind: 'unavailable' })
       : this.bitmapApi.getBitmapData(value).pipe(
@@ -186,9 +204,29 @@ export class BitmapViewerComponent {
       // A fresh mount gets a fresh context, so the old failure no longer
       // describes what the reader is looking at.
       this.contextLost = false;
+      this.writeDeepLink(true);
     } else if (!this.exiting) {
       this.exiting = true;
     }
+  }
+
+  /**
+   * Put the 3D view in the address bar, so the link a reader copies opens
+   * what they are looking at.
+   *
+   * Written through Location rather than Router.navigate: this is view
+   * state, not a destination. A navigation would re-run the resolvers of
+   * whichever page hosts the viewer and push a history entry per toggle,
+   * and neither belongs to flipping a drawing from flat to solid.
+   */
+  private writeDeepLink(on: boolean): void {
+    if (this._height === null) return;
+    const tree = this.router.createUrlTree([], {
+      relativeTo: this.route,
+      queryParams: { [deepLinkParam]: on ? this._height : null },
+      queryParamsHandling: 'merge',
+    });
+    this.location.replaceState(this.router.serializeUrl(tree));
   }
 
   togglePfp(): void {
@@ -237,6 +275,8 @@ export class BitmapViewerComponent {
     // exit request so the next 3D entry starts clean.
     this.exiting = false;
     this.mode = '2d';
+    this.sceneLoading = false;
+    this.writeDeepLink(false);
     this.cdr.markForCheck();
   }
 

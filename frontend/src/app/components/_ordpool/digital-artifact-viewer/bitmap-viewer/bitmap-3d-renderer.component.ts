@@ -103,7 +103,10 @@ import {
     .pfp-hint {
       position: absolute;
       left: 50%;
-      bottom: 16px;
+      /* Clear of the toolbar row rather than beside it: the strip is
+         centred and the buttons are pinned right, so on a narrow stage the
+         two would share the same line and overlap. */
+      bottom: 56px;
       transform: translateX(-50%);
       max-width: 92%;
       padding: 6px 10px;

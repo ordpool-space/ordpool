@@ -142,6 +142,7 @@
   }
 }
 
-.bitmap-context-lost {
-  color: var(--warning);
-}
+// Colour comes from Bootstrap's .text-warning in the template. There is no
+// --warning custom property on :root -- only --primary, --secondary,
+// --tertiary, --success and --info are defined there -- so `var(--warning)`
+// silently resolves to the inherited body colour.

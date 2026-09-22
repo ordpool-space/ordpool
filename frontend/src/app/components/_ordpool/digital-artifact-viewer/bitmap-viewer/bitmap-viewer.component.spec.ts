@@ -3,8 +3,41 @@ import { TestBed } from '@angular/core/testing';
 import { DomSanitizer } from '@angular/platform-browser';
 import { Observable, Subject, firstValueFrom, of, toArray } from 'rxjs';
 
+import { Location } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
+
 import { BitmapApiService, BitmapResponse } from '@app/services/ordinals/bitmap-api.service';
 import { BitmapViewerComponent } from './bitmap-viewer.component';
+
+/** The URL the viewer last wrote, as the address bar would show it. */
+let writtenUrl: string | null = null;
+/** Query params the viewer is mounted under. */
+let queryParams: Record<string, string> = {};
+
+/**
+ * Router, route and Location as the viewer uses them: it reads one query
+ * param on mount and writes the URL back through Location. The stub
+ * serialises what it is handed so the assertions read a URL string rather
+ * than a UrlTree's internals.
+ */
+const routerStubs = () => {
+  writtenUrl = null;
+  return [
+    {
+      provide: Router,
+      useValue: {
+        createUrlTree: (_: unknown[], extras: { queryParams: Record<string, unknown> }) => extras,
+        serializeUrl: (tree: { queryParams: Record<string, unknown> }) => {
+          const merged = { ...queryParams, ...tree.queryParams };
+          const pairs = Object.entries(merged).filter(([, v]) => v !== null && v !== undefined);
+          return '/block/abc' + (pairs.length ? '?' + pairs.map(([k, v]) => `${k}=${v}`).join('&') : '');
+        },
+      },
+    },
+    { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: (k: string) => queryParams[k] ?? null } } } },
+    { provide: Location, useValue: { replaceState: (url: string) => { writtenUrl = url; } } },
+  ];
+};
 
 /**
  * The viewer's three view states. They exist so "still fetching" and "no
@@ -20,6 +53,7 @@ describe('BitmapViewerComponent view states', () => {
       providers: [
         { provide: BitmapApiService, useValue: { getBitmapData } },
         { provide: DomSanitizer, useValue: { bypassSecurityTrustHtml: (h: string) => h } },
+        ...routerStubs(),
       ],
     });
     const component = TestBed.createComponent(BitmapViewerComponent).componentInstance;
@@ -154,6 +188,7 @@ describe('BitmapViewerComponent 3D fallbacks', () => {
       providers: [
         { provide: BitmapApiService, useValue: { getBitmapData: () => of(blockResponse) } },
         { provide: DomSanitizer, useValue: { bypassSecurityTrustHtml: (h: string) => h } },
+        ...routerStubs(),
       ],
     });
     const fixture = TestBed.createComponent(BitmapViewerComponent);
@@ -227,6 +262,51 @@ describe('BitmapViewerComponent 3D fallbacks', () => {
     expect(component.pseudoFullscreen).toBe(false);
     expect(component.fullscreen).toBe(false);
     expect(document.body.style.overflow).toBe('scroll');
+  });
+
+  it('puts the 3D view in the address bar, and takes it back out', () => {
+    const { component } = setup();
+
+    component.toggleView();
+    expect(writtenUrl).toBe('/block/abc?bitmap3d=800000');
+
+    component.onExitDone();
+    expect(writtenUrl).toBe('/block/abc');
+  });
+
+  it('keeps the query params it found alongside its own', () => {
+    queryParams = { tab: 'artifacts' };
+    try {
+      const { component } = setup();
+      component.toggleView();
+
+      expect(writtenUrl).toBe('/block/abc?tab=artifacts&bitmap3d=800000');
+    } finally {
+      queryParams = {};
+    }
+  });
+
+  it('opens on 3D when the link names this claim', () => {
+    queryParams = { bitmap3d: '800000' };
+    try {
+      const { component } = setup();
+
+      expect(component.mode).toBe('3d');
+      expect(component.sceneLoading).toBe(true);
+    } finally {
+      queryParams = {};
+    }
+  });
+
+  it('stays flat when the link names a different claim', () => {
+    // A transaction can hold more than one bitmap, so the height in the
+    // link has to pick out the one it belongs to.
+    queryParams = { bitmap3d: '999999' };
+    try {
+      expect(setup().component.mode).toBe('2d');
+    } finally {
+      queryParams = {};
+    }
   });
 
   it('leaves the real Fullscreen API alone where it exists', () => {
