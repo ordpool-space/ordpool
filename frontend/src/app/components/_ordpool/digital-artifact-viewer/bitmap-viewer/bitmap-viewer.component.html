@@ -11,7 +11,7 @@
     </p>
   </div>
 } @else {
-  <div #stage class="bitmap-stage" [class.is-fullscreen]="fullscreen">
+  <div #stage class="bitmap-stage" [class.is-fullscreen]="fullscreen" [class.is-pseudo-fullscreen]="pseudoFullscreen">
     @if (mode === '2d') {
       <div class="bitmap-canvas"
            role="img"
@@ -23,7 +23,19 @@
         [pfp]="mode === 'pfp'"
         [exit]="exiting"
         (exitDone)="onExitDone()"
-        (unsupported)="onUnsupported()"/>
+        (unsupported)="onUnsupported()"
+        (contextLost)="onContextLost()"
+        (ready)="onReady()"/>
+      <!-- three.js and its addons are a separate chunk, so on a slow
+           connection there is a real gap between the click and the first
+           frame. Without this the stage is blank and the button reads as
+           dead. -->
+      @if (sceneLoading) {
+        <div class="bitmap-scene-loading" role="status" aria-live="polite">
+          <span class="skeleton-loader"></span>
+          <span class="bitmap-status-text" i18n="bitmap.loading-3d">Loading the 3D view&hellip;</span>
+        </div>
+      }
     }
     <!-- Toolbar: flex row, right-aligned, sitting at the bottom of the
          stage. Buttons flow naturally with a fixed gap so there's no
@@ -113,6 +125,11 @@
       </button>
     </div>
   </div>
+  @if (contextLost) {
+    <p class="mt-2 mb-0 smaller-text bitmap-context-lost" role="status" i18n="bitmap.context-lost">
+      The 3D view lost its graphics context and closed. Opening it again starts a new one.
+    </p>
+  }
   <p class="mt-2 mb-0 smaller-text">
     This inscription is a land claim for block {{ formatHeight(vm.data.height) }}. Each square
     is one of its transactions, sized by output value and packed Mondrian-style. Ordpool

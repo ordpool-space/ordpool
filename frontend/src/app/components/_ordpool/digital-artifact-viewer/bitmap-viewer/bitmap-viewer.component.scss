@@ -97,6 +97,10 @@
   max-width: none;
   width: 100vw;
   height: 100vh;
+  // Dynamic viewport height, where it exists: on a phone the URL bar and
+  // the toolbar eat into 100vh, and the walk is exactly where that missing
+  // strip shows up. Ordered so a browser without dvh keeps the vh above.
+  height: 100dvh;
   aspect-ratio: auto;
   background: #11131a;
 
@@ -111,4 +115,33 @@
     aspect-ratio: auto;
     display: block;
   }
+}
+
+// The browser promotes a real fullscreen element to its own layer; a stage
+// filling the viewport by hand has to be pinned there itself.
+.bitmap-stage.is-pseudo-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+}
+
+// Covers the stage while the three.js chunk loads and the scene builds.
+.bitmap-scene-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-bg-deep);
+  // Above the canvas, below the toolbar, so the reader can still leave.
+  z-index: 5;
+
+  .skeleton-loader {
+    width: 60%;
+    height: 1rem;
+  }
+}
+
+.bitmap-context-lost {
+  color: var(--warning);
 }

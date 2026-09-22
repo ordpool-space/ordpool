@@ -50,11 +50,37 @@ export class BitmapViewerComponent {
   // When the renderer emits exitDone we commit mode='2d' and tear it down.
   exiting = false;
   fullscreen = false;
+  /**
+   * Fullscreen is filled in by hand rather than by the browser. Safari on
+   * the iPhone implements the Fullscreen API for video elements only, so
+   * `requestFullscreen` is simply absent on a div there and the stage would
+   * stay a 600 px square: the one case the fullscreen exists for, since a
+   * phone in landscape is where the extra room matters.
+   */
+  pseudoFullscreen = false;
   /** Set once the renderer reports it cannot get a WebGL context. */
   webglUnsupported = false;
+  /** The GPU dropped the context; the reader is back on the SVG. */
+  contextLost = false;
+  /** 3D is mounting: the three.js chunk and the scene build sit in here. */
+  sceneLoading = false;
 
   onUnsupported(): void {
     this.webglUnsupported = true;
+    this.sceneLoading = false;
+    this.cdr.markForCheck();
+  }
+
+  onContextLost(): void {
+    // The renderer emits exitDone alongside this, which is what actually
+    // flips the mode; this only explains the jump back to the SVG.
+    this.contextLost = true;
+    this.sceneLoading = false;
+    this.cdr.markForCheck();
+  }
+
+  onReady(): void {
+    this.sceneLoading = false;
     this.cdr.markForCheck();
   }
 
@@ -62,24 +88,60 @@ export class BitmapViewerComponent {
     const onFsChange = () => {
       // Sync our local state with the browser's actual fullscreen element.
       // User can leave fullscreen via ESC too -- this catches that path.
+      // Skipped while the stage is filling the viewport by hand: the
+      // browser holds no fullscreen element then, and reading one would
+      // undo the flag we set ourselves.
+      if (this.pseudoFullscreen) return;
       this.fullscreen = document.fullscreenElement === this.stage?.nativeElement;
       this.cdr.markForCheck();
     };
     document.addEventListener('fullscreenchange', onFsChange);
     this.destroyRef.onDestroy(() => {
       document.removeEventListener('fullscreenchange', onFsChange);
+      // A viewer torn down while it was filling the viewport would
+      // otherwise leave the document unscrollable.
+      this.setPseudoFullscreen(false);
     });
   }
 
   toggleFullscreen(): void {
     const el = this.stage?.nativeElement;
     if (!el) return;
+    if (typeof el.requestFullscreen !== 'function') {
+      this.setPseudoFullscreen(!this.pseudoFullscreen);
+      return;
+    }
     if (document.fullscreenElement === el) {
       document.exitFullscreen?.();
     } else {
       el.requestFullscreen?.();
     }
   }
+
+  /**
+   * The hand-made fullscreen: the stage is pinned over the viewport and the
+   * document behind it stops scrolling. The browser owns no part of this,
+   * so Escape has to be wired up here too.
+   */
+  private setPseudoFullscreen(on: boolean): void {
+    if (this.pseudoFullscreen === on) return;
+    this.pseudoFullscreen = on;
+    this.fullscreen = on;
+    if (on) {
+      this.bodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', this.onPseudoFullscreenKey);
+    } else {
+      document.body.style.overflow = this.bodyOverflow;
+      document.removeEventListener('keydown', this.onPseudoFullscreenKey);
+    }
+    this.cdr.markForCheck();
+  }
+
+  private bodyOverflow = '';
+  private readonly onPseudoFullscreenKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') this.setPseudoFullscreen(false);
+  };
 
   @Input()
   public set height(h: number | null | undefined) {
@@ -91,7 +153,10 @@ export class BitmapViewerComponent {
     this.vm$ = value === null
       ? of<BitmapVm>({ kind: 'unavailable' })
       : this.bitmapApi.getBitmapData(value).pipe(
-          map((data): BitmapVm => data === null
+          // A claim with no transaction sizes draws as an empty square in
+          // 2D and as an empty scene in 3D, neither of which says anything.
+          // It is the same nothing as a missing block, so it reads as one.
+          map((data): BitmapVm => data === null || data.sizes.length === 0
             ? { kind: 'unavailable' }
             : {
                 kind: 'ready',
@@ -117,6 +182,10 @@ export class BitmapViewerComponent {
     //     iso (skipping the orbit stop), then signals.
     if (this.mode === '2d') {
       this.mode = '3d';
+      this.sceneLoading = true;
+      // A fresh mount gets a fresh context, so the old failure no longer
+      // describes what the reader is looking at.
+      this.contextLost = false;
     } else if (!this.exiting) {
       this.exiting = true;
     }
@@ -134,8 +203,16 @@ export class BitmapViewerComponent {
     // Fullscreen tracks the actual viewport, so orientation changes work
     // automatically. The browser requires this be called within a user-
     // gesture handler -- the click on the PFP toggle qualifies.
-    if (enteringPfp && this.coarsePointer && !document.fullscreenElement) {
-      this.stage?.nativeElement.requestFullscreen?.();
+    if (enteringPfp && this.coarsePointer && !document.fullscreenElement && !this.pseudoFullscreen) {
+      const el = this.stage?.nativeElement;
+      if (el && typeof el.requestFullscreen === 'function') {
+        el.requestFullscreen();
+      } else {
+        // No Fullscreen API on this element (Safari on the iPhone): pin the
+        // stage over the viewport ourselves, or the walk happens in a
+        // 600 px square on the device with the least room to spare.
+        this.setPseudoFullscreen(true);
+      }
     }
   }
 

@@ -1,3 +1,4 @@
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { DomSanitizer } from '@angular/platform-browser';
 import { Observable, Subject, firstValueFrom, of, toArray } from 'rxjs';
@@ -110,5 +111,134 @@ describe('BitmapViewerComponent view states', () => {
 
     expect(getBitmapData).toHaveBeenCalledTimes(1);
     expect(getBitmapData).toHaveBeenCalledWith(800_000);
+  });
+
+  it('reports unavailable for a claim that carries no transaction sizes', async () => {
+    const { component } = setup(of({ height: 800_000, hash: 'abc', sizes: [] }));
+    component.height = 800_000;
+
+    const emissions = await firstValueFrom(component.vm$.pipe(toArray()));
+
+    expect(emissions[emissions.length - 1]).toEqual({ kind: 'unavailable' });
+  });
+
+  it('draws a single-transaction block like any other', async () => {
+    // The early blocks are one coinbase and nothing else, and they are the
+    // claims most likely to be looked at for their age.
+    const oneTx: BitmapResponse = { height: 100, hash: 'abc', sizes: [1] };
+    const { component } = setup(of(oneTx));
+    component.height = 100;
+
+    const emissions = await firstValueFrom(component.vm$.pipe(toArray()));
+    const ready = emissions[emissions.length - 1] as unknown as { kind: string; svg: string };
+
+    expect(ready.kind).toBe('ready');
+    expect(ready.svg).toContain('<svg');
+    expect(ready.svg).toContain('#FF9900');
+  });
+});
+
+/**
+ * The states the reader is left in when the 3D side fails or is slow, and
+ * the hand-made fullscreen for browsers whose Fullscreen API does not cover
+ * a plain element.
+ */
+describe('BitmapViewerComponent 3D fallbacks', () => {
+
+  const setup = () => {
+    TestBed.configureTestingModule({
+      declarations: [BitmapViewerComponent],
+      // The template mounts the renderer, the toolbar tooltips and the
+      // skeleton; none of them are under test here.
+      schemas: [NO_ERRORS_SCHEMA],
+      providers: [
+        { provide: BitmapApiService, useValue: { getBitmapData: () => of(blockResponse) } },
+        { provide: DomSanitizer, useValue: { bypassSecurityTrustHtml: (h: string) => h } },
+      ],
+    });
+    const fixture = TestBed.createComponent(BitmapViewerComponent);
+    fixture.componentInstance.height = 800_000;
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance };
+  };
+
+  const blockResponse: BitmapResponse = { height: 800_000, hash: 'abc', sizes: [1, 2, 3] };
+
+  // The hand-made fullscreen writes on the document body, so a test that
+  // fails half way through would otherwise hand the next one a dirty page
+  // and a second, misleading failure.
+  afterEach(() => { document.body.style.overflow = ''; });
+
+  it('covers the stage until the renderer has drawn its first frame', () => {
+    const { component } = setup();
+
+    component.toggleView();
+    expect(component.sceneLoading).toBe(true);
+
+    component.onReady();
+    expect(component.sceneLoading).toBe(false);
+  });
+
+  it('uncovers the stage when the renderer reports it has no WebGL', () => {
+    const { component } = setup();
+    component.toggleView();
+
+    component.onUnsupported();
+
+    // Without this the placeholder outlives the thing it was covering.
+    expect(component.sceneLoading).toBe(false);
+    expect(component.webglUnsupported).toBe(true);
+  });
+
+  it('explains a lost context, and drops the explanation on the next attempt', () => {
+    const { component } = setup();
+    component.toggleView();
+
+    component.onContextLost();
+    expect(component.contextLost).toBe(true);
+    expect(component.sceneLoading).toBe(false);
+
+    // The renderer emits exitDone alongside, which is what returns to 2D.
+    component.onExitDone();
+    component.toggleView();
+
+    expect(component.contextLost).toBe(false);
+  });
+
+  it('fills the viewport by hand when the element has no Fullscreen API', () => {
+    const { component, fixture } = setup();
+    const stage = component.stage.nativeElement;
+    // Safari on the iPhone: the method is absent on a div entirely.
+    (stage as unknown as { requestFullscreen?: unknown }).requestFullscreen = undefined;
+    document.body.style.overflow = 'scroll';
+
+    component.toggleFullscreen();
+
+    expect(component.pseudoFullscreen).toBe(true);
+    expect(component.fullscreen).toBe(true);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.bitmap-stage.is-pseudo-fullscreen')).toBeTruthy();
+
+    // The browser owns no part of this, so Escape is ours to handle.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(component.pseudoFullscreen).toBe(false);
+    expect(component.fullscreen).toBe(false);
+    expect(document.body.style.overflow).toBe('scroll');
+  });
+
+  it('leaves the real Fullscreen API alone where it exists', () => {
+    const { component } = setup();
+    const stage = component.stage.nativeElement;
+    const requestFullscreen = jest.fn();
+    (stage as unknown as { requestFullscreen: unknown }).requestFullscreen = requestFullscreen;
+
+    component.toggleFullscreen();
+
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(component.pseudoFullscreen).toBe(false);
+    expect(document.body.style.overflow).toBe('');
   });
 });

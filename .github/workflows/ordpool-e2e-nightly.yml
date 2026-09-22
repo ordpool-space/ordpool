@@ -6,12 +6,26 @@ on:
     # 03:17 UTC daily. Off-the-hour to avoid the 03:00 thundering herd of
     # everyone else's cron jobs on shared GHA runners.
     - cron: '17 3 * * *'
+  # The suite is the measurement bar for the frontend, so it has to run
+  # BEFORE a merge, not the night after one. Path-filtered to the surface it
+  # actually drives: note when auditing that a filtered workflow is absent
+  # from a commit's check-run list whenever it did not apply, so enumerate
+  # workflows and take each one's own latest run instead.
+  push:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/ordpool-e2e-nightly.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/ordpool-e2e-nightly.yml'
 
 permissions:
   contents: read
 
-# Don't pile up nightly runs if one is still in flight. Manual triggers
-# cancel any queued nightly so the operator sees their run fast.
+# Don't pile up runs if one is still in flight. A manual trigger cancels any
+# queued run so the operator sees their own fast, and a new push supersedes
+# the run for the commit it replaces.
 concurrency:
   group: ordpool-e2e-${{ github.ref }}
   cancel-in-progress: true

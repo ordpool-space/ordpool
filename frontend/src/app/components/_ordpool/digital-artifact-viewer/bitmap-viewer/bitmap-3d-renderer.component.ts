@@ -21,6 +21,11 @@ import {
       <div #joyZoneL class="touch-joy-zone touch-joy-zone-left"></div>
       <div #joyZoneR class="touch-joy-zone touch-joy-zone-right"></div>
       <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
+      <div class="pfp-hint" aria-hidden="true">
+        <span class="pfp-hint-controls"><b>WASD</b> walk &middot; <b>Space</b> jump &middot;
+          <b>Shift</b> sprint &middot; <b>Arrows</b> look &middot; <b>Click</b> to look with the mouse</span>
+        <span class="pfp-hint-relock">Click to look with the mouse again</span>
+      </div>
     </div>`,
   styles: [`
     :host { display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 600px; }
@@ -90,6 +95,35 @@ import {
     /* All three visible when the host carries pfp-on + touch-on. */
     .bitmap3d-host.pfp-on.touch-on .touch-joy-zone { display: block; }
     .bitmap3d-host.pfp-on.touch-on .touch-jump { display: flex; }
+    /* A keyboard reader gets no joysticks to read the controls off, so the
+       controls are written out on entry and leave on the first key. The
+       same strip comes back as a re-lock prompt when the browser hands the
+       pointer back (Esc does that): mouse look stops dead, the canvas looks
+       broken, and one click fixes it. */
+    .pfp-hint {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      max-width: 92%;
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid var(--primary);
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: center;
+      /* Never eat the click that re-acquires the pointer lock. */
+      pointer-events: none;
+      user-select: none;
+      z-index: 4;
+      display: none;
+    }
+    .pfp-hint b { color: var(--primary); }
+    .bitmap3d-host.pfp-on.hint-on:not(.touch-on) .pfp-hint { display: block; }
+    .pfp-hint-relock { display: none; }
+    .bitmap3d-host.hint-relock .pfp-hint-controls { display: none; }
+    .bitmap3d-host.hint-relock .pfp-hint-relock { display: inline; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
@@ -143,6 +177,15 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
   @Output() exitDone = new EventEmitter<void>();
   /** No WebGL context could be created; there will be no 3D on this device. */
   @Output() unsupported = new EventEmitter<void>();
+  /**
+   * The GPU took the context away (a phone under memory pressure, a driver
+   * reset, the tab backgrounded for long enough). Distinct from
+   * `unsupported`: 3D works on this device, this particular context is
+   * gone, and a fresh mount gets a fresh one.
+   */
+  @Output() contextLost = new EventEmitter<void>();
+  /** The scene is built and the first frame is on the canvas. */
+  @Output() ready = new EventEmitter<void>();
 
   // Set inside renderCubes(): a closure that re-evaluates state when the
   // pfp/exit Inputs change. Lets the setters dispatch transitions without
@@ -288,6 +331,28 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // .touch-jump) stays put: it is mounted from the component template, not by us.
     Array.from(hostEl.querySelectorAll(':scope > canvas')).forEach(c => c.remove());
     hostEl.appendChild(renderer.domElement);
+
+    // A context can be taken away after it was handed out: a phone under
+    // memory pressure, a driver reset, a GPU-process crash. Every GPU
+    // resource in this scene dies with it, and without this the loop keeps
+    // drawing into a dead canvas -- a black square that no amount of
+    // interaction recovers, on exactly the devices this viewer is tightest
+    // on. Stop the loop and hand the reader back to the SVG; re-entering 3D
+    // builds a new context from scratch, which is the restore path.
+    // preventDefault marks the loss as recoverable, so the canvas can be
+    // reused if the browser does restore it before teardown.
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      if (this.animFrame !== null) {
+        cancelAnimationFrame(this.animFrame);
+        this.animFrame = null;
+      }
+      this.zone.run(() => {
+        this.contextLost.emit();
+        this.exitDone.emit();
+      });
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const scene = new THREE.Scene();
     // Iso FOV (15°) is the default; we lerp to 75° during fly-to-pfp and
@@ -648,6 +713,16 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       if (t === 'touch') void initJoysticks();
     };
 
+    // 'controls' on entry, dropped on the first key because by then the
+    // reader is driving; 'relock' whenever the pointer lock goes away with
+    // the walk still running.
+    let hintMode: 'controls' | 'relock' | 'off' = 'off';
+    const setHint = (mode: 'controls' | 'relock' | 'off') => {
+      hintMode = mode;
+      hostEl.classList.toggle('hint-on', mode !== 'off');
+      hostEl.classList.toggle('hint-relock', mode === 'relock');
+    };
+
     const keyStates: Record<string, boolean> = {};
     // Arrow keys are kept as their own codes (NOT aliased to WASD) and
     // drive the camera look. Gamer instinct: WASD moves, arrows look.
@@ -663,6 +738,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         e.preventDefault();
       }
       setLastInput('kbm');
+      // Any key means the reader is under way and does not need the list.
+      if (hintMode === 'controls') setHint('off');
     };
     const onKeyUp = (e: KeyboardEvent) => {
       const code = e.code;
@@ -683,6 +760,20 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         renderer.domElement.requestPointerLock?.();
       }
     };
+    // Losing the pointer lock is not an exit: the keys still walk, only
+    // mouse look stops, and the browser gives it back on the next click.
+    // Without a word on screen that reads as the canvas half-dying, so the
+    // hint comes back as the prompt for the click that fixes it.
+    const onPointerLockChange = () => {
+      if (state !== 'pfp' || hostEl.classList.contains('touch-on')) return;
+      if (document.pointerLockElement === renderer.domElement) {
+        if (hintMode === 'relock') setHint('off');
+      } else {
+        setHint('relock');
+      }
+    };
+    document.addEventListener('pointerlockchange', onPointerLockChange);
+
     const onMouseMove = (e: MouseEvent) => {
       if (state !== 'pfp') return;
       if (document.pointerLockElement !== renderer.domElement) return;
@@ -858,6 +949,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       renderer.domElement.removeEventListener('click', onCanvasClick);
       document.removeEventListener('mousemove', onMouseMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('pointerlockchange', onPointerLockChange);
       document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('touchcancel', onTouchCancel);
       destroyJoysticks();
@@ -1255,6 +1347,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // draw one refined frame.
     const REFINE_DELAY_MS = 180;
     let refined = false;
+    let firstFrameDrawn = false;
     let refineTimer: number | null = null;
     const scheduleRefine = () => {
       this.zone.runOutsideAngular(() => {
@@ -1395,6 +1488,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 setPfpClass(true);
                 setTouchClass(startWithTouchUi);
                 if (startWithTouchUi) void initJoysticks();
+                // Touch readers get the joysticks; everyone else gets the
+                // keys written out, because nothing else on screen says so.
+                setHint(startWithTouchUi ? 'off' : 'controls');
                 lookClock.getDelta();   // discard the pre-PFP idle delta
                 // Tighten the near-plane for PFP. The iso default is
                 // cameraDistance / 100 (~0.5 unit) which is fine when
@@ -1410,6 +1506,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 state = 'orbit';
                 setPfpClass(false);
                 setTouchClass(false);
+                setHint('off');
                 destroyJoysticks();
                 // Restore the iso-mode near-plane (see PFP-entry comment).
                 camera.near = cameraDistance / 100;
@@ -1425,6 +1522,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
                 state = 'exit-done';
                 setPfpClass(false);
                 setTouchClass(false);
+                setHint('off');
                 destroyJoysticks();
                 this.zone.run(() => this.exitDone.emit());
               }
@@ -1466,6 +1564,13 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         // walking and the fly-throughs render straight, which is what keeps
         // them at frame rate on a phone.
         if (composer && refined) composer.render(); else renderer.render(scene, camera);
+        // The chunk carrying three.js is large enough that the gap between
+        // the click and this frame is worth covering; the viewer holds a
+        // placeholder until it hears this.
+        if (!firstFrameDrawn) {
+          firstFrameDrawn = true;
+          this.zone.run(() => this.ready.emit());
+        }
       };
 
       // Playwright E2E debug hook. Live getters so the spec reads the
@@ -1552,6 +1657,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       this.dispatch = null;
       composer?.dispose();
       renderer.dispose();
+      // Before forceContextLoss, which dispatches webglcontextlost itself:
+      // the handler would otherwise report a teardown as a GPU failure and
+      // put a notice on a viewer that is simply going away.
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       renderer.forceContextLoss();
       cubeGeometry.dispose();
       material.dispose();
