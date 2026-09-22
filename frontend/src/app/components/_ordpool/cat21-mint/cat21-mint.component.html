@@ -274,7 +274,7 @@
                      refuses it). -->
                 <p class="small text-warning mt-1 mb-0" *ngIf="!x.available" data-testid="utxo-cant-fund">
                   &#9888; Can&rsquo;t fund at this rate: too small to cover the mint fee at
-                  <strong>{{ cfeeRate.value || 1 }}</strong> <span class="symbol">sat/vB</span>.
+                  <strong>{{ cfeeRate.value || 0.1 }}</strong> <span class="symbol">sat/vB</span>.
                   Lower the fee rate to use this coin.
                 </p>
 

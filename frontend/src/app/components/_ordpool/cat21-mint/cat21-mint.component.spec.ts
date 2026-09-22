@@ -129,8 +129,10 @@ jest.mock('ordpool-sdk', () => {
     // through this so it can't drift from cat21.space; a value import, so the mock
     // must provide it.
     classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
-      if (row.finalFeeSats === null) { return 'unavailable'; }
-      if (row.absorbedSubDustSats === null) { return 'overpay-unknown'; }
+      // == null (not ===) mirrors the real SDK classifier (candidate-fees.ts):
+      // it catches an undefined field on a hand-built row, not just null.
+      if (row.finalFeeSats == null) { return 'unavailable'; }
+      if (row.absorbedSubDustSats == null) { return 'overpay-unknown'; }
       return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
     },
     // wallet-ux-round3 single-address custody API. Faithful re-implementations

@@ -134,8 +134,10 @@ jest.mock('ordpool-sdk', () => {
     // Faithful re-implementation of the SDK's four-state fee classifier; the
     // component routes its over-pay reading through this. Value import.
     classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
-      if (row.finalFeeSats === null) { return 'unavailable'; }
-      if (row.absorbedSubDustSats === null) { return 'overpay-unknown'; }
+      // == null (not ===) mirrors the real SDK classifier (candidate-fees.ts):
+      // it catches an undefined field on a hand-built row, not just null.
+      if (row.finalFeeSats == null) { return 'unavailable'; }
+      if (row.absorbedSubDustSats == null) { return 'overpay-unknown'; }
       return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
     },
     // Display labels keyed by type — the component reads
