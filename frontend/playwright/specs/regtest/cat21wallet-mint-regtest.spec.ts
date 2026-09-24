@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
+import { cleanOutputFixture } from 'ordpool-sdk';
 
 import {
   getUtxos,
@@ -13,6 +14,7 @@ import {
   mineBlocks,
   waitForTxConfirmed,
   waitForApprovalPopup,
+  clickUntilApprovalPopup,
   onboardCat21Wallet,
 } from 'ordpool-sdk/e2e';
 
@@ -123,10 +125,19 @@ test.beforeAll(async () => {
   // page-level `**/output/*` route, which Playwright evaluates before this one, so
   // its cat-bearing outpoint still surfaces the "asset found" warning.
   await context.route('**/output/*', async (route) => {
+    // Canonical /output shape from the SDK's cleanOutputFixture, so this mock
+    // tracks the classifier contract instead of drifting from it. A hand-written
+    // body that omitted `sat_ranges` is what reddened both base mint lanes once
+    // the classifier began requiring proof-of-indexing; the fixture carries the
+    // ranges a real indexed output has, and an SDK spec pins it to the
+    // classifier. Route each host to its half: the stock ord (:8081) gets the
+    // ord response, cat21-ord (:8080) the cats.
+    const fx = cleanOutputFixture();
+    const body = route.request().url().includes(':8080') ? fx.cat21Ord : fx.ord;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [] }),
+      body: JSON.stringify(body),
     });
   });
 
@@ -163,7 +174,10 @@ test.afterAll(async () => {
 });
 
 test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page', async () => {
-  test.setTimeout(180_000);
+  // 240s (was 180s): clickUntilApprovalPopup can spend up to settleMs per retry
+  // on a swallowed click before the popup appears, so give the mint step room on
+  // top of connect + fund + verify without the whole test racing its own deadline.
+  test.setTimeout(240_000);
 
   const page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
@@ -178,9 +192,9 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
 
   // ordpool's connect link reads "connect your wallet" in the empty-
   // wallet state.
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
-  await expect(connectLink).toBeVisible({ timeout: 30_000 });
-  await connectLink.click();
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await connectTrigger.click();
 
   // Picker modal: CAT-21 wallet sits in the "installed" section. Each row's
   // Connect button carries a stable per-wallet testid, so match that instead
@@ -287,17 +301,25 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   await expect(mintButton).toBeEnabled({ timeout: 60_000 });
   await shot(page, '06-ready-to-mint');
 
-  // Click Mint, approve sign popup.
+  // Click Mint, approve sign popup. §7.7: the Mint CTA is funding-gated (its
+  // enabled state settles after an async scan), so a plain click can land mid-
+  // re-render and be swallowed, and waitForApprovalPopup (event-driven — a
+  // deadline, not a poll) then reports only "no popup", indistinguishable from
+  // the wallet SW failing to wake. clickUntilApprovalPopup re-clicks ONLY while
+  // the trigger stays visible+enabled (the swallowed-click signature; a CTA that
+  // accepted the click has disabled itself and is waited on, never asked to sign
+  // twice) and returns the count. Assert clicks===1 so a swallowed click is a
+  // NAMED failure ("clicks was 2"), not a blind timeout: a dropped click on Mint
+  // is a page defect to explain, not something a retry should hide.
   const knownBeforeSign = new Set(context.pages());
-  await mintButton.click();
-  const approvalSign = await waitForApprovalPopup({
+  const { page: approvalSign, clicks } = await clickUntilApprovalPopup(mintButton, {
     context,
     knownPages: knownBeforeSign,
-    timeoutMs: 120_000,
+    settleMs: 45_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
       await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
@@ -305,6 +327,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
       return true;
     },
   });
+  expect(clicks, 'mint-cat-button opened the sign popup on ONE click; >1 means the CTA dropped a click (§7.7 re-render race), a page defect not a retry target').toBe(1);
   await shot(approvalSign, '07-sign-approval');
   await approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
     .click({ timeout: 30_000 });
@@ -401,7 +424,7 @@ async function cat21walletMintAtRate(opts: {
 
     // Sanity-check the picker if we mocked fees.
     if (opts.mockFeesAsHigh) {
-      const tiles = page.locator('.fee-estimation-container .item a');
+      const tiles = page.getByTestId('fee-tile');
       await expect(tiles).toHaveCount(4, { timeout: 30_000 });
       await expect(tiles.nth(3)).toContainText('100', { timeout: 10_000 });
     }
@@ -413,15 +436,17 @@ async function cat21walletMintAtRate(opts: {
     await feeRateInput.press('Tab');
     await shot(page, `mr-${opts.scenarioLabel}-02-rate-typed`);
 
-    const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+    const mintBtn = page.getByTestId('mint-cat-button');
     await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
 
+    // §7.7 instrument, same as the main round-trip: re-click only on the
+    // swallowed-click signature, assert clicks===1 so a dropped Mint click is a
+    // named failure, not a blind popup timeout.
     const knownBeforeSign = new Set(context.pages());
-    await mintBtn.click();
-    const approvalSign = await waitForApprovalPopup({
+    const { page: approvalSign, clicks } = await clickUntilApprovalPopup(mintBtn, {
       context,
       knownPages: knownBeforeSign,
-      timeoutMs: 120_000,
+      settleMs: 45_000,
       isApproval: async (p) => {
         if (!p.url().startsWith('chrome-extension://')) return false;
         await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
@@ -429,6 +454,7 @@ async function cat21walletMintAtRate(opts: {
         return true;
       },
     });
+    expect(clicks, `mint-cat-button (${opts.scenarioLabel}) opened the sign popup on ONE click; >1 means a swallowed click`).toBe(1);
     await shot(approvalSign, `mr-${opts.scenarioLabel}-03-sign`);
     await approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
       .click({ timeout: 30_000 });
@@ -560,7 +586,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   const assetRow = page.locator('.utxo-row-assets').filter({ hasText: catOutpoint }).first();
   const overrideBtn = assetRow.getByRole('button', { name: /use anyway/i });
   await overrideBtn.click();
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 30_000 });
 
   const knownSign = new Set(context.pages());
@@ -642,7 +668,7 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
 
   const knownSign = new Set(context.pages());
@@ -712,7 +738,7 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
   ).first();
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
 
   const knownSign = new Set(context.pages());

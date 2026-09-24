@@ -47,12 +47,13 @@ jest.mock('ordpool-sdk', () => {
         selectedUtxo: TxnOutput | null;
         fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
         simulations: { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean }[];
+        candidateFees: { txid: string; vout: number; finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }[];
         errorMessage: string | null;
         successTxId: string | null;
       } = {
         state: 'idle', feeRate: null, selectedUtxo: null,
         fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
-        simulations: [], errorMessage: null, successTxId: null,
+        simulations: [], candidateFees: [], errorMessage: null, successTxId: null,
       };
       _listeners: Array<(s: unknown) => void> = [];
       constructor(deps: unknown) { this.deps = deps; }
@@ -106,8 +107,34 @@ jest.mock('ordpool-sdk', () => {
     calculateRecommendedFundingSats: (rate: number) => rate * 1000,
     runeNamesFromContent: (content: { runes: object | null }) =>
       content.runes ? Object.keys(content.runes) : [],
+    // Rune-etching lookup: defaults to 'unavailable' (no link, deterministic)
+    // so panel-render tests stay stable; F3/F4 spy on this to assert the
+    // resolver kicks off from the pipe and the getter is a pure read.
+    lookupRuneEtching: jest.fn(async () => ({ kind: 'unavailable' as const })),
+    // Rune label + etching-link deps. formatRunePile's real ord-exact behaviour
+    // is unit-tested in rune-label.helper.spec.ts against the real SDK; here it
+    // only needs to not crash a render. lookupRuneEtching defaults to unavailable
+    // (no link, deterministic) so panel-render tests stay stable.
+    formatRunePile: (pile: { amount: unknown; symbol?: string | null }) =>
+      `${pile.amount} ${pile.symbol ?? '¤'}`,
     // Four-character grouping for the "Fund <addr>" verification instruction.
     addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
+    // The shared outpoint key the component uses to join candidateFees +
+    // fundingRecommendation to a picker row. Faithful to the SDK's one-liner
+    // (canonical in candidate-fees.ts); a value import, so the mock must provide
+    // it or `outpointKey(...)` is undefined at runtime.
+    outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
+    // Faithful re-implementation of the SDK's four-state fee classifier
+    // (canonical in candidate-fees.ts). The component routes its over-pay reading
+    // through this so it can't drift from cat21.space; a value import, so the mock
+    // must provide it.
+    classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
+      // == null (not ===) mirrors the real SDK classifier (candidate-fees.ts):
+      // it catches an undefined field on a hand-built row, not just null.
+      if (row.finalFeeSats == null) { return 'unavailable'; }
+      if (row.absorbedSubDustSats == null) { return 'overpay-unknown'; }
+      return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
+    },
     // wallet-ux-round3 single-address custody API. Faithful re-implementations
     // (canonical versions live in the SDK's wallet-capabilities.ts):
     // usesSingleAddress compares the two returned addresses; singleAddressCaveat
@@ -141,7 +168,7 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, UtxoContentScanner, WalletService, singleAddressCaveat, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, lookupRuneEtching, UtxoContentScanner, WalletService, singleAddressCaveat, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { Cat21MintComponent, ViableSimulation } from './cat21-mint.component';
@@ -485,7 +512,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: chosen, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
       expect(orch.selectedUtxo()!.value).toBe(20_000);
     });
@@ -496,7 +523,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
@@ -511,7 +538,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: gone, scan: { kind: 'scanned-clean' } },
       ]);
-      component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       expect(orch.selectedUtxo()).toBeNull();
@@ -600,8 +627,32 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     it('F2: scanRow(row) delegates to scanner.scan with the outpoint', () => {
       const u = utxo({ txid: 'c'.repeat(64), vout: 7 });
       pushRows([{ u, scan: { kind: 'not-scanned' } }]);
-      component.scanRow({ paymentOutput: u, simulation: simulation(), scan: { kind: 'not-scanned' }, bucket: 'unscanned' });
+      component.scanRow({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'not-scanned' }, bucket: 'unscanned' });
       expect(scanner.scan).toHaveBeenCalledWith(`${'c'.repeat(64)}:7`);
+    });
+
+    it('F3: rune-etching resolution kicks off from the row pipe on a scanned-with-assets row', () => {
+      const mockResolve = lookupRuneEtching as jest.Mock;
+      mockResolve.mockClear();
+      const u = utxo({ txid: 'd'.repeat(64), vout: 0, value: 90_000 });
+      pushRows([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'d'.repeat(64)}:0`, inscriptionIds: [], runes: { ANARCHY: { amount: 1, divisibility: 0, symbol: 'X' } }, catIds: [], catSat: null, rareSat: null } } }]);
+      expect(mockResolve).toHaveBeenCalledWith('ANARCHY', expect.objectContaining({ ordBaseUrl: 'http://test-ord' }));
+    });
+
+    it('F4: runeTxEtching is a pure read — repeated calls trigger NO extra lookups (guards the per-CD refetch bug)', async () => {
+      const mockResolve = lookupRuneEtching as jest.Mock;
+      const u = utxo({ txid: 'e'.repeat(64), vout: 0, value: 90_000 });
+      // A rune that resolves to null (no symbol / reserved-style) is the storm
+      // case: null is never cached, so a per-CD getter would re-fire forever.
+      pushRows([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'e'.repeat(64)}:0`, inscriptionIds: [], runes: { UNCOMMON: { amount: 1, divisibility: 0, symbol: null } }, catIds: [], catSat: null, rareSat: null } } }]);
+      // Let the lookup settle to null: inflight clears and nothing is cached, so
+      // a non-pure getter WOULD re-fire on the next calls. A pure getter does not.
+      await new Promise((r) => setTimeout(r, 0));
+      const callsAfterScan = mockResolve.mock.calls.length;
+      component.runeTxEtching('UNCOMMON');
+      component.runeTxEtching('UNCOMMON');
+      component.runeTxEtching('UNCOMMON');
+      expect(mockResolve.mock.calls.length).toBe(callsAfterScan);
     });
   });
 
@@ -629,7 +680,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       pushRows([{ u, scan }]);
       // No consumer-side auto-pick: the user must choose the funding coin.
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: bucket as ViableSimulation['bucket'] });
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan, bucket: bucket as ViableSimulation['bucket'] });
       expect(component.selectedPaymentOutput!.bucket).toBe(bucket);
     });
 
@@ -637,14 +688,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const scan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['x'], runes: null, catIds: [], catSat: null, rareSat: null } };
       pushRows([{ u, scan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan, bucket: 'assets' });
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan, bucket: 'assets' });
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
 
     it('G3: scanning row never auto-picks but is selectable', () => {
       pushRows([{ u, scan: { kind: 'scanning' } }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), scan: { kind: 'scanning' }, bucket: 'scanning' });
+      component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'scanning' }, bucket: 'scanning' });
       expect(component.selectedPaymentOutput!.bucket).toBe('scanning');
     });
   });
@@ -775,12 +826,12 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('L2: once picked, it is the miner fee plus the cat postage, not just one', () => {
       // simulation(): finalTransactionFee 200n + amountToRecipient 546n
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.totalMintSpendSats()).toBe(746);
     });
 
     it('L3: tracks the fee, so it is a real total and not a hardcoded 546', () => {
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.totalMintSpendSats()).toBe(2_000); // 1454 fee + 546 cat
     });
 
@@ -858,6 +909,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(component.runeNames({ outpoint: 'x:0', inscriptionIds: [], runes: { ALPHA: {}, BETA: {} }, catIds: [], catSat: null, rareSat: null }).sort()).toEqual(['ALPHA', 'BETA']);
     });
 
+    it('M1b: txidFromInscriptionId strips the i<index> suffix (single- and multi-digit)', () => {
+      const txid = 'a'.repeat(64);
+      expect(component.txidFromInscriptionId(`${txid}i0`)).toBe(txid);
+      expect(component.txidFromInscriptionId(`${txid}i15`)).toBe(txid);
+      // already-bare txid is left unchanged (defensive)
+      expect(component.txidFromInscriptionId(txid)).toBe(txid);
+    });
+
     it('M2: autoScanThreshold matches the SDK constant', () => {
       expect(component.autoScanThreshold).toBe(AUTO_SCAN_MAX_VALUE_SAT);
     });
@@ -903,6 +962,33 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       wallets.connectedWalletSubject.next(wallet());
       fixture.detectChanges();
       expect(scanner.reset).not.toHaveBeenCalled();
+    });
+
+    it('MATRIX-A7(O): a duplicate same-identity re-emission does NOT re-drive setWallet', () => {
+      // The WalletService BehaviorSubject replays the SAME wallet identity on
+      // every onAccountChange (Xverse and cat21wallet fire that repeatedly on
+      // regtest). A re-fired setWallet drops the orchestrator to
+      // 'loading-utxos' and tears the Mint button out of the DOM for a frame,
+      // swallowing an in-flight click. The component must dedupe.
+      const w = wallet();
+      wallets.connectedWalletSubject.next(w);
+      fixture.detectChanges();
+      const callsAfterFirst = (orch.setWallet as jest.Mock).mock.calls.length;
+      // Same identity, fresh object reference (what onAccountChange delivers).
+      wallets.connectedWalletSubject.next({ ...w });
+      fixture.detectChanges();
+      expect((orch.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst);
+    });
+
+    it('MATRIX-A8(O): a real identity change DOES re-drive setWallet', () => {
+      const w1 = wallet({ ordinalsAddress: 'addr-1', paymentAddress: 'pay-1' });
+      wallets.connectedWalletSubject.next(w1);
+      fixture.detectChanges();
+      const callsAfterFirst = (orch.setWallet as jest.Mock).mock.calls.length;
+      const w2 = wallet({ ordinalsAddress: 'addr-2', paymentAddress: 'pay-2' });
+      wallets.connectedWalletSubject.next(w2);
+      fixture.detectChanges();
+      expect((orch.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst + 1);
     });
 
     it('MATRIX-A9(B): disconnect returns to idle state', () => {
@@ -987,7 +1073,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
       expect(rows!.length).toBeGreaterThan(0);
       // No consumer-side auto-pick: the user selects the funding coin explicitly.
-      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput).toBeDefined();
     });
 
@@ -1037,7 +1123,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       // Pre: no selection
       expect(component.selectedPaymentOutput).toBeUndefined();
       // Explicit override
-      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), scan: assetsScan, bucket: 'assets' });
+      component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), available: true, scan: assetsScan, bucket: 'assets' });
       expect(component.selectedPaymentOutput).toBeDefined();
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
@@ -1056,6 +1142,195 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
         expect(typeof tip).toBe('string');
         expect(tip.length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // N. per-coin fee column (FAMILY_UX three-state) — the over-pay signal
+  //    and the recommended-in-place mark. Both READ the shared candidateFees
+  //    (keyed by outpoint), so these assert the component's interpretation of
+  //    that array, not a re-derivation. Mutation-checked: the 0-vs-positive
+  //    boundary is exactly the "usable but over-paying" vs "emits change"
+  //    distinction the SDK ships as a field so no surface re-computes it.
+  // -------------------------------------------------------------------
+
+  describe('N. per-coin fee column', () => {
+    const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
+    const row = (u: TxnOutput): ViableSimulation =>
+      ({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+    const feeRow = (u: TxnOutput, over: Partial<{ finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }> = {}) =>
+      ({ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0, ...over });
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+      fixture.detectChanges();
+    });
+
+    it('N0: feeClass routes the four states through the shared classifier (no drift)', () => {
+      const normal = big(50_001), over = big(50_002), unknown = big(50_003), unavail = big(50_004);
+      orch._patch({ candidateFees: [
+        feeRow(normal, { finalFeeSats: 200, absorbedSubDustSats: 0 }),
+        feeRow(over, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 }),
+        feeRow(unknown, { finalFeeSats: 200, absorbedSubDustSats: null }),
+        feeRow(unavail, { finalFeeSats: null, absorbedSubDustSats: null }),
+      ] });
+      expect(component.feeClass(row(normal))).toBe('normal');
+      expect(component.feeClass(row(over))).toBe('overpay');
+      // The drift fix: a KNOWN-fee coin whose fold the simulator can't see is
+      // 'overpay-unknown', NOT 'normal'. overPaidSats stays null there (no false
+      // number), but the state is distinct so the template can say "can't tell".
+      expect(component.feeClass(row(unknown))).toBe('overpay-unknown');
+      expect(component.overPaidSats(row(unknown))).toBeNull();
+      expect(component.feeClass(row(unavail))).toBe('unavailable');
+    });
+
+    it('N1: overPaidSats is the folded sats when a coin over-pays (absorbedSubDustSats > 0)', () => {
+      const u = big(50_000);
+      orch._patch({ candidateFees: [feeRow(u, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 })] });
+      expect(component.overPaidSats(row(u))).toBe(1_200);
+    });
+
+    it('N2: overPaidSats is null when the coin emits change (absorbedSubDustSats === 0) — NOT 0', () => {
+      // The 0-vs-positive boundary: a coin that emits change is not over-paying,
+      // and the template shows the note only on a truthy value. Returning 0 here
+      // (the mutation) would misfire "change folded into the fee" on every roomy
+      // coin. Assert null explicitly so that mutation goes red.
+      const u = big(50_000);
+      orch._patch({ candidateFees: [feeRow(u, { absorbedSubDustSats: 0 })] });
+      expect(component.overPaidSats(row(u))).toBeNull();
+    });
+
+    it('N3: overPaidSats is null when the fee cannot be computed (absorbedSubDustSats === null)', () => {
+      const u = big(50_000);
+      orch._patch({ candidateFees: [feeRow(u, { finalFeeSats: null, vsize: null, absorbedSubDustSats: null })] });
+      expect(component.overPaidSats(row(u))).toBeNull();
+    });
+
+    it('N4: overPaidSats is null when this coin has no candidateFees row yet', () => {
+      const u = big(50_000);
+      orch._patch({ candidateFees: [] });
+      expect(component.overPaidSats(row(u))).toBeNull();
+    });
+
+    it('N5: candidateFee joins the shared row by outpoint (not by index/order)', () => {
+      const a = big(50_000);
+      const b = big(30_000);
+      // Deliberately out of row order: the join must key on txid:vout.
+      orch._patch({ candidateFees: [feeRow(b, { finalFeeSats: 900 }), feeRow(a, { finalFeeSats: 300 })] });
+      expect(component.candidateFee(row(a))?.finalFeeSats).toBe(300);
+      expect(component.candidateFee(row(b))?.finalFeeSats).toBe(900);
+    });
+
+    it('N6: isRecommendedRow marks the coin selection would auto-pick, and only that one', () => {
+      const rec = big(40_000);
+      const other = big(50_000);
+      orch.fundingRecommendationSubject.next({ status: 'auto', recommended: rec, candidates: [rec, other] });
+      expect(component.isRecommendedRow(row(rec))).toBe(true);
+      expect(component.isRecommendedRow(row(other))).toBe(false);
+    });
+
+    it('N7: isRecommendedRow is false for every row when there is no recommendation', () => {
+      orch.fundingRecommendationSubject.next({ status: 'scanning', recommended: null, candidates: [] });
+      expect(component.isRecommendedRow(row(big(50_000)))).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // P. show-the-row (FAMILY_UX): a coin that can't fund the mint at the current
+  //    rate is SHOWN (available:false), not filtered out, and is unpickable. The
+  //    handler is the authority, not just the hidden button.
+  // -------------------------------------------------------------------
+
+  describe('P. show-the-row (unavailable coins)', () => {
+    const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
+
+    // Push a mix of a covering row and an insufficient one (simulation null,
+    // insufficient true — the shape the orchestrator emits for a coin too small).
+    function pushMixed(): { covering: TxnOutput; small: TxnOutput } {
+      const covering = big(80_000);
+      const small = big(500);
+      scanner.setStates([
+        [`${covering.txid}:${covering.vout}`, { kind: 'scanned-clean' }],
+        [`${small.txid}:${small.vout}`, { kind: 'not-scanned' }],
+      ]);
+      orch.simulationsSubject.next([
+        { utxo: covering, simulation: simulation(), insufficient: false },
+        { utxo: small, simulation: null, insufficient: true },
+      ]);
+      fixture.detectChanges();
+      return { covering, small };
+    }
+
+    beforeEach(() => {
+      connectXverse();
+      orch.feeRate.set(5);
+      fixture.detectChanges();
+    });
+
+    it('P1: the insufficient coin is SHOWN as available:false, not filtered out', () => {
+      const { covering, small } = pushMixed();
+      let captured: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
+      // Both coins present (the old behaviour dropped the small one entirely).
+      expect(captured!.map((r) => r.paymentOutput.value).sort((a, b) => a - b)).toEqual([500, 80_000]);
+      const smallRow = captured!.find((r) => r.paymentOutput.txid === small.txid)!;
+      const coveringRow = captured!.find((r) => r.paymentOutput.txid === covering.txid)!;
+      expect(smallRow.available).toBe(false);
+      expect(smallRow.simulation).toBeNull();
+      expect(coveringRow.available).toBe(true);
+    });
+
+    it('P2: selectPaymentOutput REFUSES an unavailable row (handler is the authority)', () => {
+      const { small } = pushMixed();
+      const unavailableRow: ViableSimulation = { paymentOutput: small, simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
+      component.selectPaymentOutput(unavailableRow);
+      // The pick was refused: no selection, orchestrator untouched.
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
+    });
+
+    it('P4: the unavailable tail is capped at 3 (a wallet of dust is not a wall)', () => {
+      const covering = big(80_000);
+      const dust = Array.from({ length: 7 }, (_, i) => big(300 + i));
+      const states: [string, UtxoScanState][] = [
+        [`${covering.txid}:${covering.vout}`, { kind: 'scanned-clean' }],
+        ...dust.map((d): [string, UtxoScanState] => [`${d.txid}:${d.vout}`, { kind: 'not-scanned' }]),
+      ];
+      scanner.setStates(states);
+      orch.simulationsSubject.next([
+        { utxo: covering, simulation: simulation(), insufficient: false },
+        ...dust.map((d) => ({ utxo: d, simulation: null, insufficient: true })),
+      ]);
+      fixture.detectChanges();
+      let captured: ViableSimulation[] | undefined;
+      component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
+      const shownUnavailable = captured!.filter((r) => !r.available);
+      // 7 dust coins present, but at most 3 render (the largest, closest to flipping).
+      expect(shownUnavailable.length).toBe(3);
+      expect(captured!.filter((r) => r.available).length).toBe(1);
+      // The 3 shown are the LARGEST dust (306, 305, 304), not an arbitrary slice.
+      expect(shownUnavailable.map((r) => r.paymentOutput.value).sort((a, b) => b - a)).toEqual([306, 305, 304]);
+      // Truncation is stated, not silent: 8 coins total, 4 shown -> the template
+      // renders "Showing 4 of 8". totalCoinCount is the denominator.
+      expect(component.totalCoinCount()).toBe(8);
+      expect(captured!.length).toBe(4);
+    });
+
+    it('P3: a pick that flips to unavailable on a re-emit is cleared', () => {
+      const chosen = big(80_000);
+      scanner.setStates([[`${chosen.txid}:${chosen.vout}`, { kind: 'scanned-clean' }]]);
+      orch.simulationsSubject.next([{ utxo: chosen, simulation: simulation(), insufficient: false }]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
+      component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      expect(component.selectedPaymentOutput).toBeDefined();
+      // The same coin re-emits as insufficient (e.g. the user raised the rate).
+      orch.simulationsSubject.next([{ utxo: chosen, simulation: null, insufficient: true }]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orch.selectedUtxo()).toBeNull();
     });
   });
 });
@@ -1092,6 +1367,7 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     return {
       paymentOutput: utxo(),
       simulation: simulation(),
+      available: true,
       scan: { kind: 'scanned-clean' } as UtxoScanState,
       bucket: 'clean',
       ...over,
@@ -1181,5 +1457,102 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
     // the single-address info note also shows, distinct from the per-coin one
     expect(q('[data-testid="single-address-note"]')).toBeTruthy();
+  });
+
+  // The per-coin fee column, rendered against the REAL production HTML (not the
+  // sentinel template): a data-gated state the live browser can't be driven into
+  // without the regtest wallet stack, so the actual *ngIf on real data is the
+  // proof the markup renders. Mutation-checked: dropping the *ngIf value flips
+  // the presence assertion.
+  it('renders the over-pay note + recommended badge inside the picker on the real template', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    const u = utxo({ value: 50_000 });
+    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'scanned-clean' } as UtxoScanState]]);
+    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
+    // This coin over-pays: its would-be change fell below dust and was folded.
+    orch._patch({
+      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 1_400, vsize: 150, absorbedSubDustSats: 1_200 }],
+      fundingRecommendation: { status: 'auto', recommended: u, candidates: [u] },
+    });
+    fixture.detectChanges();
+
+    const overpay = q('[data-testid="utxo-overpay-note"]');
+    expect(overpay).toBeTruthy();
+    // Names the folded amount, so the note says WHAT goes to the miner.
+    expect(overpay!.textContent).toContain('1,200');
+    // The recommended coin is marked in place on its row.
+    expect(q('[data-testid="utxo-recommended"]')).toBeTruthy();
+  });
+
+  it('does NOT render the over-pay note for a coin that emits change (absorbedSubDustSats 0)', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    const u = utxo({ value: 50_000 });
+    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'scanned-clean' } as UtxoScanState]]);
+    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
+    orch._patch({
+      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0 }],
+      fundingRecommendation: { status: 'auto', recommended: u, candidates: [u] },
+    });
+    fixture.detectChanges();
+
+    expect(q('[data-testid="utxo-overpay-note"]')).toBeNull();
+  });
+
+  it('renders an insufficient coin as a dimmed "can\'t fund at this rate" row with no Use button (real template)', () => {
+    wallets.connectedWalletSubject.next(dualAddr());
+    const small = utxo({ txid: 's'.repeat(64), value: 500 });
+    scanner.setStates([[`${small.txid}:${small.vout}`, { kind: 'not-scanned' } as UtxoScanState]]);
+    // Insufficient shape: null simulation, insufficient true.
+    orch.simulationsSubject.next([{ utxo: small, simulation: null, insufficient: true }]);
+    fixture.detectChanges();
+
+    const cantFund = q('[data-testid="utxo-cant-fund"]');
+    expect(cantFund).toBeTruthy();
+    // The row is present and dimmed (not hidden).
+    expect(q('.shape-border.utxo-row-unavailable')).toBeTruthy();
+    // No "Use this UTXO" / "Use anyway" button on an unavailable row.
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll('.shape-border.utxo-row-unavailable button');
+    expect(buttons.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Contrast of the unavailable-row label, MEASURED, not inferred (the cubes /
+// cat21-indexer lesson: "same colour family as a legible sibling" is not
+// evidence — cubes measured 3.48:1 that way). The row's `opacity` dims the amber
+// "Can't fund at this rate" text, so the composited pair must still clear WCAG AA
+// for small text (4.5:1). The opacity is read LIVE from the scss so lowering it
+// re-computes and fails; the palette colours are the documented theme constants.
+// ---------------------------------------------------------------------------
+
+describe('unavailable-row label contrast (WCAG AA, small text)', () => {
+  const srgbToLin = (c: number): number => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const relLum = ([r, g, b]: number[]): number => 0.2126 * srgbToLin(r) + 0.7152 * srgbToLin(g) + 0.0722 * srgbToLin(b);
+  const contrast = (a: number[], b: number[]): number => {
+    const la = relLum(a), lb = relLum(b), hi = Math.max(la, lb), lo = Math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const hexToRgb = (h: string): number[] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const over = (fg: number[], bg: number[], alpha: number): number[] => fg.map((c, i) => Math.round(alpha * c + (1 - alpha) * bg[i]));
+
+  // Documented theme constants (bootstrap --bs-warning; styles-ordpool-overrides2
+  // --panel-bg; styles.scss page ground).
+  const TEXT_WARNING = '#ffc107';
+  const PANEL_BG = '#26262f';
+  const PAGE_BG = '#1c2031';
+
+  it('the dimmed amber "Can\'t fund at this rate" label clears 4.5:1', () => {
+    const scss = fs.readFileSync(path.join(__dirname, 'cat21-mint.component.scss'), 'utf8');
+    const m = scss.match(/\.utxo-row-unavailable\s*\{[^}]*opacity:\s*([\d.]+)/);
+    expect(m).toBeTruthy();
+    const opacity = parseFloat(m![1]);
+    // The row's opacity composites the whole row over the page ground.
+    const effectiveText = over(hexToRgb(TEXT_WARNING), hexToRgb(PAGE_BG), opacity);
+    const effectiveBg = over(hexToRgb(PANEL_BG), hexToRgb(PAGE_BG), opacity);
+    const ratio = contrast(effectiveText, effectiveBg);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 });

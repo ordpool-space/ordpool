@@ -10,6 +10,8 @@ import { InscriptionParserService } from 'ordpool-parser';
 import {
   waitForUtxoAt,
   waitForElectrsSync,
+  waitForOrdSync,
+  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
@@ -191,31 +193,23 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
 
   // ─── 2. Open /inscribe, click Connect, approve in Xverse ───────
   const page = await context.newPage();
-  // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
-  // probes ord `/output/<outpoint>` for every covering candidate, regardless of
-  // size. On regtest those outpoints don't exist at the prod ord hosts baked into
-  // the frontend, so without a mock they 404 -> the funding coin lands in the
-  // `failed` bucket -> the SDK refuses to safe-auto-fund and the Inscribe button
-  // stays disabled. The regtest funding coin is a plain payment, so classify every
-  // outpoint clean. `**/output/*` matches both ord URLs (ord.ordpool.space +
-  // ord.cat21.space) the SDK queries in parallel.
-  await page.route('**/output/*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [] }),
-    });
-  });
+  // No /output mock. The funding-safety scan (the SDK orchestrator's
+  // fundingRecommendation$) probes the REAL local ords the workflow wired
+  // into environment.ts: stock ord (:8081) for inscriptions/runes/sat_ranges
+  // and cat21-ord (:8080) for cats. For a clean regtest payment coin both
+  // return empty, so the coin classifies usable for real. The sync waits
+  // after funding (below) ensure both ords have indexed the funding block
+  // before the scan reads /output/<outpoint>.
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   await shot(page, '02-page-loaded');
 
   // The pre-connect prompt renders a "connect your wallet" link that
   // calls WalletService.requestWalletConnect() → the ngb-modal picker.
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
-  await expect(connectLink).toBeVisible({ timeout: 30_000 });
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());
-  await connectLink.click();
+  await connectTrigger.click();
   // Picker: pick Xverse via the per-wallet Connect button's stable testid.
   await page.getByTestId('wallet-connect-xverse')
     .click({ timeout: 20_000 });
@@ -254,13 +248,22 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // ─── 4. Fund the payment address, mine, wait for electrs ──────
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
   console.log(`[inscribe-page] funded ${paymentAddress} with ${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  await waitForElectrsSync(mineBlocks(1));
+  const fundedTip = mineBlocks(1);
+  await waitForElectrsSync(fundedTip);
 
   // Poll the address→utxo index until the funding UTXO is visible.
   // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
   // the address→utxo mapping a tick later, so an immediate getUtxos can
   // miss the fresh output.
   await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
+
+  // Both ords must have indexed the funding block before the funding-safety
+  // scan reads /output/<outpoint>, or the probe 404s and the coin lands in
+  // the `failed` bucket (the same symptom the old mock papered over). Stock
+  // ord (:8081) answers the inscription/rune half; cat21-ord (:8080) the cat
+  // half. Real endpoints, real empty result for a clean coin.
+  await waitForOrdStockSync(fundedTip);
+  await waitForOrdSync(fundedTip);
 
   // ─── 4b. Reload so the orchestrator re-fetches UTXOs ───────────
   // getUtxos fires once on connect - funding AFTER connect doesn't

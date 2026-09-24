@@ -8,6 +8,8 @@ import { InscriptionParserService } from 'ordpool-parser';
 import {
   waitForUtxoAt,
   waitForElectrsSync,
+  waitForOrdSync,
+  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
@@ -164,29 +166,19 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
   test.setTimeout(420_000);
 
   const page = await context.newPage();
-  // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
-  // probes ord `/output/<outpoint>` for every covering candidate, regardless of
-  // size. On regtest those outpoints don't exist at the prod ord hosts baked into
-  // the frontend, so without a mock they 404 -> the funding coin lands in the
-  // `failed` bucket -> the SDK refuses to safe-auto-fund and the Inscribe button
-  // stays disabled. The regtest funding coin is a plain payment, so classify every
-  // outpoint clean. `**/output/*` matches both ord URLs (ord.ordpool.space +
-  // ord.cat21.space) the SDK queries in parallel.
-  await page.route('**/output/*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [] }),
-    });
-  });
+  // No /output mock. The funding-safety scan probes the REAL local ords the
+  // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
+  // runes/sat_ranges and cat21-ord (:8080) for cats. A clean regtest payment
+  // coin returns empty from both, so it classifies usable for real. The sync
+  // waits after funding ensure both ords have indexed the funding block first.
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   await shot(page, '01-page-loaded');
 
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
-  await expect(connectLink).toBeVisible({ timeout: 30_000 });
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());
-  await connectLink.click();
+  await connectTrigger.click();
   await page.getByTestId('wallet-connect-okx').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
   await approveOkxConnect(knownPagesBeforeConnect, 60_000);
@@ -200,12 +192,20 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
 
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
   console.log(`[inscribe-okx] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  await waitForElectrsSync(mineBlocks(1));
+  const fundedTip = mineBlocks(1);
+  await waitForElectrsSync(fundedTip);
   // Poll the address→utxo index until the funding UTXO is visible.
   // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
   // the address→utxo mapping a tick later, so an immediate getUtxos can
   // miss the fresh output (observed flaking here across wallets).
   await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
+
+  // Both ords must have indexed the funding block before the funding-safety
+  // scan reads /output/<outpoint>. Stock ord (:8081) answers the inscription/
+  // rune half, cat21-ord (:8080) the cat half. Real endpoints, real empty
+  // result for a clean coin.
+  await waitForOrdStockSync(fundedTip);
+  await waitForOrdSync(fundedTip);
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });

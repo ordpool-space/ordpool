@@ -1,444 +1,132 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Frontend for `ordpool-space/ordpool`: a `mempool/mempool` fork (Angular 20 + Bootstrap 5 + Node 24) with Ordinals customizations. Repo-wide rules live in the repo-root `CLAUDE.md`; this file is frontend-specific.
 
-**E2E work:** the workspace-level [`~/Work/ordpool/E2E_BEST_PRACTICES.md`](../../../E2E_BEST_PRACTICES.md) codifies our Playwright rules. **The `cypress/` suite here is legacy upstream mempool code and is explicitly out of scope for those rules** — do not audit or port; touch only when a bug fix genuinely lives there. An ordpool-owned Playwright surface (workspace-level `ordpool/e2e/`) will land later and will follow the doc from day one.
+**E2E:** the workspace `E2E_BEST_PRACTICES.md` codifies our Playwright rules. The `cypress/` suite here is legacy upstream mempool code, out of scope for those rules: do not audit or port; touch only when a bug fix genuinely lives there. An ordpool-owned Playwright surface (workspace `ordpool/e2e/`) will land later and follow the doc from day one.
 
-## Frontend: ordpool (Angular 20)
+## HARD RULE: Keep useful comments
+- Don't strip JSDoc or "why" inline comments as "simplification". Trim the text inside; keep the block.
+- Frontend-specific keepers: viewer-component design rationale (alkanes-vs-runes split, ots-viewer tristate semantics, block-protocol-section structure), service caching/dedupe notes.
+Ref: workspace `CLAUDE.md` "Keep useful comments (JSDoc AND inline 'why')".
 
-Fork of mempool.space frontend with Ordinals customizations. After the upstream-merge in April 2026 the stack is Angular 20 + Bootstrap 5 + Node 24 (was Angular 17 / Bootstrap 4 / Node 20 in v1).
+## Node version
+Node.js v24 (`.nvmrc`); CI pins `node-version: 24`.
 
-### HARD RULE: Keep useful comments
-
-**Don't strip JSDoc or "why" inline comments under the banner of
-"simplification".** The text inside a comment can be trimmed (no
-bombast, no LLM-speak, no before-after history); the block itself
-stays. Viewer-component design rationale (alkanes-vs-runes split,
-ots-viewer tristate semantics, block-protocol-section structure) and
-service caching/dedupe notes are exactly the kind of comment a future
-reader cannot reconstruct from code alone. Full decision tree in the
-workspace `CLAUDE.md` HARD RULE "Keep useful comments (JSDoc AND
-inline 'why')".
-
-### Node Version
-
-Requires **Node.js v24** (see `.nvmrc`). The CI workflows pin `node-version: 24`.
-
-### First-Time Setup
-
+## First-time setup and development
 ```bash
 npm install
-npm run config:defaults:ordpool   # generates src/resources/config.js with Ordpool settings
+npm run config:defaults:ordpool   # update-config.js sets BASE_MODULE=ordpool, then generate-config.js writes src/resources/config.js; re-run only if config changes
+npm start                          # = generate-config && sync-assets-dev && ng serve -c local-esplora, on http://localhost:4200
 ```
-
-The config step runs `update-config.js` to set `BASE_MODULE=ordpool`, then `generate-config.js` to produce `src/resources/config.js`. You only need to re-run this if you change the config.
-
-### Development (the main workflow)
-
-```bash
-npm start
-```
-
-This is the alias for:
-```bash
-npm run generate-config && npm run sync-assets-dev && ng serve -c local-esplora
-```
-
-It starts the Angular dev server on `http://localhost:4200` using the `local-esplora` configuration, which proxies API calls to local services via `proxy.conf.local-esplora.js`:
+`npm start` needs local services: either an SSH tunnel forwarding 8332 (bitcoind) + 3000 (electrs), or the backend on 8999 + electrs on 3000. The `local-esplora` config proxies via `proxy.conf.local-esplora.js`:
 
 | Route | Target | What |
-|-------|--------|------|
+|---|---|---|
 | `/api/v1/**` | `http://127.0.0.1:8999` | ordpool backend (WebSocket + REST) |
-| `/api/**` | `http://127.0.0.1:3000` | electrs (Esplora API), path rewritten to strip `/api` |
+| `/api/**` | `http://127.0.0.1:3000` | electrs (Esplora API), `/api` stripped |
 | `/content/**`, `/preview/**` | `http://127.0.0.1:8999` | ordpool backend (inscription content/previews) |
 | `/r/**` | `https://ordinals.com` | recursive inscription endpoints |
 
-**Before running `npm start`**, you need either:
-- A private SSH tunnel which forwards ports 8332 (bitcoind) and 3000 (electrs) to a dedicated machine
-- Or the backend running locally on port 8999 + electrs on port 3000
-
-### Production Build
-
 ```bash
-npm run build
-```
-
-This runs: `generate-config` → `ng build --configuration production --localize` → `sync-assets-dev` → `sync-assets` → `build-mempool.js`
-
-Note: `sync-assets` (`sync-assets.js`) downloads mining pool logos and other remote assets. It will fail if the remote server is unreachable. The Angular compilation itself happens before this step.
-
-### Tests
-
-```bash
+npm run build           # generate-config -> ng build --configuration production --localize -> sync-assets-dev -> sync-assets -> build-mempool.js
 npm test                # Jest unit tests
-npm run cypress:open    # Cypress E2E (interactive, needs running dev server on :4200)
+npm run cypress:open    # Cypress E2E (interactive, needs dev server on :4200)
 npm run cypress:run     # Cypress E2E (headless)
 ```
+`sync-assets` (`sync-assets.js`) downloads mining-pool logos and remote assets and fails if the remote is unreachable; Angular compilation happens before this step. Lint scripts (`npm run lint` / `lint:fix` / `prettier`) exist but must NOT be run: see repo-root `CLAUDE.md` "Linting is FORBIDDEN".
 
-### Linting
-
-```bash
-npm run lint            # ESLint
-npm run lint:fix        # ESLint with auto-fix
-npm run prettier        # Prettier formatting
-```
-
-### Pre-push check: AOT-compile Angular templates
-
-Jest tests run in **JIT** mode and accept template binding expressions
-that the **AOT** production build rejects. The most common gotcha:
-backslash-escaped apostrophes inside binding strings.
-
+## HARD RULE: AOT-compile templates before pushing
+- Jest runs in JIT and accepts template binding expressions the AOT production build rejects (commonly a backslash-escaped apostrophe inside a binding string, NG5002 "Unterminated quote"). Jest passing is not enough.
+- Before pushing changes to Angular template expressions (`[attr]="..."`, `{{ }}`, structural directives), run the full AOT build: `node ./node_modules/.bin/ng build --configuration production --no-progress`. Warnings are fine; errors fail CI.
+- Fix by avoiding the apostrophe, or build the string in TypeScript and bind a property:
 ```html
-<!-- ✗ AOT rejects this with NG5002 "Unterminated quote" -->
-<span [title]="'It\'s broken' + suffix"></span>
-
-<!-- ✓ Either avoid the apostrophe... -->
-<span [title]="'It is fine ' + suffix"></span>
-
-<!-- ✓ ...or build the string in TypeScript and bind a property -->
-<span [title]="hoverText"></span>
+<span [title]="'It\'s broken' + suffix"></span>   <!-- AOT rejects: NG5002 -->
+<span [title]="hoverText"></span>                  <!-- bind a property instead -->
 ```
+<!-- long-rule: JIT-vs-AOT example -->
 
-Before pushing changes that touch Angular template expressions
-(`[attr]="..."`, `{{ }}` interpolations, structural directives),
-run a full production AOT build:
+## Visual identity (differentiators from upstream)
+Brand rules that look like style choices. Don't drift toward mempool.space styling.
+- **Accent colour:** Bitcoin orange `$bitcoin: #FF9900` only, aliased `--primary`/`--info`/`--orange`/`--tertiary`; use `var(--primary)`. Never invent tints. For UI states `var(--success)` and `var(--info)` are real; **`--warning` and `--danger` are NOT defined anywhere** (measured in the browser: `border-color: var(--warning)` computes to `currentColor`, `background: var(--warning)` to transparent, so the state is silently invisible). Use Bootstrap's `.text-warning` / `.text-danger` until the tokens exist on `:root`.
+- **No rounded corners.** Bootstrap `--bs-border-radius` family is overridden to `0` in `src/styles-ordpool-overrides2.scss`; don't hardcode `border-radius: <N>px` in new SCSS. `border-radius: 50%` for circular avatars/dots is fine.
+- **Panel backgrounds via tokens on `:root`** in `src/styles-ordpool-overrides2.scss`: `var(--panel-bg)` (card), `var(--panel-bg-deep)` (sunken/dropzone/nested), `var(--panel-border)`, `var(--panel-hover)`. Page background is `#1d1f31` (`$bg`, aliased `var(--bg)`). Tokens are neutral gray (a blue cast is upstream DNA); never invent new panel hexes, add a 5th token if needed.
+- **Typography:** default `<p>` matches `cat21-mint`. Avoid Bootstrap `.lead` for OTS-style explanatory text (too large); use `.smaller-text` (14px) only for asides/metadata, not body copy.
+- **Icons:** FontAwesome solid (`['fas', '<name>']`), single colour (white on dark). No emoji icons.
+- **Cube iconography (perspective + lighting are non-negotiable):**
+  - Preferred geometry: isometric corner-on (one vertex to the viewer, three rhombus faces, hexagon silhouette). Used by the brand logo `/resources/ordpool-cube-logo.svg` and the bitmap-3d viewer scene cubes; new decorative cubes (favicons, OG images, hero art) use it too.
+  - The block-timeline cube (`.bitcoin-block` in blockchain-blocks / mempool-blocks / stale-list) is the same iso cube, drawn by the `app-iso-cube` overlay (`components/_ordpool/iso-cube`). Upstream's markup stays in the DOM for tooltips, `data-cy` hooks and click targets; the global `:has(app-iso-cube)` rules in `styles-ordpool-overrides2.scss` retire its flat front, both Necker pseudo-elements and `.block-body`. A new cube-bearing component gets all of that by placing `<app-iso-cube>` with its three `ngProjectAs` slots inside the block.
+  - Slots: TOP an upright label (median fee rate); LEFT and RIGHT mapped onto their faces with the iso affine `matrix(0.866, ±0.5, 0, 1)`, so verticals stay vertical and baselines run with the slanted edges. Type is set in em off `--block-size`. One number drives the strip: `timelineBlockSize` in `iso-cube.constants.ts` (stride, container offset, divider, wrapper height, height label). Blocks still loading get the same hexagon as a CSS-only placeholder, so the strip never shows a differently shaped block. The header, global-footer and family-footer logo is the same component in `class="inline"` mode.
+  - Colour: the logo and the bitmap-3d scene cubes carry the fixed cascade. Timeline cubes are coloured by INFORMATION instead — the host passes `[feeRate]` and the cube takes the theme's fee-level palette, lifted in OKLab (lightness +0.15, chroma ×1.2) for the sun-lit top, sides at 75.25 % / 49.25 % towards black (the two factors that reproduce the cascade exactly for brand orange). The top label's ink switches at face luminance 0.2105, where the dark ink and white contrast equally against the face. Without a fee rate the cube falls back to brand orange.
+  - Perspective: up-RIGHT Necker vanishing (viewer at lower-left). Upstream uses up-LEFT; reversed via CSS in `styles-ordpool-overrides2.scss`. The hidden `.time-ltr` toggle is killed there (`time-toggle` button `display: none`, leftover `.time-ltr` made a no-op).
+  - Lighting: sun-from-upper-LEFT. TOP brightest (`#FF9900`), LEFT mid (`#C07300`), RIGHT deepest shadow (`#7E4B00`); brand orange always on the sun-lit face. The timeline-cube depth pseudo-elements (`::after` top, `::before` side) are overridden globally in `styles-ordpool-overrides2.scss`; don't add per-component cube-depth CSS, use the `.bitcoin-block` class hook.
+- Reference page for the canonical look (typography + spacing + colour): `cat21-mint`.
+<!-- long-rule: brand colour/geometry/lighting spec -->
 
-```bash
-cd frontend
-node ./node_modules/.bin/ng build --configuration production --no-progress
-```
+## Code marking convention (merge-friendly)
+Fork of mempool.space; three-tier marking keeps merges clean.
+- Inline markers in existing mempool files: `// HACK --- Ordpool Flags`, `// HACK -- Ordpool stats`, `// HACK -- ordpoolColorFunction`, `<!-- HACK: START Ordpool Stats --> ... <!-- HACK: END Ordpool Stats -->`.
+- File naming: `.ordpool.*` suffix for alternatives (`src/index.ordpool.html`, `src/app/master-page.module.ordpool.ts`); `ordpool-` prefix for dedicated files (`ordpool-api.service.ts`).
+- Directories: `src/app/components/_ordpool/` (all ordpool UI: artifact viewers, CAT-21 mint, wallet connect, stats); CSS overrides `src/styles-ordpool-overrides1.scss`, `src/styles-ordpool-overrides2.scss`.
+- NEVER delete upstream code; comment it out with `/* HACK -- Ordpool: ... */`.
 
-Warnings are fine; **errors fail CI**. Jest passing isn't enough —
-template expressions are only fully validated at AOT.
+## Dependency: ordpool-parser
+- Imported by git SHA in `package.json`: `"ordpool-parser": "github:ordpool-space/ordpool-parser#<sha>"`. Its `prepare` script builds on install.
+- Bumping the SHA: edit `package.json`, run `npm install` to regenerate `package-lock.json`, commit BOTH. CI caches `node_modules` by lockfile hash; a SHA-only change restores stale `node_modules` and the build fails with missing types.
+- Local live-dev: `cd ordpool-parser && npm run build && cd dist && npm link`, then `npm link ordpool-parser` in `frontend/`.
 
-### Visual Identity (the differentiators from upstream)
-
-Ordpool's design has a few rules that look like style choices but are
-**brand differentiators**. Don't accidentally drift toward upstream
-mempool.space styling.
-
-1. **Bitcoin orange (`$bitcoin: #FF9900`) is the only accent colour.**
-   Aliased as `--primary`, `--info`, `--orange`, `--tertiary` in the
-   theme. Use `var(--primary)` for any accent. Don't invent decorative
-   tints (purple, teal, yellow, etc.) — if you need to differentiate UI
-   states, reach for the theme's semantic vars: `var(--success)` (green),
-   `var(--warning)` (yellow), `var(--danger)` (red). They're already in
-   the colour vocabulary the user knows.
-
-   The brand cube logo and the 3D bitmap viewer scene cubes use an
-   orange tonal cascade (`#FF9900` brand → `#C07300` mid → `#7E4B00`
-   shadow) for dimensional shading on the three visible faces. Those
-   are NOT additional accent colours — they're internal tonal
-   variations of the same brand orange, only ever applied to cube
-   faces. The block-timeline cubes are the one surface that carries
-   another palette: their colour is the block's median fee rate
-   through the theme's fee-level palette, the same colours the fee
-   charts and upstream's projected-block gradient use. That is
-   information, not decoration. See rule 6 below for the full spec.
-
-2. **No rounded corners.** Upstream mempool uses `border-radius` on
-   cards, buttons, dropzones, badges. Ordpool deliberately ships
-   square. We kill it globally by overriding the Bootstrap CSS vars
-   (`--bs-border-radius` family) to `0` in
-   `frontend/src/styles-ordpool-overrides2.scss`, so every
-   Bootstrap component renders flat without per-component overrides.
-   Avoid hardcoding `border-radius: <Npx>` in new ordpool SCSS.
-   `border-radius: 50%` for circular avatars / dots is fine.
-
-3. **Card / panel backgrounds — use the panel tokens, never raw hexes.**
-   Four CSS custom properties live on `:root` in
-   `frontend/src/styles-ordpool-overrides2.scss`:
-
-   - `var(--panel-bg)` — card / panel background.
-   - `var(--panel-bg-deep)` — sunken / dropzone inset, nested panel.
-   - `var(--panel-border)` — panel border (and decorative arrow lines etc).
-   - `var(--panel-hover)` — hover state on interactive panels.
-
-   The page background stays `#1d1f31` (`$bg`) — that one is theme-level
-   and aliased as `var(--bg)`. **Do not invent new panel hexes.** The
-   tokens are deliberately *neutral gray*, not blue. A blue cast is
-   upstream mempool DNA; ordpool reads gray-on-navy with bitcoin orange
-   accents. If you need a tint we don't have, add a 5th token here
-   rather than scattering a one-off hex in a component SCSS.
-
-4. **Typography**: default `<p>` body size matches `cat21-mint`. Avoid
-   the Bootstrap `.lead` class for OTS-style explanatory text — it
-   reads too large in our layout. Use `.smaller-text` (14px) only for
-   genuine asides / metadata, not body copy.
-
-5. **Icons**: FontAwesome solid (`['fas', '<name>']`), single colour
-   (white over the dark theme). Don't mix in emoji icons.
-
-6. **Cube iconography — perspective + lighting are brand rules.**
-
-   Every cube on ordpool shares two non-negotiable conventions
-   (perspective + lighting) and one geometric style (isometric
-   corner-on).
-
-   - **Preferred geometry: isometric corner-on.** One cube vertex
-     points at the viewer, three rhombus faces meet there, outer
-     silhouette is a regular hexagon. This is the canonical ordpool
-     cube — the brand logo (`/resources/ordpool-cube-logo.svg`) and
-     the bitmap-3d viewer scene cubes both use it. Any new cube
-     element that's purely iconographic / decorative (favicons, OG
-     images, hero illustrations) MUST also use this variant unless
-     there's a specific reason not to.
-
-     The block-timeline cubes (`.bitcoin-block` in blockchain-blocks,
-     mempool-blocks and stale-list) use it through the `app-iso-cube`
-     overlay (`components/_ordpool/iso-cube`): the upstream block
-     markup stays in the DOM for tooltips, data-cy hooks and click
-     targets, the overlay paints the hexagon over it and carries the
-     content on three slots. TOP keeps an upright label (median fee
-     rate); LEFT and RIGHT are mapped onto their faces with the exact
-     iso affine (`matrix(0.866, ±0.5, 0, 1)`), so vertical strokes
-     stay vertical and baselines run parallel to the slanted edges:
-     the text reads as painted on the face. LEFT is the black
-     `.iso-screen` filling the whole face (inscription iframe or rune
-     ticker on confirmed blocks; size + fee span on projected and
-     stale ones), RIGHT is the stats slot, flush left against the
-     centre edge (`.iso-stats` list of mint counts, `.iso-lines` stack
-     for tx count + ETA). Type is set in em off `--block-size` (1em =
-     8 % of the block). The block size itself is one number,
-     `timelineBlockSize` in `iso-cube.constants.ts`; stride, container
-     offset, divider, wrapper height and the height label all derive
-     from it. Blocks that are still loading get the same hexagon as a
-     CSS-only placeholder in the neutral panel grays
-     (`styles-ordpool-overrides2.scss`), so the strip never shows a
-     differently shaped block while scrolling.
-
-     Timeline cubes are coloured by information, not by brand: the host
-     passes the block's median fee rate (`[feeRate]`) and the cube
-     takes its colour from the theme's fee-level palette, the same one
-     the fee charts use, so a magenta cube means "expensive block"
-     anywhere on the site. The palette is tuned for flat fills and
-     sits dark, so the top face gets it lifted in OKLCH (lightness up,
-     chroma up a little, hue untouched): brighter without the wash-out
-     that mixing with white causes. The
-     top label's ink follows the face luminance (page-background navy
-     above 0.35, white below). Without a fee rate the cube falls back
-     to brand orange.
-
-   - **Perspective: up-RIGHT Necker vanishing.** Cube depth recedes
-     toward the upper-right (viewer at lower-left). The Necker
-     default. Upstream's flat-front Necker cube survives only as the
-     stale-ghost stack behind a block; mempool draws it up-LEFT and
-     we reverse it via pure CSS overrides in
-     `styles-ordpool-overrides2.scss` (no upstream files touched).
-     Minimal-mode strips (the clock page) render the bare iso cube,
-     fee-coloured, without the content slots.
-     Mempool's hidden `.time-ltr` toggle (an opt-in opposite-direction
-     mode for RTL locales) is killed there too — the `time-toggle`
-     button is `display: none` and any leftover `.time-ltr` class is
-     transformed to a no-op, so the orientation stays consistent
-     even for users who toggled it on in a past session.
-
-   - **Lighting: sun-from-upper-LEFT.** TOP face is brightest, LEFT
-     face is mid, RIGHT face is the deepest shadow. The logo and the
-     bitmap-3d viewer cubes use the fixed cascade `#FF9900` /
-     `#C07300` / `#7E4B00`; brand orange ALWAYS sits on the sun-lit
-     face there, it's the identity anchor, the shaded faces are
-     derived tones. The timeline cube shades whatever colour its top
-     face carries: sides at 75.25 % and 49.25 % of it towards black --
-     the two factors that reproduce the cascade above exactly for brand
-     orange -- a gloss gradient from
-     the lit corner on the top face, an ambient-occlusion gradient
-     towards the ground on the sides, lit edges on top, dark edges at
-     the ground. It casts no dark shadow (invisible on the navy page)
-     but a soft glow in its own colour; on hover it lifts 4px and the
-     glow deepens.
-
-   The logo in the master-page header (desktop + mobile), the
-   global-footer and the family-footer is the same `app-iso-cube` in
-   inline mode (`class="inline"`, sized through `--block-size`), so
-   logo and timeline cubes share one look and one code path; the
-   header logo is the colour reference (brand orange, no fee rate).
-   The static `/resources/ordpool-cube-logo.svg` remains for the OTS
-   web-notification icon (where it brand-identifies the source in the
-   OS notification centre).
-
-   The Necker depth pseudo-elements (`::after` for the top face,
-   `::before` for the side face) are overridden globally in
-   `styles-ordpool-overrides2.scss` for the stale ghosts; don't add
-   per-component CSS for cube depth. The mempool strip's pending
-   pulse is softened there too (opacity 0.85 to 1.0 instead of
-   upstream's 0.7 to 1.0). A new cube-bearing
-   component gets the iso cube by placing `<app-iso-cube>` with its
-   three `ngProjectAs` slots inside its `.bitcoin-block`; the global
-   `:has(app-iso-cube)` rules retire the upstream rendering
-   underneath it automatically.
-
-When you're unsure, check `cat21-mint`'s component for the canonical
-ordpool look — it's the reference page for typography + spacing +
-colour usage.
-
-### Code Marking Convention (for merge-friendly changes)
-
-This is a fork of mempool.space. To keep changes isolated and merges manageable, ordpool-specific code follows a three-tier marking system:
-
-**1. Inline markers (`// HACK`)** — Used when modifying existing mempool files. Mark the insertion point so it's easy to find during merges:
-```
-// HACK --- Ordpool Flags
-// HACK -- Ordpool stats
-// HACK -- ordpoolColorFunction
-<!-- HACK: START Ordpool Stats --> ... <!-- HACK: END Ordpool Stats -->
-```
-
-**2. File naming** — Ordpool-specific alternative files use a `.ordpool.*` suffix:
-- `src/index.ordpool.html` — Ordpool entry point HTML
-- `src/app/master-page.module.ordpool.ts` — Ordpool-specific Angular module
-- Dedicated files use the `ordpool-` prefix (e.g., `ordpool-api.service.ts`)
-
-**3. Directory structure** — Ordpool-exclusive components live in `_ordpool/` directories (underscore prefix keeps them sorted at the top):
-- `src/app/components/_ordpool/` — All ordpool UI components (digital artifact viewers, CAT-21 mint, wallet connect, stats, etc.)
-- CSS overrides: `src/styles-ordpool-overrides1.scss`, `src/styles-ordpool-overrides2.scss`
-
-**When modifying existing mempool files**, always add a `// HACK` comment to mark the change. When adding new ordpool-only functionality, put it in an `_ordpool/` directory or a file with `ordpool-` prefix. This keeps the diff clean for upstream merges.
-
-**NEVER delete upstream code.** Always comment it out with a `/* HACK -- Ordpool: ... */` block comment instead. This preserves the original code for future merges and makes it obvious what was disabled.
-
-### Dependency: ordpool-parser
-
-The frontend depends on `ordpool-parser` via a git SHA ref in `package.json`:
-```json
-"ordpool-parser": "github:ordpool-space/ordpool-parser#<sha>"
-```
-
-The `prepare` script in ordpool-parser runs `npm run build` on install, so the compiled output is always fresh.
-
-**CRITICAL: When updating the git SHA, ALWAYS run `npm install` afterwards to regenerate `package-lock.json`, then commit BOTH files together.** CI caches `node_modules` keyed by the lockfile hash. If you update the SHA without updating the lockfile, CI restores stale `node_modules` from cache and the build fails with missing types.
-
-```bash
-# Correct workflow for bumping ordpool-parser:
-# 1. Update the SHA in package.json
-# 2. Run npm install to regenerate the lockfile
-npm install
-# 3. Commit BOTH package.json AND package-lock.json
-git add package.json package-lock.json
-git commit -m "bump ordpool-parser to <sha>"
-```
-
-For local development with live changes (no commit needed):
-```bash
-# In ordpool-parser/
-npm run build && cd dist && npm link
-
-# In ordpool/frontend/
-npm link ordpool-parser
-```
-
-### Config Modes
-
+## Config modes
 | Command | Sets |
-|---------|------|
+|---|---|
 | `npm run config:defaults:ordpool` | `BASE_MODULE=ordpool`, `MEMPOOL_WEBSITE_URL=https://ordpool.space` |
-| `npm run config:defaults:mempool` | Full mempool config (testnet, signet, liquid enabled) |
+| `npm run config:defaults:mempool` | full mempool config (testnet, signet, liquid enabled) |
 | `npm run config:defaults:liquid` | Liquid-focused config |
 
-### Formatting Conventions for Bitcoin Data in Tables / Inline
-
-When you render txids, addresses, hashes, fees, etc. in templates, follow
-the patterns the rest of the codebase already uses. There are essentially
-two truncation primitives (`shortenString` pipe vs `<app-truncate>` component)
-and a small set of canonical components (`<app-amount>`, `<app-fee-rate>`,
-`<app-timestamp>`, `<app-time>`, `<app-confirmations>`). Don't reinvent.
+## Formatting Bitcoin data in templates
+Two truncation primitives (`shortenString` pipe vs `<app-truncate>` component) and a small set of canonical components (`<app-amount>`, `<app-fee-rate>`, `<app-timestamp>`, `<app-time>`, `<app-confirmations>`). Don't reinvent.
 
 | Data type | Recommended template |
 |---|---|
 | Txid in a table cell (linked) | `<a [routerLink]="['/tx/' \| relativeUrl, txid]" title="{{ txid }}">{{ txid \| shortenString : 13 }}</a>` |
-| Txid as a header / hero element (CSS-truncated, last 4–12 chars guaranteed) | `<app-truncate [text]="txid" [lastChars]="12" [link]="['/tx/' \| relativeUrl, txid]"></app-truncate>` |
+| Txid as header / hero (CSS-truncated, last 4-12 guaranteed) | `<app-truncate [text]="txid" [lastChars]="12" [link]="['/tx/' \| relativeUrl, txid]"></app-truncate>` |
 | Block hash in a table cell | `<a [routerLink]="['/block/' \| relativeUrl, block.id]" title="{{ block.id }}">{{ block.id \| shortenString : 13 }}</a> <app-clipboard [text]="block.id"></app-clipboard>` |
 | Block height (table cell) | `<a [routerLink]="['/block/' \| relativeUrl, height]">{{ height \| number }}</a>` |
-| Block height (next to a block hash, e.g. `blocks-list`) | `<a [routerLink]="['/block/' \| relativeUrl, block.id]">{{ block.height }}</a>` (raw, no `\| number`, height is small) |
+| Block height (next to a hash, e.g. `blocks-list`) | `<a [routerLink]="['/block/' \| relativeUrl, block.id]">{{ block.height }}</a>` (raw, no `\| number`; height is small) |
 | Address in a table cell | `<app-truncate [text]="addr" [lastChars]="8" [link]="['/address/' \| relativeUrl, addr]"></app-truncate>` |
-| Generic hex string / merkle root (truncated) | `<code class="smaller-text">{{ hash \| shortenString : 13 }}</code>` |
+| Generic hex / merkle root (truncated) | `<code class="smaller-text">{{ hash \| shortenString : 13 }}</code>` |
 | Fee in sats (plain number) | `{{ (fee \| number) ?? '-' }} <span class="symbol" i18n="shared.sats">sats</span>` |
-| Fee rate in sat/vB | `<app-fee-rate [fee]="feeSats" [weight]="weight"></app-fee-rate>` (or `[fee]="ratePerVb"` if you already have sat/vB) |
+| Fee rate in sat/vB | `<app-fee-rate [fee]="feeSats" [weight]="weight"></app-fee-rate>` (or `[fee]="ratePerVb"` if already sat/vB) |
 | BTC / sat amount with view-mode toggle + fiat | `<app-amount [satoshis]="sats" digitsInfo="1.2-3" [noFiat]="true"></app-amount>` |
 | Fiat conversion of a sat value | `<app-fiat [value]="sats" digitsInfo="1.0-0"></app-fiat>` |
 | Absolute timestamp from Unix seconds | `<app-timestamp [customFormat]="'yyyy-MM-dd HH:mm:ss'" [unixTime]="ts" [hideTimeSince]="true"></app-timestamp>` |
-| "X minutes ago" inside a tight row (mined-when, first-seen) | `<app-time kind="since" [time]="seconds" [fastRender]="true" [showTooltip]="true"></app-time>` |
-| Confirmations counter | `<app-confirmations [chainTip]="latestBlock?.height" [height]="tx?.status?.block_height"></app-confirmations>` (renders bg-success/bg-warning/bg-danger badge automatically) |
+| "X minutes ago" in a tight row | `<app-time kind="since" [time]="seconds" [fastRender]="true" [showTooltip]="true"></app-time>` |
+| Confirmations counter | `<app-confirmations [chainTip]="latestBlock?.height" [height]="tx?.status?.block_height"></app-confirmations>` (auto bg-success/warning/danger badge) |
 | Right-align a numeric column | `class="text-end"` on `<th>` and `<td>` |
 
-#### Concrete examples (from real files)
+Concrete examples (real files):
+- Txid in a list: `src/app/components/_ordpool/block-ots-summary/block-ots-summary.component.html:18-20`
+- Block hash on the block detail page: `src/app/components/block/block.component.html:65`
+- Block height from OTS calendars: `src/app/components/_ordpool/ots-calendars/ots-calendars.component.html:102`
+- Address as truncated chip: `src/app/components/address/address.component.html:5-6`
+- Merkle root: `src/app/components/_ordpool/block-ots-summary/block-ots-summary.component.html:22`
+- Fee in sats: `src/app/components/transaction/transaction-details/transaction-details.component.html:223`
+- Fee rate: `src/app/components/transaction/cpfp-info.component.html:22`
+- Block reward via app-amount: `src/app/components/blocks-list/blocks-list.component.html:65`
+- Mined-since on dashboard: `src/app/dashboard/dashboard.component.html:117`
+- Confirmations: `src/app/components/transactions-list/transactions-list.component.html:539`
 
-- Txid in a list — `src/app/components/_ordpool/block-ots-summary/block-ots-summary.component.html:18-20`:
-  `<a [routerLink]="['/tx/' | relativeUrl, row.txid]" title="{{ row.txid }}">{{ row.txid | shortenString : 13 }}</a>`
-- Block hash in the block detail page — `src/app/components/block/block.component.html:65`:
-  `<td>&lrm;<a [routerLink]="['/block/' | relativeUrl, block.id]" title="{{ block.id }}">{{ block.id | shortenString : 13 }}</a> <app-clipboard [text]="block.id"></app-clipboard></td>`
-- Block height linked from OTS calendars — `src/app/components/_ordpool/ots-calendars/ots-calendars.component.html:102`:
-  `<a [routerLink]="['/block/' | relativeUrl, cal.lastBlockheight]">{{ cal.lastBlockheight | number }}</a>`
-- Address as truncated chip — `src/app/components/address/address.component.html:5-6`:
-  `<app-truncate [text]="addressString" [lastChars]="8" [link]="['/address/' | relativeUrl, addressString]">…</app-truncate>`
-- Merkle root — `src/app/components/_ordpool/block-ots-summary/block-ots-summary.component.html:22`:
-  `<td><code class="smaller-text">{{ row.merkleRoot | shortenString : 13 }}</code></td>`
-- Fee in sats — `src/app/components/transaction/transaction-details/transaction-details.component.html:223`:
-  `<td>{{ (tx.fee | number) ?? '-' }} <span class="symbol" i18n="shared.sats">sats</span> …</td>`
-- Fee rate — `src/app/components/transaction/cpfp-info.component.html:22`:
-  `<td><app-fee-rate [fee]="cpfpTx.fee" [weight]="cpfpTx.weight"></app-fee-rate></td>`
-- Block reward via app-amount — `src/app/components/blocks-list/blocks-list.component.html:65`:
-  `<app-amount [satoshis]="block.extras.reward" [noFiat]="true" digitsInfo="1.2-2"></app-amount>`
-- Mined-since on dashboard — `src/app/dashboard/dashboard.component.html:117`:
-  `<app-time kind="since" [time]="block.timestamp" [fastRender]="true" [showTooltip]="true"></app-time>`
-- Confirmations — `src/app/components/transactions-list/transactions-list.component.html:539`:
-  `<app-confirmations [chainTip]="latestBlock?.height" [height]="tx?.status?.block_height" …></app-confirmations>`
+Truncation cheat sheet (`shortenString` keeps `length/2` chars each end with `...` between; `src/app/shared/pipes/shorten-string-pipe/shorten-string.pipe.ts`):
+- `shortenString : 13` for txids, block hashes, asset IDs, merkle roots in tables (dominant): `block.component.html:65`, `block-preview.component.html:23`, `asset.component.html:34`, `assets.component.html:14`, `ots-calendars.component.html:157,160`, `block-ots-summary.component.html:19,22`.
+- `shortenString : 16` only in tooltip overlays (`rbf-timeline-tooltip.component.html:13`, `block-overview-tooltip.component.html:14`).
+- `<app-truncate [lastChars]="12">` for txid hero rows (`transaction.component.html:14`, `transaction-raw.component.html:30`).
+- `<app-truncate [lastChars]="8">` for addresses and asset chips (`address.component.html:5`, `address-text.component.html:15`, `asset.component.html:5`, `address-group.component.html:15`).
+- `<app-truncate [lastChars]="5">` or `="6"` only in ultra-tight widgets (recent-tx, lightning channels); not in regular tables (readers can't disambiguate cats / tx hashes / runes from 5 chars).
 
-#### Truncation length cheat sheet
+Prefer `<app-truncate>` when the container width is known (headers, cards): CSS ellipsis, always preserves the last N chars exactly (copy-paste reliable). Use `shortenString : 13` for table cells where you want fixed output independent of column width.
 
-`shortenString` keeps `length/2` chars at start + `length/2` at end with
-`...` between (see `src/app/shared/pipes/shorten-string-pipe/shorten-string.pipe.ts`).
-The codebase converges on:
-
-- **`shortenString : 13`** — for txids, block hashes, asset IDs, merkle
-  roots in tables (dominant). Examples: `block.component.html:65`,
-  `block-preview.component.html:23`, `asset.component.html:34`,
-  `assets.component.html:14`, `ots-calendars.component.html:157,160`,
-  `block-ots-summary.component.html:19,22`.
-- **`shortenString : 16`** — only in tooltip-style overlays
-  (`rbf-timeline-tooltip.component.html:13`, `block-overview-tooltip.component.html:14`).
-- **`<app-truncate [lastChars]="12">`** — for txid hero rows on the
-  transaction page (`transaction.component.html:14`,
-  `transaction-raw.component.html:30`).
-- **`<app-truncate [lastChars]="8">`** — for addresses and asset chips
-  (`address.component.html:5`, `address-text.component.html:15`,
-  `asset.component.html:5`, `address-group.component.html:15`).
-- **`<app-truncate [lastChars]="5">` or `[lastChars]="6"`** — only in
-  ultra-tight widgets (recent-tx, lightning channels). Don't use these
-  in regular tables; readers can't disambiguate cats / tx hashes / runes
-  from 5 chars.
-
-Prefer `<app-truncate>` over `shortenString` whenever the surrounding
-container has a known width (header rows, cards). It uses CSS-based
-ellipsis and always preserves the last N chars exactly, which makes
-copy-paste reliable. Use `shortenString : 13` for table cells where
-you want predictable, fixed character output independent of column width.
-
-#### Anti-patterns (seen in the wild — do NOT replicate)
-
-1. **Raw fee numbers without locale grouping.** `<td>{{ row.fee }}</td>`
-   in `ots-calendars.component.html:161` and `block-ots-summary.component.html:23`
-   render `123456789` instead of `123,456,789`. Always pipe through `| number`.
-2. **Raw fee rate without `<app-fee-rate>`.** `ots-calendars.component.html:162`
-   shows `{{ row.feerate }}` with no unit, no rounding, no `sat/vB` symbol.
-   Use `<app-fee-rate [fee]="…">` instead — it picks up the user's rate-unit
-   setting (sat/vB vs. sat/WU) and renders the i18n-translated unit.
-3. **`text-right` instead of `text-end`.** Bootstrap 5 uses logical
-   directional classes; the codebase has 93 `text-end` vs. 10 `text-right`
-   left over from the Bootstrap 4 era (e.g. `ots-calendars.component.html:88-91`).
-   Use `text-end` for new code.
-4. **`shortenString` without an explicit length argument.** Default is 12,
-   which is one char shorter than the de-facto standard 13 used everywhere.
-   Always pass `: 13` for txids/hashes in tables.
-5. **Inventing fee-rate units inline.** Don't write
-   `{{ rate | number:'1.0-0' }} sat/vB` — that bypasses the unit toggle
-   and the i18n key `shared.sat-vbyte`. The lone exception is the
-   accelerator UI (`accelerate-checkout.component.html`) where the unit
-   is fixed by design.
-6. **`block.height` with `| number` inside `blocks-list`-style tables but
-   without it elsewhere.** Be consistent: when block heights are wrapped
-   in `<a>` tags in OTS-style tables, pipe through `| number` (matches
-   `ots-calendars`); when in tight columns sized for 6-digit heights
-   (the main `blocks-list`), bare `{{ block.height }}` is fine — but
-   document the deviation if you copy that pattern.
+Anti-patterns (do NOT replicate):
+1. Raw fee numbers without `\| number` (renders `123456789` not `123,456,789`): `ots-calendars.component.html:161`, `block-ots-summary.component.html:23`.
+2. Raw fee rate without `<app-fee-rate>` (no unit, no rounding, no sat/vB, misses the user's rate-unit setting sat/vB vs sat/WU): `ots-calendars.component.html:162`.
+3. `text-right` instead of `text-end` (Bootstrap 5 logical classes; codebase has 93 `text-end` vs 10 `text-right` from the Bootstrap 4 era): `ots-calendars.component.html:88-91`.
+4. `shortenString` without an explicit length (default 12, one short of the standard 13). Always pass `: 13` for txids/hashes in tables.
+5. Inventing fee-rate units inline (`{{ rate | number:'1.0-0' }} sat/vB` bypasses the unit toggle and i18n key `shared.sat-vbyte`). Lone exception: the accelerator UI (`accelerate-checkout.component.html`), unit fixed by design.
+6. `block.height` with `\| number` in `blocks-list`-style tables but not elsewhere: pipe through `\| number` in OTS-style tables (matches `ots-calendars`); bare `{{ block.height }}` is fine in tight 6-digit-height columns (`blocks-list`); document the deviation if you copy it.

@@ -1,22 +1,33 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, combineLatest, firstValueFrom, map, shareReplay, take, tap } from 'rxjs';
+import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/forms';
+import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, encodeCborDeterministic, encodeInscriptionId, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, prepareInscribeFundingInput, runeNamesFromContent, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
+
+import { environment } from '../../../../environments/environment';
 
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
+import { runeLabel } from '../rune-label.helper';
+import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 
-/** One viable funding UTXO joined with its content-scan bucket. */
+/** One funding UTXO joined with its content-scan bucket. */
 export interface ViableInscribeSimulation {
-  simulation: SimulateInscribeFeesResult;
+  /** The inscribe simulation for this coin; null when the coin can't fund the
+   *  inscription at the current fee rate (`available === false`). */
+  simulation: SimulateInscribeFeesResult | null;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
   bucket: UtxoScanBucket;
+  /** Whether this coin can fund the inscription at the current fee rate. A false
+   *  row is rendered "can't fund at this rate", dimmed and unpickable (FAMILY_UX):
+   *  the rate is named as the variable so a user lowering it can predict the row
+   *  flipping. The picker shows these rather than hiding them. */
+  available: boolean;
 }
 
 /** The uploaded file resolved to inscription-ready bytes + a content-type. */
@@ -25,6 +36,14 @@ interface PickedFile {
   bytes: Uint8Array;
   contentType: string;
   sizeBytes: number;
+}
+
+/** One batch entry: a picked file plus its optional per-inscription options. */
+interface BatchEntry extends PickedFile {
+  /** ord's per-entry title; empty omits it. */
+  title: string;
+  /** Where THIS inscription goes (separate-outputs); empty = the shared recipient. */
+  destination: string;
 }
 
 /**
@@ -36,6 +55,11 @@ interface PickedFile {
 const MAX_CONTENT_BYTES = 350_000;
 
 /** JavaScript MIME types are blocked (XSS-flavoured inscribers). */
+/** How often to re-read the funding set while WAITING for funds (a file is set
+ *  and the status is `insufficient`). Off once a covering coin appears, so a
+ *  funded page never polls. Matches the mint page. */
+const FUNDING_REFRESH_INTERVAL_MS = 15_000;
+
 const BLOCKED_CONTENT_TYPES = [
   'application/javascript',
   'text/javascript',
@@ -56,6 +80,7 @@ export class InscribeMintComponent implements OnInit {
   walletService = inject(WalletService);
   private cat21 = inject(Cat21Service);
   private psbtExportPrompt = inject(PsbtExportPromptService);
+  private runeResolver = inject(RuneEtchingResolverService);
   private scanner = inject(UtxoContentScanner);
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
@@ -76,6 +101,13 @@ export class InscribeMintComponent implements OnInit {
     scan: this.scanner,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
+    // Derive the wallet topology from the connected wallet, so a dirty-only
+    // funding pool produces a NOTICE (separate payment address) instead of a
+    // blocking WARNING (one address for everything). Same 'derive' the other
+    // SDK consumers pass; omitting it keeps the always-block default.
+    fundingTopology: 'derive',
+    // Resolves a batch's parentIds to their current outpoints (snapshot.parents).
+    ordBaseUrl: environment.ordBaseUrls[0],
   });
 
   /** Orchestrator snapshot bridged to a signal; every state change re-renders. */
@@ -97,6 +129,20 @@ export class InscribeMintComponent implements OnInit {
       this.cd.markForCheck();
     });
     this.destroyRef.onDestroy(unsubscribe);
+
+    // Re-read the funding set while WAITING for funds, so the CTA enables when
+    // they arrive without a manual reload. The orchestrator reads its UTXO set
+    // once, on connect, so a page connected while a funding tx is unconfirmed
+    // sits disabled forever otherwise, and no fee change fixes it. Gated on
+    // `hasContent` because the inscribe funding requirement is derived from the
+    // content, so `insufficient` only means "waiting for funds" once a file is
+    // set; and bounded, only hitting electrs while insufficient and going quiet
+    // the moment a covering coin appears. refreshUtxos is a no-op with no wallet
+    // and preserves the fee rate + expert pick.
+    interval(FUNDING_REFRESH_INTERVAL_MS).pipe(
+      filter(() => this.hasContent && this.fundingStatus() === 'insufficient'),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => { void this.orchestrator.refreshUtxos(); });
   }
 
   /** ord review base for inscription/rune links (dev/regtest/prod aligned). */
@@ -106,9 +152,80 @@ export class InscribeMintComponent implements OnInit {
   smallUtxoWarningThreshold = SMALL_UTXO_WARNING_THRESHOLD_SAT;
   readonly postageSats = INSCRIBE_POSTAGE_SATS;
 
-  /** Change returned to the payment address (0 when folded into fee below dust). */
+  /** Change returned to the payment address (0 when folded into fee below dust,
+   *  or when the coin can't fund the inscription at all). Only meaningful on an
+   *  available row; the template reads it inside the `simulation as sim` guard. */
   changeSats(row: ViableInscribeSimulation): number {
+    if (!row.simulation) { return 0; }
     return Math.max(0, row.paymentOutput.value - row.simulation.fundingRequirementSats);
+  }
+
+  /** Total coins the wallet has (all simulation rows). The picker caps how many
+   *  it renders, so the template states "Showing N of {{ totalCoinCount() }}"
+   *  when it truncates: a silent cut reads as coins gone missing (FAMILY_UX). */
+  totalCoinCount(): number {
+    return this.snap().simulations.length;
+  }
+
+  /** The auto-recommended funding coin's outpoint, or null before one exists. */
+  private recommendedOutpoint = computed(() => {
+    const rec = this.snap().fundingRecommendation.recommended;
+    return rec ? outpointKey(rec) : null;
+  });
+
+  /**
+   * Whether this row is the coin selection would pick on its own. Marked IN
+   * PLACE on its natural value-sorted row (FAMILY_UX), never sorted to the top,
+   * so the per-coin fee breakdown below stays answerable to "why not the cheaper
+   * row above it?". The inscribe fee cell qualifies itself as the COMMIT + REVEAL
+   * package total.
+   */
+  isRecommendedRow(row: ViableInscribeSimulation): boolean {
+    return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
+  }
+
+  /**
+   * When this coin's would-be COMMIT change fell below the dust floor, the sats
+   * folded into the miner fee instead of returning as change; null when the
+   * commit emits change (`commitAbsorbedSubDustSats === 0`). Read straight off
+   * the per-row simulation (the inscribe orchestrator does not expose a
+   * candidateFees map), so it exists only on a viable row, whose simulation is
+   * non-null. A positive value is the FAMILY_UX over-pay signal, symmetric with
+   * the mint page. Only the commit has this: the reveal's fee is reserved in the
+   * commit output, not funded by a coin whose change could fall below dust.
+   */
+  /**
+   * A shared {@link CandidateFeeRow} built from this row's inscribe simulation
+   * (the inscribe orchestrator exposes no candidateFees map). `finalFeeSats` is
+   * the COMMIT + REVEAL package total; `absorbedSubDustSats` is the commit's
+   * sub-dust fold. Null when the coin can't fund (no simulation). vsize is unused
+   * by the classifier, so it is not carried.
+   */
+  private inscribeFeeRow(row: ViableInscribeSimulation): CandidateFeeRow | null {
+    const sim = row.simulation;
+    if (!sim) { return null; }
+    return { txid: row.paymentOutput.txid, vout: row.paymentOutput.vout, finalFeeSats: sim.totalFeeSats, vsize: null, absorbedSubDustSats: sim.commitAbsorbedSubDustSats };
+  }
+
+  /**
+   * The four-state reading of this coin's fee, routed through the SDK's shared
+   * {@link classifyCandidateFee} so the inscribe picker cannot drift from the
+   * mint page and cat21.space. `unavailable` when the coin can't fund.
+   */
+  feeClass(row: ViableInscribeSimulation): CandidateFeeState {
+    const r = this.inscribeFeeRow(row);
+    return r ? classifyCandidateFee(r) : 'unavailable';
+  }
+
+  /**
+   * The sub-dust sats folded into the fee, for the over-pay note — only when
+   * this coin DEFINITELY over-pays (`overpay`), never collapsing an unknown fold
+   * into a false "no over-pay". Only the commit folds; the reveal's fee is
+   * reserved in the commit output.
+   */
+  overPaidSats(row: ViableInscribeSimulation): number | null {
+    const r = this.inscribeFeeRow(row);
+    return r && classifyCandidateFee(r) === 'overpay' ? r.absorbedSubDustSats : null;
   }
 
   recommendedFees$ = inject(StateService).recommendedFees$;
@@ -135,24 +252,46 @@ export class InscribeMintComponent implements OnInit {
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableInscribeSimulation[] => {
-      return (rows as InscribeUtxoSimulation[])
-        .filter((r): r is { utxo: TxnOutput; simulation: SimulateInscribeFeesResult; insufficient: false } =>
-          !r.insufficient && r.simulation !== null,
-        )
-        .sort((a, b) => b.utxo.value - a.utxo.value)
-        .slice(0, 10)
-        .map((r): ViableInscribeSimulation => {
-          const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
-          const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
-          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan) };
-        });
+      // Show coins, tagging whether each can fund the inscription at the current
+      // rate rather than hiding the ones that can't (FAMILY_UX show-the-row).
+      // Covering coins (up to 10) lead; a SHORT tail of the largest not-yet-
+      // covering coins (up to 3) trails as dimmed "can't fund at this rate" rows —
+      // enough to show the fee rate is the lever without turning a wallet of dust
+      // into a wall. All covering coins outvalue every unavailable one, so this
+      // stays globally value-sorted.
+      const isAvailable = (r: InscribeUtxoSimulation) => !r.insufficient && r.simulation !== null;
+      const sorted = [...(rows as InscribeUtxoSimulation[])].sort((a, b) => b.utxo.value - a.utxo.value);
+      const shown = [
+        ...sorted.filter(isAvailable).slice(0, 10),
+        ...sorted.filter((r) => !isAvailable(r)).slice(0, 3),
+      ];
+      return shown.map((r): ViableInscribeSimulation => {
+        const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
+        const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
+        return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available: isAvailable(r) };
+      });
     }),
     tap((rows) => {
-      this.scanner.autoScan(rows.map((r) => ({
+      // Only scan the coins the user could actually pick (available); scanning an
+      // unspendable coin for asset safety is wasted ord traffic.
+      this.scanner.autoScan(rows.filter((r) => r.available).map((r) => ({
         txid: r.paymentOutput.txid,
         vout: r.paymentOutput.vout,
         value: r.paymentOutput.value,
       })));
+
+      // Kick off rune-etching resolution here — on a scan/simulation change,
+      // not from the template. Doing it in the render getter re-fires the
+      // lookup every change-detection pass for a rune that resolves to null
+      // (a reserved rune's all-zero etching, e.g. UNCOMMON•GOODS, which never
+      // caches), hammering our ord. The resolver dedupes by name.
+      for (const r of rows) {
+        if (r.scan.kind === 'scanned-with-assets' && r.scan.content.runes) {
+          for (const name of Object.keys(r.scan.content.runes)) {
+            this.runeResolver.ensureResolved(name, this.ordReviewBase);
+          }
+        }
+      }
 
       // Funding auto-pick is the SDK orchestrator's job (`fundingRecommendation$`),
       // not ours: it force-scans covering candidates regardless of size and
@@ -163,7 +302,7 @@ export class InscribeMintComponent implements OnInit {
       // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
       const current = this.selectedPaymentOutput;
       const stillThere = current && rows.find(
-        (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
+        (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
       if (stillThere) {
         // Preserve the user's manual pick across re-emissions; refresh the row
@@ -190,27 +329,73 @@ export class InscribeMintComponent implements OnInit {
   // safe auto-recommendation funds the inscription.
   selectedPaymentOutput: ViableInscribeSimulation | undefined;
 
-  /** Current funding status from the snapshot: `auto` (safe-auto covers),
-   *  `expert-required` (only asset coins cover), `insufficient` (nothing covers),
-   *  `scanning` (deciding). The template branches the notices on this. */
+  /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
+   *  `asset-notice` (dirty covers, separate-address wallet), `expert-required`
+   *  (dirty covers, one-address wallet), `insufficient`, `scanning`. The CTA and
+   *  the notices derive from {@link fundingCta}, never from this directly, so the
+   *  button state and the message can't disagree. */
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
-  /** The inscription is fundable when the user MANUALLY picked a coin (an explicit
-   *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
-   *  can safe-auto-fund (`status === 'auto'`). `expert-required` / `insufficient`
-   *  / `scanning` leave it unfundable until the user acts. Gates the inscribe
-   *  button so removing the consumer-side auto-pick never leaves it stuck. */
-  readonly hasFundingSource = computed(
-    () => !!this.snap().selectedUtxo || this.fundingStatus() === 'auto',
-  );
+  /**
+   * The SINGLE value the CTA button state AND the funding notice both derive
+   * from, so they can never disagree (two surfaces reading one status
+   * independently is exactly what split them before). An explicit manual pick
+   * makes the flow ready regardless of the auto-recommendation; otherwise it
+   * switches on the SDK's status EXHAUSTIVELY, so a new status is a compile error
+   * here rather than a silently-disabled button. Sites render the SDK's status;
+   * they never recompute the safe/notice/block decision (FAMILY_UX funding-panel
+   * rule).
+   */
+  readonly fundingCta = computed<
+    | { kind: 'ready' }
+    | { kind: 'notice'; assets: UtxoAssetDetail | undefined }
+    | { kind: 'warning' }
+    | { kind: 'insufficient' }
+    | { kind: 'scanning' }
+  >(() => {
+    if (this.snap().selectedUtxo) return { kind: 'ready' };
+    const rec = this.snap().fundingRecommendation;
+    switch (rec.status) {
+      case 'auto': return { kind: 'ready' };
+      case 'asset-notice': return { kind: 'notice', assets: rec.recommended?.assets };
+      case 'expert-required': return { kind: 'warning' };
+      case 'insufficient': return { kind: 'insufficient' };
+      case 'scanning': return { kind: 'scanning' };
+    }
+    const _exhaustive: never = rec.status;
+    return _exhaustive;
+  });
+
+  /** The inscription is fundable when a clean coin auto-covers (`ready`) or a dirty
+   *  coin covers on a separate-address wallet (`notice`: CTA stays ENABLED with the
+   *  notice shown before the click). `warning` (one-address block), `insufficient`
+   *  and `scanning` leave it unfundable until the user acts in the picker. Derived
+   *  from {@link fundingCta} so the button can't enable while the notice says
+   *  otherwise. */
+  readonly hasFundingSource = computed(() => {
+    const kind = this.fundingCta().kind;
+    return kind === 'ready' || kind === 'notice';
+  });
+
+  /** The assets the auto-funding coin carries when the CTA is in the `notice`
+   *  state, so the template can NAME them (a notice that doesn't say what the coin
+   *  carries is not a notice). Null in every other state. A projection of the
+   *  single {@link fundingCta} value, not an independent recompute. */
+  readonly assetNotice = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'notice' ? cta.assets ?? null : null;
+  });
 
   // ---- State-machine projections ------------------------------------------
 
   private state = computed(() => this.snap().state);
   readonly utxoLoading = computed(() => this.state() === 'loading-utxos');
+  // Error text is the person-facing snapshot.userMessage, which the SDK keeps
+  // self-covering (never null on a failure, repeating the developer string
+  // when there is no friendlier wording), so no fallback is needed.
   readonly utxoError = computed(() =>
     this.state() === 'error' && !this.snap().successResult && !this.mintAttempted
-      ? this.snap().errorMessage ?? ''
+      ? this.snap().userMessage ?? ''
       : '',
   );
   readonly mintLoading = computed(() => this.state() === 'minting');
@@ -219,7 +404,7 @@ export class InscribeMintComponent implements OnInit {
   );
   readonly mintError = computed(() =>
     this.state() === 'error' && this.mintAttempted
-      ? this.snap().errorMessage ?? ''
+      ? this.snap().userMessage ?? ''
       : '',
   );
 
@@ -242,9 +427,31 @@ export class InscribeMintComponent implements OnInit {
     // Prefilled watermark so we can measure how many inscriptions came
     // through ordpool; the user can clear it. Empty → no note tag.
     note: new FormControl('ordpool.space', { nonNullable: true }),
+    // The inscription's title (ord's --title), shown by ord under the number.
+    // Empty → no title.
+    title: new FormControl('', { nonNullable: true }),
+    // Metaprotocol identifier (ord tag 7, UTF-8), e.g. a protocol name the
+    // inscription participates in. Empty → no metaprotocol tag.
+    metaprotocol: new FormControl('', { nonNullable: true }),
+    // The inscription output's value in sats (ord's --postage). Default 546
+    // (INSCRIBE_POSTAGE_SATS). Min 546 keeps the output above the p2tr dust
+    // floor; useful direction is up (a chunkier inscription UTXO).
+    postage: new FormControl<number>(INSCRIBE_POSTAGE_SATS, {
+      nonNullable: true,
+      validators: [Validators.min(INSCRIBE_POSTAGE_SATS), Validators.max(1_000_000)],
+    }),
+    // The commit tx's own fee rate (ord's --commit-fee-rate). Null → the commit
+    // pays the same rate as the reveal (the fee-rate field). Same relay floor.
+    commitFeeRate: new FormControl<number | null>(null, {
+      validators: [Validators.min(BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE), Validators.max(1000)],
+    }),
   });
   cfeeRate = this.form.controls.feeRate;
   noteControl = this.form.controls.note;
+  titleControl = this.form.controls.title;
+  metaprotocolControl = this.form.controls.metaprotocol;
+  postageControl = this.form.controls.postage;
+  commitFeeRateControl = this.form.controls.commitFeeRate;
 
   /**
    * The fee input's DISPLAYED string. The input is `type="text"` rather than
@@ -257,11 +464,13 @@ export class InscribeMintComponent implements OnInit {
   feeRateDisplay = '1';
 
   // ---- Compression (content_encoding tag) ---------------------------------
-  // assessCompression tries the available codecs and reports the smallest
-  // (native gzip today via CompressionStream; the SDK reserves 'br' for a
-  // future brotli encoder). It never decides for us. We default the toggle ON
-  // iff `worthIt`; the user can override. ord serves the content_encoding tag
-  // through as the HTTP header, so the browser decodes it on the way out.
+  // assessCompression tries the available codecs and reports the smallest:
+  // brotli (via the brotli wasm this component passes) and native gzip, the two
+  // in INSCRIPTION_CONTENT_ENCODINGS. activeContentEncoding emits whichever won
+  // ('br' or 'gzip') as the content_encoding tag. It never decides for us: we
+  // default the toggle ON iff `worthIt`; the user can override. ord serves the
+  // content_encoding tag through as the HTTP header, so the browser decodes it
+  // on the way out.
   compression: CompressionAssessment | null = null;
   compressEnabled = false;
 
@@ -276,6 +485,41 @@ export class InscribeMintComponent implements OnInit {
   metadataModeHint = '';     // transient note when a JSON->KV switch is refused
   metadataBytes: Uint8Array | null = null;   // encoded CBOR, null when empty
 
+  // ---- Traits (ord properties tag 17, ordered name/value pairs) ------------
+  // Ordered [name, value] pairs in the creator's order, exactly as ord renders
+  // them. The row order is the on-chain order. Values are strings here (the
+  // common case); empty-named rows are dropped on the way to the orchestrator.
+  // ord rejects a duplicate name (it drops the whole properties field), so the
+  // editor flags a duplicate before the mint does.
+  traitRows: { name: string; value: string }[] = [];
+
+  // ---- Gallery (ord --gallery, tag 17 properties) --------------------------
+  // Ordered list of inscription ids this inscription is a gallery of, in the
+  // creator's order (the on-chain order). Each id is checked for existence
+  // against our ord instance, because ord refuses to inscribe a gallery that
+  // points at an inscription its index does not have. 'missing'/'invalid'
+  // surface as a per-row error; 'unknown' (a failed lookup) never does.
+  galleryRows: { id: string }[] = [];
+  private galleryExistence = new Map<string, InscriptionExistence>();
+  private galleryCheck$ = new Subject<void>();
+
+  // ---- Rare-sat targeting (ord --sat / --satpoint) -------------------------
+  // Post-connect only: scan the ordinals address's coins for a notable sat and
+  // let the user inscribe onto it instead of a fresh common sat. The scan is
+  // one ord /output lookup per coin (needs a sat index), so it is lazy (a
+  // button), not automatic. 'unknown' rows (a failed lookup) are kept distinct
+  // from scanned-but-common: only the latter means "no rare sat here".
+  rareSatRows: SatPickerRow<TxnOutput>[] | null = null;
+  rareSatLoading = false;
+  rareSatError = '';
+  selectedRareSat: SatPickerRow<TxnOutput> | null = null;
+  /** Set from a failed inscribeSatSourceFromRow (e.g. a wrong-key mismatch). */
+  rareSatTargetError = '';
+  /** The satTarget the picked rare sat produces, threaded onto the content. */
+  private satTarget: InscribeSatTarget | undefined;
+  /** The connected wallet, for the ordinals public key the sat-source derivation needs. */
+  private currentWallet: WalletInfo | null = null;
+
   // ---- Mode: inscribe a file, or delegate to an existing inscription -------
   // A delegate inscription carries an EMPTY body and a tag-11 pointer to
   // another inscription's id; ord renders the target's content. Note +
@@ -283,6 +527,21 @@ export class InscribeMintComponent implements OnInit {
   inscribeMode: 'file' | 'delegate' = 'file';
   delegateId = '';
   delegateIdError = '';
+
+  // ---- Batch mode: inscribe several files in one commit --------------------
+  // Additive to the single flow (default off). A batch is N file inscriptions
+  // built into one commit + reveal (ord's batch, `separate-outputs`: each lands
+  // at its own output on the ordinals address). The shared fee rate, postage,
+  // and commit-fee apply to the whole batch; per-entry title/traits are a
+  // later refinement. With no parents this signs once, like a single inscribe.
+  batchMode = false;
+  batchFiles: BatchEntry[] = [];
+  batchError = '';
+  // Parent inscriptions the whole batch is a child of (ord's --parent). The
+  // orchestrator resolves each id to its current outpoint and the reveal spends
+  // + hands it back; that makes the wallet sign twice (commit, then the parent
+  // inputs), reported on snapshot.signing.
+  batchParentRows: { id: string }[] = [];
 
   ngOnInit(): void {
     this.seoService.setTitle('Inscribe a file');
@@ -310,12 +569,48 @@ export class InscribeMintComponent implements OnInit {
       this.recomputePreConnectCost();
     });
 
+    // Editing the title re-synths the tag-17 properties and refreshes the cost.
+    this.titleControl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.syncContent();
+      this.recomputePreConnectCost();
+    });
+
+    // Metaprotocol / postage / commit-fee-rate all change the on-chain shape or
+    // cost, so each re-synths the content and refreshes the estimate.
+    const advancedCtrls: AbstractControl[] = [this.metaprotocolControl, this.postageControl, this.commitFeeRateControl];
+    for (const ctrl of advancedCtrls) {
+      ctrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+        this.syncContent();
+        this.recomputePreConnectCost();
+      });
+    }
+
+    // Debounced gallery existence check: a burst of keystrokes collapses into
+    // one lookup against our ord instance once the user pauses typing.
+    this.galleryCheck$.pipe(debounceTime(400), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      void this.checkGalleryExistence();
+    });
+
     // Wipe the scanner cache when one wallet swaps out for another.
     // takeUntilDestroyed: connectedWallet$ is the root WalletService's
     // never-completing BehaviorSubject, so without teardown each visit to this
     // routed component leaks the instance (and its captured file bytes).
+    // The raw BehaviorSubject replays the SAME wallet identity on every
+    // onAccountChange (Xverse and cat21wallet fire that repeatedly on regtest
+    // and on chain-changes); setWallet unconditionally drops the orchestrator
+    // to 'loading-utxos' and refetches, which tears the Inscribe button out of
+    // the DOM for a frame and swallows an in-flight click. Dedupe on the full
+    // identity tuple so only a real wallet change reaches setWallet.
+    let lastWalletKey: string | null = null;
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      const key = w
+        ? `${w.type}|${w.ordinalsAddress}|${w.paymentAddress}|${w.paymentPublicKey}|${w.ordinalsPublicKey}`
+        : null;
+      if (key === lastWalletKey) return;
+      lastWalletKey = key;
+
+      this.currentWallet = w ?? null;
       void this.orchestrator.setWallet(
         w
           ? {
@@ -323,12 +618,21 @@ export class InscribeMintComponent implements OnInit {
               ordinalsAddress: w.ordinalsAddress,
               paymentAddress: w.paymentAddress,
               paymentPublicKey: w.paymentPublicKey,
+              // Needed to derive the key the reveal signs a resolved parent's
+              // input with (batch parentIds). Harmless for non-parent flows.
+              ordinalsPublicKey: w.ordinalsPublicKey,
             }
           : null,
       );
       const addr = w?.ordinalsAddress ?? null;
       if (lastWalletAddress !== null && addr !== lastWalletAddress) {
         this.scanner.reset();
+        // A rare-sat pick belongs to the wallet that owns the sat; drop it when
+        // the wallet changes so a stale sat never rides onto a new wallet's tx.
+        this.rareSatRows = null;
+        this.selectedRareSat = null;
+        this.rareSatError = '';
+        this.syncContent();
       }
       lastWalletAddress = addr;
     });
@@ -371,9 +675,202 @@ export class InscribeMintComponent implements OnInit {
     this.compression = null;
     this.compressEnabled = false;
     this.resetMetadata();
+    // The Advanced options are hidden while no file is picked, so without this
+    // they would reappear on the NEXT file still carrying this file's traits,
+    // gallery, postage and rare-sat pick.
+    this.resetAdvancedOptions();
     this.orchestrator.setContent(null);
     this.cd.markForCheck();
   }
+
+  // ---- Batch mode ---------------------------------------------------------
+  /** Switch between the single inscribe flow and the multi-file batch flow. */
+  toggleBatchMode(on: boolean): void {
+    if (on === this.batchMode) { return; }
+    this.batchMode = on;
+    this.batchError = '';
+    this.mintGateError = '';
+    if (on) {
+      // Entering batch: drop any pending single content so only the batch mints.
+      this.orchestrator.setContent(null);
+    } else {
+      this.batchFiles = [];
+      this.batchParentRows = [];
+      this.orchestrator.setBatch(null);
+    }
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
+  onBatchPick(ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    void this.addBatchFiles(files);
+    input.value = '';
+  }
+
+  onBatchDrop(ev: DragEvent): void {
+    ev.preventDefault();
+    this.isDragging = false;
+    const files = ev.dataTransfer?.files ? Array.from(ev.dataTransfer.files) : [];
+    void this.addBatchFiles(files);
+  }
+
+  /** Read + validate dropped/picked files and append the good ones to the batch. */
+  private async addBatchFiles(files: File[]): Promise<void> {
+    this.batchError = '';
+    for (const file of files) {
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const contentType = detectMimeType(bytes) ?? (file.type || 'application/octet-stream');
+        if (BLOCKED_CONTENT_TYPES.includes(contentType.toLowerCase().split(';')[0].trim())) {
+          this.batchError = `Skipped ${file.name}: JavaScript files can’t be inscribed here.`;
+          continue;
+        }
+        if (bytes.length > MAX_CONTENT_BYTES) {
+          this.batchError = `Skipped ${file.name}: over the ${MAX_CONTENT_BYTES / 1000} KB per-inscription cap.`;
+          continue;
+        }
+        this.batchFiles = [...this.batchFiles, { name: file.name, bytes, contentType, sizeBytes: bytes.length, title: '', destination: '' }];
+      } catch {
+        this.batchError = `Skipped ${file.name}: could not read it.`;
+      }
+    }
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  removeBatchFile(index: number): void {
+    this.batchFiles = this.batchFiles.filter((_, i) => i !== index);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Set one entry's per-inscription title. */
+  setBatchEntryTitle(index: number, title: string): void {
+    this.batchFiles = this.batchFiles.map((e, i) => i === index ? { ...e, title } : e);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Set one entry's destination address (empty = the shared recipient). */
+  setBatchEntryDestination(index: number, destination: string): void {
+    this.batchFiles = this.batchFiles.map((e, i) => i === index ? { ...e, destination } : e);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** A destination that is set but not a plausible bitcoin address (blocks mint). */
+  batchEntryDestinationInvalid(destination: string): boolean {
+    const d = destination.trim();
+    if (!d) { return false; }
+    // Instant shape feedback only, across ANY network (bech32 bc1/tb1/bcrt1 with
+    // the bech32 data charset — no 1/b/i/o; or legacy base58 — no 0/O/I/l). The
+    // authoritative address + network + self-send check runs in the per-entry
+    // gate (validateInscribeOperation) at mint time, which also verifies the
+    // checksum this cannot.
+    const bech32 = /^(bc|tb|bcrt)1[ac-hj-np-z02-9]{25,}$/;
+    const legacy = /^[123mn][a-km-zA-HJ-NP-Z1-9]{25,}$/;
+    return !bech32.test(d) && !legacy.test(d);
+  }
+
+  /** `true` while any batch entry has an invalid destination (blocks mint). */
+  get batchInvalid(): boolean {
+    return this.batchMode && this.batchFiles.some((e) => this.batchEntryDestinationInvalid(e.destination));
+  }
+
+  clearBatch(): void {
+    this.batchFiles = [];
+    this.batchParentRows = [];
+    this.batchError = '';
+    this.orchestrator.setBatch(null);
+    this.cd.markForCheck();
+  }
+
+  /** Total on-chain body bytes across the batch (for the size readout). */
+  get batchTotalBytes(): number {
+    return this.batchFiles.reduce((sum, f) => sum + f.sizeBytes, 0);
+  }
+
+  /** Build the batch (separate-outputs) and hand it to the orchestrator. */
+  private syncBatch(): void {
+    const postage = this.postageControl.value;
+    const commitFee = this.commitFeeRateControl.value;
+    if (!this.batchFiles.length) { this.orchestrator.setBatch(null); return; }
+    const batch: InscribeBatchContent = {
+      mode: 'separate-outputs',
+      inscriptions: this.batchFiles.map((f) => ({
+        source: { kind: 'file' as const, body: f.bytes, contentType: f.contentType },
+        ...(f.title.trim() ? { title: f.title.trim() } : {}),
+        ...(f.destination.trim() ? { destination: f.destination.trim() } : {}),
+      })),
+      ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
+      ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),
+      ...(this.buildBatchParentIds().length ? { parentIds: this.buildBatchParentIds() } : {}),
+    };
+    this.orchestrator.setBatch(batch);
+  }
+
+  // ---- Batch parents editor ------------------------------------------------
+  addBatchParentRow(): void {
+    this.batchParentRows = [...this.batchParentRows, { id: '' }];
+    this.cd.markForCheck();
+  }
+
+  removeBatchParentRow(index: number): void {
+    this.batchParentRows = this.batchParentRows.filter((_, i) => i !== index);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  onBatchParentIdChange(index: number, id: string): void {
+    this.batchParentRows = this.batchParentRows.map((r, i) => i === index ? { id } : r);
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Well-formed parent inscription ids, in order. Malformed rows are dropped
+   *  (flagged in the template); the orchestrator resolves the rest. */
+  private buildBatchParentIds(): string[] {
+    return this.batchParentRows
+      .map((r) => r.id.trim())
+      .filter((id) => this.isValidInscriptionId(id));
+  }
+
+  /** `true` while any non-empty parent row is malformed (blocks the mint). */
+  get batchParentsInvalid(): boolean {
+    return this.batchParentRows.some((r) => this.batchParentIdInvalid(r.id));
+  }
+
+  /** A parent row that is non-empty but not a well-formed inscription id (for the template). */
+  batchParentIdInvalid(id: string): boolean {
+    const t = id.trim();
+    return t.length > 0 && !this.isValidInscriptionId(t);
+  }
+
+  /** The parents the orchestrator resolved a batch's parentIds to, for display. */
+  readonly resolvedParents = computed(() => this.snap().parents);
+
+  /** The current signing step (commit / parent-inputs), while the wallet signs. */
+  readonly signingStep = computed(() => this.snap().signing);
+
+  /**
+   * The minting-button text. With a two-signature batch (parents) the SDK
+   * reports the step on snapshot.signing, advancing to 2/2 when the commit
+   * broadcast resolves, so this lights up on every wallet type.
+   */
+  readonly signingMessage = computed(() => {
+    const s = this.snap().signing;
+    if (!s || s.of <= 1) { return 'Inscribing… please confirm in your wallet'; }
+    const what: Record<string, string> = {
+      'commit': 'the funding',
+      'parent-inputs': 'the parent inputs',
+      'satpoint-inputs': 'the sat inputs',
+      'parent-and-satpoint-inputs': 'the parent and sat inputs',
+    };
+    return `Signature ${s.step} of ${s.of}: approve ${what[s.what] ?? 'the transaction'} in your wallet`;
+  });
 
   private async handleFile(file: File): Promise<void> {
     this.fileError = '';
@@ -615,9 +1112,28 @@ export class InscribeMintComponent implements OnInit {
     return this.inscribeMode === 'delegate' && !this.delegatePreviewId;
   }
 
-  /** Is there something to inscribe? A picked file, or a valid delegate id. */
+  /** Is there something to inscribe? A picked file, a valid delegate id, or batch files. */
   get hasContent(): boolean {
+    if (this.batchMode) { return this.batchFiles.length > 0; }
     return this.inscribeMode === 'delegate' ? !!this.delegatePreviewId : !!this.pickedFile;
+  }
+
+  /**
+   * Whether the inscribe button is disabled. Centralised here (not spelled out
+   * in the template) so every validity check is in one place and a new one
+   * can't be added to a getter but forgotten in the button's `[disabled]`.
+   */
+  get mintDisabled(): boolean {
+    return this.form.invalid
+      || !this.hasFundingSource()
+      || !this.hasContent
+      || this.metadataInvalid
+      || this.delegateInvalid
+      || this.galleryInvalid
+      || this.rareSatBlocked
+      || this.batchInvalid
+      || this.batchParentsInvalid
+      || !!this.traitDuplicateName;
   }
 
   /** Switch between the file dropzone and the delegate-id input. */
@@ -653,36 +1169,285 @@ export class InscribeMintComponent implements OnInit {
 
   /** Push the current content into the orchestrator (no tip: no service fee). */
   private syncContent(): void {
+    if (this.batchMode) { this.syncBatch(); return; }
     const note = this.noteControl.value.trim();
+    const title = this.titleControl.value.trim();
+    const traits = this.buildTraits();
+    const gallery = this.buildGallery();
+    const metaprotocol = this.metaprotocolControl.value.trim();
+    const postage = this.postageControl.value;
+    const commitFee = this.commitFeeRateControl.value;
     const common = {
       note: note || undefined,
       metadata: this.metadataBytes ?? undefined,
+      ...(title ? { title } : {}),
+      ...(traits.length ? { traits } : {}),
+      ...(gallery.length ? { gallery } : {}),
+      ...(metaprotocol ? { metaprotocol } : {}),
+      // Omit at the default (546): the SDK already defaults postageSats to it.
+      ...(postage && postage !== INSCRIBE_POSTAGE_SATS ? { postageSats: postage } : {}),
+      // Omit when empty: the commit then pays the reveal's fee rate.
+      ...(commitFee && commitFee > 0 ? { commitFeeRatePerVbyte: commitFee } : {}),
+      // The picked rare sat, when one is selected and buildable (see updateSatTarget).
+      ...(this.satTarget ? { satTarget: this.satTarget } : {}),
     };
 
     if (this.inscribeMode === 'delegate') {
       const id = this.delegatePreviewId;
       if (!id) {this.orchestrator.setContent(null); return;}
-      // A delegate carries an empty body and no content_type of its own.
-      this.orchestrator.setContent({ body: new Uint8Array(0), delegate: id, ...common });
+      // A delegate carries no body of its own; ord serves the target's content.
+      this.orchestrator.setContent({ source: { kind: 'delegate', delegate: id }, ...common });
       return;
     }
 
     const body = this.finalBody();
     if (!this.pickedFile || !body) {this.orchestrator.setContent(null); return;}
     this.orchestrator.setContent({
-      body,
-      contentType: this.pickedFile.contentType,
+      source: { kind: 'file', body, contentType: this.pickedFile.contentType },
       contentEncoding: this.activeContentEncoding,
       ...common,
     });
   }
 
+  // ---- Traits editor -------------------------------------------------------
+  addTraitRow(): void {
+    this.traitRows = [...this.traitRows, { name: '', value: '' }];
+    this.cd.markForCheck();
+  }
+
+  removeTraitRow(index: number): void {
+    this.traitRows = this.traitRows.filter((_, i) => i !== index);
+    this.onTraitsChanged();
+  }
+
+  onTraitNameChange(index: number, name: string): void {
+    this.traitRows = this.traitRows.map((r, i) => i === index ? { ...r, name } : r);
+    this.onTraitsChanged();
+  }
+
+  onTraitValueChange(index: number, value: string): void {
+    this.traitRows = this.traitRows.map((r, i) => i === index ? { ...r, value } : r);
+    this.onTraitsChanged();
+  }
+
+  private onTraitsChanged(): void {
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.cd.markForCheck();
+  }
+
   /**
-   * The envelope fields (delegate OR content_encoding, plus note + metadata)
-   * the orchestrator emits for the current form. The pre-connect estimate
-   * feeds these to `simulateInscribeFees` so it matches the exact
-   * post-connect figure instead of undercounting by the note + metadata
-   * bytes (the note default 'ordpool.space' is always present).
+   * Ordered [name, value] pairs from the editor, dropping empty-named rows.
+   * Values stay strings (the common trait shape); the row order is preserved,
+   * so it is the on-chain order.
+   */
+  private buildTraits(): Array<[string, string]> {
+    return this.traitRows
+      .map((r) => [r.name.trim(), r.value] as [string, string])
+      .filter(([name]) => name.length > 0);
+  }
+
+  /**
+   * The first trait name that appears more than once (case-sensitive, matching
+   * ord), or '' if none. ord drops the whole properties field on a duplicate,
+   * so the editor warns before the mint's `duplicate-trait` error.
+   */
+  get traitDuplicateName(): string {
+    const seen = new Set<string>();
+    for (const [name] of this.buildTraits()) {
+      if (seen.has(name)) { return name; }
+      seen.add(name);
+    }
+    return '';
+  }
+
+  // ---- Gallery editor ------------------------------------------------------
+  addGalleryRow(): void {
+    this.galleryRows = [...this.galleryRows, { id: '' }];
+    this.cd.markForCheck();
+  }
+
+  removeGalleryRow(index: number): void {
+    this.galleryRows = this.galleryRows.filter((_, i) => i !== index);
+    this.onGalleryChanged();
+  }
+
+  onGalleryIdChange(index: number, id: string): void {
+    this.galleryRows = this.galleryRows.map((r, i) => i === index ? { id } : r);
+    this.onGalleryChanged();
+  }
+
+  private onGalleryChanged(): void {
+    this.syncContent();
+    this.recomputePreConnectCost();
+    this.galleryCheck$.next();
+    this.cd.markForCheck();
+  }
+
+  /**
+   * Ordered inscription ids from the editor, dropping empty rows. Row order is
+   * preserved, so it is the on-chain gallery order. Malformed ids are passed
+   * through: the mint gate (and the per-row status) is the backstop.
+   */
+  private buildGallery(): string[] {
+    return this.galleryRows
+      .map((r) => r.id.trim())
+      .filter((id) => id.length > 0);
+  }
+
+  /**
+   * Look up every well-formed gallery id we have not resolved yet against our
+   * ord instance, caching the result. 'unknown' (a failed lookup) is not
+   * cached as definitive, so it is retried on the next change. A whole-batch
+   * failure is swallowed: the rows just stay in the 'checking' state.
+   */
+  private async checkGalleryExistence(): Promise<void> {
+    const ids = this.buildGallery().filter((id) => this.isValidInscriptionId(id));
+    const toCheck = ids.filter((id) => {
+      const s = this.galleryExistence.get(id);
+      return s === undefined || s === 'unknown';
+    });
+    if (!toCheck.length) { return; }
+    try {
+      const result = await checkInscriptionsExist(toCheck, { ordBaseUrl: environment.ordBaseUrls[0] });
+      for (const [id, state] of result) { this.galleryExistence.set(id, state); }
+    } catch {
+      // Leave the rows in 'checking'; a failed lookup is never shown as missing.
+    }
+    this.cd.markForCheck();
+  }
+
+  /**
+   * The display status of one gallery row, for the template. 'unknown' from
+   * the server (a failed lookup) maps to 'checking', never 'missing'.
+   */
+  galleryItemStatus(id: string): 'empty' | 'invalid' | 'checking' | 'exists' | 'missing' {
+    const trimmed = id.trim();
+    if (!trimmed) { return 'empty'; }
+    if (!this.isValidInscriptionId(trimmed)) { return 'invalid'; }
+    const state = this.galleryExistence.get(trimmed);
+    if (state === undefined || state === 'unknown') { return 'checking'; }
+    if (state === 'exists') { return 'exists'; }
+    return 'missing';
+  }
+
+  /** `true` while any gallery row is malformed or points at a missing inscription (blocks mint). */
+  get galleryInvalid(): boolean {
+    return this.galleryRows.some((r) => {
+      const status = this.galleryItemStatus(r.id);
+      return status === 'invalid' || status === 'missing';
+    });
+  }
+
+  // ---- Rare-sat picker -----------------------------------------------------
+  /**
+   * Scan the ordinals address's coins for notable sats. One ord `/output`
+   * lookup per coin (via `findRareSatsInOutputs`, needs a sat index), so it is
+   * lazy: the user asks for it. A whole-scan failure sets `rareSatError`; a
+   * per-coin lookup failure comes back as a `status: 'unknown'` row, never as
+   * "this coin holds nothing".
+   */
+  async scanForRareSats(ordinalsAddress: string): Promise<void> {
+    this.rareSatLoading = true;
+    this.rareSatError = '';
+    this.cd.markForCheck();
+    try {
+      // Cat21Service.getUtxos dedupes electrs's transient double-listing at
+      // the source, so both this scan and the funding pick get a clean list.
+      const utxos = await firstValueFrom(this.cat21.getUtxos(ordinalsAddress));
+      this.rareSatRows = await findRareSatsInOutputs(utxos, { ordBaseUrl: environment.ordBaseUrls[0] });
+    } catch {
+      this.rareSatError = 'Could not scan for rare sats. Please try again.';
+      this.rareSatRows = null;
+    } finally {
+      this.rareSatLoading = false;
+      this.cd.markForCheck();
+    }
+  }
+
+  /** Coins the scan found a rare sat on (the only ones the picker offers). */
+  get rareSatCandidates(): SatPickerRow<TxnOutput>[] {
+    return (this.rareSatRows ?? []).filter((r) => r.status === 'scanned' && r.rareSat !== null);
+  }
+
+  /** Coins whose lookup failed (shown as "couldn't check", NOT "no rare sat"). */
+  get rareSatUnknownCount(): number {
+    return (this.rareSatRows ?? []).filter((r) => r.status === 'unknown').length;
+  }
+
+  /** A scan ran and returned rows, but none carry a rare sat (all common / unknown). */
+  get rareSatScannedEmpty(): boolean {
+    return this.rareSatRows !== null && this.rareSatCandidates.length === 0;
+  }
+
+  /** Toggle a rare-sat row as the inscribe target (re-click clears it). */
+  pickRareSat(row: SatPickerRow<TxnOutput>): void {
+    this.selectedRareSat = this.selectedRareSat === row ? null : row;
+    this.updateSatTarget();
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /** Clear the rare-sat target (inscribe onto a fresh common sat again). */
+  clearRareSat(): void {
+    if (!this.selectedRareSat) { return; }
+    this.selectedRareSat = null;
+    this.updateSatTarget();
+    this.syncContent();
+    this.cd.markForCheck();
+  }
+
+  /**
+   * Derive the satTarget for the picked rare sat, once per pick (not per
+   * keystroke). Built via the SDK's inscribeSatSourceFromRow, which derives
+   * scriptPubKey (tweaked output key) + tapInternalKey (untweaked internal
+   * key) from the wallet's ordinals key and THROWS on a key that does not
+   * derive the coin's address, before any signature. A sat that sits below its
+   * coin's dust floor needs a padding coin: the orchestrator sources one during
+   * recompute (surfaced as `snapshot.padding`), so nothing is blocked here for
+   * padding — only a key that cannot be derived leaves the target unbuilt.
+   */
+  private updateSatTarget(): void {
+    this.rareSatTargetError = '';
+    this.satTarget = undefined;
+    const row = this.selectedRareSat;
+    if (!row || !row.rareSat || !this.currentWallet) { return; }
+    try {
+      const source = inscribeSatSourceFromRow(row, {
+        ordinalsPublicKey: this.currentWallet.ordinalsPublicKey,
+        network: this.network,
+      });
+      if (source) { this.satTarget = { kind: 'in-utxo', utxo: source, offset: source.offset }; }
+    } catch (err) {
+      this.rareSatTargetError = inscribeUserMessage(err);
+    }
+  }
+
+  /**
+   * A rare sat is picked but no satTarget could be produced: the key derivation
+   * failed (the connected wallet's ordinals key does not derive the coin's
+   * address). Blocks the mint so the inscription never silently lands on a
+   * common sat instead of the one the user chose.
+   */
+  get rareSatBlocked(): boolean {
+    return !!this.selectedRareSat?.rareSat && !this.satTarget;
+  }
+
+  /** Why the picked rare sat is blocked, for the template (the key-mismatch text). */
+  get rareSatBlockReason(): string {
+    if (!this.rareSatBlocked) { return ''; }
+    return this.rareSatTargetError || 'This sat cannot be targeted from the connected wallet.';
+  }
+
+  /** The padding coin the orchestrator sourced for the picked sat's alignment output, or null. */
+  readonly rareSatPadding = computed(() => this.snap().padding);
+
+  /**
+   * The envelope fields (delegate OR content_encoding, note, metadata,
+   * metaprotocol, and tag-17 properties) the orchestrator emits for the
+   * current form. The pre-connect estimate feeds these to
+   * `simulateInscribeFees` so it matches the exact post-connect figure instead
+   * of undercounting by the note + metadata + metaprotocol + properties bytes.
    */
   private simEnvelopeFields(): OrdEnvelopeField[] {
     const enc = new TextEncoder();
@@ -696,6 +1461,23 @@ export class InscribeMintComponent implements OnInit {
     const note = this.noteControl.value.trim();
     if (note) {fields.push({ tag: ORD_TAGS.note, value: enc.encode(note) });}
     if (this.metadataBytes) {fields.push({ tag: ORD_TAGS.metadata, value: this.metadataBytes });}
+    const metaprotocol = this.metaprotocolControl.value.trim();
+    if (metaprotocol) {fields.push({ tag: ORD_TAGS.metaprotocol, value: enc.encode(metaprotocol) });}
+    // Tag-17 properties (title + traits + gallery), encoded exactly as ord
+    // (and the orchestrator) does, so the estimate counts them too. The encoder
+    // throws on invalid input (e.g. a duplicate trait name mid-typing); that is
+    // a transient state the mint blocks (traitDuplicateName), so here we just
+    // skip the properties bytes rather than let the estimate throw.
+    try {
+      const props = encodeInscriptionProperties({
+        title: this.titleControl.value.trim() || undefined,
+        traits: this.buildTraits().length ? this.buildTraits() : undefined,
+        gallery: this.buildGallery().length ? this.buildGallery() : undefined,
+      });
+      if (props) {fields.push({ tag: ORD_TAGS.properties, value: props.properties });}
+    } catch {
+      // invalid properties (e.g. duplicate trait) — omit from the estimate
+    }
     return fields;
   }
 
@@ -712,6 +1494,9 @@ export class InscribeMintComponent implements OnInit {
 
   private recomputePreConnectCost(): void {
     this.preConnectMintSats = null;
+    // Batch pre-connect cost isn't estimated here; the funding simulation
+    // prices the batch once a wallet connects.
+    if (this.batchMode) { return; }
     const feeRate = this.cfeeRate.value;
     // Reject non-finite rates (Infinity from a `1e999` input, NaN) so the
     // estimate never renders "Infinity sat".
@@ -740,8 +1525,11 @@ export class InscribeMintComponent implements OnInit {
         isSimulation: true,
         network: this.network,
       });
+      const commitFee = this.commitFeeRateControl.value;
       const sim = simulateInscribeFees({
         feeRatePerVbyte: feeRate,
+        commitFeeRatePerVbyte: commitFee && commitFee > 0 ? commitFee : undefined,
+        postageSats: this.postageControl.value,
         body,
         contentType,
         envelopeFields: envelopeFields.length ? envelopeFields : undefined,
@@ -790,7 +1578,12 @@ export class InscribeMintComponent implements OnInit {
     this.cfeeRate.setValue(Number.isFinite(n) ? n : null);
   }
 
+  /** A row that can't fund the inscription at the current rate is unpickable:
+   *  the rule lives HERE, in the handler, not only in the template's hidden
+   *  button, so a coin the user can't spend can never become the selection
+   *  (FAMILY_UX). */
   selectPaymentOutput(row: ViableInscribeSimulation): void {
+    if (!row.available) { return; }
     this.selectedPaymentOutput = row;
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
@@ -800,6 +1593,25 @@ export class InscribeMintComponent implements OnInit {
   }
 
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
+
+  /** Rune name + its raw pile value ({amount,divisibility,symbol}) for each rune on a UTXO. */
+  runeEntries(content: UtxoContent): { name: string; value: unknown }[] {
+    return Object.entries(content.runes ?? {}).map(([name, value]) => ({ name, value }));
+  }
+
+  /** ord-rendered balance + name for a rune row; bare name if the pile shape is off. */
+  readonly formatRuneLabel = runeLabel;
+
+  /**
+   * The etching txid for a rune, for the /tx/<etching> link, or null while it's
+   * unresolved or has none (reserved runes → plain text). Pure read of the
+   * resolver signal: resolution is kicked off from paymentOutputs$ on scan
+   * change, not here, so this getter has no side effect during render. The
+   * signal read re-renders the row when the lookup lands.
+   */
+  runeTxEtching(name: string): string | null {
+    return this.runeResolver.resolved().get(name) ?? null;
+  }
 
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {
@@ -854,7 +1666,18 @@ export class InscribeMintComponent implements OnInit {
     return `${revealTxId}i0`;
   }
 
+  /**
+   * The genesis/reveal txid an inscription id points at, for the in-app
+   * /tx/<txid> link. An inscription id is `<64-hex-txid>i<index>`; the
+   * index suffix is stripped. The tx page renders the inscription from
+   * the witness, so it works for unconfirmed txs too.
+   */
+  txidFromInscriptionId(inscriptionId: string): string {
+    return inscriptionId.replace(/i\d+$/, '');
+  }
+
   inscribe(wallet: WalletInfo): void {
+    if (this.batchMode) { this.inscribeBatch(wallet); return; }
     // The gate + orchestrator see the exact bytes that land on-chain
     // (compressed when the box is ticked, or empty for a delegate), so the
     // size check is accurate.
@@ -927,6 +1750,49 @@ export class InscribeMintComponent implements OnInit {
     this.cd.detectChanges();
   }
 
+  /**
+   * Mint a batch: gate every entry with the same safety check as a single
+   * inscribe (JS-MIME block, size cap, self-send guard), then build + broadcast
+   * the whole batch through the orchestrator. With no parents the wallet signs
+   * once, exactly like a single inscribe.
+   */
+  private inscribeBatch(wallet: WalletInfo): void {
+    this.mintGateError = '';
+    this.mintAttempted = true;
+    if (!this.batchFiles.length) { return; }
+    for (const f of this.batchFiles) {
+      const gate = validateInscribeOperation({
+        config: {
+          network: this.network,
+          maxFeeRatePerVbyte: 1000,
+          maxContentBytes: MAX_CONTENT_BYTES,
+          blockedContentTypes: BLOCKED_CONTENT_TYPES,
+          ownPaymentAddress: wallet.paymentAddress === wallet.ordinalsAddress ? undefined : wallet.paymentAddress,
+        },
+        operation: {
+          kind: 'inscribe',
+          // Gate this entry's ACTUAL destination (its own, or the shared
+          // recipient), so the SDK's address + network + self-send validation
+          // covers a per-entry destination too, not just the ordinals address.
+          intent: { recipient: f.destination.trim() || wallet.ordinalsAddress, feeRate: this.cfeeRate.value, body: f.bytes, contentType: f.contentType },
+        },
+      });
+      if (!gate.ok) {
+        const failure = gate as Extract<InscribeOperationGateResult, { ok: false }>;
+        const detail = failure.detail ? ': ' + failure.detail : '';
+        this.mintGateError = `${f.name} refused (${failure.reason}${detail}). This is a safety check.`;
+        this.cd.detectChanges();
+        return;
+      }
+    }
+    this.syncContent(); // belt-and-braces: rebuild the batch in case a debounce hadn't fired
+    const prompt = (unsigned: { base64: string; hex: string }) =>
+      firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt'));
+    this.orchestrator.mint(prompt)
+      .then(() => this.cd.markForCheck())
+      .catch(() => this.cd.markForCheck());
+  }
+
   inscribeAnother(): void {
     this.orchestrator.reset();
     this.pickedFile = null;
@@ -941,6 +1807,33 @@ export class InscribeMintComponent implements OnInit {
     this.delegateId = '';
     this.delegateIdError = '';
     this.noteControl.setValue('ordpool.space');
+    this.resetAdvancedOptions();
+    this.batchMode = false;
+    this.batchFiles = [];
+    this.batchParentRows = [];
+    this.batchError = '';
+    this.orchestrator.setBatch(null);
     this.cd.detectChanges();
+  }
+
+  /**
+   * Reset the single-inscription Advanced options (title, traits, gallery,
+   * metaprotocol, postage, commit-fee, rare-sat) to their defaults so they
+   * never ride from one file onto the next — an inscription is immutable, so
+   * stale cross-file trait/gallery/postage/sat state must not leak.
+   */
+  private resetAdvancedOptions(): void {
+    this.titleControl.setValue('');
+    this.traitRows = [];
+    this.galleryRows = [];
+    this.galleryExistence.clear();
+    this.metaprotocolControl.setValue('');
+    this.postageControl.setValue(INSCRIBE_POSTAGE_SATS);
+    this.commitFeeRateControl.setValue(null);
+    this.rareSatRows = null;
+    this.selectedRareSat = null;
+    this.rareSatError = '';
+    this.rareSatTargetError = '';
+    this.satTarget = undefined;
   }
 }

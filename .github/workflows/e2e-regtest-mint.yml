@@ -34,6 +34,9 @@ on:
       # must trigger it.
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+      # The regtest Playwright config (retries, timeouts) is load-bearing for
+      # every spec below, so a change to it must re-run the lane.
+      - 'frontend/playwright.regtest.config.ts'
       # The page-driven components these specs actually boot. A template or
       # formatting change here (e.g. grouping the Fund address into chunks)
       # breaks the specs WITHOUT touching their files, and frontend/src/**
@@ -47,18 +50,30 @@ on:
       - 'frontend/src/app/components/_ordpool/cat21-mint/**'
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
+      # The watch-only (xpub) inscribe spec drives the PSBT export/paste dialog.
+      - 'frontend/src/app/components/_ordpool/psbt-export-prompt/**'
       # The page shell every one of these specs boots. A change here (e.g.
       # adding the family-footer strip) alters the rendered page without
       # touching any component dir above, so the shell must trigger the lane
       # too.
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/playwright/specs/regtest/cat21-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-leather-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-okx-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-alby-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-warning-block-unisat-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-dirty-matrix-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/cat21-mint-wizz-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
 
 permissions:
@@ -78,6 +93,16 @@ jobs:
     name: Bring up stack + smoke-test backend
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # regtest-bootstrap.sh is DROPPED: consumer-environment-bootstrap.sh is a
+      # strict superset (same hardcoded funder identity, same 101-block funding,
+      # and it is the WIF source the Xverse onboarding + every rpc() already
+      # rely on). Running both used to work only because they merged into one
+      # compose project by accident; once the project is derived from E2E_PREFIX
+      # they collide on host :18443. With regtest-bootstrap gone the only
+      # bitcoind is the consumer-environment's, so every rpc() has to name it -
+      # the SDK default ordpool-e2e-bitcoind no longer exists in this job.
+      REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
     steps:
       - name: Checkout ordpool
         uses: actions/checkout@v4
@@ -116,6 +141,18 @@ jobs:
           ref: ordpool
           path: ordpool-electrs
 
+      # cat21-ord source for BOTH ord containers the funding-safety scan
+      # queries for real: cat21-ord (--index-cat21, port 8080, cats) and
+      # ord-stock (same binary WITHOUT --index-cat21, port 8081,
+      # inscriptions/runes/sat_ranges). The consumer-environment builds
+      # both from this one checkout (ORD_SRC falls back to CAT21_ORD_SRC).
+      - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-ord
+          ref: index-cat21
+          path: cat21-ord
+
       # buildx gha cache: reuse the compiled electrs image across runs
       # instead of recompiling Rust (~10 min) every run. A docker-container
       # builder + the Actions runtime env make type=gha work; the
@@ -130,12 +167,17 @@ jobs:
       - name: Stabilise the electrs build context for layer caching
         run: printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
 
-      - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb + cat21-ord + ord-stock)
         env:
           ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
+          # Both ords build from the one cat21-ord checkout; ORD_SRC falls
+          # back to CAT21_ORD_SRC in the compose, so this one var feeds both.
+          CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
         run: |
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
             --buildx-cache \
+            --with-cat21-ord \
+            --with-ord-stock \
             > stack.json
           cat stack.json
 
@@ -198,7 +240,13 @@ jobs:
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          ref: main
+          # Pinned, not `main`: the harness (global-setup, seeded vault, .crx) is
+          # a sibling repo under active development, and an unpinned checkout means
+          # any push there can break this lane mid-deploy. It did: an SDK commit
+          # moved the seed directory out from under this workflow's fixed paths.
+          # Bump deliberately, so a harness change surfaces as a bump-time failure
+          # with an obvious cause, never as a mystery in the middle of a deploy.
+          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4
@@ -312,15 +360,21 @@ jobs:
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh alby
 
-      - name: Bootstrap regtest funds (101 blocks, dump WIF)
-        working-directory: sdk
-        run: |
-          chmod +x e2e/regtest-bootstrap.sh
-          ./e2e/regtest-bootstrap.sh > regtest-bootstrap.json
-          cat regtest-bootstrap.json
-
+      # regtest-bootstrap.sh removed: consumer-environment-bootstrap.sh (run
+      # earlier) is a strict superset - identical hardcoded funder identity,
+      # identical 101-block funding, and its descriptor is what the Xverse
+      # onboarding + every rpc() read. Running both used to merge into one
+      # bitcoind by accident; with the compose project derived from E2E_PREFIX
+      # they collide on host :18443. One bitcoind now: the consumer-environment's.
       - name: Run SDK's Xverse onboarding (produces seeded user-data-dir)
         working-directory: sdk
+        # Pin the seed location explicitly on the PRODUCER, so writer and reader
+        # agree by construction and the SDK's default can never move it out from
+        # under us. Deliberately OUTSIDE sdk/test-results: Playwright wipes its
+        # outputDir at the start of every run, so a seed written there by this
+        # step would be deleted when the consumer spec run starts.
+        env:
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
         run: |
           # globalSetup.ts is the side-effect target — running any
           # xverse spec triggers it. `xverse-loads.spec.ts` is the
@@ -331,8 +385,9 @@ jobs:
 
       - name: Verify seed user-data-dir landed
         run: |
-          test -d sdk/test-results/xverse-seed-user-data-dir/Default \
-            || { echo "no seed user-data-dir at expected path"; ls sdk/test-results/; exit 1; }
+          SEED_DIR="${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir"
+          test -d "$SEED_DIR/Default" \
+            || { echo "no seed user-data-dir at $SEED_DIR"; ls -la "$(dirname "$SEED_DIR")" 2>/dev/null; exit 1; }
 
       # ── Patch environment.ts + serve the frontend ──────────────────
       #
@@ -367,7 +422,15 @@ jobs:
             -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
             -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
             -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
+            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
             src/environments/environment.ts
+          # ordBaseUrls -> the STOCK ord (:8081, real inscriptions/runes/sat_ranges)
+          # and cat21OrdBaseUrl -> cat21-ord (:8080, cats). This is the split the
+          # UtxoContentScanner's classifier expects: pointing ordBaseUrls at
+          # cat21-ord would read every inscribed coin as clean (it has no
+          # inscriptions field), silently disabling the funding-safety guard.
           echo "--- patched environment.ts ---"
           head -32 src/environments/environment.ts
 
@@ -479,12 +542,81 @@ jobs:
           # Point the spec at the SDK's seeded vault + unpacked .crx
           # (the workflow's cache populated these one level up).
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
-          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
           FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21-mint-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint
+
+      # THE funding-safety guard proof. The only funding candidate is a REAL
+      # inscribed coin (seedInscribedCoin, 2M sat so it's a covering candidate).
+      # A working guard, reading the stock ord (:8081, real inscriptions field),
+      # refuses it: the "asset found" warning shows and the Mint button never
+      # auto-enables. seedInscribedCoin docker-execs the ord wallet, so it needs
+      # the consumer-environment ord container names (bitcoind is inherited from
+      # the job env). Mutation-checked out of band: at ordBaseUrls=:8080
+      # (cat21-ord, no inscriptions field) this spec goes RED.
+      - name: Run the funding-guard inscription-refusal spec
+        if: always()
+        working-directory: frontend
+        env:
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-inscription-refusal-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-inscription-refusal
+
+      # The one-address counterpart of the guard-refusal spec above: on a wallet
+      # that keeps ONE address for everything (unisat), a dirty-only funding pool
+      # is a blocking WARNING, not a notice. Proves the CTA is DISABLED, the
+      # warning shows, the picker is offered and nothing is broadcast, and
+      # produces the family's one-address funding-panel screenshot. seedInscribedCoin
+      # docker-execs the ord wallets, hence the container env; unisat lives in the
+      # separate SDK checkout like the other unisat steps.
+      - name: Run the one-address warning + under-block spec (Unisat)
+        if: always()
+        working-directory: frontend
+        env:
+          UNISAT_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/unisat
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-warning-block-unisat-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-warning-block-unisat
+
+
+      # Dirty-coin protection matrix for the MINT flow — all four asset classes
+      # (rare sat, rune, cat, inscription). Each cell seeds a clean covering coin
+      # AND one dirty coin sized just above the measured requirement (strictly
+      # decreasing across cells), proves placement with assertDirtyCoinIsBestFit,
+      # mints, and asserts its coin AND every prior cell's coin SURVIVE. Survival
+      # is the mutation target for ordpool's mint (no UI bucket-gate). Real ords,
+      # no /output mock; seedDirtyCoin docker-execs the ord wallets, hence the
+      # container env.
+      - name: Run the dirty-coin survival matrix (mint × 4 assets)
+        if: always()
+        working-directory: frontend
+        env:
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-dirty-matrix-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-dirty-matrix
 
       # Same stack, second spec: drive the /inscribe page through a full
       # single-file inscription (commit + reveal). `if: always()` so a
@@ -496,12 +628,13 @@ jobs:
         working-directory: frontend
         env:
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
-          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/test-results/xverse-seed-user-data-dir
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
           FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint
 
       # Same stack, non-native wallet: /inscribe via Unisat. Proves the
       # connector's mainnet→bcrt address shim carries the page-driven flow.
@@ -514,7 +647,70 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-unisat-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-unisat
+
+      # Same stack, non-native wallet on the OTHER action: /cat21-mint via
+      # Unisat. First of the cat21-mint wallet matrix, mock-free against the
+      # real ords. bitcoind comes from the job env; the ord sync waits are HTTP.
+      - name: Run the page-driven cat21-mint regtest spec (Unisat)
+        if: always()
+        working-directory: frontend
+        env:
+          UNISAT_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/unisat
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-unisat-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-unisat
+
+      # cat21-mint via Leather (second running cat21-mint wallet).
+      - name: Run the page-driven cat21-mint regtest spec (Leather)
+        if: always()
+        working-directory: frontend
+        env:
+          LEATHER_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/leather
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-leather-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-leather
+
+      # cat21-mint via OKX.
+      - name: Run the page-driven cat21-mint regtest spec (OKX)
+        if: always()
+        working-directory: frontend
+        env:
+          OKX_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/okx
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-okx-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-okx
+
+      # cat21-mint via Alby (SW-bypass sign, native regtest wallet).
+      - name: Run the page-driven cat21-mint regtest spec (Alby)
+        if: always()
+        working-directory: frontend
+        env:
+          ALBY_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/alby
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-alby-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-alby
+
+      # cat21-mint via Wizz is PARKED (spec file kept, not run). Wizz's sign
+      # popup only enables "Sign" once its balance backends are stubbed
+      # (installWizzOfflineRoutes); the CAT-21 mint PSBT appears to trigger a
+      # wizz call the stub does not cover, so approveWizzSign times out - and
+      # running two wizz specs in one job made the previously-green inscribe-wizz
+      # flake too. Re-enable once the wizz mint-sign is understood; the other
+      # cat21-mint wallets (unisat/leather/okx/alby) don't share this.
 
       # Same stack, second non-native wallet: /inscribe via Wizz.
       - name: Run the page-driven inscribe regtest spec (Wizz)
@@ -526,7 +722,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-wizz-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-wizz
 
       # Same stack, non-native wallet: /inscribe via Leather.
       - name: Run the page-driven inscribe regtest spec (Leather)
@@ -538,7 +735,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-leather-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-leather
 
       # Same stack, non-native wallet: /inscribe via OKX.
       - name: Run the page-driven inscribe regtest spec (OKX)
@@ -550,7 +748,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-okx-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-okx
 
       # Same stack, native-regtest wallet with SW-bypass signing:
       # /inscribe via Alby.
@@ -563,7 +762,54 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts \
-            --config=playwright.regtest.config.ts
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-alby
+
+      # The two matrix cells with no browser extension: /inscribe AND /cat21-mint
+      # via a watch-only (xpub) wallet. Both sign the exported PSBT with the
+      # offline half of the SDK's makeWatchOnlyTestAccount and paste it back - no
+      # .crx, no seeded vault, just the regtest stack + the in-page export/paste
+      # bridge.
+      - name: Run the page-driven inscribe regtest spec (watch-only xpub)
+        if: always()
+        working-directory: frontend
+        env:
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/inscribe-mint-xpub
+
+      - name: Run the page-driven cat21-mint regtest spec (watch-only xpub)
+        if: always()
+        working-directory: frontend
+        env:
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-xpub-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-xpub
+
+      # cat21-mint via Wizz. Runs LAST, after inscribe-wizz: the two wizz specs
+      # contend when adjacent (a wizz sign popup intermittently stalls past the
+      # 60s Sign-wait if another wizz context ran just before), so separating
+      # them by every other spec keeps both green. Empirically proven (run
+      # 34904184447): the mint signs, broadcasts, and confirms a well-formed
+      # CAT-21 in ~27s with every wizz backend call returning 200. The config's
+      # retries:1 covers a residual stall.
+      - name: Run the page-driven cat21-mint regtest spec (Wizz)
+        if: always()
+        working-directory: frontend
+        env:
+          WIZZ_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/wizz
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-mint-wizz-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-mint-wizz
 
       - name: Upload Playwright artifacts
         if: always()

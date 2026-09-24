@@ -1,0 +1,582 @@
+name: E2E (regtest inscribe dirty-coin matrix)
+
+# Dirty-coin protection matrix for the /inscribe flow, on its OWN lane
+# (its own fresh bitcoind + chain per run), on Bitcoin regtest:
+#   bitcoind + electrs + mariadb (from ordpool-sdk's consumer-environment)
+#   + ordpool-backend (this repo) + ordpool/frontend serving locally
+#   + Xverse extension headed in xvfb
+#   + Playwright drives /inscribe once per asset class (rare sat, rune,
+#     cat, inscription), each cell seeding a clean covering coin + one
+#     dirty coin and asserting the dirty coin SURVIVES the inscribe.
+#
+# WHY A SEPARATE LANE (not another step in e2e-regtest-mint.yml): the mint
+# dirty matrix and this inscribe dirty matrix seed to the SAME seed-fixed
+# Xverse address and their smallest-covering ladders overlap, so on a shared
+# chain each matrix's premise would depend on the other's leftovers. A
+# dedicated chain removes that coupling. The funding address is fixed by the
+# vault seed and cannot be randomised, so isolation comes from this dedicated
+# chain plus the spec's assertDirtyCoinIsBestFit setup guard. Full reasoning
+# is in the spec's header comment.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 3 * * *'   # nightly at 03:43 UTC (offset from the mint lane's 03:17)
+  push:
+    paths:
+      - 'e2e/docker-compose.ordpool-backend.yml'
+      - '.github/workflows/e2e-regtest-inscribe-dirty-matrix.yml'
+      # An SDK pin bump changes both the app bundle this page-driven spec
+      # boots AND the funding-safety guard + inscribe targets it measures, so
+      # a dep bump must trigger it.
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      # The regtest Playwright config (retries, timeouts) is load-bearing.
+      - 'frontend/playwright.regtest.config.ts'
+      # The page-driven components this spec boots. A template change here
+      # breaks the spec WITHOUT touching its file, and frontend/src/** is too
+      # broad for this heavy lane, so scope to just the inscribe / wallet-
+      # connect surfaces plus the page shell.
+      - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
+      - 'frontend/src/app/components/_ordpool/wallet-connect/**'
+      - 'frontend/src/app/components/master-page/**'
+      - 'frontend/playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/fixtures/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ordpool-e2e-regtest-inscribe-dirty-matrix-${{ github.ref }}
+  # Don't cancel an in-flight run when a newer push / dispatch
+  # arrives. Cancelled runs show up on the commit page as gray X
+  # marks that read as "CI broken" even though they just got
+  # superseded by a newer dispatch. Letting them complete keeps the
+  # commit's check history clean.
+  cancel-in-progress: false
+
+jobs:
+  regtest-inscribe-dirty-matrix:
+    name: Bring up stack + inscribe dirty-coin matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # regtest-bootstrap.sh is DROPPED: consumer-environment-bootstrap.sh is a
+      # strict superset (same hardcoded funder identity, same 101-block funding,
+      # and it is the WIF source the Xverse onboarding + every rpc() already
+      # rely on). Running both used to work only because they merged into one
+      # compose project by accident; once the project is derived from E2E_PREFIX
+      # they collide on host :18443. With regtest-bootstrap gone the only
+      # bitcoind is the consumer-environment's, so every rpc() has to name it -
+      # the SDK default ordpool-e2e-bitcoind no longer exists in this job.
+      REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+    steps:
+      - name: Checkout ordpool
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        # Match the working build-frontend.yml exactly — setup-node@v6
+        # + plain `npm ci`. Earlier runs of this workflow used
+        # `--legacy-peer-deps` which drops the optional peer deps
+        # (@popperjs/core, sats-connect) that the build needs; v6 +
+        # plain ci sidesteps that.
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install frontend npm deps (brings ordpool-sdk into node_modules)
+        run: npm ci
+        working-directory: frontend
+
+      - name: Make SDK consumer-environment scripts executable
+        # Git on Linux preserves the bit, but defensive against any
+        # cross-platform clone that lost it.
+        run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
+        working-directory: frontend
+
+      # OUR electrs. The SDK's consumer-environment.yml builds the electrs
+      # service from the ordpool-electrs fork (not the upstream
+      # mempool/electrs image) — ELECTRS_SRC points its build context at
+      # this checkout. Absolute path because compose runs with cwd inside
+      # node_modules/ordpool-sdk/e2e/.
+      - name: Checkout ordpool-electrs (for the electrs container)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/ordpool-electrs
+          ref: ordpool
+          path: ordpool-electrs
+
+      # cat21-ord source for BOTH ord containers the funding-safety scan
+      # queries for real: cat21-ord (--index-cat21, port 8080, cats) and
+      # ord-stock (same binary WITHOUT --index-cat21, port 8081,
+      # inscriptions/runes/sat_ranges). The consumer-environment builds
+      # both from this one checkout (ORD_SRC falls back to CAT21_ORD_SRC).
+      - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-ord
+          ref: index-cat21
+          path: cat21-ord
+
+      # buildx gha cache: reuse the compiled electrs image across runs
+      # instead of recompiling Rust (~10 min) every run. A docker-container
+      # builder + the Actions runtime env make type=gha work; the
+      # .dockerignore excludes each checkout's volatile .git/ so the COPY
+      # layer (and the compile beneath it) is stable and cache-hits.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Export GitHub Actions runtime for the gha cache backend
+        uses: crazy-max/ghaction-github-runtime@v3
+
+      - name: Stabilise the electrs build context for layer caching
+        run: printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
+
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb + cat21-ord + ord-stock)
+        env:
+          ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
+          # Both ords build from the one cat21-ord checkout; ORD_SRC falls
+          # back to CAT21_ORD_SRC in the compose, so this one var feeds both.
+          CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
+        run: |
+          frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
+            --buildx-cache \
+            --with-cat21-ord \
+            --with-ord-stock \
+            > stack.json
+          cat stack.json
+
+      - name: Start fees + electrs HTTP+WS shim on :8999
+        # We bring up just the SDK consumer-environment (bitcoind +
+        # electrs + mariadb). For the mempool-style API surface the
+        # frontend needs (/api/v1/fees/recommended + Esplora-shaped
+        # /api/address/.../utxo + /api/tx/...) we use the tiny zero-
+        # dep Node shim cat21-indexer uses for the same purpose. The
+        # upstream mempool/backend Docker image only serves /api/v1/*
+        # — it lacks ordpool's custom Express middleware that proxies
+        # /api/* to electrs, so the SDK's getUtxos 404s against it.
+        #
+        # Run with cwd=frontend so the stub's dynamic `import('ws')`
+        # resolves against frontend/node_modules/ws (a transitive dep
+        # of the mempool fork). ordpool's StateService.recommendedFees$
+        # is fed from a WebSocket — without one, the cat21-mint empty
+        # state never renders because the `(recommendedFees$ | async)`
+        # gate is null. The stub responds to the WS upgrade on
+        # /api/v1/ws with a single snapshot frame containing `fees`,
+        # `mempool-blocks`, `da`, `backendInfo` so the state-service
+        # marks itself "connected" (drops the "Reconnecting…" badge
+        # the trace showed pinned on a failed run) and the fee
+        # signal fires.
+        run: |
+          cd frontend
+          ELECTRS_URL=http://localhost:3010 PORT=8999 WS_ENABLED=1 \
+            nohup node node_modules/ordpool-sdk/e2e/regtest/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
+          echo $! > ../fees-stub.pid
+          cd ..
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8999/healthz >/dev/null 2>&1; then
+              echo "fees-stub up"; break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "fees-stub never came up"; cat fees-stub.log || true; exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Smoke-test stub endpoints
+        run: |
+          echo "--- fees/recommended"
+          curl -fsS http://localhost:8999/api/v1/fees/recommended
+          echo
+          echo "--- blocks/tip/height (electrs)"
+          curl -fsS http://localhost:8999/api/blocks/tip/height
+          echo
+
+      # ── Iter 2 + 3 — Playwright + Xverse + the page-driven mint ─────
+      #
+      # We checkout the SDK as a sibling repo because its Xverse
+      # globalSetup (onboards the vault on Regtest, dumps the seeded
+      # user-data-dir) needs the SDK's own dev deps + harness bundle.
+      # The SDK's package install in node_modules ships only the
+      # runtime; running its playwright config requires the full repo.
+
+      - name: Checkout ordpool-sdk (for Xverse extension + seeded vault)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/ordpool-sdk
+          path: sdk
+          # Pinned, not `main`: the harness (global-setup, seeded vault, .crx) is
+          # a sibling repo under active development, and an unpinned checkout means
+          # any push there can break this lane mid-deploy. It did: an SDK commit
+          # moved the seed directory out from under this workflow's fixed paths.
+          # Bump deliberately, so a harness change surfaces as a bump-time failure
+          # with an obvious cause, never as a mystery in the middle of a deploy.
+          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
+
+      - name: Setup Node (sdk)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+          cache-dependency-path: 'sdk/package-lock.json'
+
+      - name: Install SDK deps + build (harness needs the dist/ output)
+        working-directory: sdk
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright system deps + Chromium
+        working-directory: sdk
+        run: npx playwright install --with-deps chromium
+
+      # Cache the unpacked Xverse extension keyed by the version pinned
+      # in the SDK's playwright-bootstrap.sh. First run downloads .crx
+      # from the SDK repo's release mirror; subsequent runs are a hit.
+      - name: Cache unpacked Xverse extension
+        id: xverse-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/xverse
+          key: xverse-extension-v2.3.2
+
+      - name: Download + unpack Xverse from SDK release mirror
+        if: steps.xverse-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh xverse
+
+      # Unisat — a non-native regtest wallet. Onboards inline (no seed
+      # vault), so we only need the unpacked .crx. Proves the SDK
+      # connector's mainnet→bcrt address shim works page-driven.
+      - name: Cache unpacked Unisat extension
+        id: unisat-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/unisat
+          key: unisat-extension-v1.7.15
+      - name: Download + unpack Unisat from SDK release mirror
+        if: steps.unisat-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh unisat
+
+      # Wizz — a non-native regtest wallet (Unisat-family). Onboards
+      # inline; the connector shim rewrites its mainnet address to bcrt1.
+      - name: Cache unpacked Wizz extension
+        id: wizz-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/wizz
+          key: wizz-extension-v2.13.4
+      - name: Download + unpack Wizz from SDK release mirror
+        if: steps.wizz-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh wizz
+
+      # Leather — a non-native regtest wallet. Onboards inline; the
+      # connector shim rewrites its mainnet address to bcrt1.
+      - name: Cache unpacked Leather extension
+        id: leather-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/leather
+          key: leather-extension-v6.102.0
+      - name: Download + unpack Leather from SDK release mirror
+        if: steps.leather-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh leather
+
+      # OKX — a non-native regtest wallet. Onboards inline (multi-iframe,
+      # anti-bot CDP flow); the connector shim rewrites its mainnet
+      # address to bcrt1.
+      - name: Cache unpacked OKX extension
+        id: okx-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/okx
+          key: okx-extension-v4.1.0
+      - name: Download + unpack OKX from SDK release mirror
+        if: steps.okx-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh okx
+
+      # Alby — a NATIVE-regtest wallet (returns bcrt1 directly, no
+      # address shim). Signing is seeded + fired through Alby's SW
+      # directly by the spec (its popup confirm never resolves headless).
+      - name: Cache unpacked Alby extension
+        id: alby-cache
+        uses: actions/cache@v4
+        with:
+          path: sdk/e2e/extensions/alby
+          key: alby-extension-v3.14.2
+      - name: Download + unpack Alby from SDK release mirror
+        if: steps.alby-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: sdk
+        run: bash e2e/playwright/playwright-bootstrap.sh alby
+
+      # regtest-bootstrap.sh removed: consumer-environment-bootstrap.sh (run
+      # earlier) is a strict superset - identical hardcoded funder identity,
+      # identical 101-block funding, and its descriptor is what the Xverse
+      # onboarding + every rpc() read. Running both used to merge into one
+      # bitcoind by accident; with the compose project derived from E2E_PREFIX
+      # they collide on host :18443. One bitcoind now: the consumer-environment's.
+      - name: Run SDK's Xverse onboarding (produces seeded user-data-dir)
+        working-directory: sdk
+        # Pin the seed location explicitly on the PRODUCER, so writer and reader
+        # agree by construction and the SDK's default can never move it out from
+        # under us. Deliberately OUTSIDE sdk/test-results: Playwright wipes its
+        # outputDir at the start of every run, so a seed written there by this
+        # step would be deleted when the consumer spec run starts.
+        env:
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
+        run: |
+          # globalSetup.ts is the side-effect target — running any
+          # xverse spec triggers it. `xverse-loads.spec.ts` is the
+          # cheapest one and exits in ~10s once the vault is seeded.
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test e2e/playwright/specs/xverse-loads.spec.ts \
+            --config=e2e/playwright/playwright.config.ts
+
+      - name: Verify seed user-data-dir landed
+        run: |
+          SEED_DIR="${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir"
+          test -d "$SEED_DIR/Default" \
+            || { echo "no seed user-data-dir at $SEED_DIR"; ls -la "$(dirname "$SEED_DIR")" 2>/dev/null; exit 1; }
+
+      # ── Patch environment.ts + serve the frontend ──────────────────
+      #
+      # The local-esplora proxy config is bound to upstream mempool's
+      # webpack-dev-server + http-proxy-middleware contract that's
+      # diverged in newer Angular CLI versions ("Invalid context"
+      # errors fire on every request even with valid globs). Skip the
+      # proxy entirely: patch environment.ts so apiBaseUrl +
+      # websocketBaseUrl are absolute localhost URLs, then run plain
+      # `ng serve` with no -c flag (the default has no proxyConfig).
+      # The frontend talks directly to ordpool-backend on :8999, which
+      # in turn proxies /api/* to electrs.
+
+      - name: Generate frontend config (Ordpool defaults)
+        working-directory: frontend
+        run: npm run config:defaults:ordpool
+
+      - name: Patch environment.ts to localhost absolute URLs
+        working-directory: frontend
+        # Three URL knobs that have to be rewritten in-place to land on
+        # the regtest stub:
+        #   apiBaseUrl         '' → http://localhost:8999  (mempool API + electrs proxy)
+        #   websocketBaseUrl   '' → ws://localhost:8999    (mempool WS)
+        #   cat21BaseUrl       http://localhost:3333 → http://localhost:8999
+        #     (the wallet asset-scanner calls /api/status + /api/cats/numbers/...
+        #     to identify cat sats among UTXOs; without redirecting these the
+        #     scanner blocks on ECONNREFUSED and the page never reaches a
+        #     connected state — observed as a "Reconnecting…" banner that
+        #     never clears in trace logs of failed runs)
+        run: |
+          sed -i \
+            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
+            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
+            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
+            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
+            src/environments/environment.ts
+          # ordBaseUrls -> the STOCK ord (:8081, real inscriptions/runes/sat_ranges)
+          # and cat21OrdBaseUrl -> cat21-ord (:8080, cats). This is the split the
+          # UtxoContentScanner's classifier expects: pointing ordBaseUrls at
+          # cat21-ord would read every inscribed coin as clean (it has no
+          # inscriptions field), silently disabling the funding-safety guard.
+          echo "--- patched environment.ts ---"
+          head -32 src/environments/environment.ts
+
+      - name: Patch bitcoinNetwork to Regtest (matches the seeded Xverse vault)
+        working-directory: frontend
+        # Frontend ships hardcoded Network.Mainnet in app.module.ts; the
+        # SDK's globalSetup seeded Xverse on Bitcoin Regtest. Without
+        # this swap Xverse refuses to connect (network mismatch) so the
+        # approval popup never opens and the spec times out at 60s on
+        # waitForApprovalPopup.
+        run: |
+          sed -i \
+            -e 's|useValue: Network\.Mainnet|useValue: Network.Regtest|' \
+            src/app/app.module.ts
+          grep -n bitcoinNetwork src/app/app.module.ts | head -2
+
+      - name: Build static frontend bundle
+        # Using `ng build` (default = base options, not the production
+        # config) over `ng serve` because ng-serve in CI emits HTTP 200
+        # for / before compile finishes — the spec then hits an empty
+        # shell. Static build + `npx serve` removes the compile race.
+        # Pipe through tee so the error surfaces in the workflow log
+        # AND lands in build.log for the artifact upload.
+        working-directory: frontend
+        run: |
+          set -o pipefail
+          npm run ng -- build --output-path ../dist-regtest 2>&1 | tee ../build.log
+
+      - name: Locate the built browser output
+        run: |
+          # Angular CLI's output layout depends on builder + configuration:
+          # could be dist-regtest/index.html (mempool's classic webpack
+          # builder), dist-regtest/browser/index.html (esbuild/application
+          # builder), or dist-regtest/<project>/browser/index.html
+          # (workspace-shape variants). Try each.
+          for candidate in \
+              dist-regtest \
+              dist-regtest/browser \
+              $(find dist-regtest -maxdepth 3 -type d -name browser); do
+            if [ -f "$candidate/index.html" ]; then
+              BROWSER_DIR="$candidate"
+              break
+            fi
+          done
+          if [ -z "${BROWSER_DIR:-}" ]; then
+            echo "could not find any index.html under dist-regtest"
+            ls -la dist-regtest || true
+            tail -200 build.log || true
+            exit 1
+          fi
+          echo "BROWSER_DIR=$BROWSER_DIR" >> "$GITHUB_ENV"
+          ls "$BROWSER_DIR" | head -8
+
+      - name: Serve the static bundle on :4200
+        run: |
+          # Dependency-free SPA server (runner-preinstalled node, zero
+          # network at serve time): the nohup'd `npx -y serve@14` used
+          # here raced its cold npm download against the 30s readiness
+          # loop and lost (empty serve.log, :4200 refused) — the same
+          # flake class fixed in cat21-indexer's workflows today. The
+          # index.html fallback keeps /cat21-mint + /inscribe resolving
+          # (the Angular router owns those paths).
+          cat > spa-server.cjs <<'EOF'
+          const http = require('http'), fs = require('fs'), path = require('path');
+          const root = path.resolve(process.argv[2]);
+          const port = Number(process.argv[3] ?? 4200);
+          const types = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon', woff2: 'font/woff2', woff: 'font/woff', txt: 'text/plain', map: 'application/json' };
+          http.createServer((req, res) => {
+            let p = path.normalize(decodeURIComponent((req.url ?? '/').split('?')[0]));
+            let f = path.join(root, p);
+            if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(root, 'index.html');
+            const ext = f.split('.').pop() ?? '';
+            res.writeHead(200, { 'content-type': types[ext] ?? 'application/octet-stream' });
+            fs.createReadStream(f).pipe(res);
+          }).listen(port, () => console.log(`spa-server on :${port} root=${root}`));
+          EOF
+          nohup node spa-server.cjs "$BROWSER_DIR" 4200 > serve.log 2>&1 &
+          echo $! > serve.pid
+
+      - name: Wait for static server ready on :4200
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/ 2>/dev/null || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "static server up"
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "static server never came up (last HTTP $code)"
+              tail -200 serve.log || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+      # if: always() — the inscribe spec steps below are always()-gated
+      # (so a mint failure can't hide their signal); if THIS step gets
+      # skipped by an earlier failure they run browserless and every
+      # red is "Executable doesn't exist" (a non-answer), which is
+      # exactly what happened when the old npx serve step failed.
+      - name: Install Playwright in the frontend tree
+        if: always()
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the inscribe dirty-coin survival matrix (inscribe x 4 assets)
+        if: always()
+        working-directory: frontend
+        env:
+          # Seeded Xverse vault + unpacked .crx (populated one level up by the cache).
+          XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
+          XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
+          FRONTEND_URL: http://localhost:4200
+          # seedDirtyCoin docker-execs the ord wallets, so it needs the
+          # consumer-environment ord container names (cat21-ord for cats,
+          # ord-stock for inscriptions / runes / rare sats).
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/cat21-inscribe-dirty-matrix
+
+      # The separate-address NOTICE cell rides this lane because it needs the one
+      # thing the mint lane cannot give it: a FRESH separate-address wallet. The
+      # mint lane's unisat/wizz/leather specs all share ONE p2wpkh address (same
+      # test mnemonic), so leather's payment address there is contaminated with
+      # their seeds. Here only the Xverse-driven matrix runs, so leather's address
+      # (a different derivation) is untouched, and the cell gets a genuinely
+      # dirty-only pool. leather is already bootstrapped in this lane;
+      # seedInscribedCoin docker-execs the ord wallets, hence the container env.
+      - name: Run the separate-address notice cell (Leather)
+        if: always()
+        working-directory: frontend
+        env:
+          LEATHER_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/leather
+          FRONTEND_URL: http://localhost:4200
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-notice-leather
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regtest-inscribe-dirty-matrix-playwright-${{ github.run_id }}
+          path: |
+            frontend/test-results
+            frontend/playwright-report-regtest
+            build.log
+            serve.log
+            fees-stub.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          for c in ordpool-e2e-consumer-bitcoind ordpool-e2e-consumer-electrs \
+                   ordpool-e2e-consumer-mariadb; do
+            echo "=== $c ==="
+            docker logs "$c" 2>&1 | tail -200 || true
+          done
+
+      - name: Tear down stack
+        if: always()
+        run: |
+          docker compose \
+            -f frontend/node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
+            down -v || true
+          if [ -f fees-stub.pid ]; then
+            kill "$(cat fees-stub.pid)" 2>/dev/null || true
+          fi
+          if [ -f frontend/serve.pid ]; then
+            kill "$(cat frontend/serve.pid)" 2>/dev/null || true
+          fi

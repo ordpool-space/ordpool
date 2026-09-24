@@ -23,11 +23,14 @@ on:
   push:
     paths:
       - 'frontend/playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts'
+      - 'frontend/playwright/specs/regtest/inscribe-mint-cat21wallet-regtest.spec.ts'
       - '.github/workflows/e2e-regtest-mint-cat21wallet.yml'
       # An SDK pin bump changes the app bundle this page-driven spec boots,
       # so dep bumps must trigger it (matches the sibling mint lane).
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+      # The regtest Playwright config (retries, timeouts) is load-bearing.
+      - 'frontend/playwright.regtest.config.ts'
       # The page shell this spec boots. A change here (e.g. adding the
       # family-footer strip) alters the rendered page without touching the
       # component dirs below, so the shell must trigger the lane too.
@@ -55,6 +58,13 @@ jobs:
     name: Bring up stack + cat21-wallet round-trip
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # regtest-bootstrap.sh dropped (consumer-environment-bootstrap.sh is a
+      # strict superset; running both collided on host :18443 once the compose
+      # project derives from E2E_PREFIX). With it gone the only bitcoind is the
+      # consumer-environment's, so rpc() must name it - the SDK default
+      # ordpool-e2e-bitcoind no longer exists in this job.
+      REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
     steps:
       - name: Checkout ordpool
         uses: actions/checkout@v4
@@ -84,6 +94,16 @@ jobs:
           ref: ordpool
           path: ordpool-electrs
 
+      # cat21-ord source for BOTH ord containers the mock-free inscribe scan
+      # queries: cat21-ord (--index-cat21, :8080, cats) and ord-stock (same
+      # binary WITHOUT --index-cat21, :8081, inscriptions/runes/sat_ranges).
+      - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-ord
+          ref: index-cat21
+          path: cat21-ord
+
       # buildx gha cache: reuse the compiled electrs image across runs
       # instead of recompiling Rust (~10 min) every run. A docker-container
       # builder + the Actions runtime env make type=gha work; the
@@ -98,12 +118,15 @@ jobs:
       - name: Stabilise the electrs build context for layer caching
         run: printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
 
-      - name: Bring up consumer-environment (bitcoind + electrs + mariadb)
+      - name: Bring up consumer-environment (bitcoind + electrs + mariadb + cat21-ord + ord-stock)
         env:
           ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
+          CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
         run: |
           frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
             --buildx-cache \
+            --with-cat21-ord \
+            --with-ord-stock \
             > stack.json
           cat stack.json
 
@@ -138,7 +161,10 @@ jobs:
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          ref: main
+          # Pinned, not `main`: the SDK harness is a sibling repo under active
+          # development; an unpinned checkout lets any push there break this lane.
+          # Bump deliberately. (Matches the pin in e2e-regtest-mint.yml.)
+          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4
@@ -221,13 +247,13 @@ jobs:
         working-directory: sdk
         run: bash e2e/playwright/playwright-bootstrap.sh cat21wallet
 
-      - name: Bootstrap regtest funds (101 blocks, dump WIF)
-        working-directory: sdk
-        run: |
-          chmod +x e2e/regtest-bootstrap.sh
-          ./e2e/regtest-bootstrap.sh > regtest-bootstrap.json
-          cat regtest-bootstrap.json
-
+      # regtest-bootstrap.sh removed: consumer-environment-bootstrap.sh (run
+      # earlier) is a strict superset - same funder identity, same 101-block
+      # funding, nothing reads its output. Running both merged into one bitcoind
+      # by accident; once the compose project derives from E2E_PREFIX they
+      # collide on host :18443. The cat21-wallet mint spec mocks /output and
+      # verifies via Cat21ParserService, so it needs no ord - only the consumer
+      # environment's bitcoind + electrs.
       - name: Generate frontend config (Ordpool defaults)
         working-directory: frontend
         run: npm run config:defaults:ordpool
@@ -239,6 +265,9 @@ jobs:
             -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
             -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
             -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
+            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
             src/environments/environment.ts
 
       - name: Patch bitcoinNetwork to Regtest
@@ -304,6 +333,20 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test playwright/specs/regtest/cat21wallet-mint-regtest.spec.ts \
+            --config=playwright.regtest.config.ts
+
+      # inscribe via cat21-wallet: the /inscribe half of the wallet's matrix.
+      # Mock-free against the real ords (this workflow now brings them up).
+      # cat21-wallet signs Leather-fork-generic, so no cat-specific dialog.
+      - name: Run the page-driven inscribe regtest spec (CAT-21 wallet)
+        if: always()
+        working-directory: frontend
+        env:
+          CAT21WALLET_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/cat21wallet
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test playwright/specs/regtest/inscribe-mint-cat21wallet-regtest.spec.ts \
             --config=playwright.regtest.config.ts
 
       - name: Upload Playwright artifacts

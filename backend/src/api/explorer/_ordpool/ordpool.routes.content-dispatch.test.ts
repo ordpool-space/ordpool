@@ -130,7 +130,10 @@ describe('getInscriptionContent route handler dispatch', () => {
     expect(ordpoolInscriptionsApi.$getInscriptionOrDelegeate).not.toHaveBeenCalled();
   });
 
-  it('returns 500 when the resolver throws', async () => {
+  it('returns 500 with a generic body when the resolver throws, never the upstream error string', async () => {
+    // Load-bearing: the catch must NOT leak the error into the public body.
+    // Reverting it to `'Internal server error: ' + error` sends
+    // 'Internal server error: Error: boom' and fails this exact-body assertion.
     (ordpoolInscriptionsApi.$getFirstImageInscription as jest.Mock).mockRejectedValue(new Error('boom'));
     const req = { params: { inscriptionId: TXID } } as unknown as Request;
     const res = makeRes();
@@ -138,6 +141,35 @@ describe('getInscriptionContent route handler dispatch', () => {
     await (generalOrdpoolRoutes as any).getInscriptionContent(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith('Internal server error.');
+    expect(res.send).not.toHaveBeenCalledWith(expect.stringContaining('boom'));
+  });
+});
+
+describe('getInscriptionPreview route handler', () => {
+  beforeEach(() => jest.resetAllMocks());
+
+  it('returns 404 when the lookup yields nothing', async () => {
+    (ordpoolInscriptionsApi.$getInscriptionOrDelegeate as jest.Mock).mockResolvedValue(undefined);
+    const req = { params: { inscriptionId: `${TXID}i0` } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getInscriptionPreview(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith('Transaction or inscription not found.');
+  });
+
+  it('returns 500 with a generic body when the resolver throws, never the upstream error string', async () => {
+    (ordpoolInscriptionsApi.$getInscriptionOrDelegeate as jest.Mock).mockRejectedValue(new Error('boom'));
+    const req = { params: { inscriptionId: `${TXID}i0` } } as unknown as Request;
+    const res = makeRes();
+
+    await (generalOrdpoolRoutes as any).getInscriptionPreview(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith('Internal server error.');
+    expect(res.send).not.toHaveBeenCalledWith(expect.stringContaining('boom'));
   });
 });
 
@@ -199,7 +231,7 @@ describe('getStampContent route handler', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('returns 500 when the resolver throws', async () => {
+  it('returns 500 with a generic body when the resolver throws, never the upstream error string', async () => {
     (ordpoolStampsApi.$getStamp as jest.Mock).mockRejectedValue(new Error('boom'));
     const req = { params: { txid: TXID } } as unknown as Request;
     const res = makeRes();
@@ -207,6 +239,8 @@ describe('getStampContent route handler', () => {
     await (generalOrdpoolRoutes as any).getStampContent(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith('Internal server error.');
+    expect(res.send).not.toHaveBeenCalledWith(expect.stringContaining('boom'));
   });
 });
 
@@ -258,7 +292,7 @@ describe('getAtomicalContent route handler', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('returns 500 when the resolver throws', async () => {
+  it('returns 500 with a generic body when the resolver throws, never the upstream error string', async () => {
     (ordpoolAtomicalsApi.$getFirstAtomicalImage as jest.Mock).mockRejectedValue(new Error('boom'));
     const req = { params: { txid: TXID } } as unknown as Request;
     const res = makeRes();
@@ -266,6 +300,8 @@ describe('getAtomicalContent route handler', () => {
     await (generalOrdpoolRoutes as any).getAtomicalContent(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith('Internal server error.');
+    expect(res.send).not.toHaveBeenCalledWith(expect.stringContaining('boom'));
   });
 });
 

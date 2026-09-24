@@ -1,211 +1,91 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Backend for `ordpool-space/ordpool`: a `mempool/mempool` fork with ordpool indexing for digital artifacts (inscriptions, runes, BRC-20, SRC-20, CAT-21, atomicals). Repo-wide rules live in the repo-root `CLAUDE.md`; this file is backend-specific.
 
-## Backend: ordpool (Express + TypeScript)
+## HARD RULE: Keep useful comments
+- Don't strip JSDoc or "why" inline comments as "simplification". Trim the text inside; keep the block.
+- Backend-specific keepers a reader can't reconstruct from code: route-handler example URLs, alkanes / OTS / parser-flag linkage notes, migration-generation cross-references.
+Ref: workspace `CLAUDE.md` "Keep useful comments (JSDoc AND inline 'why')"; rollback `6a880bfd3`.
 
-Fork of mempool.space backend with ordpool indexing for digital artifacts (inscriptions, runes, BRC-20, SRC-20, CAT-21, atomicals).
+## Node version
+Node.js v24 (`.nvmrc`) plus a Rust toolchain for the native `rust-gbt` module, built during `npm install` (needs `rustc`/`cargo`, via `rustup` or `brew install rustup`).
 
-### HARD RULE: Keep useful comments
-
-**Don't strip JSDoc or "why" inline comments under the banner of
-"simplification".** The text inside a comment can be trimmed (no
-bombast, no LLM-speak, no before-after history); the block itself
-stays. Route-handler example URLs, alkanes / OTS / parser-flag
-linkage notes, and migration-generation cross-references are exactly
-the kind of comment a future reader cannot reconstruct from code
-alone. The 2026-05-20 alkanes `/simplify` pass (commit `1d8d82a15`)
-stripped 10 useful comments in this backend and had to be rolled
-back in `6a880bfd3`. Full decision tree in the workspace `CLAUDE.md`
-HARD RULE "Keep useful comments (JSDoc AND inline 'why')".
-
-### Node Version
-
-Requires **Node.js v24** (see `.nvmrc`). Also requires a **Rust toolchain** for the native `rust-gbt` module (built during `npm install`).
-
-### Prerequisites
-
-The backend connects to these services:
-
+## Prerequisites
 | Service | Port | Required | Notes |
-|---------|------|----------|-------|
-| Bitcoin Core RPC | 8332 | Yes | Via SSH tunnel or local |
+|---|---|---|---|
+| Bitcoin Core RPC | 8332 | Yes | via SSH tunnel or local |
 | Electrs (Esplora API) | 3000 | Yes | ordpool-electrs fork |
-| MariaDB | 3306 | Yes | See `mempool-config.sample.json` for defaults |
-| Redis | 6379 | Optional | Recommended — speeds up dev by caching between restarts |
+| MariaDB | 3306 | Yes | defaults in `mempool-config.sample.json` |
+| Redis | 6379 | Optional | caches between restarts |
 
-**Easiest way to get bitcoind + electrs**: Use the SSH tunnel (see top-level CLAUDE.md for details).
-
-**Local MariaDB setup:**
+bitcoind + electrs come easiest via the SSH tunnel (see the workspace `CLAUDE.md`). Local services:
 ```bash
-brew install mariadb
-brew services start mariadb
+brew install mariadb && brew services start mariadb   # create DB + user per mempool-config.sample.json
+brew install redis   && brew services start redis
 ```
-Create the database and user as shown in `mempool-config.sample.json`.
 
-**Local Redis setup:**
+## First-time setup and development
 ```bash
-brew install redis
-brew services start redis
+cp mempool-config.sample.json mempool-config.json   # edit credentials; override only what differs. Sections: CORE_RPC, ESPLORA, DATABASE, REDIS
+npm install               # also builds rust-gbt from ../rust/gbt (if it fails, install rustc/cargo)
+npm start                 # build + run on port 8999 (MEMPOOL.HTTP_PORT), 4GB heap; runs DB migrations on startup
+npm run tsc               # compile only, no run
+npm run build             # tsc + create-resources
+npm run start-production  # runs with 16GB heap
+npm test                  # Jest unit tests
+npm run test:ci           # CI mode with coverage
 ```
+Lint scripts (`npm run lint` / `lint:fix` / `prettier`) exist but must NOT be run: see repo-root `CLAUDE.md` "Linting is FORBIDDEN".
 
-### First-Time Setup
+## Dependency: ordpool-parser
+- Imported by git SHA in `package.json`: `"ordpool-parser": "github:ordpool-space/ordpool-parser#<sha>"`. Its `prepare` script runs `npm run build` on install, so the compiled output is always fresh.
+- Bumping the SHA: edit `package.json`, run `npm install` to regenerate `package-lock.json`, commit BOTH. CI caches `node_modules` by lockfile hash; a SHA-only change restores stale `node_modules` and `prepare` never re-runs.
+- Local live-dev (no commit): `cd ordpool-parser && npm run build && cd dist && npm link`, then `npm link ordpool-parser` in `backend/`.
+- Key imports: `DigitalArtifactAnalyserService`, `InscriptionParserService`, `InscriptionPreviewService`, `convertVerboseBlockToSimplePlus`, `getFirstInscriptionHeight`.
 
-```bash
-cp mempool-config.sample.json mempool-config.json   # then edit credentials
-npm install              # also builds rust-gbt native module from ../rust/gbt
-```
+## HARD RULE: Ordpool flags are computed in getTransactionFlags, everywhere, functionally
+- Every ordpool flag (`ordpool_inscription`, `ordpool_rune`, `ordpool_cat21`, `ordpool_atomical`, `ordpool_src20`, `ordpool_labitbu`; type flags `ordpool_counterparty`, `ordpool_stamp`, `ordpool_src721`, `ordpool_src101`, `ordpool_ots`; sub-op flags) is applied on every path (mempool, confirmed blocks, lookups, WebSocket, frontend), computed inside `getTransactionFlags`, never as a post-processing step.
+- Pattern: functional return value, no side-channel mutation. `Common.getTransactionFlags()` (`src/api/common.ts`, async) ends with `flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags)`; above the early-return it does `flags |= getOtsFlag(tx.txid)` (`src/api/ordpool-ots-flag.ts`).
+- Block extension calls `await DigitalArtifactAnalyserService.analyseTransactions(txs)` for the per-block `ordpoolStats`; the OTS bit still lands on `tx.flags` via the same `getOtsFlag(tx.txid)` inside `Common.getTransactionFlags` on the per-tx path.
+- Frontend mirror `getTransactionFlags` (`src/app/shared/transaction.utils.ts`) is also async, returns the merged bigint, plus `OtsKnowledgeService.isOtsCommit(tx)` for the strip-wire OTS case.
+- No `_ordpoolFlags` side-channel in our code; the parser's own `_ordpoolFlags` mutation is upstream and unread in this fork.
+- Regression spec: `frontend/src/app/shared/transaction.utils.spec.ts` asserts Counterparty mpma tx `4a412b0a...4788e` gets `ordpool_counterparty` (bit 55). Keep green.
+<!-- long-rule: flag list + backend/frontend call path -->
 
-If `rust-gbt` build fails, make sure `rustc` and `cargo` are installed (`rustup` or `brew install rustup`).
+## Code marking convention (merge-friendly)
+Fork of mempool.space; mark ordpool changes so upstream merges stay clean.
+- Inline: `// HACK --- Ordpool Flags`, `// HACK -- Ordpool stats`, `// HACK for Ordpool: <reason>` (e.g. increase the `GROUP_CONCAT` maximum length).
+- File naming: `ordpool-` prefix (`ordpool-indexer.ts`, `ordpool-database-migration.ts`, `ordpool-missing-blocks.ts`, `ordpool-missing-stats.ts`).
+- Dirs: `src/api/explorer/_ordpool/` (statistics API, inscription endpoints, config); `src/repositories/OrdpoolBlocksRepository.ts`.
+- NEVER delete upstream code; comment it out with `/* HACK -- Ordpool: reason */` to preserve it for future merges.
 
-### Configuration
-
-Config file: `mempool-config.json` (copy from `mempool-config.sample.json`). Only override what differs from the defaults. Key sections: `CORE_RPC`, `ESPLORA`, `DATABASE`, `REDIS`.
-
-### Development
-
-```bash
-npm start                # builds + runs (4GB heap limit)
-npm run tsc              # compile TypeScript only (no run)
-npm run build            # full build (tsc + create-resources)
-npm run start-production # runs with 16GB heap
-```
-
-The backend starts on **port 8999** by default (`MEMPOOL.HTTP_PORT`).
-
-On startup it runs database migrations automatically, including ordpool-specific tables (`ordpool-database-migration.ts`).
-
-### Tests
-
-```bash
-npm test                 # Jest unit tests
-npm run test:ci          # CI mode with coverage
-```
-
-### Linting
-
-```bash
-npm run lint             # ESLint
-npm run lint:fix         # ESLint with auto-fix
-npm run prettier         # Prettier formatting
-```
-
-### Dependency: ordpool-parser
-
-The backend imports `ordpool-parser` via a git SHA ref in `package.json`:
-```json
-"ordpool-parser": "github:ordpool-space/ordpool-parser#<sha>"
-```
-
-The `prepare` script in ordpool-parser runs `npm run build` on install, so the compiled output is always fresh.
-
-**CRITICAL: When updating the git SHA, ALWAYS run `npm install` afterwards to regenerate `package-lock.json`, then commit BOTH files together.** CI caches `node_modules` keyed by the lockfile hash. If you update the SHA in `package.json` without updating the lockfile, CI restores stale `node_modules` from cache (with the old ordpool-parser build) and the `prepare` script never re-runs.
-
-```bash
-# Correct workflow for bumping ordpool-parser:
-# 1. Update the SHA in package.json
-# 2. Run npm install to regenerate the lockfile
-npm install
-# 3. Commit BOTH package.json AND package-lock.json
-git add package.json package-lock.json
-git commit -m "bump ordpool-parser to <sha>"
-```
-
-For local development with live changes (no commit needed):
-```bash
-# In ordpool-parser/
-npm run build && cd dist && npm link
-
-# In ordpool/backend/
-npm link ordpool-parser
-```
-
-Key imports: `DigitalArtifactAnalyserService`, `InscriptionParserService`, `InscriptionPreviewService`, `convertVerboseBlockToSimplePlus`, `getFirstInscriptionHeight`.
-
-### HARD RULE: Ordpool Flags Must Be Applied Everywhere
-
-Ordpool transaction flags (`ordpool_inscription`, `ordpool_rune`, `ordpool_cat21`, `ordpool_atomical`, `ordpool_src20`, `ordpool_labitbu`, plus the type flags `ordpool_counterparty`, `ordpool_stamp`, `ordpool_src721`, `ordpool_src101`, `ordpool_ots`, plus the sub-op flags) MUST be applied to every transaction, everywhere -- mempool, confirmed blocks, individual lookups, WebSocket, frontend. They must be computed together with the upstream flags in `getTransactionFlags`, not as a post-processing step.
-
-**The pattern: functional return value, no side-channel mutation.** `Common.getTransactionFlags()` (`src/api/common.ts`) is `async`. At the very end of upstream flag computation it calls `flags = await DigitalArtifactAnalyserService.analyseTransaction(tx, flags)` -- the parser takes the upstream-flag bigint in, ORs in the ordpool artifact bits, and returns the merged bigint. Above the early-return, it calls `flags |= getOtsFlag(tx.txid)` (pure function in `src/api/ordpool-ots-flag.ts`) to apply the indexer-derived `ordpool_ots` bit. The frontend's `getTransactionFlags` (`src/app/shared/transaction.utils.ts`) follows the same shape: also async, also returns the merged bigint, plus a separate `OtsKnowledgeService.isOtsCommit(tx)` step for the strip-wire OTS case.
-
-The flow:
-1. Mempool tx arrival → `await Common.getTransactionFlags(tx)` (now async) computes upstream + ordpool flags in one call and returns the merged number.
-2. Block extension → `await DigitalArtifactAnalyserService.analyseTransactions(txs)` computes the per-block `ordpoolStats`. The OTS bit lands on `tx.flags` downstream via the same `getOtsFlag(tx.txid)` call inside `Common.getTransactionFlags` when the per-tx classification path runs.
-3. Frontend mirror → `await getTransactionFlags(tx, ..., otsKnowledge)` in `transaction.utils.ts` does the same: upstream static-flag computation + `await DigitalArtifactAnalyserService.analyseTransaction(tx, flags)` for parser-derived bits + a `OtsKnowledgeService.isOtsCommit(tx)` call for the strip-wire OTS case.
-
-There is no `_ordpoolFlags` side-channel mutation in our code anymore. The indexer-derived `ordpool_ots` bit flows as a pure-functional return value (`getOtsFlag(txid): bigint`). The parser-side `_ordpoolFlags` mutation (in `ordpool-parser`'s `analyseTransaction`) is upstream of our backend; nothing in this fork reads that field.
-
-A regression spec lives at `frontend/src/app/shared/transaction.utils.spec.ts` -- it asserts that a real Counterparty mpma tx (txid `4a412b0a...4788e`) gets `ordpool_counterparty` (bit 55) OR'd into the returned flags. Keep the test green.
-
-### Code Marking Convention (for merge-friendly changes)
-
-This is a fork of mempool.space. Ordpool-specific changes follow the same marking system as the frontend:
-
-**1. Inline markers (`// HACK`)** — When modifying existing mempool files:
-```
-// HACK --- Ordpool Flags
-// HACK -- Ordpool stats
-// HACK for Ordpool: increase the GROUP_CONCAT maximum length
-```
-
-**2. File naming** — Ordpool-dedicated files use `ordpool-` prefix:
-`ordpool-indexer.ts`, `ordpool-database-migration.ts`, `ordpool-missing-blocks.ts`, `ordpool-missing-stats.ts`
-
-**3. Directory structure** — Ordpool-exclusive API routes live in `_ordpool/` directories:
-- `src/api/explorer/_ordpool/` — Statistics API, inscription endpoints, config
-- `src/repositories/OrdpoolBlocksRepository.ts` — Dedicated repository
-
-**NEVER delete upstream code. Always comment it out** with `/* HACK -- Ordpool: reason */` to preserve it for future merges.
-
-### Ordpool Database Tables
-
+## Ordpool database tables
 Created by `ordpool-database-migration.ts` on startup:
+- `ordpool_stats` (per-block inscription/rune/BRC-20/SRC-20/CAT-21/atomical counts)
+- `ordpool_stats_rune_mint`, `ordpool_stats_rune_etch` (rune activity per block)
+- `ordpool_stats_brc20_mint`, `ordpool_stats_brc20_deploy` (BRC-20 activity)
+- `ordpool_stats_src20_mint`, `ordpool_stats_src20_deploy` (SRC-20 activity)
+- `ordpool_stats_cat21_mint` (CAT-21 mint records with traits)
 
-- `ordpool_stats` — Per-block statistics (inscription/rune/BRC-20/SRC-20/CAT-21/atomical counts)
-- `ordpool_stats_rune_mint`, `ordpool_stats_rune_etch` — Rune activity per block
-- `ordpool_stats_brc20_mint`, `ordpool_stats_brc20_deploy` — BRC-20 activity
-- `ordpool_stats_src20_mint`, `ordpool_stats_src20_deploy` — SRC-20 activity
-- `ordpool_stats_cat21_mint` — CAT-21 mint records with traits
-
-### HARD RULE: Migrations are IMMUTABLE
-
-**Each version block in `ordpool-database-migration.ts` is frozen the moment it ships.** Once `currentVersion = N` has been deployed against any database, the queries inside `if (version <= N)` are part of recorded history. They have already run on production and possibly on multiple developer machines. **Never edit them retroactively.**
-
-Schema changes go on TOP, not in PLACE.
-
-Wrong:
+## HARD RULE: Migrations are IMMUTABLE
+- Each `if (version <= N)` block in `ordpool-database-migration.ts` is frozen the moment `currentVersion = N` ships. It has already run on production; never edit it retroactively.
+- Schema changes go on TOP, not in place: bump `currentVersion`, add a new block.
+- Same rule for upstream-style migrations in `database-migration.service.ts`.
+- Only legitimate exception: the pre-v1 `DROP COLUMN IF EXISTS` cleanup block at the top of v1 (committed before the schema was tagged v1).
 ```ts
-private static currentVersion = 1;
-if (version <= 1) {
-  queries.push(`CREATE TABLE ordpool_stats (... amounts_inscription_transfer ...)`);  // edit this to remove the column ❌
-}
+private static currentVersion = 2;                                            // bump, don't edit v1
+if (version <= 1) { queries.push(`CREATE TABLE ordpool_stats (...)`); }        // unchanged
+if (version <= 2) { queries.push(`ALTER TABLE ordpool_stats ADD COLUMN ...`); } // new block on top
 ```
+Why: a fresh install replays all blocks in order; an existing install runs only the new blocks. Both converge only if shipped blocks never change. Editing a shipped block gives fresh installs a schema no production DB ever had, and a later ALTER can collide.
+<!-- long-rule: migration versioning example -->
 
-Right:
-```ts
-private static currentVersion = 2;  // bump
-if (version <= 1) {
-  queries.push(`CREATE TABLE ordpool_stats (... amounts_inscription_transfer ...)`);  // unchanged
-}
-if (version <= 2) {
-  queries.push(`ALTER TABLE ordpool_stats DROP COLUMN amounts_inscription_transfer, ...`);
-  queries.push(`ALTER TABLE ordpool_stats ADD COLUMN amounts_stamp ..., ...`);
-}
-```
-
-Why this matters: a fresh install at v0 runs both blocks in order and ends up at the current schema. A v1 install only runs the v2 block and ends up at the same schema. Both paths converge. If you edit v1 retroactively, fresh installs end up with a schema that no v1 production database has ever had — divergence — and the v2 ALTER for an existing v1 prod database may collide (DROP a column that v1 never created in your edited version, etc.).
-
-The "manual cleanup all previous attempts" defensive `DROP COLUMN IF EXISTS` block at the top of v1 is the *only* legitimate exception — it's pre-v1 cleanup committed before the schema was tagged as v1. Once a version ships, the slate is fixed.
-
-Same rule applies to every migration in this repo, including upstream-mempool-style migrations in `database-migration.service.ts`.
-
-### Architecture
-
-- **Entry point**: `src/index.ts` — Express server + WebSocket, cluster management, migration runner, main polling loop
-- **Ordpool indexer**: `src/ordpool-indexer.ts` — Orchestrates batch processing of blocks for ordpool stats
-- **API routes**: `src/api/explorer/_ordpool/ordpool.routes.ts`
+## Architecture
+- Entry: `src/index.ts` (Express + WebSocket, cluster management, migration runner, main polling loop)
+- Indexer: `src/ordpool-indexer.ts` (batch block processing for ordpool stats)
+- Routes: `src/api/explorer/_ordpool/ordpool.routes.ts`
   - `GET /api/v1/ordpool/statistics/:type/:interval/:aggregation`
-  - `GET /content/:inscriptionId` — Raw inscription content
-  - `GET /preview/:inscriptionId` — Preview with rendering instructions
-- **Database**: `src/database.ts` — MySQL connection pool via mysql2
-- **Config**: `src/config.ts` — Merges `mempool-config.json` with defaults
+  - `GET /content/:inscriptionId` (raw inscription content)
+  - `GET /preview/:inscriptionId` (preview with rendering instructions)
+- Database: `src/database.ts` (MySQL connection pool via mysql2)
+- Config: `src/config.ts` (merges `mempool-config.json` with defaults)

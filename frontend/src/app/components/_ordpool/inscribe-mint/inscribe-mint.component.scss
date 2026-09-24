@@ -41,6 +41,16 @@
   border: 1px solid rgba(40, 167, 69, 0.4);
 }
 
+// A coin that can't cover the commit + reveal fee at the current rate: shown
+// (not hidden) but dimmed and unpickable, so it reads as "too small at this
+// rate", not missing. 0.7 is the measured floor: the amber "Can't fund at this
+// rate" text is 9.2:1 at full opacity and drops with the row's dimming; at 0.7
+// the composited pair is 5.25:1 (WCAG AA for small text), at 0.55 it was 3.78:1
+// (fail). Do not lower without re-measuring — the label must stay legible.
+.shape-border.utxo-row-unavailable {
+  opacity: 0.7;
+}
+
 .utxo-bucket-badge .badge {
   font-size: 0.7rem;
   vertical-align: middle;

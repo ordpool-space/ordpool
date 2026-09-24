@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
+import { cleanOutputFixture } from 'ordpool-sdk';
 
 // Shared regtest helpers + the Xverse approval-popup machinery, single-
 // sourced from the SDK's compiled `ordpool-sdk/e2e` barrel.
@@ -168,10 +169,19 @@ test.beforeAll(async () => {
   // page-level `**/output/*` route, which Playwright evaluates before this one, so
   // its cat-bearing outpoint still surfaces the "asset found" warning.
   await context.route('**/output/*', async (route) => {
+    // Canonical /output shape from the SDK's cleanOutputFixture, so this mock
+    // tracks the classifier contract instead of drifting from it. A hand-written
+    // body that omitted `sat_ranges` is what reddened both base mint lanes once
+    // the classifier began requiring proof-of-indexing; the fixture carries the
+    // ranges a real indexed output has, and an SDK spec pins it to the
+    // classifier. Route each host to its half: the stock ord (:8081) gets the
+    // ord response, cat21-ord (:8080) the cats.
+    const fx = cleanOutputFixture();
+    const body = route.request().url().includes(':8080') ? fx.cat21Ord : fx.ord;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ inscriptions: [], runes: {}, cats: [] }),
+      body: JSON.stringify(body),
     });
   });
 
@@ -220,11 +230,11 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // The connect link in the mint page reads "connect your wallet" and
   // sits inside the form when no wallet is yet bound. The wallet picker
   // is a ngb-modal that opens with the supported wallet list.
-  const connectLink = page.getByRole('link', { name: /connect your wallet/i }).first();
-  await expect(connectLink).toBeVisible({ timeout: 30_000 });
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
 
   const knownPagesBeforeConnect = new Set(context.pages());
-  await connectLink.click();
+  await connectTrigger.click();
   // Picker modal: pick Xverse. The matrix-driven picker renders the wallet
   // name as text with a per-wallet Connect button carrying a stable testid.
   await page.getByTestId('wallet-connect-xverse')
@@ -328,7 +338,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // run 27481577440 showed the "Create new wallet" onboarding
   // screen on the third page). Keeping the picker proof inside the
   // already-connected test 1 avoids that whole class of flake.
-  const tiles = page.locator('.fee-estimation-container .item a');
+  const tiles = page.getByTestId('fee-tile');
   await expect(tiles).toHaveCount(4, { timeout: 30_000 });
   // Order on screen: 0=economy, 1=hour, 2=halfHour, 3=fastest.
   // The economy `<a>` ships with its click handler commented out by
@@ -349,7 +359,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // the broadcast, so the form has to refuse the input client-side.
   // We type 0 and 0.05, assert the Mint button stays disabled, then
   // reset to 1 for the rest of the round-trip.
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   await feeRateInput.fill('0');
   await feeRateInput.press('Tab');
   await expect(mintButton).toBeDisabled({ timeout: 5_000 });
@@ -656,7 +666,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   // what I'm doing, mint anyway" actually reaches the chain.
   const overrideBtn = assetRow.getByRole('button', { name: /use anyway/i });
   await overrideBtn.click();
-  const mintBtn = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintBtn = page.getByTestId('mint-cat-button');
   await expect(mintBtn).toBeEnabled({ timeout: 30_000 });
 
   const knownBeforeBurnSign = new Set(context.pages());
@@ -756,7 +766,7 @@ test('sign-popup cancel keeps state coherent', async () => {
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
 
   // Wait for picker + mint button enabled.
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   const feeRateInput = page.locator(
     '[data-testid="cat21-fee-rate"]',
   ).first();
@@ -827,7 +837,7 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
   });
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
 
-  const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+  const mintButton = page.getByTestId('mint-cat-button');
   const feeRateInput = page.locator(
     '[data-testid="cat21-fee-rate"]',
   ).first();
@@ -969,7 +979,7 @@ async function ordpoolMintAtRate(opts: {
 
     // ─── Wait for the fee picker tiles to render, sanity-check that
     // the WS frame actually carried the expected scenario values. ─
-    const tiles = page.locator('.fee-estimation-container .item a');
+    const tiles = page.getByTestId('fee-tile');
     await expect(tiles).toHaveCount(4, { timeout: 30_000 });
     if (opts.mockFeesAsHigh) {
       // tile index 3 is the fastest tier — should show 100 from the
@@ -985,7 +995,7 @@ async function ordpoolMintAtRate(opts: {
     await feeRateInput.press('Tab');
     await shot(page, `mr-${opts.scenarioLabel}-02-rate-typed`);
 
-    const mintButton = page.getByRole('button', { name: /mint my cat/i }).first();
+    const mintButton = page.getByTestId('mint-cat-button');
     await expect(mintButton).toBeEnabled({ timeout: 60_000 });
 
     // ─── Click Mint, approve Xverse sign popup ───────────────────

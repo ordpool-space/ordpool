@@ -12,8 +12,9 @@ import { ApiService } from '@app/services/api.service';
 import { PriceService } from '@app/services/price.service';
 import { StorageService } from '@app/services/storage.service';
 import { OrdApiService } from '@app/services/ord-api.service';
-import { Inscription } from '@app/shared/ord/inscription.utils';
-import { Etching, Runestone } from '@app/shared/ord/rune.utils';
+import { ParsedInscription, RunestoneSpec } from 'ordpool-parser';
+import { RuneEtchingSpec } from '@app/services/ord-api.service';
+
 import { ADDRESS_SIMILARITY_THRESHOLD, AddressMatch, AddressSimilarity, AddressType, AddressTypeInfo, checkedCompareAddressStrings, detectAddressType } from '@app/shared/address-utils';
 import { processInputSignatures, Sighash, SigInfo, SighashLabels, parseTaproot } from '@app/shared/transaction.utils';
 import { ActivatedRoute } from '@angular/router';
@@ -70,7 +71,7 @@ export class TransactionsListComponent implements OnInit, OnChanges, OnDestroy {
   showFullOpReturnData: { [voutIndex: number]: boolean } = {};
   showFullOpReturnPreview: { [voutIndex: number]: boolean } = {};
   showTaprootControlBlock: { [vinIndex: number]: boolean } = {};
-  showOrdData: { [key: string]: { show: boolean; inscriptions?: Inscription[]; runestone?: Runestone, runeInfo?: { [id: string]: { etching: Etching; txid: string; } }; } } = {};
+  showOrdData: { [key: string]: { show: boolean; inscriptions?: ParsedInscription[]; runestone?: RunestoneSpec, runeInfo?: { [id: string]: { etching: RuneEtchingSpec; txid: string; } }; } } = {};
   similarityMatches: Map<string, Map<string, { score: number, match: AddressMatch, group: number }>> = new Map();
 
   selectedSig: { txIndex: number, vindex: number, sig: SigInfo } | null = null;
@@ -628,8 +629,7 @@ export class TransactionsListComponent implements OnInit, OnChanges, OnDestroy {
 
     if (type === 'vin') {
       if (!this.showOrdData[key].inscriptions) {
-        const tapscript = tx.vin[index].taprootInfo?.scriptPath?.script;
-        this.showOrdData[key].inscriptions = this.ordApiService.decodeInscriptions(tapscript);
+        this.showOrdData[key].inscriptions = this.ordApiService.decodeInscriptions(tx, index);
       }
       this.showOrdData[key].show = !this.showOrdData[key].show;
 

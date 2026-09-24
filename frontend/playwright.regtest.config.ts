@@ -28,7 +28,12 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  // Zero retries, on purpose. A retry hides a real failure behind a second roll
+  // of the dice, and these specs share a chain: a retry re-runs a mutated cell
+  // against already-mutated state, so its result is meaningless anyway. A flake
+  // here is an error to FIX (a missing wait, a race), not to paper over. If a
+  // wallet popup times out, the fix is a better wait, not another attempt.
+  retries: 0,
   // Each spec includes ~2 wallet popups + 2 block mines + electrs
   // polling. The default 60s isn't anywhere near enough.
   timeout: 480_000,

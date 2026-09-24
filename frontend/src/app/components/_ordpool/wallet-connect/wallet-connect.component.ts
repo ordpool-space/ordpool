@@ -99,8 +99,23 @@ export class WalletConnectComponent implements OnDestroy {
 
   // wallets$ is only the re-emit trigger so the list refreshes when a provider
   // appears/disappears; the rows themselves come from the SDK's walletPickerRows.
-  pickerRows$ = this.walletService.wallets$.pipe(
-    map(() => this.buildPickerRows()),
+  // Split into two groups by reachableHere: the usable wallets render as normal
+  // rows, the ones this device can't reach render compact under a heading.
+  pickerGroups$ = this.walletService.wallets$.pipe(
+    map(() => {
+      const rows = this.buildPickerRows();
+      const usable = rows.filter(r => r.reachableHere);
+      const alsoSupported = rows.filter(r => !r.reachableHere);
+      // Every unreachable row carries the same action (the opposite platform,
+      // computed once by walletPickerRows), so a single heading is always
+      // correct and a mixed group can't occur.
+      const alsoSupportedHeading = alsoSupported.length === 0
+        ? ''
+        : alsoSupported[0].action === 'use-on-desktop'
+          ? 'Also supported on desktop'
+          : 'Also supported on mobile';
+      return { usable, alsoSupported, alsoSupportedHeading };
+    }),
   );
 
   connectedWallet$ = this.walletService.connectedWallet$;
@@ -132,6 +147,10 @@ export class WalletConnectComponent implements OnDestroy {
   @ViewChild('connect') connectTemplateRef: TemplateRef<any>;
   modalRef: NgbModalRef | undefined;
 
+  /** True while a wallet-connect dialog is open, across all instances, so the
+   *  second header instance suppresses its duplicate (see open()). */
+  private static connectModalOpen = false;
+
   constructor() {
     // takeUntilDestroyed (constructor injection context): this component is the
     // header's persistent <app-wallet-connect>, so the subscription to the root
@@ -148,13 +167,15 @@ export class WalletConnectComponent implements OnDestroy {
 
   /**
    * The picker rows, from the SDK's walletPickerRows: it owns provider
-   * detection, platform detection + filtering (a wallet unreachable on this
-   * DEVICE is absent, never badged; the SDK reads the device from `win`, not
-   * the viewport, so resizing a desktop window never changes the list), the
-   * button action + label (so labels cannot drift from the other sites), and
-   * the watch-only row. Scoped to the page's action so an incapable wallet
-   * never appears — which is what makes silence at login safe
-   * (wallet-ux-round2.md §7.2/§7.3).
+   * detection, platform detection (read from `win`, not the viewport, so
+   * resizing a desktop window never changes the list), the button action +
+   * label (so labels cannot drift from the other sites), and the watch-only
+   * row. Every SDK-supported wallet comes back; one unreachable on this DEVICE
+   * carries `reachableHere: false` and a discovery action ('use-on-desktop' /
+   * 'use-on-mobile') so the picker shows what the person holds instead of
+   * hiding it. Rows are pre-sorted (usable first, unreachable last). Scoped to
+   * the page's action so an incapable wallet never appears — which is what
+   * makes silence at login safe (wallet-ux-round2.md §7.2/§7.3).
    */
   private buildPickerRows(): WalletPickerRow[] {
     return walletPickerRows({
@@ -165,6 +186,16 @@ export class WalletConnectComponent implements OnDestroy {
   }
 
   open(): void {
+    // Two <app-wallet-connect> live in the header (the nav and the search bar),
+    // and both subscribe to the shared requestWalletConnect(), so a programmatic
+    // connect request fires open() on each. Without a guard two identical
+    // connect dialogs stack, and any getByTestId('wallet-connect-<x>') then
+    // matches twice. A static wallet-connect-specific flag suppresses the
+    // second, scoped to THIS dialog: an unrelated open modal (e.g. the PSBT
+    // export prompt) must not block a legitimate connect, which an app-global
+    // hasOpenModals() check would.
+    if (WalletConnectComponent.connectModalOpen) { return; }
+    WalletConnectComponent.connectModalOpen = true;
     this.connectButtonDisabled = false;
     this.resetXpub();
 
@@ -172,10 +203,12 @@ export class WalletConnectComponent implements OnDestroy {
       ariaLabelledBy: 'modal-basic-title',
       centered: true
     });
-    // Tear down any in-flight watch-only scan on BOTH modal outcomes: result
-    // resolves on close, rejects on dismiss (X button, ESC, backdrop click).
-    // Without this a scan started then dismissed leaves scanAbort un-aborted.
-    this.modalRef.result.then(() => this.resetXpub(), () => this.resetXpub());
+    // On BOTH modal outcomes: clear the open flag (so a later connect works) and
+    // tear down any in-flight watch-only scan. result resolves on close, rejects
+    // on dismiss (X button, ESC, backdrop click); without this a scan started
+    // then dismissed leaves scanAbort un-aborted.
+    const onClosed = () => { WalletConnectComponent.connectModalOpen = false; this.resetXpub(); };
+    this.modalRef.result.then(onClosed, onClosed);
   }
 
   private resetXpub(): void {

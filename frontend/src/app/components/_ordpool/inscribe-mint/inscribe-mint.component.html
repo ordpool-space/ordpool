@@ -17,6 +17,21 @@
   <div class="box mt-4">
     <ng-container *ngIf="{ connectedWallet: connectedWallet$ | async } as x">
 
+      <!-- Single vs batch -->
+      <div class="btn-group w-100 mb-2" role="group" data-testid="inscribe-batch-mode">
+        <button type="button" class="btn"
+                [class.btn-primary]="!batchMode"
+                [class.btn-outline-secondary]="batchMode"
+                data-testid="inscribe-batch-mode-single"
+                (click)="toggleBatchMode(false)">Single</button>
+        <button type="button" class="btn"
+                [class.btn-primary]="batchMode"
+                [class.btn-outline-secondary]="!batchMode"
+                data-testid="inscribe-batch-mode-batch"
+                (click)="toggleBatchMode(true)">Batch (several files)</button>
+      </div>
+
+      <ng-container *ngIf="!batchMode">
       <!-- Mode: inscribe a file, or delegate to an existing inscription -->
       <div class="btn-group w-100 mb-2" role="group" data-testid="inscribe-mode">
         <button type="button" class="btn"
@@ -67,7 +82,7 @@
           Ord renders the target's content, so this inscription costs only a
           few sats.
         </div>
-        <div class="feedback-error p-1 small mt-1" *ngIf="delegateIdError" data-testid="inscribe-delegate-error">
+        <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="delegateIdError" data-testid="inscribe-delegate-error">
           {{ delegateIdError }}
         </div>
 
@@ -80,13 +95,186 @@
         </div>
       </div>
 
-      <div class="feedback-error p-2 mt-2" *ngIf="fileError" data-testid="inscribe-file-error">
+      <div class="feedback-error p-2 mt-2" role="alert" *ngIf="fileError" data-testid="inscribe-file-error">
         {{ fileError }}
       </div>
+      </ng-container><!-- /!batchMode -->
 
-      <!-- Advanced options (compression, note, metadata) -->
-      <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent" data-testid="inscribe-advanced">
+      <!-- Batch: several files in one commit -->
+      <ng-container *ngIf="batchMode">
+        <label class="dropzone d-block text-center p-4 mt-2"
+               [class.dragging]="isDragging"
+               (dragover)="onDragOver($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onBatchDrop($event)">
+          <input type="file" class="dropzone-input" multiple data-testid="inscribe-batch-input" (change)="onBatchPick($event)">
+          <div class="fs-5">Drag files here, or <span class="link-like">click to choose</span></div>
+          <div class="text-muted small mt-2">Each file becomes its own inscription in one transaction. Max {{ 350000 / 1000 }} KB each.</div>
+        </label>
+
+        <div class="feedback-error p-2 mt-2" role="alert" *ngIf="batchError" data-testid="inscribe-batch-error">{{ batchError }}</div>
+
+        <div *ngIf="batchFiles.length" class="mt-3 text-start" data-testid="inscribe-batch-list">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small text-muted">{{ batchFiles.length }} file{{ batchFiles.length === 1 ? '' : 's' }}, {{ batchTotalBytes | number }} bytes total</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="inscribe-batch-clear" (click)="clearBatch()">Clear all</button>
+          </div>
+          <div *ngFor="let f of batchFiles; let i = index"
+               class="ps-2 pe-2 pt-1 pb-1 shape-border mb-1"
+               [attr.data-testid]="'inscribe-batch-row-' + i">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-truncate">
+                {{ f.name }}
+                <span class="text-muted small">· {{ f.contentType }} · {{ f.sizeBytes | number }} bytes</span>
+              </span>
+              <button type="button" class="btn btn-sm btn-outline-secondary ms-2" title="Remove"
+                      [attr.data-testid]="'inscribe-batch-remove-' + i" (click)="removeBatchFile(i)">&#10005;</button>
+            </div>
+            <!-- Per-entry options: this inscription's own title + destination -->
+            <details class="mt-1">
+              <summary class="small text-muted">Options for this inscription</summary>
+              <div class="mt-2">
+                <input type="text" class="form-control form-control-sm mb-2" placeholder="title (optional)" spellcheck="false"
+                       [attr.data-testid]="'inscribe-batch-title-' + i"
+                       [value]="f.title" (input)="setBatchEntryTitle(i, $any($event.target).value)">
+                <input type="text" class="form-control form-control-sm" placeholder="destination address (optional, defaults to your ordinals address)" spellcheck="false"
+                       [attr.data-testid]="'inscribe-batch-destination-' + i"
+                       [value]="f.destination" (input)="setBatchEntryDestination(i, $any($event.target).value)">
+                <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="batchEntryDestinationInvalid(f.destination)"
+                     [attr.data-testid]="'inscribe-batch-destination-error-' + i">
+                  That does not look like a bitcoin address. Leave it empty to send this inscription to your ordinals address.
+                </div>
+              </div>
+            </details>
+          </div>
+          <p class="text-muted small mt-2 mb-0">
+            Every file mints in one commit and reveal to your ordinals address.
+            You also get two free CAT-21 cats. 😺
+          </p>
+
+          <!-- Parents (ord --parent): the batch is a child of these; the reveal
+               spends each and hands it back, so the wallet signs twice. -->
+          <div class="mt-4" data-testid="inscribe-batch-parents">
+            <label class="small text-muted mb-0">Parent inscriptions (optional)</label>
+            <div class="text-muted small mb-2">
+              Make this batch a child of inscriptions you own. Each must be at
+              your ordinals address; the reveal spends and returns it, so your
+              wallet signs twice.
+            </div>
+            <div *ngFor="let row of batchParentRows; let i = index" class="mb-2"
+                 [attr.data-testid]="'inscribe-batch-parent-row-' + i">
+              <div class="d-flex gap-2 align-items-start">
+                <input type="text" class="form-control" placeholder="parent inscription id (abcd…i0)" spellcheck="false"
+                       [attr.data-testid]="'inscribe-batch-parent-id-' + i"
+                       [value]="row.id" (input)="onBatchParentIdChange(i, $any($event.target).value)">
+                <button type="button" class="btn btn-outline-secondary" title="Remove parent"
+                        [attr.data-testid]="'inscribe-batch-parent-remove-' + i" (click)="removeBatchParentRow(i)">&#10005;</button>
+              </div>
+              <div class="feedback-error p-1 small mt-1" role="alert"
+                   *ngIf="batchParentIdInvalid(row.id)"
+                   [attr.data-testid]="'inscribe-batch-parent-invalid-' + i">
+                Enter a valid inscription id: 64 hex characters, then &ldquo;i&rdquo;, then an index.
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-testid="inscribe-batch-parent-add" (click)="addBatchParentRow()">+ Add parent</button>
+
+            <!-- What the orchestrator resolved the ids to -->
+            <div class="mt-2" *ngIf="resolvedParents() as parents" data-testid="inscribe-batch-parents-resolved">
+              <div class="small text-success" *ngFor="let p of parents">
+                &#10003; parent <code>{{ p.id.slice(0, 12) }}…</code> at <code>{{ p.address.slice(0, 10) }}…</code>
+                ({{ p.value | number }} sats), returns to itself
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <!-- Advanced options (compression, note, metadata) - single mode only -->
+      <details class="mt-3 inscribe-advanced text-start" *ngIf="hasContent && !batchMode" data-testid="inscribe-advanced">
         <summary>Advanced options</summary>
+
+        <!-- Title (ord --title) -->
+        <div class="mt-3" data-testid="inscribe-title">
+          <label class="small text-muted" for="inscribe-title-input">Title</label>
+          <input type="text" class="form-control" id="inscribe-title-input"
+                 data-testid="inscribe-title-input" [formControl]="titleControl"
+                 placeholder="A name for this inscription">
+          <div class="text-muted small mt-1">
+            Shown by ord under the inscription number. Leave empty to omit it.
+          </div>
+        </div>
+
+        <!-- Traits (ord properties, tag 17, ordered) -->
+        <div class="mt-4" data-testid="inscribe-traits">
+          <label class="small text-muted mb-0">Traits</label>
+          <div class="text-muted small mb-2">
+            Named values shown with the inscription, in the order you add them.
+          </div>
+
+          <div *ngFor="let row of traitRows; let i = index"
+               class="d-flex gap-2 mb-2 align-items-start"
+               [attr.data-testid]="'inscribe-trait-row-' + i">
+            <input type="text" class="form-control" placeholder="name" spellcheck="false"
+                   [attr.data-testid]="'inscribe-trait-name-' + i"
+                   [value]="row.name" (input)="onTraitNameChange(i, $any($event.target).value)">
+            <input type="text" class="form-control" placeholder="value" spellcheck="false"
+                   [attr.data-testid]="'inscribe-trait-value-' + i"
+                   [value]="row.value" (input)="onTraitValueChange(i, $any($event.target).value)">
+            <button type="button" class="btn btn-outline-secondary" title="Remove trait"
+                    [attr.data-testid]="'inscribe-trait-remove-' + i"
+                    (click)="removeTraitRow(i)">&#10005;</button>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-outline-secondary"
+                  data-testid="inscribe-trait-add" (click)="addTraitRow()">+ Add trait</button>
+
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="traitDuplicateName as dup"
+               data-testid="inscribe-trait-dup-error">
+            Duplicate trait name &ldquo;{{ dup }}&rdquo;. ord rejects duplicate names and would
+            drop all properties, so remove or rename one.
+          </div>
+        </div>
+
+        <!-- Gallery (ord --gallery, tag 17 properties) -->
+        <div class="mt-4" data-testid="inscribe-gallery">
+          <label class="small text-muted mb-0">Gallery</label>
+          <div class="text-muted small mb-2">
+            Other inscriptions this one is a gallery of, in the order you add
+            them. Each id must be an inscription that already exists.
+          </div>
+
+          <div *ngFor="let row of galleryRows; let i = index"
+               class="mb-2"
+               [attr.data-testid]="'inscribe-gallery-row-' + i">
+            <div class="d-flex gap-2 align-items-start">
+              <input type="text" class="form-control" placeholder="inscription id (abcd…i0)" spellcheck="false"
+                     [attr.data-testid]="'inscribe-gallery-id-' + i"
+                     [value]="row.id" (input)="onGalleryIdChange(i, $any($event.target).value)">
+              <span class="gallery-status align-self-center small"
+                    [ngSwitch]="galleryItemStatus(row.id)"
+                    [attr.data-testid]="'inscribe-gallery-status-' + i">
+                <span *ngSwitchCase="'exists'" class="text-success" title="Inscription found">&#10003;</span>
+                <span *ngSwitchCase="'checking'" class="text-muted" title="Checking">&#8230;</span>
+              </span>
+              <button type="button" class="btn btn-outline-secondary" title="Remove gallery item"
+                      [attr.data-testid]="'inscribe-gallery-remove-' + i"
+                      (click)="removeGalleryRow(i)">&#10005;</button>
+            </div>
+            <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="galleryItemStatus(row.id) === 'invalid'"
+                 [attr.data-testid]="'inscribe-gallery-invalid-' + i">
+              Enter a valid inscription id: 64 hex characters, then &ldquo;i&rdquo;, then an index (e.g. abcd&hellip;i0).
+            </div>
+            <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="galleryItemStatus(row.id) === 'missing'"
+                 [attr.data-testid]="'inscribe-gallery-missing-' + i">
+              No inscription with this id exists. ord would refuse to inscribe a
+              gallery that points at it.
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-outline-secondary"
+                  data-testid="inscribe-gallery-add" (click)="addGalleryRow()">+ Add gallery item</button>
+        </div>
 
         <!-- Compression (content_encoding tag) - file mode only -->
         <div class="mt-3" *ngIf="inscribeMode === 'file'" data-testid="inscribe-compression">
@@ -169,7 +357,7 @@
                       (input)="onMetadataJsonChange(jsonArea.value)"></textarea>
           </div>
 
-          <div class="feedback-error p-1 small mt-1" *ngIf="metadataError" data-testid="inscribe-metadata-error">
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="metadataError" data-testid="inscribe-metadata-error">
             {{ metadataError }}
           </div>
           <div class="text-muted small mt-1" *ngIf="metadataModeHint" data-testid="inscribe-metadata-hint">
@@ -177,6 +365,55 @@
           </div>
           <div class="text-muted small mt-1" *ngIf="metadataBytes as m" data-testid="inscribe-metadata-size">
             {{ m.length | number }} bytes of CBOR metadata will be stored on-chain.
+          </div>
+        </div>
+
+        <!-- Metaprotocol (ord tag 7, UTF-8) -->
+        <div class="mt-4" data-testid="inscribe-metaprotocol">
+          <label class="small text-muted" for="inscribe-metaprotocol-input">Metaprotocol</label>
+          <input type="text" class="form-control" id="inscribe-metaprotocol-input"
+                 data-testid="inscribe-metaprotocol-input" spellcheck="false"
+                 [formControl]="metaprotocolControl"
+                 placeholder="a metaprotocol identifier">
+          <div class="text-muted small mt-1">
+            An optional protocol tag some indexers read. Leave empty to omit it.
+          </div>
+        </div>
+
+        <!-- Postage + commit fee rate (output value + ord --commit-fee-rate) -->
+        <div class="mt-4" data-testid="inscribe-postage">
+          <label class="small text-muted" for="inscribe-postage-input">Postage</label>
+          <div class="input-group">
+            <input type="number" class="form-control" id="inscribe-postage-input"
+                   data-testid="inscribe-postage-input" min="546" max="1000000" step="1"
+                   [formControl]="postageControl">
+            <span class="input-group-text">sats</span>
+          </div>
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="postageControl.invalid"
+               data-testid="inscribe-postage-error">
+            Postage must be between 546 and 1,000,000 sats.
+          </div>
+          <div class="text-muted small mt-1">
+            The sats the inscription output carries. 546 is the standard minimum;
+            raise it for a chunkier inscription UTXO.
+          </div>
+        </div>
+
+        <div class="mt-3" data-testid="inscribe-commit-fee">
+          <label class="small text-muted" for="inscribe-commit-fee-input">Commit fee rate</label>
+          <div class="input-group">
+            <input type="number" class="form-control" id="inscribe-commit-fee-input"
+                   data-testid="inscribe-commit-fee-input" min="0.1" max="1000" step="0.1"
+                   [formControl]="commitFeeRateControl" placeholder="same as fee rate">
+            <span class="input-group-text">sat/vB</span>
+          </div>
+          <div class="feedback-error p-1 small mt-1" role="alert" *ngIf="commitFeeRateControl.invalid"
+               data-testid="inscribe-commit-fee-error">
+            Commit fee rate must be between 0.1 and 1000 sat/vB.
+          </div>
+          <div class="text-muted small mt-1">
+            The commit transaction&rsquo;s own fee rate. Leave empty to pay the
+            same rate as the reveal.
           </div>
         </div>
       </details>
@@ -192,7 +429,7 @@
 
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
-        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+        <button type="button" data-testid="connect-wallet-trigger" class="btn btn-link p-0 align-baseline" (click)="walletService.requestWalletConnect()">connect your wallet</button>
         to inscribe.
       </p>
 
@@ -215,7 +452,7 @@
                   (ngModelChange)="onFeeRateInput($event)">
                 <span class="input-group-text">sat/vB</span>
               </div>
-              <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+              <div class="feedback-error p-1" role="alert" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
                 <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB. Anything lower won't relay on a default-config Bitcoin Core node.</div>
               </div>
@@ -231,14 +468,37 @@
             in total: miner fees plus the {{ postageSats }} sats your inscription lives on.
           </div>
 
-          <div class="alert alert-warning p-2 mt-4" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
+          <!-- asset-notice (FAMILY_UX funding-panel rule): a dirty coin covers the
+               fee on a wallet that keeps a SEPARATE payment address. The CTA stays
+               ENABLED, but this notice names what the recommended coin carries and
+               must be read BEFORE the click, kept in the same viewport as the
+               Inscribe button (the picker below is collapsed by default). -->
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !selectedPaymentOutput && !utxoLoading()">
+            We'll fund this inscription from a coin that carries an asset. Your wallet keeps a
+            separate payment address, so this is usually safe, but you should know what the
+            coin holds before you inscribe:
+            <ng-container *ngIf="assetNotice() as a">
+              <ul class="m-0 mt-1">
+                <li *ngIf="a.inscriptionIds.length">
+                  Inscription{{ a.inscriptionIds.length === 1 ? '' : 's' }}:
+                  <ng-container *ngFor="let id of a.inscriptionIds; let last = last"><a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container></ng-container>
+                </li>
+                <li *ngIf="a.runeNames.length">Rune{{ a.runeNames.length === 1 ? '' : 's' }}: {{ a.runeNames.join(', ') }}</li>
+                <li *ngIf="a.catIds.length">Cat{{ a.catIds.length === 1 ? '' : 's' }}: {{ a.catIds.join(', ') }}</li>
+                <li *ngIf="a.rareSat">Rare sat: {{ a.rareSat.sat }} ({{ a.rareSat.rarity }})</li>
+              </ul>
+            </ng-container>
+            Prefer to use a different coin? Open <strong>Choose a different funding source</strong> below.
+          </div>
+
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'warning' && !selectedPaymentOutput && !utxoLoading()">
             We found funds, but every coin big enough to cover the fee also carries an asset
             (an inscription, rune, rare sat, or cat). Inscribing with one would send that asset to the
             miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
             below and pick a coin yourself if you're sure it is safe to spend.
           </div>
 
-          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingStatus() === 'insufficient' && !utxoLoading()">
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingCta().kind === 'insufficient' && !utxoLoading()">
             There isn't enough Bitcoin in your payment address to cover the inscription at
             <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>.
             Fund <code data-testid="fund-payment-address" class="bitcoin"><span class="addr-chunk" *ngFor="let chunk of addressChunks(x.connectedWallet.paymentAddress)">{{ chunk }}</span></code>
@@ -250,7 +510,7 @@
           <div *ngIf="!utxoLoading() && !utxoError() && (paymentOutputs$ | async)?.length">
             <details>
               <summary>Choose a different funding source</summary>
-              <p class="alert alert-warning mt-2 mb-2">
+              <p class="alert alert-warning mt-2 mb-2" role="alert">
                 <strong>Sources flagged <em>asset found</em> carry an inscription,
                 rune, rare sat, or cat.</strong> Inscribing with one sends that asset
                 to the miner as fee.
@@ -261,11 +521,11 @@
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let row of paymentOutputs$ | async"
-                [ngClass]="{ selected: row === this.selectedPaymentOutput, 'utxo-row-assets': row.bucket === 'assets', 'utxo-row-clean': row.bucket === 'clean' }">
+                [ngClass]="{ selected: row === this.selectedPaymentOutput, 'utxo-row-assets': row.bucket === 'assets', 'utxo-row-clean': row.bucket === 'clean', 'utxo-row-unavailable': !row.available }">
 
-                <button *ngIf="row !== this.selectedPaymentOutput && row.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
+                <button *ngIf="row.available && row !== this.selectedPaymentOutput && row.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
                   (click)="selectPaymentOutput(row)" type="button">Use this UTXO</button>
-                <button *ngIf="row !== this.selectedPaymentOutput && row.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
+                <button *ngIf="row.available && row !== this.selectedPaymentOutput && row.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
                   (click)="selectPaymentOutput(row)" type="button">Use anyway</button>
 
                 UTXO {{ row.paymentOutput.txid }}:{{ row.paymentOutput.vout }}
@@ -281,25 +541,37 @@
                   <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
                 </span>
 
-                <a *ngIf="row.bucket === 'unscanned'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(row)">Scan</a>
-                <a *ngIf="row.bucket === 'failed'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(row)">Retry scan</a>
+                <!-- The coin selection picks on its own, marked in place on its
+                     natural value-sorted row (FAMILY_UX): the cost breakdown
+                     below then answers "why not the cheaper row above it?". -->
+                <span *ngIf="isRecommendedRow(row)" class="badge bg-primary ms-2"
+                  title="The safest, best-fit coin we'd pay with automatically. You can still pick another." data-testid="utxo-recommended">recommended</span>
+
+                <button type="button" *ngIf="row.available && row.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Scan</button>
+                <button type="button" *ngIf="row.available && row.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(row)">Retry scan</button>
 
                 <div *ngIf="row.bucket === 'assets' && row.scan.kind === 'scanned-with-assets'" class="mt-2 ps-2 pe-2 pt-1 pb-1 utxo-assets-detail">
                   <strong>Assets on this UTXO:</strong><br>
                   <ng-container *ngIf="row.scan.content.inscriptionIds.length > 0">
                     Inscription{{ row.scan.content.inscriptionIds.length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let id of row.scan.content.inscriptionIds; let last = last">
-                      <a [href]="ordReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                      <a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
                     </ng-container><br>
                   </ng-container>
-                  <ng-container *ngIf="runeNames(row.scan.content).length > 0">
-                    Rune{{ runeNames(row.scan.content).length === 1 ? '' : 's' }}:
-                    <ng-container *ngFor="let name of runeNames(row.scan.content); let last = last">
-                      <a [href]="ordReviewBase + '/rune/' + name" target="_blank" rel="noopener">{{ name }}</a><ng-container *ngIf="!last">, </ng-container>
+                  <ng-container *ngIf="runeEntries(row.scan.content).length > 0">
+                    Rune{{ runeEntries(row.scan.content).length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let rune of runeEntries(row.scan.content); let last = last">
+                      <ng-container *ngIf="runeTxEtching(rune.name) as etching; else runePlain">
+                        <a [routerLink]="['/tx/' | relativeUrl, etching]" target="_blank" rel="noopener">{{ formatRuneLabel(rune.name, rune.value) }}</a>
+                      </ng-container>
+                      <ng-template #runePlain>{{ formatRuneLabel(rune.name, rune.value) }}</ng-template><ng-container *ngIf="!last">, </ng-container>
                     </ng-container><br>
                   </ng-container>
                   <ng-container *ngIf="row.scan.content.catIds.length > 0">
                     CAT-21 cat{{ row.scan.content.catIds.length === 1 ? '' : 's' }}: {{ row.scan.content.catIds.length }}<br>
+                  </ng-container>
+                  <ng-container *ngIf="row.scan.content.rareSat as rareSat">
+                    Rare sat: {{ rareSat.rarity }} · sat {{ rareSat.sat | number }} · block {{ rareSat.block | number }}<br>
                   </ng-container>
                 </div>
 
@@ -309,18 +581,65 @@
                 <span class="symbol" i18n="shared.sat|sat">sat</span>
                 <app-fiat [value]="row.paymentOutput.value"></app-fiat> Available Value<br>
 
-                - {{ row.simulation.totalFeeSats | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="row.simulation.totalFeeSats"></app-fiat> Miner Fees<br>
+                <!-- The cost breakdown only exists for a coin that can fund the
+                     inscription at the current rate; `row.simulation as sim` both
+                     renders it for those rows and narrows the type so no null slips
+                     in. The fee is the COMMIT + REVEAL package total. -->
+                <ng-container *ngIf="row.simulation as sim">
+                  - {{ sim.totalFeeSats | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="sim.totalFeeSats"></app-fiat> Miner Fees (commit + reveal)<br>
 
-                - {{ postageSats | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="postageSats"></app-fiat> Your inscription<br>
+                  - {{ postageSats | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="postageSats"></app-fiat> Your inscription<br>
 
-                = {{ changeSats(row) | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
+                  = {{ changeSats(row) | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="changeSats(row)"></app-fiat> Change back to you<br>
+
+                  <!-- Over-pay signal (FAMILY_UX three-state fee): when this coin's
+                       COMMIT change lands below the dust floor it can't be returned,
+                       so it's folded into the miner fee. Informational, never a
+                       block. This is why a bigger coin can be the cheaper pick. Only
+                       the commit has this: the reveal's fee is reserved in the commit
+                       output. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="overPaidSats(row) as folded" data-testid="utxo-overpay-note">
+                    &#9888; This coin&rsquo;s {{ folded | number }} <span class="symbol" i18n="shared.sat|sat">sat</span>
+                    of commit change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
+                    A larger coin returns it as change.
+                  </p>
+
+                  <!-- overpay-unknown (FAMILY_UX): fee known, fold not, so we say
+                       we can't tell rather than falsely claim no over-pay. Defensive
+                       against the reading drifting back to a silent 0. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="feeClass(row) === 'overpay-unknown'" data-testid="utxo-overpay-unknown-note">
+                    &#9888; This coin may fold sub-dust commit change into the miner fee; we can&rsquo;t tell at this rate.
+                    A larger coin returns any change to you.
+                  </p>
+                </ng-container>
+
+                <!-- Unavailable coin (FAMILY_UX show-the-row): too small to cover
+                     the commit + reveal fee at THIS rate. Named, not hidden, and
+                     the rate is the variable, so a user who lowers it can predict
+                     the row flipping to usable. Dimmed + unpickable (no Use button;
+                     selectPaymentOutput refuses it). -->
+                <p class="small text-warning mt-1 mb-0" *ngIf="!row.available" data-testid="utxo-cant-fund">
+                  &#9888; Can&rsquo;t fund at this rate: too small to cover the commit + reveal fee at
+                  <strong>{{ cfeeRate.value || 0.1 }}</strong> <span class="symbol">sat/vB</span>.
+                  Lower the fee rate to use this coin.
+                </p>
               </div>
+
+              <!-- Truncation is STATED, not silent (FAMILY_UX): the picker caps
+                   how many coins it lists, so when the wallet has more, say how
+                   many — a silent cut reads as coins gone missing. -->
+              <p class="small text-muted mt-2 mb-0" *ngIf="(paymentOutputs$ | async)?.length as shown"
+                data-testid="coin-count-note">
+                <ng-container *ngIf="totalCoinCount() > shown">
+                  Showing {{ shown }} of {{ totalCoinCount() | number }} coins in your wallet (largest first).
+                </ng-container>
+              </p>
 
               <!-- Per-UTXO note (wallet-ux-round3 §7.8): a DIFFERENT warning
                    from the custody caveat above. That one is about the wallet
@@ -341,6 +660,77 @@
             </details>
           </div>
 
+          <!-- Rare-sat picker (ord --sat): optional, opt-in. Inscribe onto a
+               notable sat the ordinals address already holds instead of a fresh
+               common one. Scan is lazy (one ord lookup per coin). Single mode
+               only: a rare-sat target is one inscription's, not a batch's. -->
+          <div class="mt-3" *ngIf="!batchMode" data-testid="inscribe-raresat">
+            <details>
+              <summary>Inscribe onto a rare sat (optional)</summary>
+              <p class="mt-2 mb-2 small text-muted">
+                Scan the sats your ordinals address already holds and inscribe
+                onto a notable one. Leave this closed to inscribe onto a fresh
+                sat as usual.
+              </p>
+
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-testid="inscribe-raresat-scan"
+                      [disabled]="rareSatLoading"
+                      (click)="scanForRareSats(x.connectedWallet.ordinalsAddress)">
+                {{ rareSatLoading ? 'Scanning…' : (rareSatRows ? 'Scan again' : 'Scan my wallet for rare sats') }}
+              </button>
+
+              <div class="feedback-error p-1 small mt-2" role="alert" *ngIf="rareSatError"
+                   data-testid="inscribe-raresat-error">{{ rareSatError }}</div>
+
+              <!-- Candidates -->
+              <div *ngFor="let row of rareSatCandidates; let i = index"
+                   class="mt-3 ps-2 pe-2 pt-1 pb-1 shape-border"
+                   [ngClass]="{ selected: row === selectedRareSat }"
+                   [attr.data-testid]="'inscribe-raresat-row-' + i">
+                <button type="button" class="btn float-end mt-1"
+                        [class.btn-primary]="row !== selectedRareSat"
+                        [class.btn-outline-secondary]="row === selectedRareSat"
+                        [attr.data-testid]="'inscribe-raresat-pick-' + i"
+                        (click)="pickRareSat(row)">
+                  {{ row === selectedRareSat ? 'Selected' : 'Inscribe here' }}
+                </button>
+                <span class="badge bg-info text-dark text-capitalize" [attr.data-testid]="'inscribe-raresat-rarity-' + i">{{ row.rareSat.rarity }}</span>
+                sat {{ row.rareSat.sat | number }}
+                <br>
+                <span class="small text-muted">on {{ row.utxo.txid }}:{{ row.utxo.vout }}, offset {{ row.rareSat.offset | number }}</span>
+              </div>
+
+              <!-- Block reason for a selected-but-unbuildable sat -->
+              <div class="feedback-error p-1 small mt-2" role="alert" *ngIf="rareSatBlocked"
+                   data-testid="inscribe-raresat-blocked">{{ rareSatBlockReason }}</div>
+
+              <!-- Padding: the sat sits below its coin's dust floor, so the
+                   orchestrator adds a second coin to pad its alignment output. -->
+              <div class="text-muted small mt-2" *ngIf="rareSatPadding() as pad" data-testid="inscribe-raresat-padding">
+                This sat sits {{ pad.shortfallSats | number }} sats below its coin’s dust floor, so
+                it’s padded with coin <code>{{ pad.utxo.txid.slice(0, 12) }}…:{{ pad.utxo.vout }}</code>
+                ({{ pad.utxo.value | number }} sats). No action needed.
+              </div>
+
+              <!-- Empty + unknown notes -->
+              <p class="small text-muted mt-2 mb-0" *ngIf="rareSatScannedEmpty && rareSatUnknownCount === 0"
+                 data-testid="inscribe-raresat-empty">
+                No rare sats on this wallet’s coins. Your inscription will land on a fresh sat.
+              </p>
+              <p class="small text-muted mt-2 mb-0" *ngIf="rareSatUnknownCount > 0"
+                 data-testid="inscribe-raresat-unknown">
+                Couldn’t check {{ rareSatUnknownCount | number }} coin{{ rareSatUnknownCount === 1 ? '' : 's' }}
+                (ord didn’t answer). They aren’t ruled out; scan again to retry.
+              </p>
+
+              <button type="button" class="btn btn-sm btn-link ps-0 mt-2" *ngIf="selectedRareSat"
+                      data-testid="inscribe-raresat-clear" (click)="clearRareSat()">
+                Clear selection (inscribe onto a fresh sat)
+              </button>
+            </details>
+          </div>
+
           <!-- Single-address info note (wallet-ux-round3 §12): beside the
                Inscribe button. INFO, not a warning — no amber, no triangle, no
                acknowledgement. Full body-colour text at help-text size ("quiet"
@@ -354,23 +744,24 @@
             <button type="submit" data-testid="inscribe-btn"
               *ngIf="!utxoLoading() && !mintSuccess()"
               [attr.aria-busy]="mintLoading()"
-              [disabled]="form.invalid || !hasFundingSource() || !hasContent || metadataInvalid || delegateInvalid"
+              aria-live="polite"
+              [disabled]="mintDisabled"
               class="btn btn-primary mt-4 mb-4 text-white">
-              <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate' : '📎 Inscribe my file' }}</ng-container>
-              <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> Inscribing… please confirm in your wallet</ng-container>
+              <ng-container *ngIf="!mintLoading()">{{ inscribeMode === 'delegate' ? '📎 Inscribe delegate!' : '📎 Inscribe my file!' }}</ng-container>
+              <ng-container *ngIf="mintLoading()"><i class="spinner-border spinner-border-sm text-light"></i> {{ signingMessage() }}</ng-container>
             </button>
 
             <button type="button" data-testid="inscribe-another"
               *ngIf="mintSuccess()" (click)="inscribeAnother()"
               class="btn btn-primary mt-4 mb-4 text-white">📎 Inscribe another file</button>
 
-            <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
+            <button type="submit" disabled aria-live="polite" class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
               <i class="spinner-border spinner-border-sm text-light"></i> Scanning your payments address
             </button>
           </div>
         </form>
 
-        <div class="alert alert-success" *ngIf="mintSuccess() as success" data-testid="inscribe-success">
+        <div class="alert alert-success" aria-live="polite" *ngIf="mintSuccess() as success" data-testid="inscribe-success">
           ✅&nbsp; Your inscription has been broadcast to the mempool.<br>
           <div class="mt-2">
             Commit tx:
@@ -386,7 +777,7 @@
           <div class="mt-2">
             Inscription:
             <a class="alert-link text-decoration-underline"
-              [href]="ordReviewBase + '/inscription/' + inscriptionId(success.revealTxId)" target="_blank" rel="noopener">
+              [routerLink]="['/tx/' | relativeUrl, success.revealTxId]" target="_blank" rel="noopener">
               {{ inscriptionId(success.revealTxId) }}
             </a>
             (visible once the reveal transaction confirms and is indexed)
@@ -398,9 +789,9 @@
           </div>
         </div>
 
-        <div class="alert alert-danger" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
-        <div class="alert alert-danger" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
-        <div class="alert alert-danger" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>
+        <div class="alert alert-danger" role="alert" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
+        <div class="alert alert-danger" role="alert" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
+        <div class="alert alert-danger" role="alert" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>
 
       </ng-container>
     </ng-container>

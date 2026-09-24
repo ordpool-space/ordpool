@@ -46,7 +46,7 @@
 
       <p *ngIf="!x.connectedWallet" class="mt-3 text-center">
         Please
-        <a href="javascript:void(0)" (click)="walletService.requestWalletConnect()">connect your wallet</a>
+        <button type="button" data-testid="connect-wallet-trigger" class="btn btn-link p-0 align-baseline" (click)="walletService.requestWalletConnect()">connect your wallet</button>
         to mint a cat.
       </p>
 
@@ -74,7 +74,7 @@
                 <span class="input-group-text">sat/vB</span>
               </div>
 
-              <div class="feedback-error p-1" *ngIf="cfeeRate.invalid">
+              <div class="feedback-error p-1" role="alert" *ngIf="cfeeRate.invalid">
                 <div *ngIf="cfeeRate.hasError('required')">Please enter a value!</div>
                 <div *ngIf="cfeeRate.hasError('min')">Enter at least 0.1 sat/vB; anything lower won't relay on a default-config Bitcoin Core node.</div>
               </div>
@@ -82,14 +82,37 @@
             </div>
           </div>
 
-          <div class="alert alert-warning p-2 mt-4" *ngIf="fundingStatus() === 'expert-required' && !selectedPaymentOutput && !utxoLoading()">
+          <!-- asset-notice (FAMILY_UX funding-panel rule): a dirty coin covers the
+               fee on a wallet that keeps a SEPARATE payment address. The CTA stays
+               ENABLED, but this notice names what the recommended coin carries and
+               must be read BEFORE the click, kept in the same viewport as the Mint
+               button (the picker below is collapsed by default). -->
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !selectedPaymentOutput && !utxoLoading()">
+            We'll fund this mint from a coin that carries an asset. Your wallet keeps a
+            separate payment address, so this is usually safe, but you should know what
+            the coin holds before you mint:
+            <ng-container *ngIf="assetNotice() as a">
+              <ul class="m-0 mt-1">
+                <li *ngIf="a.inscriptionIds.length">
+                  Inscription{{ a.inscriptionIds.length === 1 ? '' : 's' }}:
+                  <ng-container *ngFor="let id of a.inscriptionIds; let last = last"><a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container></ng-container>
+                </li>
+                <li *ngIf="a.runeNames.length">Rune{{ a.runeNames.length === 1 ? '' : 's' }}: {{ a.runeNames.join(', ') }}</li>
+                <li *ngIf="a.catIds.length">Cat{{ a.catIds.length === 1 ? '' : 's' }}: {{ a.catIds.join(', ') }}</li>
+                <li *ngIf="a.rareSat">Rare sat: {{ a.rareSat.sat }} ({{ a.rareSat.rarity }})</li>
+              </ul>
+            </ng-container>
+            Prefer to use a different coin? Open <strong>Choose a different funding source</strong> below. 😼
+          </div>
+
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'warning' && !selectedPaymentOutput && !utxoLoading()">
             We found funds, but every coin big enough to cover the fee also carries an asset
             (an inscription, rune, rare sat, or cat). Minting with one would send that asset to the
             miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
             below and pick a coin yourself if you're sure it is safe to spend. 😼
           </div>
 
-          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingStatus() === 'insufficient' && !utxoLoading()">
+          <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingCta().kind === 'insufficient' && !utxoLoading()">
             There isn't enough Bitcoin in your payment address to cover the mint at
             <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>. 😿<br>
             Add at least
@@ -116,7 +139,7 @@
             <details>
               <summary>Choose a different funding source</summary>
 
-              <p class="alert alert-warning mt-2 mb-2">
+              <p class="alert alert-warning mt-2 mb-2" role="alert">
                 <strong>Sources flagged <em>asset found</em> carry an inscription,
                 rune, rare sat, or cat.</strong> Minting with one sends that asset
                 to the miner as fee.
@@ -127,13 +150,13 @@
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
-                [ngClass]="{ selected: x === this.selectedPaymentOutput, 'utxo-row-assets': x.bucket === 'assets', 'utxo-row-clean': x.bucket === 'clean' }">
+                [ngClass]="{ selected: x === this.selectedPaymentOutput, 'utxo-row-assets': x.bucket === 'assets', 'utxo-row-clean': x.bucket === 'clean', 'utxo-row-unavailable': !x.available }">
 
-                <button *ngIf="x !== this.selectedPaymentOutput && x.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
+                <button *ngIf="x.available && x !== this.selectedPaymentOutput && x.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
                   (click)="selectPaymentOutput(x)" type="button">
                   Use this UTXO
                 </button>
-                <button *ngIf="x !== this.selectedPaymentOutput && x.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
+                <button *ngIf="x.available && x !== this.selectedPaymentOutput && x.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
                   (click)="selectPaymentOutput(x)" type="button">
                   Use anyway
                 </button>
@@ -153,22 +176,31 @@
                   <span *ngSwitchCase="'failed'" class="badge bg-warning text-dark">scan failed</span>
                 </span>
 
-                <a *ngIf="x.bucket === 'unscanned'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(x)">Scan</a>
-                <a *ngIf="x.bucket === 'failed'" href="javascript:void(0)" class="ms-2 small" (click)="scanRow(x)">Retry scan</a>
+                <!-- The coin selection picks on its own, marked in place on its
+                     natural value-sorted row (FAMILY_UX): the cost breakdown
+                     below then answers "why not the cheaper row above it?". -->
+                <span *ngIf="isRecommendedRow(x)" class="badge bg-primary ms-2"
+                  title="The safest, best-fit coin we'd pay with automatically. You can still pick another." data-testid="utxo-recommended">recommended</span>
+
+                <button type="button" *ngIf="x.available && x.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(x)">Scan</button>
+                <button type="button" *ngIf="x.available && x.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(x)">Retry scan</button>
 
                 <div *ngIf="x.bucket === 'assets' && x.scan.kind === 'scanned-with-assets'" class="mt-2 ps-2 pe-2 pt-1 pb-1 utxo-assets-detail">
                   <strong>Assets on this UTXO:</strong><br>
                   <ng-container *ngIf="x.scan.content.inscriptionIds.length > 0">
                     Inscription{{ x.scan.content.inscriptionIds.length === 1 ? '' : 's' }}:
                     <ng-container *ngFor="let id of x.scan.content.inscriptionIds; let last = last">
-                      <a [href]="ordReviewBase + '/inscription/' + id" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
+                      <a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container>
                     </ng-container>
                     <br>
                   </ng-container>
-                  <ng-container *ngIf="runeNames(x.scan.content).length > 0">
-                    Rune{{ runeNames(x.scan.content).length === 1 ? '' : 's' }}:
-                    <ng-container *ngFor="let name of runeNames(x.scan.content); let last = last">
-                      <a [href]="ordReviewBase + '/rune/' + name" target="_blank" rel="noopener">{{ name }}</a><ng-container *ngIf="!last">, </ng-container>
+                  <ng-container *ngIf="runeEntries(x.scan.content).length > 0">
+                    Rune{{ runeEntries(x.scan.content).length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let rune of runeEntries(x.scan.content); let last = last">
+                      <ng-container *ngIf="runeTxEtching(rune.name) as etching; else runePlain">
+                        <a [routerLink]="['/tx/' | relativeUrl, etching]" target="_blank" rel="noopener">{{ formatRuneLabel(rune.name, rune.value) }}</a>
+                      </ng-container>
+                      <ng-template #runePlain>{{ formatRuneLabel(rune.name, rune.value) }}</ng-template><ng-container *ngIf="!last">, </ng-container>
                     </ng-container>
                     <br>
                   </ng-container>
@@ -178,6 +210,9 @@
                       · <a [href]="catSatLink(catSat)" target="_blank" rel="noopener">view on cat21.space</a>
                     </ng-container>
                     <br>
+                  </ng-container>
+                  <ng-container *ngIf="x.scan.content.rareSat as rareSat">
+                    Rare sat: {{ rareSat.rarity }} · sat {{ rareSat.sat | number }} · block {{ rareSat.block | number }}<br>
                   </ng-container>
                 </div>
 
@@ -189,26 +224,71 @@
                 Available Value
                 <br>
 
-                - {{ toNumber(x.simulation.finalTransactionFee) | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="toNumber(x.simulation.finalTransactionFee)"></app-fiat>
-                Miner Fees<br>
+                <!-- The cost breakdown only exists for a coin that can fund the
+                     mint at the current rate; `x.simulation as sim` both renders
+                     it for those rows and narrows the type so no null slips in. -->
+                <ng-container *ngIf="x.simulation as sim">
+                  - {{ toNumber(sim.finalTransactionFee) | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="toNumber(sim.finalTransactionFee)"></app-fiat>
+                  Miner Fees<br>
 
-                - {{ toNumber(x.simulation.amountToRecipient) | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="toNumber(x.simulation.amountToRecipient)"></app-fiat>
-                Your cat
-                <br>
+                  - {{ toNumber(sim.amountToRecipient) | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="toNumber(sim.amountToRecipient)"></app-fiat>
+                  Your cat
+                  <br>
 
-                = {{ toNumber(x.simulation.changeAmount) | number }}
-                <span class="symbol" i18n="shared.sat|sat">sat</span>
-                <app-fiat [value]="toNumber(x.simulation.changeAmount)"></app-fiat>
-                Change back to you
-                <br>
+                  = {{ toNumber(sim.changeAmount) | number }}
+                  <span class="symbol" i18n="shared.sat|sat">sat</span>
+                  <app-fiat [value]="toNumber(sim.changeAmount)"></app-fiat>
+                  Change back to you
+                  <br>
 
+                  <!-- Over-pay signal (FAMILY_UX three-state fee): when this coin's
+                       change lands below the dust floor it can't be returned, so
+                       it's folded into the miner fee. Informational, never a block
+                       (the coin is usable). This is why a bigger coin can be the
+                       cheaper pick: it returns the leftover instead of burning it. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="overPaidSats(x) as folded" data-testid="utxo-overpay-note">
+                    &#9888; This coin&rsquo;s {{ folded | number }} <span class="symbol" i18n="shared.sat|sat">sat</span>
+                    of change is below the dust limit, so it goes to the miner as extra fee instead of back to you.
+                    A larger coin returns it as change.
+                  </p>
 
+                  <!-- overpay-unknown (FAMILY_UX): the fee is known but the fold
+                       isn't, so we say we can't tell rather than falsely claim no
+                       over-pay. Doesn't arise on the current SDK (the fold is
+                       always a number), a defensive branch against the reading
+                       drifting back to a silent 0. -->
+                  <p class="small text-muted mt-2 mb-0" *ngIf="feeClass(x) === 'overpay-unknown'" data-testid="utxo-overpay-unknown-note">
+                    &#9888; This coin may fold sub-dust change into the miner fee; we can&rsquo;t tell at this rate.
+                    A larger coin returns any change to you.
+                  </p>
+                </ng-container>
+
+                <!-- Unavailable coin (FAMILY_UX show-the-row): too small to cover
+                     the fee at THIS rate. Named, not hidden, and the rate is the
+                     variable, so a user who lowers it can predict the row flipping
+                     to usable. Dimmed + unpickable (no Use button; selectPaymentOutput
+                     refuses it). -->
+                <p class="small text-warning mt-1 mb-0" *ngIf="!x.available" data-testid="utxo-cant-fund">
+                  &#9888; Can&rsquo;t fund at this rate: too small to cover the mint fee at
+                  <strong>{{ cfeeRate.value || 0.1 }}</strong> <span class="symbol">sat/vB</span>.
+                  Lower the fee rate to use this coin.
+                </p>
 
               </div>
+
+              <!-- Truncation is STATED, not silent (FAMILY_UX): the picker caps
+                   how many coins it lists, so when the wallet has more, say how
+                   many — a silent cut reads as coins gone missing. -->
+              <p class="small text-muted mt-2 mb-0" *ngIf="(paymentOutputs$ | async)?.length as shown"
+                data-testid="coin-count-note">
+                <ng-container *ngIf="totalCoinCount() > shown">
+                  Showing {{ shown }} of {{ totalCoinCount() | number }} coins in your wallet (largest first).
+                </ng-container>
+              </p>
 
               <!-- Per-UTXO note (wallet-ux-round3 §7.8): a DIFFERENT warning
                    from the custody caveat above. That one is about the wallet
@@ -255,12 +335,12 @@
 
           <div class="text-center mt-4">
 
-            <button type="submit" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !hasFundingSource()"
-              class="btn btn-primary mt-4 mb-4 text-white">
+            <button type="submit" data-testid="mint-cat-button" *ngIf="!utxoLoading() && !mintCat21Success()" [disabled]="form.invalid || !hasFundingSource()"
+              aria-live="polite" class="btn btn-primary mt-4 mb-4 text-white">
 
               <ng-container  *ngIf="!mintCat21Loading()">
                 <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px"
-                  title="Mint a CAT-21 ordinal" height="30"> Mint my cat
+                  title="Mint a CAT-21 ordinal" height="30"> Mint my cat!
               </ng-container>
 
               <ng-container  *ngIf="mintCat21Loading()">
@@ -270,11 +350,11 @@
 
             </button>
 
-            <a href="javascript:location.reload()" *ngIf="mintCat21Success()" class="btn btn-primary mt-4 mb-4 text-white">
-              <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint another cat!
-            </a>
+            <button type="button" (click)="mintAnother()" *ngIf="mintCat21Success()" class="btn btn-primary mt-4 mb-4 text-white">
+              <img src="/resources/cat21-small-logo.svg" style="margin-top: -4px; margin-right: 6px" title="Mint a CAT-21 ordinal" height="30"> Mint another cat
+            </button>
 
-          <button type="submit" disabled class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
+          <button type="submit" disabled aria-live="polite" class="btn btn-primary mt-4 mb-4 text-white" *ngIf="utxoLoading()">
             <i class="spinner-border spinner-border-sm text-light"></i>
             Scanning your payments address
           </button>
@@ -282,7 +362,7 @@
           </div>
         </form>
 
-        <div class="alert alert-success" *ngIf="mintCat21Success() as success">
+        <div class="alert alert-success" aria-live="polite" *ngIf="mintCat21Success() as success">
           ✅&nbsp; Your CAT-21 transaction has now been submitted to the mempool.<br>
           <ng-container *ngIf="success.txId">
             You can track the progress
@@ -295,15 +375,15 @@
           </ng-container>
         </div>
 
-        <div class="alert alert-danger" *ngIf="mintCat21Error() as err">
+        <div class="alert alert-danger" role="alert" *ngIf="mintCat21Error() as err">
           ❌&nbsp; {{ err }}
         </div>
 
-        <div class="alert alert-danger" *ngIf="utxoError() as err">
+        <div class="alert alert-danger" role="alert" *ngIf="utxoError() as err">
           ❌&nbsp; {{ err }}
         </div>
 
-        <div class="alert alert-danger" *ngIf="checkerError">
+        <div class="alert alert-danger" role="alert" *ngIf="checkerError">
           ❌&nbsp; {{ checkerError }}
         </div>
 

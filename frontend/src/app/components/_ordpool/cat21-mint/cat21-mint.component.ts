@@ -1,20 +1,36 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, shareReplay, take, tap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, filter, firstValueFrom, interval, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, SimulateTransactionResult, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, CandidateFeeState, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, UtxoSimulationView, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, classifyCandidateFee, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
+import { runeLabel } from '../rune-label.helper';
+import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
 
 export interface ViableSimulation {
-  simulation: SimulateTransactionResult;
+  /** The mint simulation for this coin; null when the coin can't fund the mint
+   *  at the current fee rate (`available === false`). */
+  simulation: UtxoSimulationView | null;
   paymentOutput: TxnOutput;
   scan: UtxoScanState;
   bucket: UtxoScanBucket;
+  /** Whether this coin can fund the mint at the current fee rate. A false row is
+   *  rendered "can't fund at this rate", dimmed and unpickable (FAMILY_UX): it
+   *  names the RATE as the variable so a user lowering the rate can predict the
+   *  row flipping. The picker no longer hides these — hiding them read as coins
+   *  gone missing rather than coins too small. */
+  available: boolean;
 }
+
+/** How often to re-read the funding set while WAITING for funds (status
+ *  `insufficient`). Off once a covering coin appears, so a funded page never
+ *  polls. 15s balances "the CTA lights up soon after my deposit confirms"
+ *  against per-tab electrs cost. */
+const FUNDING_REFRESH_INTERVAL_MS = 15_000;
 
 @Component({
   selector: 'app-cat21-mint',
@@ -32,6 +48,7 @@ export class Cat21MintComponent implements OnInit {
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
   private psbtExportPrompt = inject(PsbtExportPromptService);
+  private runeResolver = inject(RuneEtchingResolverService);
   cd = inject(ChangeDetectorRef);
   seoService = inject(SeoService);
   private destroyRef = inject(DestroyRef);
@@ -52,6 +69,11 @@ export class Cat21MintComponent implements OnInit {
     scan: this.scanner,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
+    // Derive the wallet topology from the connected wallet, so a dirty-only
+    // funding pool produces a NOTICE (separate payment address) instead of a
+    // blocking WARNING (one address for everything). Same 'derive' the other
+    // SDK consumers pass; omitting it keeps the always-block default.
+    fundingTopology: 'derive',
   });
 
   /** Orchestrator snapshot bridged to a signal; every state change re-renders. */
@@ -80,6 +102,20 @@ export class Cat21MintComponent implements OnInit {
       this.cd.markForCheck();
     });
     this.destroyRef.onDestroy(unsubscribe);
+
+    // Re-read the funding set while the page is WAITING for funds, so the CTA
+    // enables when they arrive without a manual reload. The orchestrator reads
+    // its UTXO set once, on connect: a page connected while a funding tx is
+    // still unconfirmed would otherwise sit disabled forever, and no fee change
+    // fixes it because the fee rate is not what is missing. Bounded on purpose:
+    // it only hits electrs while the status is `insufficient` (nothing covers
+    // yet) and goes quiet the moment a covering coin appears. refreshUtxos is a
+    // no-op with no wallet and preserves the fee rate + expert pick (it re-runs
+    // setWallet with the SAME wallet, so the wallet-changed reset never fires).
+    interval(FUNDING_REFRESH_INTERVAL_MS).pipe(
+      filter(() => this.fundingStatus() === 'insufficient'),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => { void this.orchestrator.refreshUtxos(); });
   }
 
   /** Asset-detail link bases sourced from cat21Config so dev / regtest / prod stay aligned with the scanner's own endpoints. */
@@ -131,26 +167,48 @@ export class Cat21MintComponent implements OnInit {
     this.scanner.states$,
   ]).pipe(
     map(([rows, scanMap]): ViableSimulation[] => {
-      return rows
-        .filter((r): r is { utxo: TxnOutput; simulation: SimulateTransactionResult; insufficient: false } =>
-          !r.insufficient && r.simulation !== null,
-        )
-        .sort((a, b) => b.utxo.value - a.utxo.value)
-        .slice(0, 10)
-        .map((r): ViableSimulation => {
-          const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
-          const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
-          return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan) };
-        });
+      // Show coins, tagging whether each can fund the mint at the current rate
+      // rather than hiding the ones that can't (FAMILY_UX show-the-row). Covering
+      // coins (up to 10) lead; a SHORT tail of the largest not-yet-covering coins
+      // (up to 3) trails as dimmed "can't fund at this rate" rows — enough to show
+      // the fee rate is the lever without turning a wallet of dust into a wall.
+      // All covering coins outvalue every unavailable one, so this stays globally
+      // value-sorted.
+      const isAvailable = (r: UtxoSimulationRow) => !r.insufficient && r.simulation !== null;
+      const sorted = [...rows].sort((a, b) => b.utxo.value - a.utxo.value);
+      const shown = [
+        ...sorted.filter(isAvailable).slice(0, 10),
+        ...sorted.filter((r) => !isAvailable(r)).slice(0, 3),
+      ];
+      return shown.map((r): ViableSimulation => {
+        const outpoint = `${r.utxo.txid}:${r.utxo.vout}`;
+        const scan = scanMap.get(outpoint) ?? { kind: 'not-scanned' };
+        return { simulation: r.simulation, paymentOutput: r.utxo, scan, bucket: bucketOf(scan), available: isAvailable(r) };
+      });
     }),
     tap((rows) => {
-      // Eager-scan small UTXOs. The scanner dedupes by outpoint so
-      // repeat triggers from re-emissions are free.
-      this.scanner.autoScan(rows.map((r) => ({
+      // Eager-scan small UTXOs, but only the ones the user could actually pick
+      // (available): an unavailable coin can't be spent, so scanning it for asset
+      // safety is wasted ord traffic. The scanner dedupes by outpoint so repeat
+      // triggers from re-emissions are free.
+      this.scanner.autoScan(rows.filter((r) => r.available).map((r) => ({
         txid: r.paymentOutput.txid,
         vout: r.paymentOutput.vout,
         value: r.paymentOutput.value,
       })));
+
+      // Kick off rune-etching resolution here, on a scan/simulation change,
+      // not from the template. Doing it in the render getter re-fires the
+      // lookup every change-detection pass for a rune that resolves to null
+      // (a reserved rune's all-zero etching, e.g. UNCOMMON•GOODS, which never
+      // caches), hammering our ord. The resolver dedupes by name.
+      for (const r of rows) {
+        if (r.scan.kind === 'scanned-with-assets' && r.scan.content.runes) {
+          for (const name of Object.keys(r.scan.content.runes)) {
+            this.runeResolver.ensureResolved(name, this.ordReviewBase);
+          }
+        }
+      }
 
       // Funding auto-pick is the orchestrator's job (its `fundingRecommendation`
       // force-scans covering candidates regardless of size and never
@@ -161,7 +219,7 @@ export class Cat21MintComponent implements OnInit {
       // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
       const current = this.selectedPaymentOutput;
       const stillThere = current && rows.find(
-        (r) => r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
+        (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
       );
       if (stillThere) {
         // Preserve the user's manual pick across re-emissions; refresh the row
@@ -184,19 +242,62 @@ export class Cat21MintComponent implements OnInit {
   // safe auto-recommendation funds the mint.
   selectedPaymentOutput: ViableSimulation | undefined;
 
-  /** Current funding status from the snapshot: `auto` (safe-auto covers),
-   *  `expert-required` (only asset coins cover), `insufficient` (nothing covers),
-   *  `scanning` (deciding). The template branches the notices on this. */
+  /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
+   *  `asset-notice` (dirty covers, separate-address wallet), `expert-required`
+   *  (dirty covers, one-address wallet), `insufficient`, `scanning`. The CTA and
+   *  the notices derive from {@link fundingCta}, never from this directly, so the
+   *  button state and the message can't disagree. */
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
-  /** The mint is fundable when the user MANUALLY picked a coin (an explicit
-   *  `selectedUtxo`, incl. an expert override past the asset warning) OR the SDK
-   *  can safe-auto-fund (`status === 'auto'`). `expert-required` / `insufficient`
-   *  / `scanning` leave it unfundable until the user acts. Gates the mint button
-   *  so removing the consumer-side auto-pick never leaves the button stuck. */
-  readonly hasFundingSource = computed(
-    () => !!this.snap().selectedUtxo || this.fundingStatus() === 'auto',
-  );
+  /**
+   * The SINGLE value the CTA button state AND the funding notice both derive
+   * from, so they can never disagree (two surfaces reading one status
+   * independently is exactly what split them before). An explicit manual pick
+   * makes the flow ready regardless of the auto-recommendation; otherwise it
+   * switches on the SDK's status EXHAUSTIVELY, so a new status is a compile error
+   * here rather than a silently-disabled button. Sites render the SDK's status;
+   * they never recompute the safe/notice/block decision (FAMILY_UX funding-panel
+   * rule).
+   */
+  readonly fundingCta = computed<
+    | { kind: 'ready' }
+    | { kind: 'notice'; assets: UtxoAssetDetail | undefined }
+    | { kind: 'warning' }
+    | { kind: 'insufficient' }
+    | { kind: 'scanning' }
+  >(() => {
+    if (this.snap().selectedUtxo) return { kind: 'ready' };
+    const rec = this.snap().fundingRecommendation;
+    switch (rec.status) {
+      case 'auto': return { kind: 'ready' };
+      case 'asset-notice': return { kind: 'notice', assets: rec.recommended?.assets };
+      case 'expert-required': return { kind: 'warning' };
+      case 'insufficient': return { kind: 'insufficient' };
+      case 'scanning': return { kind: 'scanning' };
+    }
+    const _exhaustive: never = rec.status;
+    return _exhaustive;
+  });
+
+  /** The mint is fundable when a clean coin auto-covers (`ready`) or a dirty coin
+   *  covers on a separate-address wallet (`notice`: CTA stays ENABLED with the
+   *  notice shown before the click). `warning` (one-address block), `insufficient`
+   *  and `scanning` leave it unfundable until the user acts in the picker. Derived
+   *  from {@link fundingCta} so the button can't enable while the notice says
+   *  otherwise. */
+  readonly hasFundingSource = computed(() => {
+    const kind = this.fundingCta().kind;
+    return kind === 'ready' || kind === 'notice';
+  });
+
+  /** The assets the auto-funding coin carries when the CTA is in the `notice`
+   *  state, so the template can NAME them (a notice that doesn't say what the
+   *  coin carries is not a notice). Null in every other state. A projection of
+   *  the single {@link fundingCta} value, not an independent recompute. */
+  readonly assetNotice = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'notice' ? cta.assets ?? null : null;
+  });
 
   // State-machine projections: read-only views of the snapshot's `state`
   // shaped to match the template bindings so the HTML stays unchanged.
@@ -318,8 +419,23 @@ export class Cat21MintComponent implements OnInit {
     // takeUntilDestroyed: connectedWallet$ is the root WalletService's
     // never-completing BehaviorSubject, so the `this`-capturing subscription
     // must be torn down or every visit to this routed component leaks.
+    // connectedWallet$ is the raw WalletService BehaviorSubject, not the
+    // bucket-deduped derived stream, so it replays the SAME wallet identity on
+    // every onAccountChange (Xverse and cat21wallet fire that repeatedly on
+    // regtest and on chain-changes). setWallet unconditionally drops the
+    // orchestrator to 'loading-utxos' and refetches, which tears the Mint
+    // button out of the DOM for a frame (*ngIf="!utxoLoading()") and swallows
+    // an in-flight click. Dedupe on the full identity tuple the orchestrator
+    // consumes so only a real wallet change reaches setWallet.
+    let lastWalletKey: string | null = null;
     let lastWalletAddress: string | null = null;
     this.connectedWallet$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((w) => {
+      const key = w
+        ? `${w.type}|${w.ordinalsAddress}|${w.paymentAddress}|${w.paymentPublicKey}`
+        : null;
+      if (key === lastWalletKey) return;
+      lastWalletKey = key;
+
       void this.orchestrator.setWallet(
         w
           ? {
@@ -355,8 +471,12 @@ export class Cat21MintComponent implements OnInit {
     this.cfeeRate.setValue(Number.isFinite(n) ? n : null);
   }
 
-  /** Template handler: user clicked "Use this UTXO" on an expert-mode row. */
+  /** Template handler: user clicked "Use this UTXO" on an expert-mode row. A row
+   *  that can't fund the mint at the current rate is unpickable: the rule lives
+   *  HERE, in the handler, not only in the template's hidden button, so a coin
+   *  the user can't spend can never become the selection (FAMILY_UX). */
   selectPaymentOutput(row: ViableSimulation): void {
+    if (!row.available) { return; }
     this.selectedPaymentOutput = row;
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
@@ -385,6 +505,40 @@ export class Cat21MintComponent implements OnInit {
   /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
 
+  /** Rune name + its raw pile value ({amount,divisibility,symbol}) for each rune on a UTXO. */
+  runeEntries(content: UtxoContent): { name: string; value: unknown }[] {
+    return Object.entries(content.runes ?? {}).map(([name, value]) => ({ name, value }));
+  }
+
+  /** ord-rendered balance + name for a rune row; bare name if the pile shape is off. */
+  readonly formatRuneLabel = runeLabel;
+
+  /**
+   * The etching txid for a rune, for the /tx/<etching> link, or null while it's
+   * unresolved or has none (reserved runes → plain text). Pure read of the
+   * resolver signal: resolution is kicked off from paymentOutputs$ on scan
+   * change, not here, so this getter has no side effect during render. The
+   * signal read re-renders the row when the lookup lands.
+   */
+  runeTxEtching(name: string): string | null {
+    return this.runeResolver.resolved().get(name) ?? null;
+  }
+
+  /**
+   * The genesis/reveal txid an inscription id points at, for the in-app
+   * /tx/<txid> link. An inscription id is `<64-hex-txid>i<index>`; the
+   * index suffix is stripped. The tx page renders the inscription from
+   * the witness, so it works for unconfirmed txs too.
+   */
+  txidFromInscriptionId(inscriptionId: string): string {
+    return inscriptionId.replace(/i\d+$/, '');
+  }
+
+  /** The success-panel "mint another" action: reload for a fresh mint. */
+  mintAnother(): void {
+    location.reload();
+  }
+
   /** Hover-tooltip text for each bucket badge. */
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {
@@ -411,7 +565,7 @@ export class Cat21MintComponent implements OnInit {
    * orchestrator's auto-recommended source. This is why the total below shows
    * in the collapsed default, before anyone opens the picker.
    */
-  private activeSimulation(): SimulateTransactionResult | null {
+  private activeSimulation(): UtxoSimulationView | null {
     if (this.selectedPaymentOutput) { return this.selectedPaymentOutput.simulation; }
     const rec = this.snap().fundingRecommendation.recommended;
     if (!rec) { return null; }
@@ -440,5 +594,70 @@ export class Cat21MintComponent implements OnInit {
   catPostageSats(): number | null {
     const sim = this.activeSimulation();
     return sim ? this.toNumber(sim.amountToRecipient) : null;
+  }
+
+  /**
+   * The SDK's per-coin fee rows keyed by outpoint. The picker reads the fee's
+   * three-state meaning (emits change / over-pays / cannot fund) from HERE, the
+   * one shared computation every surface consumes, so the number and its
+   * interpretation can't drift from cat21.space and cubes. Rebuilt on each
+   * snapshot; a small Map so a row lookup is O(1) rather than a scan per row.
+   */
+  private candidateFeeByOutpoint = computed(
+    () => new Map(this.snap().candidateFees.map((f) => [outpointKey(f), f] as const)),
+  );
+
+  /** The shared per-coin fee row for a picker row, or undefined if not computed yet. */
+  candidateFee(row: ViableSimulation): CandidateFeeRow | undefined {
+    return this.candidateFeeByOutpoint().get(outpointKey(row.paymentOutput));
+  }
+
+  /**
+   * The four-state reading of this coin's fee — `normal` / `overpay` /
+   * `overpay-unknown` / `unavailable` — routed through the SDK's shared
+   * {@link classifyCandidateFee} so ordpool's picker cannot drift from
+   * cat21.space's reading of the same row. `normal` (no note) when the fee row
+   * has not been computed yet.
+   */
+  feeClass(row: ViableSimulation): CandidateFeeState {
+    const cf = this.candidateFee(row);
+    return cf ? classifyCandidateFee(cf) : 'normal';
+  }
+
+  /**
+   * The sub-dust sats folded into the miner fee, for the over-pay note — only
+   * when this coin DEFINITELY over-pays (`overpay`). Null for a coin that emits
+   * change, an unavailable one, OR one whose fold the simulator cannot see
+   * (`overpay-unknown`) — that last one gets its own note rather than being
+   * collapsed into a false "no over-pay". A positive value is the FAMILY_UX
+   * over-pay signal; never a block, folding sub-dust change is deliberate.
+   */
+  overPaidSats(row: ViableSimulation): number | null {
+    const cf = this.candidateFee(row);
+    return cf && classifyCandidateFee(cf) === 'overpay' ? cf.absorbedSubDustSats : null;
+  }
+
+  /** Total coins the wallet has (all simulation rows). The picker caps how many
+   *  it renders, so the template states "Showing N of {{ totalCoinCount() }}"
+   *  when it truncates: a silent cut reads as coins gone missing (FAMILY_UX). */
+  totalCoinCount(): number {
+    return this.snap().simulations.length;
+  }
+
+  /** The auto-recommended funding coin's outpoint, or null before one exists. */
+  private recommendedOutpoint = computed(() => {
+    const rec = this.snap().fundingRecommendation.recommended;
+    return rec ? outpointKey(rec) : null;
+  });
+
+  /**
+   * Whether this row is the coin selection would pick on its own. Marked IN
+   * PLACE (a badge on its natural value-sorted row), never sorted to the top:
+   * the cost column exists so a reader can see the recommended coin is cheaper
+   * for a reason, and "why not the cheaper one above it?" is only answerable
+   * while that cheaper row stays visible above it (FAMILY_UX).
+   */
+  isRecommendedRow(row: ViableSimulation): boolean {
+    return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
   }
 }
