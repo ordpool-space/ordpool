@@ -113,6 +113,14 @@ $dropdown-link-active-bg: $active-bg;
   --secondary: #{$secondary};
   --tertiary: #{$tertiary};
   --success: #{$success};
+  // HACK -- Ordpool: the theme already carries $warning / $danger
+  // (styles-ordpool-overrides1.scss, feeding Bootstrap's semantic colours);
+  // only the custom-property aliases were missing. Without them
+  // `border-color: var(--warning)` computes to currentColor and
+  // `background: var(--warning)` to transparent, so a state styled that way
+  // renders as no state at all.
+  --warning: #{$warning};
+  --danger: #{$danger};
   --info: #{$info};
   --link-color: #{$link-color};
   --link-hover-color: #{$link-hover-color};
