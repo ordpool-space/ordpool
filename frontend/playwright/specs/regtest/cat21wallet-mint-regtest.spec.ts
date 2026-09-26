@@ -17,6 +17,8 @@ import {
   clickUntilApprovalPopup,
   clickApprovalAndRequireClose,
   onboardCat21Wallet,
+  waitForOptionalApprovalPopup,
+  approvalGate,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -92,10 +94,11 @@ const SHARED_ADDR_UNSET = 'sharedPaymentAddress not initialized (beforeAll shoul
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21wallet-mint-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 test.beforeAll(async () => {
@@ -220,7 +223,6 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
     },
   });
   await shot(approvalConnect, '03-connect-approval');
-  await approvalConnect.getByTestId('get-addresses-approve-button').click();
   // DO NOT explicitly `.close()` the popup. cat21-wallet's
   // `userApprovesGetAddresses` runs a multi-step animation
   // (contentDisappears 400 ms + originLogoAnimation) BEFORE
@@ -230,8 +232,12 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   // page stays at "please connect your wallet" forever (observed
   // on run 27502017653 trace.zip: click at 20039 ms, manual close
   // at 20083 ms = 44 ms gap, far inside the 400 ms animation).
-  // Wait for the popup to close itself.
-  await approvalConnect.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+  // The popup closes itself, and the close is required.
+  await clickApprovalAndRequireClose(
+    approvalConnect.getByTestId('get-addresses-approve-button'),
+    approvalConnect,
+    { closeTimeoutMs: 30_000, label: 'cat21-wallet connect popup' },
+  );
 
   // Mint form renders only when `x.connectedWallet` is non-null —
   // pinning the form's presence pins that the connect callback
@@ -277,16 +283,18 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   // Reload so the orchestrator picks up the new UTXO.
   const knownBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownBeforeReload,
     timeoutMs: 6_000,
-    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-  }).catch(() => null);
+    isApproval: approvalGate({
+      url: /^chrome-extension:\/\//,
+      control: (p) => p.getByTestId('get-addresses-approve-button'),
+      timeoutMs: 6_000,
+    }),
+  });
   if (reapprove) {
-    await reapprove.getByTestId('get-addresses-approve-button')
-      .click({ timeout: 10_000 }).catch(() => undefined);
-    await reapprove.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+    await clickApprovalAndRequireClose(reapprove.getByTestId('get-addresses-approve-button'), reapprove, { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet reconnect popup' });
   }
   await shot(page, '05-after-fund-reload');
 
@@ -408,16 +416,18 @@ async function cat21walletMintAtRate(opts: {
     const page = await context.newPage();
     await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
     const knownBeforeReconnect = new Set(context.pages());
-    const reapprove = await waitForApprovalPopup({
+    const reapprove = await waitForOptionalApprovalPopup({
       context,
       knownPages: knownBeforeReconnect,
       timeoutMs: 6_000,
-      isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-    }).catch(() => null);
+      isApproval: approvalGate({
+        url: /^chrome-extension:\/\//,
+        control: (p) => p.getByTestId('get-addresses-approve-button'),
+        timeoutMs: 6_000,
+      }),
+    });
     if (reapprove) {
-      await reapprove.getByTestId('get-addresses-approve-button')
-        .click({ timeout: 10_000 }).catch(() => undefined);
-      await reapprove.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+      await clickApprovalAndRequireClose(reapprove.getByTestId('get-addresses-approve-button'), reapprove, { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet reconnect popup' });
     }
     await shot(page, `mr-${opts.scenarioLabel}-01-loaded`);
 
@@ -487,12 +497,12 @@ async function cat21walletMintAtRate(opts: {
     const rate = tx.fee / vsize;
     console.log(`[${opts.scenarioLabel}] fee=${tx.fee} sat, vsize=${vsize} vB, rate=${rate.toFixed(3)} sat/vB (target ${opts.rate})`);
 
-    await page.close().catch(() => undefined);
+    await page.close();
     return { broadcastTxid, fee: tx.fee, vsize, rate, tx };
   } finally {
     if (opts.mockFeesAsHigh) {
-      await fetch('http://localhost:8999/admin/fees/reset', { method: 'POST' })
-        .catch(() => undefined);
+      const reset = await fetch('http://localhost:8999/admin/fees/reset', { method: 'POST' });
+      if (!reset.ok) throw new Error(`fee stub reset failed: HTTP ${reset.status}`);
     }
   }
 }
@@ -554,16 +564,18 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   });
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const knownReconnect = new Set(context.pages());
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownReconnect,
     timeoutMs: 6_000,
-    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-  }).catch(() => null);
+    isApproval: approvalGate({
+      url: /^chrome-extension:\/\//,
+      control: (p) => p.getByTestId('get-addresses-approve-button'),
+      timeoutMs: 6_000,
+    }),
+  });
   if (reapprove) {
-    await reapprove.getByTestId('get-addresses-approve-button')
-      .click({ timeout: 10_000 }).catch(() => undefined);
-    await reapprove.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+    await clickApprovalAndRequireClose(reapprove.getByTestId('get-addresses-approve-button'), reapprove, { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet reconnect popup' });
   }
 
   // Open the picker.
@@ -658,16 +670,18 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   const page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const knownReconnect = new Set(context.pages());
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownReconnect,
     timeoutMs: 6_000,
-    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-  }).catch(() => null);
+    isApproval: approvalGate({
+      url: /^chrome-extension:\/\//,
+      control: (p) => p.getByTestId('get-addresses-approve-button'),
+      timeoutMs: 6_000,
+    }),
+  });
   if (reapprove) {
-    await reapprove.getByTestId('get-addresses-approve-button')
-      .click({ timeout: 10_000 }).catch(() => undefined);
-    await reapprove.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+    await clickApprovalAndRequireClose(reapprove.getByTestId('get-addresses-approve-button'), reapprove, { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet reconnect popup' });
   }
 
   const feeRateInput = page.locator(
@@ -691,19 +705,17 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
       return true;
     },
   });
-  // Click Deny/Cancel/Reject — CAT-21 wallet's Leather-fork sign
-  // popup ships a "Deny"-labelled outline button next to the
-  // primary Confirm. Match permissively. Catch any "page closed"
-  // race — the popup may self-close from the click before
-  // Playwright's click action completes (observed on
-  // run 27509961259), which throws but doesn't actually mean the
-  // click was ineffective. What matters is the post-condition:
-  // success alert must NOT appear.
-  await sign.getByRole('button', { name: /^(deny|cancel|reject)$/i }).first()
-    .click({ timeout: 10_000 }).catch(() => undefined);
-  await sign.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+  // CAT-21 wallet's Leather-fork sign popup has a "Deny" outline button
+  // next to Confirm; match permissively. The popup closes itself on the
+  // click, which the helper requires rather than tolerates.
+  await clickApprovalAndRequireClose(
+    sign.getByRole('button', { name: /^(deny|cancel|reject)$/i }).first(),
+    sign,
+    { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet deny' },
+  );
 
-  await page.waitForTimeout(2_000);
+  // A rejected sign surfaces as the mint error, and no success alert.
+  await expect(page.locator('.alert.alert-danger').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.alert.alert-success')).toHaveCount(0);
 });
 
@@ -728,16 +740,18 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
   });
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const knownReconnect = new Set(context.pages());
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownReconnect,
     timeoutMs: 6_000,
-    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-  }).catch(() => null);
+    isApproval: approvalGate({
+      url: /^chrome-extension:\/\//,
+      control: (p) => p.getByTestId('get-addresses-approve-button'),
+      timeoutMs: 6_000,
+    }),
+  });
   if (reapprove) {
-    await reapprove.getByTestId('get-addresses-approve-button')
-      .click({ timeout: 10_000 }).catch(() => undefined);
-    await reapprove.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+    await clickApprovalAndRequireClose(reapprove.getByTestId('get-addresses-approve-button'), reapprove, { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet reconnect popup' });
   }
 
   const feeRateInput = page.locator(

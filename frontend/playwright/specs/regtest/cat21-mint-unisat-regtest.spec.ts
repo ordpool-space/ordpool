@@ -15,6 +15,8 @@ import {
   mineBlocks,
   waitForApprovalPopup,
   onboardUnisat,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -52,15 +54,18 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21-mint-unisat-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // Unisat renders its connect + sign approvals at notification.html#/approval.
-async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const popup = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const popup = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -68,13 +73,10 @@ async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number): P
       await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (popup) {
-    // Unisat renders Connect as a styled <div>, not a <button> - match by text.
-    await popup.getByText(/^Connect$/).first().click();
-    await popup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return popup;
+  });
+  if (!popup) return;
+  // Unisat renders Connect as a styled <div>, not a <button> - match by text.
+  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { closeTimeoutMs: 30_000, label: 'Unisat connect popup' });
 }
 
 test.beforeAll(async () => {
@@ -147,7 +149,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   // ─── 4. Reload so the orchestrator re-fetches UTXOs ────────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveUnisatConnect(knownPagesBeforeReload, 8_000);
+  await approveUnisatConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
 
   // ─── 5. Pin the fee, wait for the Mint button ──────────────────
@@ -177,8 +179,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
     },
   });
   await shot(signPopup, '02-sign-approval');
-  await signPopup.getByTestId('sign-psbt-button').click();
-  await signPopup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+  await clickApprovalAndRequireClose(signPopup.getByTestId('sign-psbt-button'), signPopup, { closeTimeoutMs: 30_000, label: 'Unisat sign popup' });
   await page.bringToFront();
 
   // ─── 7. Success card → broadcast txid ──────────────────────────

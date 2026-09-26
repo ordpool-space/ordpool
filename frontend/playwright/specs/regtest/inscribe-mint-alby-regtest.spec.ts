@@ -15,6 +15,7 @@ import {
   mineBlocks,
   getTx,
   seedAlbyAccount,
+  installAlbyAutoApprove,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -56,10 +57,11 @@ let seedPage: Page;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `inscribe-alby-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // Fire Alby's webbtc/signPsbt SW route directly from the seed page
@@ -120,19 +122,20 @@ test.beforeAll(async () => {
   // can't self-navigate away between seed and later sign calls.
   seedPage = await context.newPage();
   await seedPage.addInitScript(() => {
-    try {
-      Object.defineProperty(window, 'close', { value: () => undefined, writable: false, configurable: false });
-    } catch { /* ignore */ }
-    try {
-      const stop = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation(); };
-      window.addEventListener('beforeunload', stop as unknown as EventListener, true);
-    } catch { /* ignore */ }
+    Object.defineProperty(window, 'close', { value: () => undefined, writable: false, configurable: false });
+    const stop = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation(); };
+    window.addEventListener('beforeunload', stop as unknown as EventListener, true);
   });
   await seedPage.goto(`chrome-extension://${extensionId}/options.html`, { waitUntil: 'domcontentloaded' });
-  await seedPage.waitForFunction(() => true, undefined, { timeout: 2_000 }).catch(() => undefined);
+  await seedPage.waitForFunction(
+    () => typeof (globalThis as { chrome?: { runtime?: { sendMessage?: unknown } } })
+      .chrome?.runtime?.sendMessage === 'function',
+    undefined,
+    { timeout: 15_000, polling: 100 },
+  );
 
   await seedAlbyAccount(seedPage);
-  await shot(seedPage, '00-after-seed').catch(() => undefined);
+  await shot(seedPage, '00-after-seed');
   // Keep seedPage OPEN - the test talks to the SW through it.
 });
 
@@ -150,24 +153,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   // coin returns empty from both, so it classifies usable for real. The sync
   // waits after funding ensure both ords have indexed the funding block first.
 
-  // Auto-click Connect/Allow/Confirm on any Alby permission popup
-  // (alby.enable() + webbtc.getAddress() open these on first call).
-  let popupCount = 0;
-  context.on('page', async (popup) => {
-    if (popup === page || popup === seedPage) return;
-    const idx = ++popupCount;
-    try {
-      await popup.waitForLoadState('domcontentloaded', { timeout: 10_000 });
-      if (!popup.url().startsWith('chrome-extension://')) return;
-      await popup.waitForTimeout(6_000);
-      const btn = popup.locator('button', { hasText: /^(connect|allow|confirm|approve|sign)$/i }).first();
-      await btn.waitFor({ state: 'visible', timeout: 5_000 });
-      await btn.click({ timeout: 5_000 });
-      console.log(`[inscribe-alby] auto-clicked popup #${idx}: ${popup.url().slice(0, 80)}`);
-    } catch (e) {
-      console.log(`[inscribe-alby] popup #${idx} auto-click skipped: ${String(e).slice(0, 200)}`);
-    }
-  });
+  // Approves Alby's permission popups (alby.enable() + webbtc.getAddress()).
+  const albyApprovals = installAlbyAutoApprove(context);
 
   // Expose the SW-bypass to the app page, then patch ONLY
   // window.alby.webbtc.signPsbt to proxy into it - enable() +
@@ -215,6 +202,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
 
   const paymentAddress = await readPaymentAddress(page);
   console.log(`[inscribe-alby] payment=${paymentAddress}`);
+  console.log(`[inscribe-alby] Alby popups approved=${albyApprovals.approved()} seen=${albyApprovals.seen().join(' | ')}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();

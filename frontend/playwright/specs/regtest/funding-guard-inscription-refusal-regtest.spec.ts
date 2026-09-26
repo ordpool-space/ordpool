@@ -7,6 +7,9 @@ import {
   seedInscribedCoin,
   rpc,
   waitForApprovalPopup,
+  isVisibleWithin,
+  waitForOptionalApprovalPopup,
+  approvalGate,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -71,10 +74,11 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `funding-guard-refusal-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 test.beforeAll(async () => {
@@ -137,8 +141,8 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
     }, undefined, { timeout: 30_000, polling: 250 });
   }
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await notNow.isVisible({ timeout: 1_500 }).catch(() => false)) {
-    await notNow.click({ force: true }).catch(() => undefined);
+  if (await isVisibleWithin(notNow, 1_500)) {
+    await notNow.click({ force: true });
   }
   await primer.close();
 
@@ -167,7 +171,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   });
   await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
     .first().click();
-  await approvalConnect.close().catch(() => undefined);
+  await approvalConnect.close();
 
   const paymentAddress = await readPaymentAddress(page);
   console.log(`[guard-refusal] payment=${paymentAddress}`);
@@ -195,16 +199,20 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   // ─── 4. Reload so the orchestrator re-fetches UTXOs and scans ─────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownPagesBeforeReload,
     timeoutMs: 6_000,
-    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-  }).catch(() => null);
+    isApproval: approvalGate({
+      url: /^chrome-extension:\/\//,
+      control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+      timeoutMs: 6_000,
+    }),
+  });
   if (reapprove) {
     await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
-      .first().click().catch(() => undefined);
-    await reapprove.close().catch(() => undefined);
+      .first().click();
+    await reapprove.close();
   }
   await page.bringToFront();
   await shot(page, '01-after-seed-reload');
@@ -216,10 +224,9 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   // button state is deliberately NOT asserted: a clean leftover on the shared
   // vault usually auto-funds it, and the status is non-deterministic here.
   const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
-  if (await pickerSummary.isVisible({ timeout: 30_000 }).catch(() => false)) {
-    await pickerSummary.click();
-    await shot(page, '02-picker-open');
-  }
+  await expect(pickerSummary).toBeVisible({ timeout: 30_000 });
+  await pickerSummary.click();
+  await shot(page, '02-picker-open');
 
   // Necessary but NOT sufficient: the coin is flagged unsafe (the "asset found"
   // danger badge, the row offers "Use anyway" not "Use this UTXO"). These fire

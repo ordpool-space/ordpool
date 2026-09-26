@@ -16,8 +16,13 @@ import {
   mineBlocks,
   waitForTxConfirmed,
   waitForApprovalPopup,
+  isVisibleWithin,
+  waitForOptionalApprovalPopup,
+  approvalGate,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
+import { confirmXverseSign } from './xverse-sign';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint
@@ -107,10 +112,11 @@ const SHARED_ADDR_UNSET = 'sharedPaymentAddress not initialized (beforeAll shoul
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21-mint-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 test.beforeAll(async () => {
@@ -217,8 +223,8 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
     }, undefined, { timeout: 30_000, polling: 250 });
   }
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await notNow.isVisible({ timeout: 1_500 }).catch(() => false)) {
-    await notNow.click({ force: true }).catch(() => undefined);
+  if (await isVisibleWithin(notNow, 1_500)) {
+    await notNow.click({ force: true });
   }
   await shot(primer, '01-unlocked');
   await primer.close();
@@ -261,7 +267,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
     .first().click();
   // Closing the connect popup forces Xverse to open a FRESH tab for the
   // sign step later — see the SDK roundtrip spec's notes for why.
-  await approvalConnect.close().catch(() => undefined);
+  await approvalConnect.close();
 
   // ─── 3. Read the payment address from the wallet popover ───────
   const paymentAddress = await readPaymentAddress(page);
@@ -290,7 +296,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // permission-renewal popup we approve it, otherwise move on.
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownPagesBeforeReload,
     timeoutMs: 8_000,
@@ -302,11 +308,11 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
       }, undefined, { timeout: 8_000, polling: 250 });
       return true;
     },
-  }).catch(() => null);
+  });
   if (reapprove) {
     await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
       .first().click();
-    await reapprove.close().catch(() => undefined);
+    await reapprove.close();
   }
   await shot(page, '04b-reloaded');
 
@@ -401,21 +407,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   }, undefined, { timeout: 30_000, polling: 250 });
   await expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
 
-  // Retry the Confirm click — Xverse occasionally swallows the first
-  // click during the React onClick attach.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (approvalSign.isClosed()) break;
-    await approvalSign.getByRole('button', { name: /^confirm$/i }).first()
-      .click({ force: true })
-      .catch(() => undefined);
-    const closed = new Promise<void>((res) => approvalSign.once('close', () => res()));
-    await Promise.race([
-      closed,
-      expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first())
-        .toBeHidden({ timeout: 30_000 }),
-    ]).catch(() => undefined);
-    if (approvalSign.isClosed()) break;
-  }
+  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
 
   // ─── 7. Wait for success card + extract broadcast txid ────────
   const successAlert = page.locator('.alert.alert-success').first();
@@ -597,16 +589,20 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   // test 1 — Xverse SHOULD auto-reconnect silently. If a permission-
   // renewal popup happens to open, approve it.
   const known = new Set(context.pages());
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: known,
     timeoutMs: 6_000,
-    isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-  }).catch(() => null);
+    isApproval: approvalGate({
+      url: /^chrome-extension:\/\//,
+      control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+      timeoutMs: 6_000,
+    }),
+  });
   if (reapprove) {
     await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
-      .first().click().catch(() => undefined);
-    await reapprove.close().catch(() => undefined);
+      .first().click();
+    await reapprove.close();
   }
 
   // ─── 3. Open the funding source picker ────────────────────────
@@ -686,19 +682,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (burnSign.isClosed()) break;
-    await burnSign.getByRole('button', { name: /^confirm$/i }).first()
-      .click({ force: true })
-      .catch(() => undefined);
-    const closed = new Promise<void>((res) => burnSign.once('close', () => res()));
-    await Promise.race([
-      closed,
-      expect(burnSign.getByRole('button', { name: /^confirm$/i }).first())
-        .toBeHidden({ timeout: 30_000 }),
-    ]).catch(() => undefined);
-    if (burnSign.isClosed()) break;
-  }
+  await confirmXverseSign(burnSign, 'Xverse burnSign');
 
   const burnSuccess = page.locator('.alert.alert-success').first();
   await expect(burnSuccess).toBeVisible({ timeout: 90_000 });
@@ -785,13 +769,15 @@ test('sign-popup cancel keeps state coherent', async () => {
     },
   });
   await shot(cancelPopup, 'cancel-02-popup');
-  await cancelPopup.getByRole('button', { name: /^cancel$/i }).first()
-    .click({ force: true });
-  await cancelPopup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
+  const cancel = cancelPopup.getByRole('button', { name: /^cancel$/i }).first();
+  await clickApprovalAndRequireClose(
+    { click: (o) => cancel.click({ ...o, force: true }), isVisible: () => cancel.isVisible(), isEnabled: () => cancel.isEnabled() },
+    cancelPopup,
+    { closeTimeoutMs: 30_000, label: 'Xverse cancel' },
+  );
 
-  // Form must NOT show a success alert. Give the orchestrator a
-  // moment to settle.
-  await page.waitForTimeout(2_000);
+  // A rejected sign surfaces as the mint error, and no success alert.
+  await expect(page.locator('.alert.alert-danger').first()).toBeVisible({ timeout: 30_000 });
   await shot(page, 'cancel-03-after-close');
   await expect(page.locator('.alert.alert-success')).toHaveCount(0);
 });
@@ -864,19 +850,7 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (bcastSign.isClosed()) break;
-    await bcastSign.getByRole('button', { name: /^confirm$/i }).first()
-      .click({ force: true })
-      .catch(() => undefined);
-    const closed = new Promise<void>((res) => bcastSign.once('close', () => res()));
-    await Promise.race([
-      closed,
-      expect(bcastSign.getByRole('button', { name: /^confirm$/i }).first())
-        .toBeHidden({ timeout: 30_000 }),
-    ]).catch(() => undefined);
-    if (bcastSign.isClosed()) break;
-  }
+  await confirmXverseSign(bcastSign, 'Xverse bcastSign');
 
   // Error alert must appear; success alert must NOT.
   const errorAlert = page.locator('.alert.alert-danger, .alert-danger').first();
@@ -959,16 +933,20 @@ async function ordpoolMintAtRate(opts: {
     const page = await context.newPage();
     await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
     const known = new Set(context.pages());
-    const reapprove = await waitForApprovalPopup({
+    const reapprove = await waitForOptionalApprovalPopup({
       context,
       knownPages: known,
       timeoutMs: 6_000,
-      isApproval: async (p) => p.url().startsWith('chrome-extension://'),
-    }).catch(() => null);
+      isApproval: approvalGate({
+        url: /^chrome-extension:\/\//,
+        control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+        timeoutMs: 6_000,
+      }),
+    });
     if (reapprove) {
       await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
-        .first().click().catch(() => undefined);
-      await reapprove.close().catch(() => undefined);
+        .first().click();
+      await reapprove.close();
     }
     await shot(page, `mr-${opts.scenarioLabel}-01-loaded`);
 
@@ -1018,19 +996,7 @@ async function ordpoolMintAtRate(opts: {
         return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
       });
     }, undefined, { timeout: 30_000, polling: 250 });
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (approvalSign.isClosed()) break;
-      await approvalSign.getByRole('button', { name: /^confirm$/i }).first()
-        .click({ force: true })
-        .catch(() => undefined);
-      const closed = new Promise<void>((res) => approvalSign.once('close', () => res()));
-      await Promise.race([
-        closed,
-        expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first())
-          .toBeHidden({ timeout: 30_000 }),
-      ]).catch(() => undefined);
-      if (approvalSign.isClosed()) break;
-    }
+    await confirmXverseSign(approvalSign, 'Xverse approvalSign');
 
     // ─── Wait for success alert + extract broadcast txid ─────────
     const successAlert = page.locator('.alert.alert-success').first();
@@ -1062,14 +1028,14 @@ async function ordpoolMintAtRate(opts: {
     const rate = tx.fee / vsize;
     console.log(`[${opts.scenarioLabel}] fee=${tx.fee} sat, vsize=${vsize} vB, rate=${rate.toFixed(3)} sat/vB (target ${opts.rate})`);
 
-    await page.close().catch(() => undefined);
+    await page.close();
     return { broadcastTxid, fee: tx.fee, vsize, rate };
   } finally {
     // Always restore the default low preset so the next test sees a
     // predictable stub state.
     if (opts.mockFeesAsHigh) {
-      await fetch('http://localhost:8999/admin/fees/reset', { method: 'POST' })
-        .catch(() => undefined);
+      const reset = await fetch('http://localhost:8999/admin/fees/reset', { method: 'POST' });
+      if (!reset.ok) throw new Error(`fee stub reset failed: HTTP ${reset.status}`);
     }
   }
 }

@@ -16,6 +16,8 @@ import {
   getTx,
   waitForApprovalPopup,
   onboardCat21Wallet,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -52,15 +54,18 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21wallet-inscribe-user-data-dir.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // CAT-21 wallet (Leather fork) connect approval: get-addresses-approve-button.
-async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const popup = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const popup = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -69,12 +74,9 @@ async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: numbe
       await p.getByTestId('get-addresses-approve-button').waitFor({ state: 'visible', timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (popup) {
-    await popup.getByTestId('get-addresses-approve-button').click();
-    await popup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return popup;
+  });
+  if (!popup) return;
+  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { closeTimeoutMs: 30_000, label: 'cat21-wallet connect popup' });
 }
 
 // CAT-21 wallet closes its own popup on sign completion; noWaitAfter dodges
@@ -172,7 +174,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveCat21WalletConnect(knownPagesBeforeReload, 8_000);
+  await approveCat21WalletConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 

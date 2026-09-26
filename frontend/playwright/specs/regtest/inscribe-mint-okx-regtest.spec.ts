@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, errors, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -16,6 +16,9 @@ import {
   getTx,
   waitForApprovalPopup,
   onboardOkx,
+  isVisibleWithin,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -55,15 +58,18 @@ let onboardPage: Page | undefined;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `inscribe-okx-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // OKX connect popup anchors on the "Connect account" header.
-async function approveOkxConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const approval = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveOkxConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const approval = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -72,42 +78,37 @@ async function approveOkxConnect(knownPages: Set<Page>, timeoutMs: number): Prom
       await p.getByText('Connect account').first().waitFor({ state: 'visible', timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (approval) {
-    await approval.getByRole('button', { name: /^connect$/i }).first().click();
-    await approval.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return approval;
+  });
+  if (!approval) return;
+  await clickApprovalAndRequireClose(approval.getByRole('button', { name: /^connect$/i }).first(), approval, { closeTimeoutMs: 30_000, label: 'OKX connect popup' });
 }
 
 // OKX reuses its extension page for the sign approval - poll all pages
 // for the "Signature request" body, dismiss a promo overlay if present,
 // then click Confirm.
 async function approveOkxSign(): Promise<void> {
-  const deadline = Date.now() + 120_000;
-  let approval: Page | null = null;
-  while (Date.now() < deadline) {
-    for (const p of context.pages()) {
-      if (!p.url().startsWith('chrome-extension://')) continue;
-      const text = await p.locator('body').innerText().catch(() => '');
-      if (/Signature request|Confirm Trade|Asset transfer pending/i.test(text)) {
-        approval = p;
-        break;
-      }
-    }
-    if (approval) break;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  if (!approval) throw new Error('OKX sign popup never showed Signature request | Confirm Trade within 120s');
+  // OKX reuses its already-open extension page for the sign step, and
+  // waitForApprovalPopup checks open pages as well as new ones.
+  const approval = await waitForApprovalPopup({
+    context,
+    knownPages: new Set(),
+    timeoutMs: 120_000,
+    isApproval: async (p) => {
+      if (!p.url().startsWith('chrome-extension://')) return false;
+      await p.getByText(/Signature request|Confirm Trade|Asset transfer pending/i).first()
+        .waitFor({ state: 'visible', timeout: 120_000 });
+      return true;
+    },
+  });
   await shot(approval, '05-sign-popup');
 
   const promo = approval.getByText('Asset transfer pending');
-  if (await promo.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  if (await isVisibleWithin(promo, 2_000)) {
     const closeBtn = approval.locator('button:has(svg), [aria-label="close" i], [aria-label="Close" i]').first();
-    if (await closeBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await closeBtn.click({ force: true }).catch(() => undefined);
+    if (await isVisibleWithin(closeBtn, 2_000)) {
+      await closeBtn.click({ force: true });
     }
-    await promo.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
+    await expect(promo).toBeHidden({ timeout: 10_000 });
   }
   await approval.getByText('Confirm', { exact: true }).first().click();
 }
@@ -150,8 +151,9 @@ test.beforeAll(async () => {
       predicate: (p) => p.url().startsWith(`chrome-extension://${extensionId}`),
       timeout: 15_000,
     });
-  } catch {
-    /* fall through */
+  } catch (e) {
+    // OKX did not open its onboarding tab by itself; a fresh page is used instead.
+    if (!(e instanceof errors.TimeoutError)) throw e;
   }
   if (!onboardPage) onboardPage = await context.newPage();
   await onboardOkx(onboardPage, extensionId);
@@ -208,7 +210,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveOkxConnect(knownPagesBeforeReload, 8_000);
+  await approveOkxConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 

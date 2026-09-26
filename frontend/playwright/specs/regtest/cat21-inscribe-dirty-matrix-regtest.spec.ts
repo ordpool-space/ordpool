@@ -19,6 +19,8 @@ import {
   clickUntilEffect,
   DirtyCoinAsset,
   SeededDirtyCoin,
+  isVisibleWithin,
+  waitForOptionalApprovalPopup,
 } from 'ordpool-sdk/e2e';
 import {
   simulateInscribe,
@@ -28,6 +30,7 @@ import {
   KnownOrdinalWalletType,
 } from 'ordpool-sdk';
 import { readPaymentAddress } from './payment-address';
+import { confirmXverseSign } from './xverse-sign';
 
 /**
  * E2E (regtest) — dirty-coin protection matrix for the INSCRIBE flow, all four
@@ -147,10 +150,11 @@ let paymentAddress: string;
 const seededDirty: SeededDirtyCoin[] = [];
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `inscribe-dirty-matrix-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 /**
@@ -242,8 +246,8 @@ test.beforeAll(async () => {
     }, undefined, { timeout: 30_000, polling: 250 });
   }
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await notNow.isVisible({ timeout: 1_500 }).catch(() => false)) {
-    await notNow.click({ force: true }).catch(() => undefined);
+  if (await isVisibleWithin(notNow, 1_500)) {
+    await notNow.click({ force: true });
   }
   await primer.close();
 
@@ -270,7 +274,7 @@ test.beforeAll(async () => {
   });
   await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
     .first().click();
-  await approvalConnect.close().catch(() => undefined);
+  await approvalConnect.close();
 
   paymentAddress = await readPaymentAddress(page);
   expect(paymentAddress).toMatch(/^bcrt1q/);
@@ -321,7 +325,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   // Reload so the orchestrator re-fetches + scans (re-approve if Xverse asks).
   const knownBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownBeforeReload,
     timeoutMs: 8_000,
@@ -333,10 +337,10 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
       }, undefined, { timeout: 8_000, polling: 250 });
       return true;
     },
-  }).catch(() => null);
+  });
   if (reapprove) {
     await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
-    await reapprove.close().catch(() => undefined);
+    await reapprove.close();
   }
 
   // Re-pick the file AFTER the reload (reload clears the component's picked-file
@@ -390,16 +394,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (approvalSign.isClosed()) break;
-    await approvalSign.getByRole('button', { name: /^confirm$/i }).first().click({ force: true }).catch(() => undefined);
-    const closed = new Promise<void>((res) => approvalSign.once('close', () => res()));
-    await Promise.race([
-      closed,
-      expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeHidden({ timeout: 30_000 }),
-    ]).catch(() => undefined);
-    if (approvalSign.isClosed()) break;
-  }
+  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
 
   // Success panel → read the COMMIT txid (the tx that spends the funding coin).
   const successPanel = page.locator('[data-testid="inscribe-success"]');

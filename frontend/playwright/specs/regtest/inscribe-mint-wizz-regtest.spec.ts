@@ -17,6 +17,8 @@ import {
   waitForApprovalPopup,
   installWizzOfflineRoutes,
   onboardWizz,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -52,16 +54,19 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `inscribe-wizz-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // Wizz inherits Unisat's connect-approval: a styled "Connect" div at
 // notification.html#/approval.
-async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const approval = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const approval = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -69,12 +74,9 @@ async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number): Pro
       await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (approval) {
-    await approval.getByText(/^Connect$/).first().click();
-    await approval.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return approval;
+  });
+  if (!approval) return;
+  await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { closeTimeoutMs: 30_000, label: 'Wizz connect popup' });
 }
 
 // Sign button carries a spinner overlay + braille chars in textContent
@@ -202,7 +204,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveWizzConnect(knownPagesBeforeReload, 8_000);
+  await approveWizzConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 

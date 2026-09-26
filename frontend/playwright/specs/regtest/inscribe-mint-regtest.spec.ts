@@ -17,8 +17,11 @@ import {
   mineBlocks,
   getTx,
   waitForApprovalPopup,
+  isVisibleWithin,
+  waitForOptionalApprovalPopup,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
+import { confirmXverseSign } from './xverse-sign';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe
@@ -104,10 +107,11 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `inscribe-mint-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 test.beforeAll(async () => {
@@ -186,8 +190,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
     }, undefined, { timeout: 30_000, polling: 250 });
   }
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await notNow.isVisible({ timeout: 1_500 }).catch(() => false)) {
-    await notNow.click({ force: true }).catch(() => undefined);
+  if (await isVisibleWithin(notNow, 1_500)) {
+    await notNow.click({ force: true });
   }
   await shot(primer, '01-unlocked');
   await primer.close();
@@ -234,7 +238,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
     .first().click();
   // Closing the connect popup forces Xverse to open a FRESH tab for the
   // sign step later - same dance the cat21-mint + SDK roundtrip specs use.
-  await approvalConnect.close().catch(() => undefined);
+  await approvalConnect.close();
 
   // ─── 3. Read the payment address from the wallet popover ───────
   const paymentAddress = await readPaymentAddress(page);
@@ -267,7 +271,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // Xverse pops a permission-renewal popup we approve it.
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForApprovalPopup({
+  const reapprove = await waitForOptionalApprovalPopup({
     context,
     knownPages: knownPagesBeforeReload,
     timeoutMs: 8_000,
@@ -279,11 +283,11 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
       }, undefined, { timeout: 8_000, polling: 250 });
       return true;
     },
-  }).catch(() => null);
+  });
   if (reapprove) {
     await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
       .first().click();
-    await reapprove.close().catch(() => undefined);
+    await reapprove.close();
   }
   await shot(page, '04b-reloaded');
 
@@ -337,21 +341,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   }, undefined, { timeout: 30_000, polling: 250 });
   await expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
 
-  // Retry the Confirm click - Xverse occasionally swallows the first
-  // click during the React onClick attach.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (approvalSign.isClosed()) break;
-    await approvalSign.getByRole('button', { name: /^confirm$/i }).first()
-      .click({ force: true })
-      .catch(() => undefined);
-    const closed = new Promise<void>((res) => approvalSign.once('close', () => res()));
-    await Promise.race([
-      closed,
-      expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first())
-        .toBeHidden({ timeout: 30_000 }),
-    ]).catch(() => undefined);
-    if (approvalSign.isClosed()) break;
-  }
+  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
 
   // ─── 8. Wait for success panel + read commit/reveal txids ──────
   const successPanel = page.locator('[data-testid="inscribe-success"]');
