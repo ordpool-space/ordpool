@@ -172,6 +172,7 @@
          single-address custody note lives beside the Mint / Inscribe button,
          not here — no marker at connect (wallet-ux-round3 §12.1). -->
     <button
+      data-testid="connected-wallet-button"
       #myPopover="ngbPopover"
       [popoverTitle]="popTitle"
       [ngbPopover]="popContent"
@@ -207,7 +208,7 @@
           <app-clipboard [button]="true" [text]="x.connectedWallet.ordinalsAddress"
             [class]="'btn btn-secondary mb-2'"></app-clipboard>
         </li>
-        <li title="{{ x.connectedWallet.paymentAddress || 'None' }}">
+        <li data-testid="connected-payment-address" title="{{ x.connectedWallet.paymentAddress || 'None' }}">
           <span class="label">Payment Address:</span>
           <span class="address">{{ (x.connectedWallet.paymentAddress | shortenString) || 'None' }}</span>
           <app-clipboard [button]="true" [text]="x.connectedWallet.paymentAddress"

@@ -16,6 +16,7 @@ import {
   getTx,
   seedAlbyAccount,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Alby.
@@ -212,9 +213,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   await page.getByTestId('wallet-connect-alby').click({ timeout: 20_000 });
   await shot(page, '02-picker-clicked');
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 90_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[inscribe-alby] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 

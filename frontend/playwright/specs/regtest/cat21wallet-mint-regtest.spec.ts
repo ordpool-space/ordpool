@@ -17,6 +17,7 @@ import {
   clickUntilApprovalPopup,
   onboardCat21Wallet,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint via CAT-21 wallet
@@ -243,18 +244,11 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   await shot(page, '04-connected');
 
   // ─── Path-1 proof: payment address is REGTEST bcrt1q ──────────
-  // CAT-21 wallet's `getAddresses` now honors the `network` param
-  // (SDK connector change at commit 8d91a5c: Network.Regtest →
-  // 'devnet', forwarded as RPC param). The mint page's empty-state
-  // hint renders the connected payment address inside
-  // `<code class="bitcoin">…</code>`. Before this change it was a
-  // `bc1q…` mainnet address (incompatible with the regtest electrs
-  // funding path); now it must start with `bcrt1q…`. Pinning this
-  // surfaces a connector regression immediately rather than
-  // waiting for a downstream mint to mysteriously fail.
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddr = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  // The connector forwards Network.Regtest to CAT-21 wallet's
+  // `getAddresses` as 'devnet', so the payment address must be `bcrt1q…`.
+  // A mainnet `bc1q…` here is a connector regression, caught before a
+  // downstream mint fails on the regtest electrs funding path.
+  const paymentAddr = await readPaymentAddress(page);
   console.log(`[cat21wallet] regtest payment address = ${paymentAddr}`);
   expect(paymentAddr).toMatch(/^bcrt1q/);
   sharedPaymentAddress = paymentAddr;

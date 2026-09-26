@@ -27,6 +27,7 @@ import {
   Network,
   KnownOrdinalWalletType,
 } from 'ordpool-sdk';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest) — dirty-coin protection matrix for the INSCRIBE flow, all four
@@ -271,9 +272,7 @@ test.beforeAll(async () => {
     .first().click();
   await approvalConnect.close().catch(() => undefined);
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  paymentAddress = await readPaymentAddress(page);
   expect(paymentAddress).toMatch(/^bcrt1q/);
   console.log(`[inscribe-dirty-matrix] payment=${paymentAddress}`);
 });

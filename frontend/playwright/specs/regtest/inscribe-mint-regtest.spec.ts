@@ -18,6 +18,7 @@ import {
   getTx,
   waitForApprovalPopup,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe
@@ -235,13 +236,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // sign step later - same dance the cat21-mint + SDK roundtrip specs use.
   await approvalConnect.close().catch(() => undefined);
 
-  // ─── 3. Read the payment address from the empty-state hint ─────
-  // With no funds yet, the form renders the "We could not find enough
-  // funds … Fund <code class="bitcoin">…</code>" hint. Read the address
-  // verbatim - no SDK testHooks required.
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  // ─── 3. Read the payment address from the wallet popover ───────
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[inscribe-page] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1q/);
 

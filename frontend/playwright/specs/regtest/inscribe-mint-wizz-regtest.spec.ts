@@ -18,6 +18,7 @@ import {
   installWizzOfflineRoutes,
   onboardWizz,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Wizz.
@@ -178,9 +179,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
   await approveWizzConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[inscribe-wizz] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 

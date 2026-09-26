@@ -16,6 +16,7 @@ import {
   waitForApprovalPopup,
   onboardUnisat,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) - ordpool /cat21-mint via Unisat.
@@ -128,9 +129,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   await page.bringToFront();
 
   // ─── 2. Read the payment address (connector shim → bcrt1) ──────
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[cat21-mint-unisat] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 

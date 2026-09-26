@@ -17,6 +17,7 @@ import {
   waitForTxConfirmed,
   waitForApprovalPopup,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) — ordpool /cat21-mint
@@ -262,14 +263,8 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   // sign step later — see the SDK roundtrip spec's notes for why.
   await approvalConnect.close().catch(() => undefined);
 
-  // ─── 3. Read the payment address from the empty-state hint ─────
-  // Before we fund the wallet, the mint form has no viable UTXOs and
-  // renders the "send funds to this address" empty-state hint. That
-  // hint includes the payment address in a `<code class="bitcoin">`
-  // we can read verbatim — no SDK testHooks required.
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  // ─── 3. Read the payment address from the wallet popover ───────
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[mint-page] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1q/);
   const wallet = { paymentAddress };

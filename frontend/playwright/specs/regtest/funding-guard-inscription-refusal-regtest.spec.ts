@@ -8,6 +8,7 @@ import {
   rpc,
   waitForApprovalPopup,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest) — the funding picker FLAGS and NAMES an inscribed coin.
@@ -168,9 +169,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
     .first().click();
   await approvalConnect.close().catch(() => undefined);
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[guard-refusal] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1q/);
 

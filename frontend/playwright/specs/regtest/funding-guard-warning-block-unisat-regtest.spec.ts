@@ -10,6 +10,7 @@ import {
   waitForApprovalPopup,
   onboardUnisat,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 // A CLEAN coin sized at exactly the CAT-21 postage: it can cover the 546-sat cat
 // output but leaves ZERO for the miner fee, so the mint requirement (postage +
@@ -147,9 +148,7 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   await approveUnisatConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[warning-block-unisat] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 

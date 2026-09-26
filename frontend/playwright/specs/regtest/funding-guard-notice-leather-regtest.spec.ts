@@ -10,6 +10,7 @@ import {
   waitForApprovalPopup,
   onboardLeather,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest) — the SEPARATE-ADDRESS NOTICE cell: asset-notice, CTA ENABLED.
@@ -148,9 +149,7 @@ test('separate-address wallet, dirty-only pool: asset-notice names the coin and 
   await approveLeatherConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[notice-leather] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
