@@ -75,6 +75,8 @@ on:
       - 'frontend/playwright/specs/regtest/inscribe-mint-alby-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/inscribe-mint-xpub-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
+      - 'frontend/playwright/specs/regtest/payment-address.ts'
+      - 'frontend/playwright/specs/regtest/xverse-sign.ts'
 
 permissions:
   contents: read
