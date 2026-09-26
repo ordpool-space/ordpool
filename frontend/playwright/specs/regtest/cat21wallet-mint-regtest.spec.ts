@@ -15,6 +15,7 @@ import {
   waitForTxConfirmed,
   waitForApprovalPopup,
   clickUntilApprovalPopup,
+  clickApprovalAndRequireClose,
   onboardCat21Wallet,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
@@ -323,9 +324,13 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   });
   expect(clicks, 'mint-cat-button opened the sign popup on ONE click; >1 means the CTA dropped a click (§7.7 re-render race), a page defect not a retry target').toBe(1);
   await shot(approvalSign, '07-sign-approval');
-  await approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
-    .click({ timeout: 30_000 });
-  await approvalSign.waitForEvent('close', { timeout: 60_000 }).catch(() => undefined);
+  // The wallet closes the popup once it accepts the click; the close is the
+  // success signal, and a popup that stays open fails here, named.
+  await clickApprovalAndRequireClose(
+    approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+    approvalSign,
+    { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
+  );
 
   // Wait for success alert, extract broadcast txid.
   const successAlert = page.locator('.alert.alert-success').first();
@@ -450,9 +455,13 @@ async function cat21walletMintAtRate(opts: {
     });
     expect(clicks, `mint-cat-button (${opts.scenarioLabel}) opened the sign popup on ONE click; >1 means a swallowed click`).toBe(1);
     await shot(approvalSign, `mr-${opts.scenarioLabel}-03-sign`);
-    await approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
-      .click({ timeout: 30_000 });
-    await approvalSign.waitForEvent('close', { timeout: 60_000 }).catch(() => undefined);
+    // The wallet closes the popup once it accepts the click; the close is the
+    // success signal, and a popup that stays open fails here, named.
+    await clickApprovalAndRequireClose(
+      approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+      approvalSign,
+      { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
+    );
 
     const successAlert = page.locator('.alert.alert-success').first();
     await expect(successAlert).toBeVisible({ timeout: 90_000 });
@@ -596,9 +605,13 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
       return true;
     },
   });
-  await sign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
-    .click({ timeout: 30_000 });
-  await sign.waitForEvent('close', { timeout: 60_000 }).catch(() => undefined);
+  // The wallet closes the popup once it accepts the click; the close is the
+  // success signal, and a popup that stays open fails here, named.
+  await clickApprovalAndRequireClose(
+    sign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+    sign,
+    { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
+  );
 
   const successAlert = page.locator('.alert.alert-success').first();
   await expect(successAlert).toBeVisible({ timeout: 90_000 });
@@ -748,9 +761,13 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
       return true;
     },
   });
-  await sign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
-    .click({ timeout: 30_000 });
-  await sign.waitForEvent('close', { timeout: 60_000 }).catch(() => undefined);
+  // The wallet closes the popup once it accepts the click; the close is the
+  // success signal, and a popup that stays open fails here, named.
+  await clickApprovalAndRequireClose(
+    sign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+    sign,
+    { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
+  );
 
   const errorAlert = page.locator('.alert.alert-danger, .alert-danger').first();
   await expect(errorAlert).toBeVisible({ timeout: 60_000 });
