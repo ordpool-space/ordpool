@@ -394,7 +394,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
+  await confirmXverseSign(approvalSign, page.locator('[data-testid="inscribe-success"]'), 'Xverse approvalSign');
 
   // Success panel → read the COMMIT txid (the tx that spends the funding coin).
   const successPanel = page.locator('[data-testid="inscribe-success"]');

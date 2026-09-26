@@ -316,7 +316,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
+  await confirmXverseSign(approvalSign, page.locator('.alert.alert-success').first(), 'Xverse approvalSign');
 
   const successAlert = page.locator('.alert.alert-success').first();
   await expect(successAlert).toBeVisible({ timeout: 90_000 });

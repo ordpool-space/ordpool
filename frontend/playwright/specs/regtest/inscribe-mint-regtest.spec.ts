@@ -341,7 +341,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   }, undefined, { timeout: 30_000, polling: 250 });
   await expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
 
-  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
+  await confirmXverseSign(approvalSign, page.locator('[data-testid="inscribe-success"]'), 'Xverse approvalSign');
 
   // ─── 8. Wait for success panel + read commit/reveal txids ──────
   const successPanel = page.locator('[data-testid="inscribe-success"]');

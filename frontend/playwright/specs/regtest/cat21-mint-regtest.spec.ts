@@ -407,7 +407,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   }, undefined, { timeout: 30_000, polling: 250 });
   await expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
 
-  await confirmXverseSign(approvalSign, 'Xverse approvalSign');
+  await confirmXverseSign(approvalSign, page.locator('.alert.alert-success').first(), 'Xverse approvalSign');
 
   // ─── 7. Wait for success card + extract broadcast txid ────────
   const successAlert = page.locator('.alert.alert-success').first();
@@ -682,7 +682,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  await confirmXverseSign(burnSign, 'Xverse burnSign');
+  await confirmXverseSign(burnSign, page.locator('.alert.alert-success').first(), 'Xverse burnSign');
 
   const burnSuccess = page.locator('.alert.alert-success').first();
   await expect(burnSuccess).toBeVisible({ timeout: 90_000 });
@@ -850,7 +850,7 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
       return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
     });
   }, undefined, { timeout: 30_000, polling: 250 });
-  await confirmXverseSign(bcastSign, 'Xverse bcastSign');
+  await confirmXverseSign(bcastSign, page.locator('.alert.alert-danger, .alert-danger').first(), 'Xverse bcastSign');
 
   // Error alert must appear; success alert must NOT.
   const errorAlert = page.locator('.alert.alert-danger, .alert-danger').first();
@@ -996,7 +996,7 @@ async function ordpoolMintAtRate(opts: {
         return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
       });
     }, undefined, { timeout: 30_000, polling: 250 });
-    await confirmXverseSign(approvalSign, 'Xverse approvalSign');
+    await confirmXverseSign(approvalSign, page.locator('.alert.alert-success').first(), 'Xverse approvalSign');
 
     // ─── Wait for success alert + extract broadcast txid ─────────
     const successAlert = page.locator('.alert.alert-success').first();
