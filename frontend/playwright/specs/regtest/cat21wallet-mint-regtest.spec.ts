@@ -325,7 +325,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
     settleMs: 45_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+      await p.getByTestId('sign-psbt-confirm-button')
         .waitFor({ state: 'visible', timeout: 120_000 });
       return true;
     },
@@ -335,7 +335,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   // The wallet closes the popup once it accepts the click; the close is the
   // success signal, and a popup that stays open fails here, named.
   await clickApprovalAndRequireClose(
-    approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+    approvalSign.getByTestId('sign-psbt-confirm-button'),
     approvalSign,
     { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
   );
@@ -458,7 +458,7 @@ async function cat21walletMintAtRate(opts: {
       settleMs: 45_000,
       isApproval: async (p) => {
         if (!p.url().startsWith('chrome-extension://')) return false;
-        await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+        await p.getByTestId('sign-psbt-confirm-button')
           .waitFor({ state: 'visible', timeout: 120_000 });
         return true;
       },
@@ -468,7 +468,7 @@ async function cat21walletMintAtRate(opts: {
     // The wallet closes the popup once it accepts the click; the close is the
     // success signal, and a popup that stays open fails here, named.
     await clickApprovalAndRequireClose(
-      approvalSign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+      approvalSign.getByTestId('sign-psbt-confirm-button'),
       approvalSign,
       { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
     );
@@ -612,7 +612,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
     timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+      await p.getByTestId('sign-psbt-confirm-button')
         .waitFor({ state: 'visible', timeout: 120_000 });
       return true;
     },
@@ -620,7 +620,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   // The wallet closes the popup once it accepts the click; the close is the
   // success signal, and a popup that stays open fails here, named.
   await clickApprovalAndRequireClose(
-    sign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+    sign.getByTestId('sign-psbt-confirm-button'),
     sign,
     { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
   );
@@ -700,16 +700,14 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
     timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+      await p.getByTestId('sign-psbt-confirm-button')
         .waitFor({ state: 'visible', timeout: 120_000 });
       return true;
     },
   });
-  // CAT-21 wallet's Leather-fork sign popup has a "Deny" outline button
-  // next to Confirm; match permissively. The popup closes itself on the
-  // click, which the helper requires rather than tolerates.
+  // The popup closes itself on Deny, which the helper requires.
   await clickApprovalAndRequireClose(
-    sign.getByRole('button', { name: /^(deny|cancel|reject)$/i }).first(),
+    sign.getByTestId('sign-psbt-deny-button'),
     sign,
     { clickTimeoutMs: 10_000, closeTimeoutMs: 30_000, label: 'cat21-wallet deny' },
   );
@@ -770,7 +768,7 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
     timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+      await p.getByTestId('sign-psbt-confirm-button')
         .waitFor({ state: 'visible', timeout: 120_000 });
       return true;
     },
@@ -778,7 +776,7 @@ test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake succes
   // The wallet closes the popup once it accepts the click; the close is the
   // success signal, and a popup that stays open fails here, named.
   await clickApprovalAndRequireClose(
-    sign.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first(),
+    sign.getByTestId('sign-psbt-confirm-button'),
     sign,
     { clickTimeoutMs: 30_000, closeTimeoutMs: 60_000, label: 'cat21-wallet sign popup' },
   );

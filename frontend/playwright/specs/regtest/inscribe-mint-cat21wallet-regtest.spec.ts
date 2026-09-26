@@ -79,12 +79,11 @@ async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: numbe
   await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { closeTimeoutMs: 30_000, label: 'cat21-wallet connect popup' });
 }
 
-// CAT-21 wallet closes its own popup on sign completion; noWaitAfter dodges
-// the post-click stability wait racing the teardown.
+// CAT-21 wallet closes its own popup on sign completion.
 async function clickCat21WalletApproval(popup: Page): Promise<void> {
-  const btn = popup.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first();
+  const btn = popup.getByTestId('sign-psbt-confirm-button');
   await expect(btn).toBeVisible({ timeout: 10_000 });
-  await btn.click({ noWaitAfter: true, timeout: 30_000 });
+  await clickApprovalAndRequireClose(btn, popup, { clickTimeoutMs: 30_000, closeTimeoutMs: 30_000, label: 'cat21-wallet sign popup' });
 }
 
 test.beforeAll(async () => {
@@ -196,7 +195,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
     timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+      await p.getByTestId('sign-psbt-confirm-button')
         .waitFor({ state: 'visible', timeout: 120_000 });
       return true;
     },
