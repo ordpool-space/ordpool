@@ -12,10 +12,10 @@ import { clickApprovalButton, clickUntilEffect } from 'ordpool-sdk/e2e';
  * popup closed means the click registered, and the outcome is waited on.
  */
 export async function confirmXverseSign(popup: Page, outcome: Locator, label: string): Promise<void> {
-  const confirm = popup.getByRole('button', { name: /^confirm$/i }).first();
+  const confirm = popup.getByRole('button', { name: /^confirm$/i }).filter({ visible: true }).first();
   await clickUntilEffect(
     {
-      click: () => clickApprovalButton({ click: (o) => confirm.click({ ...o, force: true }) }, popup, 30_000),
+      click: () => clickApprovalButton(confirm, popup, 30_000),
       isVisible: () => confirm.isVisible(),
       isEnabled: () => confirm.isEnabled(),
     },
