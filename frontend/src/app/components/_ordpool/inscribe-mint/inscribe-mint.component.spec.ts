@@ -64,6 +64,11 @@ jest.mock('ordpool-sdk', () => {
         content: unknown;
         simulations: unknown[];
         fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
+        // The SDK's resolved verdict for the coin that WILL be spent (manual pick
+        // honoured, coin-based). The CTA gate reads THIS, not the topology-shaped
+        // `fundingRecommendation.status`.
+        resolvedFundingStatus: string | null;
+        resolvedFundingUtxo: TxnOutput | null;
         errorMessage: string | null;
         successResult: unknown;
         signing: unknown;
@@ -73,6 +78,7 @@ jest.mock('ordpool-sdk', () => {
       } = {
         state: 'ready', feeRate: null, selectedUtxo: null, content: null,
         simulations: [], fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
+        resolvedFundingStatus: 'scanning', resolvedFundingUtxo: null,
         errorMessage: null, successResult: null,
         signing: null, padding: null, parents: null, userMessage: null,
       };
@@ -100,6 +106,12 @@ jest.mock('ordpool-sdk', () => {
       errorMessage = { set: (v: string | null) => this._patch({ errorMessage: v }) };
       successResult = { set: (v: unknown) => this._patch({ successResult: v }) };
       fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
+      // Drives the SDK's resolved-pick verdict, as its recompute would after a
+      // wallet/fee/selection change: the CTA gate reads these two fields.
+      resolvedFundingSubject = {
+        next: (v: { status: string | null; utxo?: TxnOutput | null }) =>
+          this._patch({ resolvedFundingStatus: v.status, resolvedFundingUtxo: v.utxo ?? null }),
+      };
       selectedUtxo() { return this._snap.selectedUtxo; }
     },
     Cat21Service: class Cat21Service {},
@@ -686,34 +698,60 @@ describe('InscribeMintComponent', () => {
   describe('funding-status gating (inscribe-button enable)', () => {
     const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
       orchestrator.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });
+    // The SDK's resolved verdict for the coin that will actually be spent
+    // (`resolvedFundingStatus`), which the CTA gate reads. Coin-based, so a
+    // manual pick of a dirty coin resolves to 'asset-notice' on every wallet.
+    const resolved = (status: string | null, u?: TxnOutput | null) =>
+      orchestrator.resolvedFundingSubject.next({ status, utxo: u ?? null });
 
-    it('fundingStatus() mirrors the orchestrator recommendation', () => {
+    it('fundingStatus() mirrors the orchestrator recommendation (raw topology mirror)', () => {
       rec('expert-required');
       expect(component.fundingStatus()).toBe('expert-required');
       rec('insufficient');
       expect(component.fundingStatus()).toBe('insufficient');
     });
 
-    it('hasFundingSource() is true on status auto (safe-auto funds, no manual pick)', () => {
-      rec('auto');
-      expect(orchestrator.selectedUtxo()).toBeNull();
+    it('hasFundingSource() is true on resolved status ready (safe-auto funds, no manual pick)', () => {
+      resolved('ready');
       expect(component.hasFundingSource()).toBe(true);
+      expect(component.fundingCta().kind).toBe('ready');
     });
 
-    it('hasFundingSource() is false on expert-required / insufficient / scanning with no manual pick', () => {
-      rec('expert-required');
-      expect(component.hasFundingSource()).toBe(false);
-      rec('insufficient');
-      expect(component.hasFundingSource()).toBe(false);
-      rec('scanning');
-      expect(component.hasFundingSource()).toBe(false);
+    it('hasFundingSource() is true on resolved asset-notice (a dirty coin WILL be spent, CTA enabled WITH notice)', () => {
+      resolved('asset-notice');
+      expect(component.hasFundingSource()).toBe(true);
+      expect(component.fundingCta().kind).toBe('notice');
     });
 
-    it('hasFundingSource() is true once the user manually picks, even in expert-required', () => {
-      rec('expert-required');
+    it('hasFundingSource() is false on resolved expert-required / insufficient / scanning / null', () => {
+      resolved('expert-required');
       expect(component.hasFundingSource()).toBe(false);
-      orchestrator.setSelectedUtxo({ txid: 'a'.repeat(64), vout: 0, value: 50_000 } as TxnOutput);
+      expect(component.fundingCta().kind).toBe('warning');
+      resolved('insufficient');
+      expect(component.hasFundingSource()).toBe(false);
+      resolved('scanning');
+      expect(component.hasFundingSource()).toBe(false);
+      expect(component.fundingCta().kind).toBe('scanning');
+      resolved(null);
+      expect(component.fundingCta().kind).toBe('scanning');
+    });
+
+    it('the CTA follows the RESOLVED coin verdict, not the topology recommendation: a manual dirty pick that recomputes to asset-notice is enabled WITH the assets named (no silent short-circuit to ready)', () => {
+      const dirty = { txid: 'a'.repeat(64), vout: 0, value: 50_000, status: { confirmed: true } } as TxnOutput;
+      rec('expert-required');
+      resolved('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      // The user picks the dirty coin by hand; the SDK recomputes coin-based to
+      // 'asset-notice' with that annotated coin as the resolved pick.
+      const annotated = { ...dirty, assets: { inscriptionIds: ['abci0'], runeNames: [], catIds: [], rareSat: null } };
+      orchestrator.fundingRecommendationSubject.next({ status: 'expert-required', recommended: null, candidates: [annotated] as unknown as TxnOutput[] });
+      component.selectPaymentOutput({ paymentOutput: dirty, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000, commitAbsorbedSubDustSats: 0 } as SimulateInscribeFeesResult, available: true, scan: { kind: 'scanned-with-assets', content: {} } as never, bucket: 'assets' });
+      resolved('asset-notice', dirty);
       expect(component.hasFundingSource()).toBe(true);
+      expect(component.fundingCta().kind).toBe('notice');
+      // The notice NAMES what the picked coin carries (read from the annotated
+      // candidate by outpoint), so it is not "this coin carries assets".
+      expect(component.assetNotice()?.inscriptionIds).toEqual(['abci0']);
     });
   });
 
@@ -1289,10 +1327,10 @@ describe('InscribeMintComponent', () => {
     const TAPROOT = 'bc1p64fa7mjsvlfcutnfapwhxyuvchxgk22l4at7xsh4z02tuuqwaj5syt6x2e';
 
     it('a duplicate trait name disables the inscribe button (was warn-only)', () => {
-      // everything else valid: delegate content + auto funding + a valid form
+      // everything else valid: delegate content + a resolved funding coin + a valid form
       component.switchInscribeMode('delegate');
       component.onDelegateIdChange(VALID_DELEGATE);
-      orchestrator._patch({ fundingRecommendation: { status: 'auto', recommended: null, candidates: [] } });
+      orchestrator._patch({ resolvedFundingStatus: 'ready' });
       expect(component.mintDisabled).toBe(false);                 // baseline
       component.addTraitRow(); component.addTraitRow();
       component.onTraitNameChange(0, 'Color'); component.onTraitNameChange(1, 'Color');

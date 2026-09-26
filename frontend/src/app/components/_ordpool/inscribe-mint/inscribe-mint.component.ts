@@ -293,27 +293,16 @@ export class InscribeMintComponent implements OnInit {
         }
       }
 
-      // Funding auto-pick is the SDK orchestrator's job (`fundingRecommendation$`),
-      // not ours: it force-scans covering candidates regardless of size and
-      // never auto-selects an unscanned/asset coin. We leave the orchestrator's
-      // selection unset unless the user MANUALLY picks a row (selectPaymentOutput,
-      // an expert override past the asset warning); it then mints on its
-      // content-clean recommendation. A consumer-side raw pre-pick here would
-      // auto-spend a large UTXO the size-thresholded scan left `unscanned`.
+      // Preserve the user's manual pick across re-emissions by refreshing its
+      // row reference (the highlight and the cost line read it). The pick reaches
+      // the orchestrator once, from selectPaymentOutput; its own recompute then
+      // reflects a pick that a raised fee rate dropped in resolvedFundingStatus,
+      // so there is no setSelectedUtxo re-drive here. Re-driving it re-decided
+      // the SDK's verdict on the consumer side and fed a recompute loop.
       const current = this.selectedPaymentOutput;
-      const stillThere = current && rows.find(
+      this.selectedPaymentOutput = (current && rows.find(
         (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
-      );
-      if (stillThere) {
-        // Preserve the user's manual pick across re-emissions; refresh the row
-        // reference so its scan state mirrors the current snapshot.
-        this.selectedPaymentOutput = stillThere;
-        this.orchestrator.setSelectedUtxo(stillThere.paymentOutput);
-      } else {
-        // No manual pick: defer to the orchestrator's safe auto-recommendation.
-        this.selectedPaymentOutput = undefined;
-        this.orchestrator.setSelectedUtxo(null);
-      }
+      )) || undefined;
       this.cd.markForCheck();
     }),
     // Two async pipes in the template consume this (the row count + the *ngFor).
@@ -337,14 +326,34 @@ export class InscribeMintComponent implements OnInit {
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
   /**
+   * The assets the funding coin the inscription WILL spend carries, or undefined
+   * when it is clean. The SDK annotates its resolved pick at runtime (content
+   * bucket + assets), but the snapshot types `resolvedFundingUtxo` as the bare
+   * funding coin, so the assets are read back type-safely from the
+   * recommendation's candidates: the pick is always one of them
+   * (`describeFundingPick` selects from `candidates`), matched by outpoint.
+   */
+  private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(() => {
+    const pick = this.snap().resolvedFundingUtxo;
+    if (!pick) { return undefined; }
+    const annotated = this.snap().fundingRecommendation.candidates.find(
+      (c) => c.txid === pick.txid && c.vout === pick.vout,
+    );
+    return annotated?.assets;
+  });
+
+  /**
    * The SINGLE value the CTA button state AND the funding notice both derive
    * from, so they can never disagree (two surfaces reading one status
-   * independently is exactly what split them before). An explicit manual pick
-   * makes the flow ready regardless of the auto-recommendation; otherwise it
-   * switches on the SDK's status EXHAUSTIVELY, so a new status is a compile error
-   * here rather than a silently-disabled button. Sites render the SDK's status;
-   * they never recompute the safe/notice/block decision (FAMILY_UX funding-panel
-   * rule).
+   * independently is exactly what split them before). Reads the SDK's
+   * `resolvedFundingStatus` — the verdict of the coin that WILL be spent, which
+   * honours an explicit manual pick — never the topology-shaped
+   * `fundingRecommendation.status`, and never re-decides it: `ready` and
+   * `asset-notice` are both fundable (`asset-notice` = a coin carrying assets
+   * will be spent, enabled with a visible notice per the FAMILY_UX funding-panel
+   * rule); `expert-required` and `insufficient` block; `scanning` (and the
+   * pre-scan `null`) hold until the scan answers. Switched EXHAUSTIVELY, so a
+   * new status is a compile error here rather than a silently-disabled button.
    */
   readonly fundingCta = computed<
     | { kind: 'ready' }
@@ -353,16 +362,16 @@ export class InscribeMintComponent implements OnInit {
     | { kind: 'insufficient' }
     | { kind: 'scanning' }
   >(() => {
-    if (this.snap().selectedUtxo) return { kind: 'ready' };
-    const rec = this.snap().fundingRecommendation;
-    switch (rec.status) {
-      case 'auto': return { kind: 'ready' };
-      case 'asset-notice': return { kind: 'notice', assets: rec.recommended?.assets };
+    const status = this.snap().resolvedFundingStatus;
+    switch (status) {
+      case 'ready': return { kind: 'ready' };
+      case 'asset-notice': return { kind: 'notice', assets: this.resolvedPickAssets() };
       case 'expert-required': return { kind: 'warning' };
       case 'insufficient': return { kind: 'insufficient' };
       case 'scanning': return { kind: 'scanning' };
+      case null: return { kind: 'scanning' };
     }
-    const _exhaustive: never = rec.status;
+    const _exhaustive: never = status;
     return _exhaustive;
   });
 
