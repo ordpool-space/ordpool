@@ -6,6 +6,9 @@ import OrdpoolMissingStats from '../../ordpool-missing-stats';
 import ordpoolBlocksRepository from '../../../repositories/OrdpoolBlocksRepository';
 import ordpoolSkippedBlocksRepository from '../../../repositories/OrdpoolSkippedBlocksRepository';
 import generalOrdpoolRoutes from './ordpool.routes';
+import bitcoinApi from '../../bitcoin/bitcoin-api-factory';
+import logger from '../../../logger';
+import { logTxSize } from 'ordpool-parser';
 
 // Factory mocks short-circuit the module-load chain so the suite boots
 // without a real mempool-config.json. Auto-mocks would still load each
@@ -13,7 +16,7 @@ import generalOrdpoolRoutes from './ordpool.routes';
 // the top of database.ts / bitcoin-client.ts. Factory mocks bypass that.
 jest.mock('../../blocks', () => ({
   __esModule: true,
-  default: { getCurrentBlockHeight: jest.fn() },
+  default: { getCurrentBlockHeight: jest.fn(), $getStrippedBlockTransactions: jest.fn() },
 }));
 jest.mock('../../ordpool-missing-stats', () => ({
   __esModule: true,
@@ -358,5 +361,82 @@ describe('$proxyOtsDigest route handler (privacy shield for stamp submissions)',
 
     expect(res.status).toHaveBeenCalledWith(502);
     expect(res.send).toHaveBeenCalledWith('upstream error');
+  });
+});
+
+
+/**
+ * The bitmap endpoint separates what the chain says from what we could not
+ * find out. A block past the tip is a fact (200 null); a tip we do not know
+ * yet, or an RPC call that failed, is our own failure and answers 503, so
+ * the frontend retries instead of telling the reader the block has no
+ * transactions.
+ */
+describe('$getBitmap route handler', () => {
+  const call = async (height: string) => {
+    const res = makeRes();
+    await generalOrdpoolRoutes.$getBitmap({ params: { height } } as unknown as Request, res);
+    return res as Response & { status: jest.Mock; json: jest.Mock; send: jest.Mock; setHeader: jest.Mock };
+  };
+  const tip = (h: number) => (blocks.getCurrentBlockHeight as jest.Mock).mockReturnValue(h);
+  const getBlockHash = bitcoinApi.$getBlockHash as unknown as jest.Mock;
+  const getTxs = blocks.$getStrippedBlockTransactions as unknown as jest.Mock;
+
+  let errLog: jest.SpyInstance;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    errLog = jest.spyOn(logger, 'err').mockImplementation(() => undefined);
+  });
+  afterEach(() => errLog.mockRestore());
+
+  it('reads a mined block and caches it for good once it is six deep', async () => {
+    tip(900_000);
+    getBlockHash.mockResolvedValue('abc');
+    getTxs.mockResolvedValue([{ value: 5_000_000_000 }, { value: 546 }]);
+
+    const res = await call('840000');
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ height: 840_000, hash: 'abc', sizes: [logTxSize(5_000_000_000), logTxSize(546)] });
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=31536000, immutable');
+  });
+
+  it('answers null for a block past the tip: that is a fact about the chain', async () => {
+    tip(900_000);
+
+    const res = await call('900001');
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(null);
+    expect(getBlockHash).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 while the tip is not known, instead of calling every block unmined', async () => {
+    // Right after a restart the tip reads 0 until the first block arrives.
+    tip(0);
+
+    const res = await call('840000');
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 when the RPC call fails, and logs why', async () => {
+    tip(900_000);
+    getBlockHash.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:8332'));
+
+    const res = await call('840000');
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(errLog).toHaveBeenCalledWith('/bitmap/840000 error: connect ECONNREFUSED 127.0.0.1:8332');
+  });
+
+  it('rejects a height that is not a non-negative integer with 400', async () => {
+    const res = await call('abc');
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
   });
 });

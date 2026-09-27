@@ -63,13 +63,13 @@ export class BitmapApiService {
       return cached;
     }
     const result$ = defer(() => this.http.get<BitmapResponse | null>(`/api/v1/ordpool/bitmap/${height}`)).pipe(
-      // The server answers 200 with null both for a block past its own tip
-      // and when its RPC call fails. The tip check above has already sent
-      // every block we know to be unmined elsewhere, so a null here is a
-      // block that exists and a server that could not answer for it, most
-      // often right after a restart, before it has learnt the tip again.
-      // Every block carries at least its coinbase, so an empty list is the
-      // same kind of non-answer.
+      // The server answers 200 null for a block past ITS chain tip and 503
+      // when it cannot answer at all (tip unknown after a restart, RPC
+      // failure); a 503 lands in retry below as an HTTP error. A null for a
+      // block the tip check above already knows to be mined means the
+      // server's tip is behind ours: not a fact about the block either, so
+      // it is retried the same way. Every block carries at least its
+      // coinbase, so an empty list is the same kind of non-answer.
       map((data) => {
         if (data === null || data.sizes.length === 0) {
           throw new EmptyAnswerError(`no transactions returned for block ${height}`);

@@ -8,11 +8,11 @@ import { BitmapApiService, BitmapResponse, BitmapResult } from './bitmap-api.ser
 /**
  * The bitmap data service, against a mocked HTTP boundary.
  *
- * The server answers 200 with null both for a block past its own tip and
- * when its RPC call fails, so the service leans on the chain tip it knows:
- * a height beyond it has not been mined, and a null for anything else is
- * our server failing to answer. That one gets retried, and if it keeps
- * failing it is reported as a failure and not kept.
+ * The server answers 200 null for a block past its own tip and 503 when it
+ * cannot answer. The service leans on the chain tip it knows: a height
+ * beyond it has not been mined; a null for anything else, like a 503, is
+ * our server not answering. Both get retried, and if they keep failing it
+ * is reported as a failure and not kept.
  */
 describe('BitmapApiService', () => {
   const url = (h: number) => `/api/v1/ordpool/bitmap/${h}`;

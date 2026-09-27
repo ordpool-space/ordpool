@@ -391,21 +391,32 @@ class GeneralOrdpoolRoutes {
   }
 
   // Returns the per-tx square-size array for the Bitmap protocol's block
-  // visualisation. Status 200 always; null when the block isn't confirmed
-  // yet, the height is malformed, or the upstream RPC errors -- the frontend
-  // treats absence as "no bitmap render available" without an error banner.
+  // visualisation, e.g. GET /api/v1/ordpool/bitmap/840000.
+  //   200 { height, hash, sizes }  the block exists and was read.
+  //   200 null   the block has not been mined: a fact about the chain.
+  //   400        the height is not a non-negative integer.
+  //   503        we cannot answer right now: the chain tip is not known yet
+  //              (right after a restart it reads 0, which would make every
+  //              block look unmined) or the RPC call failed. A failure of
+  //              our own is never reported as a fact about the block; the
+  //              frontend retries a 503 and then says it could not load.
   // Cache: long+immutable for blocks safely below the chain tip; short for
-  // recent confirmations (reorg safety); no-store for unconfirmed.
+  // recent confirmations (reorg safety); no-store for everything else.
   async $getBitmap(req: Request, res: Response): Promise<void> {
     const heightRaw = req.params.height;
     if (!/^\d+$/.test(heightRaw)) {
       res.setHeader('Cache-Control', 'no-store');
-      res.status(200).json(null);
+      res.status(400).send('height must be a non-negative integer');
       return;
     }
     const height = Number(heightRaw);
     const tip = blocks.getCurrentBlockHeight();
-    if (!Number.isFinite(tip) || height > tip) {
+    if (!Number.isFinite(tip) || tip <= 0) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(503).send('chain tip not known yet');
+      return;
+    }
+    if (height > tip) {
       res.setHeader('Cache-Control', 'no-store');
       res.status(200).json(null);
       return;
@@ -419,9 +430,10 @@ class GeneralOrdpoolRoutes {
         ? 'public, max-age=31536000, immutable'
         : 'public, max-age=60');
       res.status(200).json({ height, hash, sizes });
-    } catch {
+    } catch (error) {
+      logger.err(`/bitmap/${height} error: ` + (error instanceof Error ? error.message : error));
       res.setHeader('Cache-Control', 'no-store');
-      res.status(200).json(null);
+      res.status(503).send('block data unavailable');
     }
   }
 
