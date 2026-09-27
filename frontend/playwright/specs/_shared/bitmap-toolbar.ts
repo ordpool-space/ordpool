@@ -44,7 +44,7 @@ const boxOf = async (locator: Locator, what: string): Promise<Box> => {
   return box;
 };
 
-const toolbar = (page: Page) => page.locator('app-bitmap-viewer .bitmap-toolbar button');
+const toolbar = (page: Page) => page.getByTestId('bitmap-toolbar').getByRole('button');
 
 /** The toolbar sits at the bottom of the stage, below the fold on this page. */
 const reveal = async (page: Page) => {
@@ -67,7 +67,7 @@ export const bitmapToolbarSuite = (label: 'desktop' | 'mobile'): void => {
       // share a coordinate system, and comparing across them reports a
       // perfectly reachable button as buried.
       const unreachable = await page.evaluate(() =>
-        [...document.querySelectorAll('app-bitmap-viewer .bitmap-toolbar button')]
+        [...document.querySelectorAll('[data-testid="bitmap-toolbar"] button')]
           .map((button, i) => {
             const r = button.getBoundingClientRect();
             const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
@@ -86,7 +86,7 @@ export const bitmapToolbarSuite = (label: 'desktop' | 'mobile'): void => {
         await reveal(page);
         const buttons = toolbar(page);
         const tooltip = page.locator('ngb-tooltip-window');
-        const stage = await boxOf(page.locator('app-bitmap-viewer .bitmap-stage'), 'the stage');
+        const stage = await boxOf(page.getByTestId('bitmap-stage'), 'the stage');
         const count = await buttons.count();
 
         for (let i = 0; i < count; i++) {

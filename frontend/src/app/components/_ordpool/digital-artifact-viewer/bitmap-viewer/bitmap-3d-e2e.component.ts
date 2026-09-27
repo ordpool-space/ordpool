@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, NgZone } from '@angular/core';
 
 /**
  * Playwright E2E mount point for the bitmap 3D renderer.
@@ -55,6 +55,20 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   standalone: false,
 })
 export class Bitmap3dE2EComponent {
+  /**
+   * Counts the turns that end in an application-wide change-detection pass.
+   * onMicrotaskEmpty is the signal zone-based Angular runs ApplicationRef.tick
+   * on, and it fires for any task that ran inside the Angular zone, so a
+   * canvas listener registered in the zone shows up here even though it
+   * marks no view dirty. The zone spec reads the counter around a drag.
+   */
+  constructor() {
+    inject(NgZone).onMicrotaskEmpty.subscribe(() => {
+      const w = window as unknown as { __bitmap3dZoneTurns?: number };
+      w.__bitmap3dZoneTurns = (w.__bitmap3dZoneTurns ?? 0) + 1;
+    });
+  }
+
   // OnPush + (click) bindings — Angular runs CD on the bound event, so
   // these setters don't need an explicit markForCheck.
   sizes: number[] | null = ((window as unknown as { __bitmap3dFixture?: { sizes: number[] } })

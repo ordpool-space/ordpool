@@ -49,11 +49,6 @@
   z-index: 10;
 }
 
-.bitmap-toggle[aria-disabled='true'] {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 // Off-screen but still in the accessibility tree, which is what the
 // loading region needs: the global `.visually-hidden` is `display: none`,
 // so a live region using it has nothing to announce.
@@ -142,7 +137,13 @@
   }
 }
 
-// Colour comes from Bootstrap's .text-warning in the template. There is no
-// --warning custom property on :root -- only --primary, --secondary,
-// --tertiary, --success and --info are defined there -- so `var(--warning)`
-// silently resolves to the inherited body colour.
+// The failure placeholder holds a sentence and the button that answers it:
+// stacked, not side by side, or the sentence squeezes the button onto two
+// lines.
+.bitmap-failed {
+  flex-direction: column;
+
+  .btn {
+    white-space: nowrap;
+  }
+}

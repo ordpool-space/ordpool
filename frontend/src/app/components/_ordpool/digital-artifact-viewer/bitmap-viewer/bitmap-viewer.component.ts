@@ -1,23 +1,33 @@
-import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, ElementRef, inject, Input, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { renderBitmapSvg } from 'ordpool-parser';
-import { map, Observable, of, startWith } from 'rxjs';
+import { map, Observable, of, startWith, Subject, switchMap } from 'rxjs';
 
-import { BitmapApiService, BitmapResponse } from '../../../../services/ordinals/bitmap-api.service';
+import { BitmapApiService, BitmapResponse, BitmapResult } from '../../../../services/ordinals/bitmap-api.service';
+import { walkStartsWithTouchUi } from './bitmap-touch';
 
 /**
- * The three states the viewer can be in. Kept as a discriminated union so
- * "the request is still in flight" and "this block has no data" stay
- * distinguishable in the template: they read the same to a nullable
- * view-model, and rendering both as nothing leaves no hint that anything
- * was ever going to appear.
+ * The states the viewer can be in, as a discriminated union so each one
+ * renders as itself. `not-mined` and `failed` in particular must never read
+ * alike: the first is a fact about the chain, the second a failure on our
+ * side that is worth retrying, and presenting ours as the chain's would tell
+ * the reader something false about the block.
  */
 type BitmapVm =
+  | { kind: 'none' }
   | { kind: 'loading' }
-  | { kind: 'unavailable' }
+  | { kind: 'not-mined'; height: number }
+  | { kind: 'failed'; height: number }
   | { kind: 'ready'; data: BitmapResponse; svg: SafeHtml };
+
+/**
+ * Why the 3D view is not showing, when it tried and could not. Each one is
+ * a line the reader can see, touch screens included, and none of them
+ * locks the 3D button: every cause here can pass, so the next press tries
+ * again.
+ */
+export type ThreeDNote = 'load-failed' | 'unsupported' | 'context-lost';
 
 /**
  * Ordpool's bitcoin orange, read from the theme the same way the 3D
@@ -46,12 +56,20 @@ export class BitmapViewerComponent {
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private location = inject(Location);
 
   @ViewChild('stage') stage!: ElementRef<HTMLElement>;
 
+  /**
+   * The inscription id carrying this claim. Written into the deep link as
+   * `?artifact=`, which the transaction page reads to open on that artifact:
+   * a claim sitting on page five of a batch reveal would otherwise be linked
+   * as page one, where a different claim is showing.
+   */
+  @Input() artifactId: string | null = null;
+
   private _height: number | null = null;
-  vm$: Observable<BitmapVm> = of<BitmapVm>({ kind: 'unavailable' });
+  private readonly retry$ = new Subject<void>();
+  vm$: Observable<BitmapVm> = of<BitmapVm>({ kind: 'none' });
   // 2d  = SVG | 3d = iso/orbit | pfp = first-person walk
   mode: '2d' | '3d' | 'pfp' = '2d';
   // While true, the 3D renderer is mid-back-fly to its initial iso pose.
@@ -66,24 +84,36 @@ export class BitmapViewerComponent {
    * phone in landscape is where the extra room matters.
    */
   pseudoFullscreen = false;
-  /** Set once the renderer reports it cannot get a WebGL context. */
-  webglUnsupported = false;
-  /** The GPU dropped the context; the reader is back on the SVG. */
-  contextLost = false;
+  /** Why the last attempt at 3D ended, until the next attempt starts. */
+  threeDNote: ThreeDNote | null = null;
   /** 3D is mounting: the three.js chunk and the scene build sit in here. */
   sceneLoading = false;
 
-  onUnsupported(): void {
-    this.webglUnsupported = true;
-    this.sceneLoading = false;
-    this.cdr.markForCheck();
+  /** The three.js chunk or the scene build failed; nothing is known about WebGL. */
+  onLoadFailed(): void {
+    this.endThreeD('load-failed');
   }
 
+  /** No WebGL context was handed out, whether absent, blocked or exhausted. */
+  onUnsupported(): void {
+    this.endThreeD('unsupported');
+  }
+
+  /** The GPU took the context away mid-session. */
   onContextLost(): void {
-    // The renderer emits exitDone alongside this, which is what actually
-    // flips the mode; this only explains the jump back to the SVG.
-    this.contextLost = true;
+    this.endThreeD('context-lost');
+  }
+
+  /**
+   * The renderer emits exitDone alongside each of these, which is what
+   * flips the mode back to 2D; this records why. Fullscreen is left too:
+   * the note sits under the stage, and a stage still covering the viewport
+   * would hide the one line explaining why the scene just vanished.
+   */
+  private endThreeD(note: ThreeDNote): void {
+    this.threeDNote = note;
     this.sceneLoading = false;
+    this.leaveFullscreen();
     this.cdr.markForCheck();
   }
 
@@ -109,6 +139,14 @@ export class BitmapViewerComponent {
       // A viewer torn down while it was filling the viewport would
       // otherwise leave the document unscrollable.
       this.setPseudoFullscreen(false);
+      // Torn down inside the page (the artifact pager moved on) while
+      // showing 3D: take the claim out of the address bar, or the URL keeps
+      // naming a view that is no longer on screen. Not while the router is
+      // navigating: then the page itself is going, and a navigation of our
+      // own would fight the one in flight.
+      if (this.mode !== '2d' && !this.router.getCurrentNavigation()) {
+        this.writeDeepLink(false);
+      }
     });
   }
 
@@ -123,6 +161,14 @@ export class BitmapViewerComponent {
       document.exitFullscreen?.();
     } else {
       el.requestFullscreen?.();
+    }
+  }
+
+  /** Leave fullscreen, whichever kind the stage is in. */
+  private leaveFullscreen(): void {
+    this.setPseudoFullscreen(false);
+    if (this.stage && document.fullscreenElement === this.stage.nativeElement) {
+      document.exitFullscreen?.();
     }
   }
 
@@ -169,29 +215,39 @@ export class BitmapViewerComponent {
       this.sceneLoading = true;
     }
     this.vm$ = value === null
-      ? of<BitmapVm>({ kind: 'unavailable' })
-      : this.bitmapApi.getBitmapData(value).pipe(
-          // A claim with no transaction sizes draws as an empty square in
-          // 2D and as an empty scene in 3D, neither of which says anything.
-          // It is the same nothing as a missing block, so it reads as one.
-          map((data): BitmapVm => data === null || data.sizes.length === 0
-            ? { kind: 'unavailable' }
-            : {
-                kind: 'ready',
-                data,
-                svg: this.sanitizer.bypassSecurityTrustHtml(
-                  renderBitmapSvg(data.sizes, { color: brandOrange() }),
-                ),
-              }),
-          startWith<BitmapVm>({ kind: 'loading' }),
+      ? of<BitmapVm>({ kind: 'none' })
+      : this.retry$.pipe(
+          startWith(undefined),
+          switchMap(() => this.bitmapApi.getBitmap(value).pipe(
+            map((result) => this.toVm(value, result)),
+            startWith<BitmapVm>({ kind: 'loading' }),
+          )),
         );
   }
 
+  private toVm(height: number, result: BitmapResult): BitmapVm {
+    switch (result.kind) {
+      case 'not-mined':
+        return { kind: 'not-mined', height };
+      case 'failed':
+        return { kind: 'failed', height };
+      case 'ready':
+        return {
+          kind: 'ready',
+          data: result.data,
+          svg: this.sanitizer.bypassSecurityTrustHtml(
+            renderBitmapSvg(result.data.sizes, { color: brandOrange() }),
+          ),
+        };
+    }
+  }
+
+  /** Ask again after our server could not answer. */
+  retry(): void {
+    this.retry$.next();
+  }
+
   toggleView(): void {
-    // The button stays focusable and hoverable while there is no WebGL (a
-    // `disabled` one would swallow the hover its tooltip needs), so the
-    // action is declined here instead.
-    if (this.webglUnsupported) return;
     // 2D button:
     //   from 2D: jump to 3D (the renderer mounts and plays the intro).
     //   from 3D / PFP: ask the renderer to back-fly to its initial iso pose
@@ -201,9 +257,9 @@ export class BitmapViewerComponent {
     if (this.mode === '2d') {
       this.mode = '3d';
       this.sceneLoading = true;
-      // A fresh mount gets a fresh context, so the old failure no longer
+      // A fresh mount is a fresh attempt, so the old reason no longer
       // describes what the reader is looking at.
-      this.contextLost = false;
+      this.threeDNote = null;
       this.writeDeepLink(true);
     } else if (!this.exiting) {
       this.exiting = true;
@@ -214,19 +270,32 @@ export class BitmapViewerComponent {
    * Put the 3D view in the address bar, so the link a reader copies opens
    * what they are looking at.
    *
-   * Written through Location rather than Router.navigate: this is view
-   * state, not a destination. A navigation would re-run the resolvers of
-   * whichever page hosts the viewer and push a history entry per toggle,
-   * and neither belongs to flipping a drawing from flat to solid.
+   * Through the router, with replaceUrl, so the router's own record of the
+   * URL stays the address bar's: pages that navigate with merged query
+   * params (the transaction page does, for its details and flow toggles)
+   * then carry this along or drop it correctly, and a viewer mounted later
+   * reads the current value rather than the one the page loaded with.
+   * Query-param changes re-run no resolvers, and replaceUrl adds no history
+   * entry per toggle. The fragment is the transaction page's too (#vin,
+   * #vout, #accelerate) and survives.
    */
   private writeDeepLink(on: boolean): void {
     if (this._height === null) return;
-    const tree = this.router.createUrlTree([], {
+    const queryParams: Record<string, string | number | null> = {
+      [deepLinkParam]: on ? this._height : null,
+    };
+    // `artifact` stays behind when 3D closes: it names the artifact the
+    // reader is still looking at, only the 3D half of the link is over.
+    if (on && this.artifactId) {
+      queryParams['artifact'] = this.artifactId;
+    }
+    void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { [deepLinkParam]: on ? this._height : null },
+      queryParams,
       queryParamsHandling: 'merge',
+      preserveFragment: true,
+      replaceUrl: true,
     });
-    this.location.replaceState(this.router.serializeUrl(tree));
   }
 
   togglePfp(): void {
@@ -235,13 +304,13 @@ export class BitmapViewerComponent {
     if (this.exiting) return;
     const enteringPfp = this.mode !== 'pfp';
     this.mode = enteringPfp ? 'pfp' : '3d';
-    // Mobile: auto-fullscreen on PFP entry. Without this, the canvas
-    // stays at its aspect-ratio:1/1 max-width:600px size -- rotating the
-    // phone gives more viewport real estate but the canvas doesn't grow.
+    // A walk that opens with joysticks goes fullscreen on entry. Without
+    // this the canvas stays at its aspect-ratio 1/1, max-width 600 px size:
+    // rotating the phone gives more viewport but the canvas doesn't grow.
     // Fullscreen tracks the actual viewport, so orientation changes work
     // automatically. The browser requires this be called within a user-
     // gesture handler -- the click on the PFP toggle qualifies.
-    if (enteringPfp && this.coarsePointer && !document.fullscreenElement && !this.pseudoFullscreen) {
+    if (enteringPfp && walkStartsWithTouchUi() && !document.fullscreenElement && !this.pseudoFullscreen) {
       const el = this.stage?.nativeElement;
       if (el && typeof el.requestFullscreen === 'function') {
         el.requestFullscreen();

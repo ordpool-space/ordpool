@@ -1,5 +1,6 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, inject, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
 
+import { walkStartsWithTouchUi } from './bitmap-touch';
 import { environment } from '@environments/environment';
 import {
   capVariableJump,
@@ -17,14 +18,14 @@ import {
 @Component({
   selector: 'app-bitmap-3d-renderer',
   template: `
-    <div #host class="bitmap3d-host">
+    <div #host class="bitmap3d-host" data-testid="bitmap3d-host">
       <div #joyZoneL class="touch-joy-zone touch-joy-zone-left"></div>
       <div #joyZoneR class="touch-joy-zone touch-joy-zone-right"></div>
       <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
-      <div class="pfp-hint" aria-hidden="true">
-        <span class="pfp-hint-controls"><b>WASD</b> walk &middot; <b>Space</b> jump &middot;
+      <div class="pfp-hint" aria-hidden="true" data-testid="bitmap-walk-hint">
+        <span class="pfp-hint-controls" data-testid="bitmap-walk-hint-controls"><b>WASD</b> walk &middot; <b>Space</b> jump &middot;
           <b>Shift</b> sprint &middot; <b>Arrows</b> look &middot; <b>Click</b> to look with the mouse</span>
-        <span class="pfp-hint-relock">Click to look with the mouse again</span>
+        <span class="pfp-hint-relock" data-testid="bitmap-walk-hint-relock">Click to look with the mouse again</span>
       </div>
     </div>`,
   styles: [`
@@ -187,6 +188,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
    * gone, and a fresh mount gets a fresh one.
    */
   @Output() contextLost = new EventEmitter<void>();
+  /**
+   * The 3D view could not be built at all, most often because the three.js
+   * chunk did not load. Nothing about WebGL is known either way, so this is
+   * a retryable failure, not `unsupported`.
+   */
+  @Output() loadFailed = new EventEmitter<void>();
   /** The scene is built and the first frame is on the canvas. */
   @Output() ready = new EventEmitter<void>();
 
@@ -228,10 +235,36 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // renderCubes() bail after its import instead of building an orphan.
     const token = ++this.rebuildToken;
     this.disposeStage();
-    if (this._sizes === null || !this.host?.nativeElement) {
+    const sizes = this._sizes;
+    if (sizes === null || !this.host?.nativeElement) {
       return;
     }
-    await this.renderCubes(this._sizes, token);
+    try {
+      // The whole scene is built outside Angular. OrbitControls, the
+      // pointer, key and touch listeners, both observers, the refine timer
+      // and the rAF loop all register through APIs zone.js patches, and each
+      // would otherwise end in an application-wide change-detection pass --
+      // one per pointer sample while orbiting, one per mouse move anywhere
+      // on the page while walking. The async continuations after the import
+      // stay in the zone they started in, so everything below inherits
+      // this. Outputs re-enter Angular explicitly with zone.run where they
+      // emit.
+      await this.zone.runOutsideAngular(() => this.renderCubes(sizes, token));
+    } catch (err) {
+      // Superseded or torn down: the newer build, or nothing, owns the stage.
+      if (this.destroyed || token !== this.rebuildToken) return;
+      // The realistic cause is the three.js chunk failing to load (a flaky
+      // connection, or a tab older than the deploy that renamed the chunk).
+      // Release whatever was built, say so, and hand the reader back to the
+      // SVG. Without this the viewer's loading cover never clears and both
+      // toggles wait on a renderer that will never answer.
+      this.disposeStage();
+      console.error('bitmap 3D view failed to start', err);
+      this.zone.run(() => {
+        this.loadFailed.emit();
+        this.exitDone.emit();
+      });
+    }
   }
 
   private async renderCubes(sizes: number[], token: number): Promise<void> {
@@ -344,8 +377,23 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // builds a new context from scratch, which is the restore path.
     // preventDefault marks the loss as recoverable, so the canvas can be
     // reused if the browser does restore it before teardown.
+    // Set once the context is gone. Teardown must not ask for it to be lost
+    // again: the WEBGL_lose_context extension is unavailable on a lost
+    // context, and three reports that as a missing-extension warning, which
+    // points the next reader of the console at the wrong problem.
+    let contextIsLost = false;
+    const releaseContext = () => {
+      // The listener goes first: forceContextLoss dispatches
+      // webglcontextlost itself, and the handler would report a teardown as
+      // a GPU failure on a viewer that is simply going away.
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      renderer.dispose();
+      if (!contextIsLost) renderer.forceContextLoss();
+      if (renderer.domElement.parentNode === hostEl) hostEl.removeChild(renderer.domElement);
+    };
     const onContextLost = (e: Event) => {
       e.preventDefault();
+      contextIsLost = true;
       if (this.animFrame !== null) {
         cancelAnimationFrame(this.animFrame);
         this.animFrame = null;
@@ -356,6 +404,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       });
     };
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    // Provisional teardown for the stretch between here and the full one
+    // assigned at the end of the build: should anything below throw, the GL
+    // context and the canvas are still released instead of leaking with the
+    // failed build.
+    this.cleanup = releaseContext;
 
     const scene = new THREE.Scene();
     // Iso FOV (15°) is the default; we lerp to 75° during fly-to-pfp and
@@ -603,9 +656,30 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // also cannot be walked off the edge of, which the 5x box could.
     const FLOOR_Y = 0;
 
+    // Octree whose ROOT box is a cube. three's Octree takes the geometry's
+    // bounds as the root and halves every axis at every level. A bitmap is
+    // wide and flat (a 160-unit layout, a few units tall), so on the stock
+    // box each level halves the height as well: the cells go flat long
+    // before they separate anything, every cube straddles several of them,
+    // and each triangle is copied into all of them. On a cubic root the
+    // empty upper octants hold no triangles and are dropped, and cells stay
+    // cubic down the tree. Only the root differs; the subtrees split() makes
+    // are plain Octrees.
+    class CubicOctree extends Octree {
+      override calcBox(): this {
+        super.calcBox();
+        const box = this.box;
+        if (box) {
+          const size = box.getSize(new THREE.Vector3());
+          box.max.copy(box.min).addScalar(Math.max(size.x, size.y, size.z));
+        }
+        return this;
+      }
+    }
+
     // Built on demand, not on mount: it is only consulted in PFP mode, and
-    // most visitors never leave the iso orbit. buildOctree() is called when
-    // the walk is requested, so its cost hides inside the fly-to-pfp sweep.
+    // most visitors never leave the iso orbit. It is built when the walk is
+    // requested, on the click, before the fly-to-pfp clock starts.
     let worldOctree: InstanceType<typeof Octree> | null = null;
     const buildOctree = () => {
       const collisionRoot = new THREE.Group();
@@ -620,7 +694,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         collisionRoot.add(m);
       }
       collisionRoot.updateMatrixWorld(true);
-      const octree = new Octree();
+      const octree = new CubicOctree();
       octree.fromGraphNode(collisionRoot);
       cubeColliderGeom.dispose();
       return octree;
@@ -679,9 +753,8 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       (ensureOctree() as unknown as { rayIntersect(r: typeof ray): OctreeHit }).rayIntersect(ray);
 
     // Distance along `ray` to the floor plane, Infinity when it points away.
-    // The three downward probes below (grounded, step-up, eye-safety) used to
-    // hit the ground box; with the plane they take whichever of octree and
-    // floor is nearer.
+    // The three downward probes below (grounded, step-up, eye-safety) take
+    // whichever of the octree and the floor plane is nearer.
     const floorRayDistance = (ray: InstanceType<typeof THREE.Ray>): number =>
       (ray.direction.y < -1e-6 ? (ray.origin.y - FLOOR_Y) / -ray.direction.y : Infinity);
     const probeDistance = (ray: InstanceType<typeof THREE.Ray>): number => {
@@ -698,9 +771,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // have a keyboard. From then on, setLastInput flips based on actual
     // input: first key press hides, first pointerdown(touch|pen) shows
     // again.
-    const startWithTouchUi =
-      (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) ||
-      (navigator.maxTouchPoints || 0) > 0;
+    const startWithTouchUi = walkStartsWithTouchUi();
     const setTouchClass = (on: boolean) => {
       // Direct DOM, no Angular binding -- can't be lost to a missed CD.
       hostEl.classList.toggle('touch-on', on);
@@ -1252,6 +1323,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
 
     const beginFlyToIso = (afterFly: 'orbit' | 'exit') => {
+      // The walk is over the moment the reader asks to leave it; a re-lock
+      // prompt left up would ask for a click that no longer does anything
+      // for the length of the sweep.
+      setHint('off');
       flyStartPos.copy(camera.position);
       flyStartQuat.copy(camera.quaternion);
       flyStartFov = camera.fov;
@@ -1353,14 +1428,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     let firstFrameDrawn = false;
     let refineTimer: number | null = null;
     const scheduleRefine = () => {
-      this.zone.runOutsideAngular(() => {
-        if (refineTimer !== null) clearTimeout(refineTimer);
-        refineTimer = window.setTimeout(() => {
-          refineTimer = null;
-          refined = true;
-          requestRender();
-        }, REFINE_DELAY_MS);
-      });
+      if (refineTimer !== null) clearTimeout(refineTimer);
+      refineTimer = window.setTimeout(() => {
+        refineTimer = null;
+        refined = true;
+        requestRender();
+      }, REFINE_DELAY_MS);
     };
     const onControlsChange = () => {
       refined = false;
@@ -1372,29 +1445,21 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // (or a browser without IntersectionObserver) renders immediately; the
     // observer corrects it on its first callback.
     let onScreen = true;
-    let visibilityObserver: IntersectionObserver;
+    // Like everything in this build, registered outside Angular (see
+    // rebuild()): these callbacks only flip local state and must not each
+    // cost an application-wide change-detection pass.
+    controls.addEventListener('change', onControlsChange);
+    const visibilityObserver = new IntersectionObserver((entries) => {
+      const wasOnScreen = onScreen;
+      onScreen = entries.some(e => e.isIntersecting);
+      // Coming back into view: the canvas still holds the last frame, but
+      // anything that changed while we were away (a resize) needs one.
+      if (onScreen && !wasOnScreen) requestRender();
+    }, { threshold: 0 });
+    visibilityObserver.observe(hostEl);
+    document.addEventListener('visibilitychange', requestRender);
 
-    // All of this is registered outside Angular. Every one of these
-    // callbacks only flips a local boolean, but zone.js patches
-    // addEventListener, setTimeout and IntersectionObserver alike, so
-    // registered inside the zone they each end in an application-wide
-    // change-detection pass -- and 'change' fires once per pointer sample
-    // while dragging, which is precisely the case this whole mechanism
-    // exists to make cheaper.
-    this.zone.runOutsideAngular(() => {
-      controls.addEventListener('change', onControlsChange);
-      visibilityObserver = new IntersectionObserver((entries) => {
-        const wasOnScreen = onScreen;
-        onScreen = entries.some(e => e.isIntersecting);
-        // Coming back into view: the canvas still holds the last frame, but
-        // anything that changed while we were away (a resize) needs one.
-        if (onScreen && !wasOnScreen) requestRender();
-      }, { threshold: 0 });
-      visibilityObserver.observe(hostEl);
-      document.addEventListener('visibilitychange', requestRender);
-    });
-
-    this.zone.runOutsideAngular(() => {
+    {
       const animate = () => {
         this.animFrame = requestAnimationFrame(animate);
 
@@ -1621,7 +1686,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       }
 
       animate();
-    });
+    }
 
     // Resize handler keeps the renderer matched to the host element.
     const resize = () => {
@@ -1659,29 +1724,20 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       pfpDetach();
       this.dispatch = null;
       composer?.dispose();
-      renderer.dispose();
-      // Before forceContextLoss, which dispatches webglcontextlost itself:
-      // the handler would otherwise report a teardown as a GPU failure and
-      // put a notice on a viewer that is simply going away.
-      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
-      renderer.forceContextLoss();
       cubeGeometry.dispose();
       material.dispose();
       instances.dispose();
       gridGeom.dispose();
       gridMat.dispose();
-      // The shadow-only ground plane and the light's depth map were left
-      // behind before; nothing else traverses the scene to catch them.
+      // Nothing traverses the scene on teardown, so the shadow-only ground
+      // plane and the light's depth map are released by name.
       groundGeom.dispose();
       groundMat.dispose();
       directional.shadow.map?.dispose();
       controls.dispose();
-      // Remove only the canvas we appended; leave the template-rendered
-      // touch UI children alone (Angular tears them down when the
-      // component view is destroyed).
-      if (renderer.domElement.parentNode === hostEl) {
-        hostEl.removeChild(renderer.domElement);
-      }
+      // GL context and canvas last. Only the canvas we appended goes; the
+      // template-rendered touch UI is Angular's to tear down with the view.
+      releaseContext();
       if (environment.testHooks) {
         delete (window as unknown as { __bitmap3d?: unknown }).__bitmap3d;
       }

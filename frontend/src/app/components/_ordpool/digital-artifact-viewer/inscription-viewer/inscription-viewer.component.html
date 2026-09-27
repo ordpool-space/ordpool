@@ -70,7 +70,7 @@
       </div>
       @if (showBitmap && bitmapHeight !== null) {
         <div class="col-md-6 mt-3 mt-md-0">
-          <app-bitmap-viewer [height]="bitmapHeight"/>
+          <app-bitmap-viewer [height]="bitmapHeight" [artifactId]="_parsedInscription?.inscriptionId ?? null"/>
         </div>
       }
     </div>

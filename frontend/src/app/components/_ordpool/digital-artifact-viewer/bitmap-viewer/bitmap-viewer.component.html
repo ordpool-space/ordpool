@@ -4,16 +4,28 @@
     <span class="skeleton-loader"></span>
     <span class="bitmap-status-text" i18n="bitmap.loading">Loading the block&rsquo;s transactions&hellip;</span>
   </div>
-} @else if (vm.kind === 'unavailable') {
-  <div class="bitmap-stage bitmap-placeholder">
-    <p class="smaller-text mb-0" i18n="bitmap.unavailable">
-      This block&rsquo;s transactions aren&rsquo;t available, so the land can&rsquo;t be drawn.
+} @else if (vm.kind === 'not-mined') {
+  <!-- A fact about the chain: nothing to retry until the block exists. -->
+  <div class="bitmap-stage bitmap-placeholder" data-testid="bitmap-not-mined">
+    <p class="smaller-text mb-0" i18n="bitmap.not-mined">
+      Block {{ formatHeight(vm.height) }} hasn&rsquo;t been mined yet, so there is no land to draw.
     </p>
   </div>
-} @else {
-  <div #stage class="bitmap-stage" [class.is-fullscreen]="fullscreen" [class.is-pseudo-fullscreen]="pseudoFullscreen">
+} @else if (vm.kind === 'failed') {
+  <!-- A failure on our side, said as one, with the way to ask again. The
+       automatic retries have already run by the time this shows. -->
+  <div class="bitmap-stage bitmap-placeholder bitmap-failed" role="alert" data-testid="bitmap-load-failed">
+    <p class="smaller-text mb-2" i18n="bitmap.load-failed">
+      Ordpool couldn&rsquo;t load the transactions of block {{ formatHeight(vm.height) }}, so the land can&rsquo;t be drawn right now.
+    </p>
+    <button type="button" class="btn btn-sm btn-outline-primary" (click)="retry()" data-testid="bitmap-retry" i18n="bitmap.retry">
+      Try again
+    </button>
+  </div>
+} @else if (vm.kind === 'ready') {
+  <div #stage class="bitmap-stage" data-testid="bitmap-stage" [class.is-fullscreen]="fullscreen" [class.is-pseudo-fullscreen]="pseudoFullscreen">
     @if (mode === '2d') {
-      <div class="bitmap-canvas"
+      <div class="bitmap-canvas" data-testid="bitmap-svg"
            role="img"
            [attr.aria-label]="'Block ' + formatHeight(vm.data.height) + ' drawn as land: ' + vm.data.sizes.length + ' transactions, each a square sized by its output value'"
            [innerHTML]="vm.svg"></div>
@@ -25,13 +37,14 @@
         (exitDone)="onExitDone()"
         (unsupported)="onUnsupported()"
         (contextLost)="onContextLost()"
+        (loadFailed)="onLoadFailed()"
         (ready)="onReady()"/>
       <!-- three.js and its addons are a separate chunk, so on a slow
            connection there is a real gap between the click and the first
            frame. Without this the stage is blank and the button reads as
            dead. -->
       @if (sceneLoading) {
-        <div class="bitmap-scene-loading" role="status" aria-live="polite">
+        <div class="bitmap-scene-loading" role="status" aria-live="polite" data-testid="bitmap-scene-loading">
           <span class="skeleton-loader"></span>
           <span class="bitmap-status-text" i18n="bitmap.loading-3d">Loading the 3D view&hellip;</span>
         </div>
@@ -41,9 +54,9 @@
          stage. Buttons flow naturally with a fixed gap so there's no
          awkward space when PFP is hidden (2D mode). Right-to-left order
          in flex terms: 2D/3D, PFP (when 3D), Fullscreen. -->
-    <div class="bitmap-toolbar">
+    <div class="bitmap-toolbar" data-testid="bitmap-toolbar">
       <!-- Fullscreen toggle: always visible. Leftmost in the row. -->
-      <button type="button" class="bitmap-toggle" (click)="toggleFullscreen()"
+      <button type="button" class="bitmap-toggle" (click)="toggleFullscreen()" data-testid="bitmap-fullscreen-toggle"
         [attr.aria-label]="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
         placement="top-end"
         [disableTooltip]="coarsePointer"
@@ -65,7 +78,7 @@
       <!-- PFP toggle: only meaningful in 3D context. From 3D enter PFP;
            from PFP exit back to 3D. Hidden in 2D mode entirely. -->
       @if (mode !== '2d') {
-        <button type="button" class="bitmap-toggle" (click)="togglePfp()"
+        <button type="button" class="bitmap-toggle" (click)="togglePfp()" data-testid="bitmap-walk-toggle"
           [attr.aria-label]="mode === 'pfp' ? 'Exit walk mode' : 'Enter walk mode'"
           placement="top-end"
           [disableTooltip]="coarsePointer"
@@ -85,28 +98,18 @@
           }
         </button>
       }
-      <!-- Marked disabled once the renderer reports no WebGL: without it the
-           button stays live and does nothing, which reads as broken. It is
-           aria-disabled rather than disabled because a disabled button fires
-           neither hover nor focus, and the tooltip is the only place the
-           reason is spelled out; toggleView() declines the action instead.
-           placement + disableTooltip, here and on the two buttons above:
+      <!-- placement + disableTooltip, here and on the two buttons above:
            left to choose for itself, the tooltip lands beside the button
            it belongs to and covers its neighbour, and at the right edge of
            the stage it hangs off the side. Above the row, right-aligned,
            it clears both. On a touch screen there is no hover, so the
            tooltip only appears after the tap has already done the thing --
            pure occlusion; the aria-label still serves assistive tech. -->
-      <button type="button" class="bitmap-toggle" (click)="toggleView()"
+      <button type="button" class="bitmap-toggle" (click)="toggleView()" data-testid="bitmap-view-toggle"
         placement="top-end"
         [disableTooltip]="coarsePointer"
-        [attr.aria-disabled]="webglUnsupported ? 'true' : null"
-        [attr.aria-label]="webglUnsupported
-          ? 'The 3D view needs WebGL, which this browser does not provide'
-          : (mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view')"
-        [ngbTooltip]="webglUnsupported
-          ? 'The 3D view needs WebGL, which this browser does not provide'
-          : (mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view')">
+        [attr.aria-label]="mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'"
+        [ngbTooltip]="mode === '2d' ? 'Switch to 3D view' : 'Switch to 2D view'">
         @if (mode === '2d') {
           <!-- isometric cube outline: click to enter 3D -->
           <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -125,10 +128,30 @@
       </button>
     </div>
   </div>
-  @if (contextLost) {
-    <p class="mt-2 mb-0 smaller-text text-warning bitmap-context-lost" role="status" i18n="bitmap.context-lost">
-      The 3D view lost its graphics context and closed. Opening it again starts a new one.
-    </p>
+  <!-- Why 3D just closed, as visible text rather than a tooltip, so a touch
+       screen gets the reason too. It sits outside the stage, which is why
+       every path that sets it also leaves fullscreen. None of these lock
+       the 3D button. A failed load asks for a reload rather than another
+       press: chunks load as module scripts, and the browser keeps a failed
+       module fetch in its module map for the life of the document, so the
+       same page can never fetch that chunk again. A tab older than the
+       deploy that renamed the chunk needs the reload anyway. -->
+  @switch (threeDNote) {
+    @case ('context-lost') {
+      <p class="mt-2 mb-0 smaller-text text-warning" role="status" data-testid="bitmap-3d-note" i18n="bitmap.context-lost">
+        The 3D view lost its graphics context and closed. Opening it again starts a new one.
+      </p>
+    }
+    @case ('unsupported') {
+      <p class="mt-2 mb-0 smaller-text text-warning" role="status" data-testid="bitmap-3d-note" i18n="bitmap.webgl-refused">
+        The 3D view couldn&rsquo;t start: the browser didn&rsquo;t hand out a WebGL context. It may be switched off, blocked for this site, or out of graphics memory.
+      </p>
+    }
+    @case ('load-failed') {
+      <p class="mt-2 mb-0 smaller-text text-warning" role="status" data-testid="bitmap-3d-note" i18n="bitmap.3d-load-failed">
+        The 3D view couldn&rsquo;t be loaded. Reload the page to try again.
+      </p>
+    }
   }
   <p class="mt-2 mb-0 smaller-text">
     This inscription is a land claim for block {{ formatHeight(vm.data.height) }}. Each square

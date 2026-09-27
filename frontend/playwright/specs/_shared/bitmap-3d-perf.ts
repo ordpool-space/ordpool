@@ -44,6 +44,28 @@ const HEAP_CEILING_MB = 600;
  * regression would have surfaced as an opaque wait timeout instead of a
  * named budget.
  */
+/**
+ * Heap in MB after a forced collection, read through the DevTools protocol.
+ * performance.memory is bucketed and uncollected, too coarse to separate
+ * the octree from garbage; this is exact.
+ */
+const gcHeapMB = async (page: Page): Promise<number> => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('HeapProfiler.collectGarbage');
+  const { usedSize } = await cdp.send('Runtime.getHeapUsage');
+  await cdp.detach();
+  return Math.round(usedSize / 1048576);
+};
+
+/**
+ * What entering the walk may add to the heap on block 500,000. Measured in
+ * this harness (desktop, dev build) as the growth from orbit to walk: 226
+ * MB when the octree's root box is the layout's flat bounding box, 46 MB
+ * with a cubic root. The ceiling sits between the two, so only the flat
+ * root reaches it.
+ */
+const OCTREE_CEILING_MB = 120;
+
 const MOUNT_CEILING_MS = 45_000;
 const MOUNT_WAIT_MS = MOUNT_CEILING_MS + 15_000;
 
@@ -80,6 +102,21 @@ export const bitmapPerfSuite = (label: string): void => {
 
       expect(mountMs).toBeLessThan(MOUNT_CEILING_MS);
       if (mb !== null) expect(mb).toBeLessThan(HEAP_CEILING_MB);
+    });
+
+    test('the walk\'s collision tree stays compact on the widest layout', async ({ page }, testInfo) => {
+      await mountFixture(page, fixture.sizes);
+      await waitForState(page, 'orbit', MOUNT_WAIT_MS);
+      const orbit = await gcHeapMB(page);
+
+      await page.getByTestId('e2e-enter-pfp').dispatchEvent('click');
+      await waitForState(page, 'pfp', MOUNT_WAIT_MS);
+      const walk = await gcHeapMB(page);
+
+      testInfo.annotations.push(
+        { type: 'perf', description: `${label}: heap after GC ${orbit} MB orbiting, ${walk} MB walking` },
+      );
+      expect(walk - orbit, 'heap the collision octree adds on entering the walk').toBeLessThan(OCTREE_CEILING_MB);
     });
   });
 };
