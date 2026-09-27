@@ -27,7 +27,7 @@
               <div class="block-wrapper">
                 <div class="bitcoin-block mined-block stale-block" [style.background]="getBlockGradient(chainTip.stale)" [routerLink]="[('/block/' + chainTip.stale.id) | relativeUrl]">
                   <!-- HACK -- Ordpool: isometric cube overlay, faces from #isoTop / #isoLeft / #isoRight below -->
-                  <app-iso-cube [feeRate]="chainTip.stale?.extras?.medianFee">
+                  <app-iso-cube [feeRate]="chainTip.stale?.extras?.medianFee" [filled]="chainTip.stale?.weight" [capacity]="stateService.env.BLOCK_WEIGHT_UNITS">
                     <ng-container ngProjectAs="[iso-top]"><ng-container *ngTemplateOutlet="isoTop; context: { $implicit: chainTip.stale }"></ng-container></ng-container>
                     <ng-container ngProjectAs="[iso-left]"><ng-container *ngTemplateOutlet="isoLeft; context: { $implicit: chainTip.stale }"></ng-container></ng-container>
                     <ng-container ngProjectAs="[iso-right]"><ng-container *ngTemplateOutlet="isoRight; context: { $implicit: chainTip.stale }"></ng-container></ng-container>
@@ -86,7 +86,7 @@
               <div class="block-label" i18n="chain-tips.winning-block"><span class="badge bg-success">Winning</span></div>
               <div class="bitcoin-block mined-block canonical-block" [style.background]="getBlockGradient(chainTip.canonical)" [routerLink]="[('/block/' + chainTip.canonical.id) | relativeUrl]">
                 <!-- HACK -- Ordpool: isometric cube overlay, faces from #isoTop / #isoLeft / #isoRight below -->
-                <app-iso-cube [feeRate]="chainTip.canonical?.extras?.medianFee">
+                <app-iso-cube [feeRate]="chainTip.canonical?.extras?.medianFee" [filled]="chainTip.canonical?.weight" [capacity]="stateService.env.BLOCK_WEIGHT_UNITS">
                   <ng-container ngProjectAs="[iso-top]"><ng-container *ngTemplateOutlet="isoTop; context: { $implicit: chainTip.canonical }"></ng-container></ng-container>
                   <ng-container ngProjectAs="[iso-left]"><ng-container *ngTemplateOutlet="isoLeft; context: { $implicit: chainTip.canonical }"></ng-container></ng-container>
                   <ng-container ngProjectAs="[iso-right]"><ng-container *ngTemplateOutlet="isoRight; context: { $implicit: chainTip.canonical }"></ng-container></ng-container>

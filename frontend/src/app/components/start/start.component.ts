@@ -42,6 +42,7 @@ export class StartComponent implements OnInit, AfterViewChecked, OnDestroy {
   // HACK -- Ordpool: stride (block + 0.24 padding) and container offset
   // (0.32) derive from the shared timeline block size; the block
   // components apply the same factors in ngOnChanges.
+  /* blockWidth = 155; */
   blockWidth = timelineBlockSize * 1.24;
   containerOffset = timelineBlockSize * 0.32;
   dynamicBlocksAmount: number = 8;
@@ -49,6 +50,8 @@ export class StartComponent implements OnInit, AfterViewChecked, OnDestroy {
   blocksPerPage: number = 1;
   pageWidth: number;
   firstPageWidth: number;
+  // HACK -- Ordpool: stride and offset from the timeline block size (see blockWidth)
+  /* minScrollWidth: number = 40 + (155 * (8 + (2 * Math.ceil(window.innerWidth / 155)))); */
   minScrollWidth: number = this.containerOffset + (this.blockWidth * (8 + (2 * Math.ceil(window.innerWidth / this.blockWidth))));
   currentScrollWidth: number = null;
   pageIndex: number = 0;
@@ -81,10 +84,15 @@ export class StartComponent implements OnInit, AfterViewChecked, OnDestroy {
   ngOnInit() {
     handleDemoRedirect(this.route, this.router);
 
+    // HACK -- Ordpool: container offset from the timeline block size
+    /* this.firstPageWidth = 40 + (this.blockWidth * this.dynamicBlocksAmount); */
     this.firstPageWidth = this.containerOffset + (this.blockWidth * this.dynamicBlocksAmount);
     this.blockCounterSubscription = this.stateService.blocks$.subscribe((blocks) => {
       this.blockCount = blocks.length;
       this.dynamicBlocksAmount = Math.min(this.blockCount, this.stateService.env.KEEP_BLOCKS_AMOUNT, 8);
+      // HACK -- Ordpool: container offset from the timeline block size
+      /* this.firstPageWidth = 40 + (this.blockWidth * this.dynamicBlocksAmount); */
+      /* this.minScrollWidth = 40 + (8 * this.blockWidth) + (this.pageWidth * 2); */
       this.firstPageWidth = this.containerOffset + (this.blockWidth * this.dynamicBlocksAmount);
       this.minScrollWidth = this.containerOffset + (8 * this.blockWidth) + (this.pageWidth * 2);
       if (this.blockCount <= Math.min(8, this.stateService.env.KEEP_BLOCKS_AMOUNT)) {
@@ -245,6 +253,8 @@ export class StartComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     this.blocksPerPage = Math.ceil(this.chainWidth / this.blockWidth);
     this.pageWidth = this.blocksPerPage * this.blockWidth;
+    // HACK -- Ordpool: container offset from the timeline block size
+    /* this.minScrollWidth = 40 + (8 * this.blockWidth) + (this.pageWidth * 2); */
     this.minScrollWidth = this.containerOffset + (8 * this.blockWidth) + (this.pageWidth * 2);
 
     if (firstVisibleBlock != null) {
@@ -475,6 +485,8 @@ export class StartComponent implements OnInit, AfterViewChecked, OnDestroy {
     const firstHeight = this.pages[0].height;
     const translation = (this.isMobile ? this.chainWidth * 0.95 : this.chainWidth * 0.5);
     const firstX = this.pages[0].offset - this.getConvertedScrollOffset(this.scrollLeft) + translation;
+    // HACK -- Ordpool: the stride, not upstream's fixed 155 px
+    /* const xPos = firstX + ((firstHeight - height) * 155); */
     const xPos = firstX + ((firstHeight - height) * this.blockWidth);
     return xPos > -55 && xPos < (this.chainWidth - 100);
   }

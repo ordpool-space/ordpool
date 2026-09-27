@@ -69,6 +69,15 @@ app-iso-cube {
     .face-top { fill: var(--iso-top); }
     .face-left { fill: color-mix(in srgb, var(--iso-top) 75.25%, black); }
     .face-right { fill: color-mix(in srgb, var(--iso-top) 49.25%, black); }
+    // The part of the right face above the fill level: the same hue, but
+    // only a trace of it, darker than the filled share below (itself the
+    // cube's darkest face), so the level reads as an empty share of the same
+    // cube rather than as a second, grey object.
+    .face-right-empty { fill: color-mix(in srgb, var(--iso-top) 10%, #0b0c14); }
+    .fill-level {
+      stroke: var(--iso-top);
+      stroke-width: 1.5;
+    }
 
     // Edge lines: lit on the two upper edges, a faint ridge where the
     // faces meet, dark along the ground edges. They also cover the
@@ -240,10 +249,15 @@ app-iso-cube.inline {
   vertical-align: middle;
 }
 
-// Hover: the cube lifts and its glow intensifies. On the timeline the
-// hover state comes from the block (its .blockLink covers the whole
-// cube), for the logo from the link around it.
-.bitcoin-block:hover app-iso-cube,
+// Hover: the cube lifts and its glow intensifies, exactly when the pointer
+// is over something that would take the click. On the timeline that is the
+// hexagon-clipped .blockLink, not the block's rectangle, whose corners
+// outside the hexagon lead nowhere. Where the block itself is the link
+// (stale-list), its rectangle takes no hits and the cube's hexagon layer
+// does, so the block's own hover is already the hexagon's. For the logo,
+// the link around it.
+.bitcoin-block:has(.blockLink:hover) app-iso-cube,
+.bitcoin-block:not(:has(.blockLink)):hover app-iso-cube,
 a:hover app-iso-cube.inline {
   transform: translateY(-0.4em);
 
@@ -261,7 +275,8 @@ a:hover app-iso-cube.inline {
     transition: none;
   }
 
-  .bitcoin-block:hover app-iso-cube,
+  .bitcoin-block:has(.blockLink:hover) app-iso-cube,
+  .bitcoin-block:not(:has(.blockLink)):hover app-iso-cube,
   a:hover app-iso-cube.inline {
     transform: none;
   }

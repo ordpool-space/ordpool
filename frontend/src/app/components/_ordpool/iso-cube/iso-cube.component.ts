@@ -20,6 +20,17 @@ import { ThemeService } from '@app/services/theme.service';
  * whenever this element is present, so the upstream bindings stay in the
  * DOM for tooltips, data-cy hooks and click targets.
  */
+/**
+ * The empty share of a cube's right face: the polygon above the fill level,
+ * and where the level meets the centre edge (x=80) and the outer edge
+ * (x=149.28), in the cube's 160-unit SVG space.
+ */
+export interface EmptyShare {
+  points: string;
+  centreY: number;
+  outerY: number;
+}
+
 @Component({
   selector: 'app-iso-cube',
   templateUrl: './iso-cube.component.html',
@@ -55,6 +66,54 @@ export class IsoCubeComponent {
     this.ink = lifted.luminance > IsoCubeComponent.inkCrossover ? null : '#fff';
   }
   topColor: string | null = null;
+
+  /**
+   * How much of the block is used, against how much it could hold: a mined
+   * block's weight against BLOCK_WEIGHT_UNITS, a projected block's vsize
+   * against the block vsize. The same two quantities upstream's block
+   * gradients are drawn from, so the cube carries the fullness the flat
+   * block front did. Passed raw rather than as a ratio so a missing value
+   * stays missing here, instead of becoming NaN or a false zero in the
+   * host's template.
+   */
+  @Input() set filled(value: number | null | undefined) {
+    this._filled = value ?? null;
+    this.emptyFacePoints = IsoCubeComponent.emptyShare(this._filled, this._capacity);
+  }
+  @Input() set capacity(value: number | null | undefined) {
+    this._capacity = value ?? null;
+    this.emptyFacePoints = IsoCubeComponent.emptyShare(this._filled, this._capacity);
+  }
+  private _filled: number | null = null;
+  private _capacity: number | null = null;
+  /** The right face above the fill level and the level itself, or null when full or unknown. */
+  emptyFacePoints: EmptyShare | null = null;
+
+  /**
+   * The empty share of the right face as SVG points. The face runs from
+   * (80,80)-(149.28,40) at the top to (80,160)-(149.28,120) at the bottom,
+   * 80 units tall at every x, so a level at fullness f sits 80·f above the
+   * bottom edge and parallel to it. At or over one block's worth there is
+   * no empty share: a merged projected block exceeds one block's vsize and
+   * is simply full. Anything that is not a non-negative amount of a
+   * positive capacity (null, NaN, a negative) is unknown and draws nothing,
+   * rather than a false empty cube.
+   */
+  static emptyShare(filled: number | null, capacity: number | null): EmptyShare | null {
+    // The null tests narrow the types; `>=` and `>` are false for NaN, so
+    // they reject it along with negatives and a zero capacity.
+    if (filled === null || capacity === null || !(filled >= 0) || !(capacity > 0)) {
+      return null;
+    }
+    const fullness = filled / capacity;
+    if (!(fullness < 1)) {
+      return null;
+    }
+    const rise = 80 * fullness;
+    const centreY = 160 - rise;
+    const outerY = 120 - rise;
+    return { points: `80,80 149.28,40 149.28,${outerY} 80,${centreY}`, centreY, outerY };
+  }
   /** Top-label colour: null keeps the dark default, white on dark faces. */
   ink: string | null = null;
 

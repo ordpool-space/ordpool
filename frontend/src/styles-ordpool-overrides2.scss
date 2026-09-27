@@ -1,3 +1,9 @@
+// The cube's silhouette, in percentages of a box 130 % of the block: a
+// regular hexagon, corner-on. Every hit area and every CSS-drawn cube
+// (the loading placeholder, the orphan ghosts) is cut to this one shape so
+// they cannot drift apart from each other or from the SVG.
+$iso-hexagon: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+
 :root {
 
   --search-button: #d5a90a;
@@ -109,6 +115,34 @@ body .bitcoin-block .stale-ghost::before {
   transform: skewY(-50deg) !important;
 }
 
+// Orphans behind an iso cube. The Necker ghost is two depth strips placed
+// for the flat-front silhouette; next to a hexagon they float detached.
+// Each stale block is drawn as a hexagon of its own instead, the same size
+// as the live cube and in the loading placeholder's neutral grays, set back
+// up and to the right along the cube's receding edge, one step further per
+// orphan, and behind the live cube. What peeks out is the click target to
+// that orphan, as before; its tooltip and link are the upstream bindings.
+body .bitcoin-block:has(app-iso-cube) .stale-ghost {
+  // One step is a tenth of the block along the iso depth axis, which
+  // rises at 30 degrees: cos 30 = 0.866 across, sin 30 = 0.5 up.
+  --ghost-step: calc((var(--stale-index) + 1) * 0.1 * var(--block-size));
+  top: calc(-0.15 * var(--block-size) - 0.5 * var(--ghost-step)) !important;
+  left: calc(-0.15 * var(--block-size) + 0.866 * var(--ghost-step)) !important;
+  width: calc(1.3 * var(--block-size)) !important;
+  height: calc(1.3 * var(--block-size)) !important;
+  clip-path: $iso-hexagon;
+  background: conic-gradient(
+    from 60deg,
+    var(--panel-bg-deep) 0 120deg,
+    var(--panel-bg) 120deg 240deg,
+    var(--panel-border) 240deg 360deg
+  );
+}
+body .bitcoin-block:has(app-iso-cube) .stale-ghost::after,
+body .bitcoin-block:has(app-iso-cube) .stale-ghost::before {
+  display: none !important;
+}
+
 // The inner .block-body stays in normal text orientation -- since our
 // flip only repositions the depth pseudo-elements (::after / ::before)
 // and never applies scaleX to the .bitcoin-block itself, the block-body
@@ -128,6 +162,7 @@ body .bitcoin-block .block-height {
 }
 
 // ─── Isometric cube overlay ──────────────────────────────────────
+
 // The cube itself is `app-iso-cube` (components/_ordpool/iso-cube):
 // three rhombus faces meeting at the centre, matching the brand logo
 // and the bitmap-3d viewer. The rules here only retire upstream's
@@ -208,7 +243,28 @@ body .bitcoin-block:has(app-iso-cube) .blockLink {
   inset: -15%;
   width: auto;
   height: auto;
-  clip-path: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+  clip-path: $iso-hexagon;
+}
+
+// A host that puts its [routerLink] on the block itself (stale-list) has
+// no .blockLink to reshape, and the block's own 125 px box is not the
+// cube's shape: it misses the tips and side slivers the cube draws outside
+// it, and claims the empty corners inside it. So the box takes no hits,
+// and a transparent layer on the cube, clipped to the same hexagon, is the
+// only target; clicks on it bubble to the block's router link. Safe to do
+// by inheritance here because nothing else inside such a block is
+// interactive, and the layer switches pointer events back on for itself.
+body .bitcoin-block:has(app-iso-cube):not(:has(.blockLink)) {
+  pointer-events: none;
+
+  app-iso-cube::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: $iso-hexagon;
+    pointer-events: auto;
+    cursor: pointer;
+  }
 }
 
 // The hexagon is centred on the block, so the floating height label
@@ -248,7 +304,7 @@ body .bitcoin-block:has(app-iso-cube) .block-height {
   width: auto !important;
   height: auto !important;
   transform: none !important;
-  clip-path: polygon(50% 0, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+  clip-path: $iso-hexagon;
   background: conic-gradient(
     from 60deg,
     var(--panel-bg-deep) 0 120deg,
@@ -273,28 +329,13 @@ app-blockchain-blocks .flashing {
   animation-name: ordpool-cube-pulse !important;
 }
 
-// Neutralize the .time-ltr toggle path so it can't double-flip our
-// overrides. mempool ships a hidden user preference ("Switch to
-// displaying newest blocks on the right") that adds `.time-ltr` to
-// the chain wrapper; some upstream rules then transform parts of
-// the cube to re-flip. Our overrides already produce the desired
-// orientation, so any time-ltr-triggered transform would land us
-// in a doubled / broken state.
-//
-// 1) Kill the toggle UI so the path is unreachable for new users.
-//    (Users who already toggled to ltr in a past session still have
-//    localStorage time-preference-ltr=true; rule (2) handles them.)
-// 2) Override the only conflict point -- blockchain-blocks ships
-//    `.time-ltr .bitcoin-block { transform: scaleX(-1); }`, which
-//    would mirror the entire block on top of our face-flip. Force
-//    it back to none. (mempool-blocks' .time-ltr rules already
-//    happen to match our intended values; stale-list has no
-//    .time-ltr rules; so this single counter is sufficient.)
+// The .time-ltr path (mempool's "newest blocks on the right" preference)
+// is closed at its source: StateService.timeLtr always starts false and
+// writes 'false' back over any stored preference, so no component ever
+// renders .time-ltr and the strip keeps one orientation for everyone. The
+// toggle that would reopen it stays hidden here.
 body .time-toggle {
   display: none;
-}
-body .time-ltr .bitcoin-block.bitcoin-block {
-  transform: none;
 }
 
 

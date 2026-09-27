@@ -73,3 +73,37 @@ describe('IsoCubeComponent colour', () => {
     expect(contrast(cube.topColor, '#ffffff')).toBeGreaterThan(contrast(cube.topColor, darkInk));
   });
 });
+
+/**
+ * The fullness level on the right face: how much of the block is used,
+ * drawn from the quantities upstream's block gradients use. The face is 80
+ * SVG units tall at every x, so a level at fullness f rises 80·f from the
+ * bottom edge, parallel to it.
+ */
+describe('IsoCubeComponent fullness', () => {
+
+  it('draws the empty share above the level, parallel to the bottom edge', () => {
+    // Half full: the level sits 40 units up at both the centre edge
+    // (x=80, bottom at y=160) and the outer edge (x=149.28, bottom at 120).
+    expect(IsoCubeComponent.emptyShare(2_000_000, 4_000_000)).toEqual({ points: '80,80 149.28,40 149.28,80 80,120', centreY: 120, outerY: 80 });
+  });
+
+  it('draws the whole face as empty for a block with nothing in it', () => {
+    expect(IsoCubeComponent.emptyShare(0, 4_000_000)).toEqual({ points: '80,80 149.28,40 149.28,120 80,160', centreY: 160, outerY: 120 });
+  });
+
+  it('draws nothing for a full block, or one over a block\'s worth', () => {
+    // A merged projected block carries more than one block's vsize.
+    expect(IsoCubeComponent.emptyShare(4_000_000, 4_000_000)).toBeNull();
+    expect(IsoCubeComponent.emptyShare(9_000_000, 4_000_000)).toBeNull();
+  });
+
+  it('draws nothing when either quantity is unknown, rather than a false empty cube', () => {
+    expect(IsoCubeComponent.emptyShare(null, 4_000_000)).toBeNull();
+    expect(IsoCubeComponent.emptyShare(2_000_000, null)).toBeNull();
+    expect(IsoCubeComponent.emptyShare(2_000_000, 0)).toBeNull();
+    expect(IsoCubeComponent.emptyShare(Number.NaN, 4_000_000)).toBeNull();
+    expect(IsoCubeComponent.emptyShare(-1, 4_000_000)).toBeNull();
+    expect(IsoCubeComponent.emptyShare(2_000_000, -4_000_000)).toBeNull();
+  });
+});

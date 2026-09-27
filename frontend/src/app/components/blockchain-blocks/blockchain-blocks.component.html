@@ -38,7 +38,7 @@
              The upstream `.block-body` below stays in the DOM (hidden via
              styles-ordpool-overrides2.scss) so tooltips, data-cy hooks and
              click handlers keep working against the same bindings. -->
-        <app-iso-cube [feeRate]="block.extras?.medianFee">
+        <app-iso-cube [feeRate]="block.extras?.medianFee" [filled]="block.weight" [capacity]="stateService.env.BLOCK_WEIGHT_UNITS">
           <ng-container ngProjectAs="[iso-top]">
             <ng-container *ngIf="!minimal && block?.extras">
               ~<app-fee-rate [fee]="block.extras.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>

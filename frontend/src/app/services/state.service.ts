@@ -386,7 +386,16 @@ export class StateService {
     const savedTimePreference = this.storageService.getValue('time-preference-ltr');
     const rtlLanguage = (this.locale.startsWith('ar') || this.locale.startsWith('fa') || this.locale.startsWith('he'));
     // default time direction is right-to-left, unless locale is a RTL language
+    /* HACK -- Ordpool: the block strip has one orientation. Its toggle is
+       hidden (styles-ordpool-overrides2.scss) and the iso-cube overlay is
+       drawn for right-to-left; a preference saved while the toggle was
+       reachable would otherwise mirror the whole strip (blockchain.component
+       flips .blocks-wrapper), leaving the projected cubes' text backwards
+       and the scroll maths running the other way. Written back as 'false'
+       by the subscription below, so the stored value heals itself.
     this.timeLtr = new BehaviorSubject<boolean>(savedTimePreference === 'true' || (savedTimePreference == null && rtlLanguage));
+    */
+    this.timeLtr = new BehaviorSubject<boolean>(false);
     this.timeLtr.subscribe((ltr) => {
       this.storageService.setValue('time-preference-ltr', ltr ? 'true' : 'false');
     });

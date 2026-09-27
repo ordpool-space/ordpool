@@ -14,7 +14,7 @@
                TOP = median fee rate, LEFT = fee span + size, RIGHT = tx count + ETA.
                The upstream `.block-body` below stays in the DOM (hidden via
                styles-ordpool-overrides2.scss) so data-cy hooks keep working. -->
-          <app-iso-cube [feeRate]="projectedBlock.medianFee">
+          <app-iso-cube [feeRate]="projectedBlock.medianFee" [filled]="projectedBlock.blockVSize" [capacity]="stateService.blockVSize">
             <ng-container ngProjectAs="[iso-top]">
               <ng-container *ngIf="!minimal">
                 ~<app-fee-rate [fee]="projectedBlock.medianFee" unitClass="" rounding="1.0-0"></app-fee-rate>
