@@ -39,8 +39,12 @@ app-iso-cube {
   // is set in em so it scales with the cube.
   font-size: calc(var(--block-size, 125px) * 0.08);
   line-height: 1.15;
+  // Every label on the cube is white, the top's included, with one shared
+  // shadow: a tight dark halo that sharpens the glyph edges against the
+  // bright top face and the coloured right face, and a faint drop beneath.
+  // Meant to be barely noticeable as a shadow; it is there for legibility.
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.6), 0 1px 1.5px rgba(0, 0, 0, 0.35);
   text-align: center;
 
   .iso-shape {
@@ -103,15 +107,6 @@ app-iso-cube {
     box-sizing: border-box;
   }
 
-  // Label ink follows the face: navy on light faces (brand orange, the
-  // bright fee levels; white on #FF9900 sits at ~2:1 contrast, navy at
-  // ~7:1), white on the dark fee levels. The component sets --iso-ink from
-  // the face colour's luminance.
-  //
-  // The dark ink is the literal navy, not var(--bg): the face colour comes
-  // from the fee palette and the ink has to answer that, not the page. The
-  // light nymkappa theme would otherwise put a near-white label on the
-  // faces that need the dark one.
   .iso-top {
     left: 6.7%;
     top: 0;
@@ -120,8 +115,6 @@ app-iso-cube {
     font-size: 1.15em;
     font-weight: 700;
     white-space: nowrap;
-    color: var(--iso-ink, #1d1f31);
-    text-shadow: none;
   }
 
   .iso-left,

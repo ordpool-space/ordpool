@@ -38,7 +38,7 @@ export interface EmptyShare {
   encapsulation: ViewEncapsulation.None,
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  host: { '[style.--iso-top]': 'topColor', '[style.--iso-ink]': 'ink' },
+  host: { '[style.--iso-top]': 'topColor' },
 })
 export class IsoCubeComponent {
   private static nextUid = 0;
@@ -58,12 +58,9 @@ export class IsoCubeComponent {
   @Input() set feeRate(rate: number | undefined | null) {
     if (rate == null) {
       this.topColor = null;
-      this.ink = null;
       return;
     }
-    const lifted = IsoCubeComponent.lift(this.feeColor(rate));
-    this.topColor = lifted.hex;
-    this.ink = lifted.luminance > IsoCubeComponent.inkCrossover ? null : '#fff';
+    this.topColor = IsoCubeComponent.lift(this.feeColor(rate));
   }
   topColor: string | null = null;
 
@@ -114,19 +111,6 @@ export class IsoCubeComponent {
     const outerY = 120 - rise;
     return { points: `80,80 149.28,40 149.28,${outerY} 80,${centreY}`, centreY, outerY };
   }
-  /** Top-label colour: null keeps the dark default, white on dark faces. */
-  ink: string | null = null;
-
-  /**
-   * Face luminance at which the dark ink (`#1d1f31`, relative luminance
-   * 0.0146) and white contrast equally against the face: solving
-   * (L + 0.05) / 0.0646 = 1.05 / (L + 0.05) gives L = 0.2105. Above it the
-   * dark ink wins, below it white does, so this is exactly where the label
-   * should switch -- picking any other point hands one band of the palette
-   * the worse of the two inks.
-   */
-  private static readonly inkCrossover = 0.2105;
-
   /** OKLCH lightness added to a palette colour (0..1 scale). */
   private static readonly liftLightness = 0.15;
   /** OKLCH chroma gain on a palette colour. */
@@ -144,10 +128,9 @@ export class IsoCubeComponent {
 
   /**
    * Lifts `#rrggbb` in OKLab (Ottosson's sRGB <-> OKLab matrices), clips
-   * back into the sRGB gamut and returns the result with its WCAG relative
-   * luminance, which picks the label ink.
+   * back into the sRGB gamut.
    */
-  private static lift(hex: string): { hex: string; luminance: number } {
+  private static lift(hex: string): string {
     const linear = [0, 1, 2].map((i) => {
       const c = parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255;
       return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -171,9 +154,6 @@ export class IsoCubeComponent {
       const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
       return Math.round(v * 255).toString(16).padStart(2, '0');
     };
-    return {
-      hex: '#' + out.map(toHex).join(''),
-      luminance: 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2],
-    };
+    return '#' + out.map(toHex).join('');
   }
 }
