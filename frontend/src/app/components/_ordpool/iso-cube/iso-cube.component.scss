@@ -69,14 +69,16 @@ app-iso-cube {
     .face-top { fill: var(--iso-top); }
     .face-left { fill: color-mix(in srgb, var(--iso-top) 75.25%, black); }
     .face-right { fill: color-mix(in srgb, var(--iso-top) 49.25%, black); }
-    // The part of the right face above the fill level: the same hue, but
-    // only a trace of it, darker than the filled share below (itself the
-    // cube's darkest face), so the level reads as an empty share of the same
-    // cube rather than as a second, grey object.
-    .face-right-empty { fill: color-mix(in srgb, var(--iso-top) 10%, #0b0c14); }
+    // The part of the right face above the fill level, in the neutral gray
+    // of the loading placeholder's faces: empty space, where the filled share
+    // below keeps the cube's colour. It differs from the filled share in HUE,
+    // not only in lightness; the right face is already the cube's darkest,
+    // and a darker tint of the same colour disappears into it at timeline
+    // size.
+    .face-right-empty { fill: var(--panel-border); }
     .fill-level {
       stroke: var(--iso-top);
-      stroke-width: 1.5;
+      stroke-width: 2.5;
     }
 
     // Edge lines: lit on the two upper edges, a faint ridge where the
