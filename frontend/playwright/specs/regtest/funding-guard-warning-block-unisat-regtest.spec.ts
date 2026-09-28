@@ -9,7 +9,10 @@ import {
   rpc,
   waitForApprovalPopup,
   onboardUnisat,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 // A CLEAN coin sized at exactly the CAT-21 postage: it can cover the 546-sat cat
 // output but leaves ZERO for the miner fee, so the mint requirement (postage +
@@ -73,15 +76,18 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string, fullPage = true): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `funding-guard-warning-block-unisat-${name}.png`),
     fullPage,
-  }).catch(() => undefined);
+  });
 }
 
 // Unisat renders its connect approval at notification.html#/approval.
-async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const popup = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const popup = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -89,12 +95,9 @@ async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number): P
       await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (popup) {
-    await popup.getByText(/^Connect$/).first().click();
-    await popup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return popup;
+  });
+  if (!popup) return;
+  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { closeTimeoutMs: 30_000, label: 'Unisat connect popup' });
 }
 
 test.beforeAll(async () => {
@@ -147,9 +150,7 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   await approveUnisatConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[warning-block-unisat] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
@@ -177,7 +178,7 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   // ─── 3. Reload so the orchestrator re-fetches UTXOs and scans ─────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveUnisatConnect(knownPagesBeforeReload, 8_000);
+  await approveUnisatConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
 
   // Pin a fee so the recommendation resolves against a concrete requirement.

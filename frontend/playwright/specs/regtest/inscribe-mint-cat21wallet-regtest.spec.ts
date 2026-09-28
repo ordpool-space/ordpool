@@ -16,7 +16,10 @@ import {
   getTx,
   waitForApprovalPopup,
   onboardCat21Wallet,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via CAT-21 wallet.
@@ -51,15 +54,18 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21wallet-inscribe-user-data-dir.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // CAT-21 wallet (Leather fork) connect approval: get-addresses-approve-button.
-async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const popup = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const popup = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -68,20 +74,16 @@ async function approveCat21WalletConnect(knownPages: Set<Page>, timeoutMs: numbe
       await p.getByTestId('get-addresses-approve-button').waitFor({ state: 'visible', timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (popup) {
-    await popup.getByTestId('get-addresses-approve-button').click();
-    await popup.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return popup;
+  });
+  if (!popup) return;
+  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { closeTimeoutMs: 30_000, label: 'cat21-wallet connect popup' });
 }
 
-// CAT-21 wallet closes its own popup on sign completion; noWaitAfter dodges
-// the post-click stability wait racing the teardown.
+// CAT-21 wallet closes its own popup on sign completion.
 async function clickCat21WalletApproval(popup: Page): Promise<void> {
-  const btn = popup.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first();
+  const btn = popup.getByTestId('sign-psbt-confirm-button');
   await expect(btn).toBeVisible({ timeout: 10_000 });
-  await btn.click({ noWaitAfter: true, timeout: 30_000 });
+  await clickApprovalAndRequireClose(btn, popup, { clickTimeoutMs: 30_000, closeTimeoutMs: 30_000, label: 'cat21-wallet sign popup' });
 }
 
 test.beforeAll(async () => {
@@ -148,9 +150,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
   await approveCat21WalletConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[inscribe-cat21wallet] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
@@ -173,7 +173,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveCat21WalletConnect(knownPagesBeforeReload, 8_000);
+  await approveCat21WalletConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
@@ -195,7 +195,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
     timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+      await p.getByTestId('sign-psbt-confirm-button')
         .waitFor({ state: 'visible', timeout: 120_000 });
       return true;
     },

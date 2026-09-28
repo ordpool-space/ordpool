@@ -43,6 +43,8 @@ on:
       - 'frontend/playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
+      - 'frontend/playwright/specs/regtest/payment-address.ts'
+      - 'frontend/playwright/specs/regtest/xverse-sign.ts'
 
 permissions:
   contents: read

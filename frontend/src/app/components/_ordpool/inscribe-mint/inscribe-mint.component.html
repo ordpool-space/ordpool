@@ -468,12 +468,15 @@
             in total: miner fees plus the {{ postageSats }} sats your inscription lives on.
           </div>
 
-          <!-- asset-notice (FAMILY_UX funding-panel rule): a dirty coin covers the
-               fee on a wallet that keeps a SEPARATE payment address. The CTA stays
-               ENABLED, but this notice names what the recommended coin carries and
-               must be read BEFORE the click, kept in the same viewport as the
-               Inscribe button (the picker below is collapsed by default). -->
-          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !selectedPaymentOutput && !utxoLoading()">
+          <!-- asset-notice (FAMILY_UX funding-panel rule): the coin that will fund
+               the inscription carries an asset. The CTA stays ENABLED, but this
+               notice names what that coin holds and must be read BEFORE the click,
+               kept in the same viewport as the Inscribe button. It shows whether
+               the coin was auto-recommended (separate-address wallet) or picked by
+               hand in the expert picker ("Use anyway"), since the resolved pick's
+               own content drives it — a spent asset must be named at the point of
+               action. -->
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !utxoLoading()">
             We'll fund this inscription from a coin that carries an asset. Your wallet keeps a
             separate payment address, so this is usually safe, but you should know what the
             coin holds before you inscribe:

@@ -46,6 +46,11 @@ jest.mock('ordpool-sdk', () => {
         feeRate: number | null;
         selectedUtxo: TxnOutput | null;
         fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
+        // The SDK's resolved verdict for the coin that WILL be spent (manual pick
+        // honoured, coin-based). The CTA gate reads THIS, not the topology-shaped
+        // `fundingRecommendation.status`.
+        resolvedFundingStatus: string | null;
+        resolvedFundingUtxo: TxnOutput | null;
         simulations: { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean }[];
         candidateFees: { txid: string; vout: number; finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }[];
         errorMessage: string | null;
@@ -53,6 +58,7 @@ jest.mock('ordpool-sdk', () => {
       } = {
         state: 'idle', feeRate: null, selectedUtxo: null,
         fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
+        resolvedFundingStatus: 'scanning', resolvedFundingUtxo: null,
         simulations: [], candidateFees: [], errorMessage: null, successTxId: null,
       };
       _listeners: Array<(s: unknown) => void> = [];
@@ -80,6 +86,12 @@ jest.mock('ordpool-sdk', () => {
       connectedWallet = { set: (_v: unknown) => undefined };
       simulationsSubject = { next: (v: unknown[]) => this._patch({ simulations: v }) };
       fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
+      // Drives the SDK's resolved-pick verdict, as its recompute would after a
+      // wallet/fee/selection change: the CTA gate reads these two fields.
+      resolvedFundingSubject = {
+        next: (v: { status: string | null; utxo?: TxnOutput | null }) =>
+          this._patch({ resolvedFundingStatus: v.status, resolvedFundingUtxo: v.utxo ?? null }),
+      };
       selectedUtxo() { return this._snap.selectedUtxo; }
     },
     bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
@@ -532,16 +544,21 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(orch.selectedUtxo()!.value).toBe(20_000);
     });
 
-    it('E7: a user pick that disappears is cleared, deferring back to the safe-auto (no re-pick)', () => {
+    it('E7: a user pick that disappears clears the local display without a consumer-side re-drive (the SDK drops a stale selection on its own recompute)', () => {
       const gone = big(20_000);
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: gone, scan: { kind: 'scanned-clean' } },
       ]);
       component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
+      // The local display defers back to the safe-auto (no picked row to show) ...
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      // ... but the consumer does NOT clear or re-decide the orchestrator's
+      // selection: no second setSelectedUtxo call. The SDK's recompute drops a
+      // selection no longer among its candidates (reflected in resolvedFundingStatus).
+      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
     });
 
     it('E8: empty row list clears any pick', () => {
@@ -561,6 +578,11 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   describe('E-FUND. funding-status gating', () => {
     const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
       orch.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });
+    // The SDK's resolved verdict for the coin that will actually be spent
+    // (`resolvedFundingStatus`), which the CTA gate reads. Coin-based, so a
+    // manual pick of a dirty coin resolves to 'asset-notice' on every wallet.
+    const resolved = (status: string | null, u?: TxnOutput | null) =>
+      orch.resolvedFundingSubject.next({ status, utxo: u ?? null });
 
     beforeEach(() => {
       connectXverse();
@@ -568,37 +590,60 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       fixture.detectChanges();
     });
 
-    it('fundingStatus() mirrors the orchestrator recommendation', () => {
+    it('fundingStatus() mirrors the orchestrator recommendation (raw topology mirror)', () => {
       rec('expert-required');
       expect(component.fundingStatus()).toBe('expert-required');
       rec('insufficient');
       expect(component.fundingStatus()).toBe('insufficient');
     });
 
-    it('hasFundingSource() is true on status auto (safe-auto funds, no manual pick needed)', () => {
-      rec('auto');
-      expect(orch.selectedUtxo()).toBeNull();
+    it('hasFundingSource() is true on resolved status ready (safe-auto funds, no manual pick needed)', () => {
+      resolved('ready');
       expect(component.hasFundingSource()).toBe(true);
+      expect(component.fundingCta().kind).toBe('ready');
     });
 
-    it('hasFundingSource() is false on expert-required with no manual pick (mint button stays disabled)', () => {
-      rec('expert-required');
-      expect(orch.selectedUtxo()).toBeNull();
-      expect(component.hasFundingSource()).toBe(false);
-    });
-
-    it('hasFundingSource() is false on insufficient / scanning with no manual pick', () => {
-      rec('insufficient');
-      expect(component.hasFundingSource()).toBe(false);
-      rec('scanning');
-      expect(component.hasFundingSource()).toBe(false);
-    });
-
-    it('hasFundingSource() is true once the user manually picks, even in expert-required (Use anyway)', () => {
-      rec('expert-required');
-      expect(component.hasFundingSource()).toBe(false);
-      orch.setSelectedUtxo(utxo({ value: 50_000 }));
+    it('hasFundingSource() is true on resolved asset-notice (a dirty coin WILL be spent, CTA enabled WITH notice)', () => {
+      resolved('asset-notice');
       expect(component.hasFundingSource()).toBe(true);
+      expect(component.fundingCta().kind).toBe('notice');
+    });
+
+    it('hasFundingSource() is false on resolved expert-required (mint button stays disabled)', () => {
+      resolved('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      expect(component.fundingCta().kind).toBe('warning');
+    });
+
+    it('hasFundingSource() is false on resolved insufficient / scanning / null (pre-scan)', () => {
+      resolved('insufficient');
+      expect(component.hasFundingSource()).toBe(false);
+      resolved('scanning');
+      expect(component.hasFundingSource()).toBe(false);
+      expect(component.fundingCta().kind).toBe('scanning');
+      resolved(null);
+      expect(component.hasFundingSource()).toBe(false);
+      expect(component.fundingCta().kind).toBe('scanning');
+    });
+
+    it('the CTA follows the RESOLVED coin verdict, not the topology recommendation: a manual dirty pick that recomputes to asset-notice is enabled WITH the assets named (no silent short-circuit to ready)', () => {
+      // Recommendation blocks (one-address wallet, only dirty coins cover) and no
+      // coin is resolved yet.
+      rec('expert-required');
+      resolved('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      // The user picks the dirty coin by hand; the SDK recomputes coin-based to
+      // 'asset-notice' with that annotated coin as the resolved pick.
+      const dirty = utxo({ value: 50_000 });
+      const annotated = { ...dirty, assets: { inscriptionIds: ['abci0'], runeNames: [], catIds: [], rareSat: null } };
+      orch.fundingRecommendationSubject.next({ status: 'expert-required', recommended: null, candidates: [annotated] });
+      component.selectPaymentOutput({ paymentOutput: dirty, simulation: simulation(), available: true, scan: { kind: 'scanned-with-assets', content: {} } as never, bucket: 'assets' });
+      resolved('asset-notice', dirty);
+      expect(component.hasFundingSource()).toBe(true);
+      expect(component.fundingCta().kind).toBe('notice');
+      // The notice NAMES what the picked coin carries (read from the annotated
+      // candidate by outpoint), so it is not "this coin carries assets".
+      expect(component.assetNotice()?.inscriptionIds).toEqual(['abci0']);
     });
   });
 
@@ -1317,7 +1362,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(captured!.length).toBe(4);
     });
 
-    it('P3: a pick that flips to unavailable on a re-emit is cleared', () => {
+    it('P3: a pick that flips to unavailable on a re-emit clears the local display without a consumer-side re-drive (the SDK reflects it in resolvedFundingStatus)', () => {
       const chosen = big(80_000);
       scanner.setStates([[`${chosen.txid}:${chosen.vout}`, { kind: 'scanned-clean' }]]);
       orch.simulationsSubject.next([{ utxo: chosen, simulation: simulation(), insufficient: false }]);
@@ -1325,12 +1370,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       fixture.detectChanges();
       component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput).toBeDefined();
+      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
       // The same coin re-emits as insufficient (e.g. the user raised the rate).
       orch.simulationsSubject.next([{ utxo: chosen, simulation: null, insufficient: true }]);
       component.paymentOutputs$.subscribe().unsubscribe();
       fixture.detectChanges();
+      // Local display defers back (unavailable row no longer shown as picked) ...
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      // ... and the consumer does NOT re-decide the orchestrator's selection: no
+      // second setSelectedUtxo. The SDK drops a pick a raised fee rate made
+      // unusable on its own recompute (resolvedFundingStatus reflects it).
+      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
     });
   });
 });

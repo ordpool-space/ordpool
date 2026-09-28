@@ -22,7 +22,10 @@ import {
   waitForApprovalPopup,
   installWizzOfflineRoutes,
   onboardWizz,
+  waitForOptionalApprovalPopup,
+  clickApprovalAndRequireClose,
 } from 'ordpool-sdk/e2e';
+import { readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Wizz.
@@ -53,16 +56,19 @@ let extensionId: string;
 test.describe.configure({ mode: 'serial' });
 
 async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
   await p.screenshot({
     path: path.resolve(RESULTS_DIR, `cat21-mint-wizz-regtest-${name}.png`),
     fullPage: true,
-  }).catch(() => undefined);
+  });
 }
 
 // Wizz inherits Unisat's connect-approval: a styled "Connect" div at
 // notification.html#/approval.
-async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number): Promise<Page | null> {
-  const approval = await waitForApprovalPopup({
+/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
+async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
+  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
+  const approval = await wait({
     context,
     knownPages,
     timeoutMs,
@@ -70,12 +76,9 @@ async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number): Pro
       await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
       return true;
     },
-  }).catch(() => null);
-  if (approval) {
-    await approval.getByText(/^Connect$/).first().click();
-    await approval.waitForEvent('close', { timeout: 30_000 }).catch(() => undefined);
-  }
-  return approval;
+  });
+  if (!approval) return;
+  await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { closeTimeoutMs: 30_000, label: 'Wizz connect popup' });
 }
 
 // Sign button carries a spinner overlay + braille chars in textContent
@@ -177,9 +180,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
   await approveWizzConnect(knownPagesBeforeConnect, 60_000);
   await page.bringToFront();
 
-  const paymentCode = page.locator('[data-testid="fund-payment-address"]').first();
-  await expect(paymentCode).toBeVisible({ timeout: 60_000 });
-  const paymentAddress = (await paymentCode.textContent())!.replace(/\s+/g, '');
+  const paymentAddress = await readPaymentAddress(page);
   console.log(`[cat21-mint-wizz] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
@@ -202,7 +203,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveWizzConnect(knownPagesBeforeReload, 8_000);
+  await approveWizzConnect(knownPagesBeforeReload, 8_000, { optional: true });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
