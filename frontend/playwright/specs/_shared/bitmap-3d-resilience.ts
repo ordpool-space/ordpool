@@ -135,6 +135,45 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
         await expect(hint(page)).toBeHidden();
       });
 
+      test('the click that starts the walk also asks for mouse look', async ({ page }) => {
+        // Counted rather than granted: headless Chromium never grants a
+        // real pointer lock, so what is pinned is that the walk asks on
+        // entry, before any click on the canvas.
+        await page.addInitScript(() => {
+          const w = window as unknown as { __lockRequests: number };
+          w.__lockRequests = 0;
+          HTMLCanvasElement.prototype.requestPointerLock = function () {
+            w.__lockRequests++;
+            return Promise.resolve();
+          } as typeof HTMLCanvasElement.prototype.requestPointerLock;
+        });
+        await mountFixture(page, [1, 2, 3, 2, 1]);
+        await enterPfp(page);
+
+        expect(await page.evaluate(() => (window as unknown as { __lockRequests: number }).__lockRequests)).toBe(1);
+      });
+
+      test('the key list names the mouse the way the lock stands', async ({ page }) => {
+        await mountFixture(page, [1, 2, 3, 2, 1]);
+        await enterPfp(page);
+
+        // No lock (headless never grants one): the click is the way in.
+        await expect(page.getByTestId('bitmap-walk-hint-mouse-click')).toBeVisible();
+        await expect(page.getByTestId('bitmap-walk-hint-mouse-locked')).toBeHidden();
+
+        // Stand in for the lock the browser would grant, then send the
+        // event it would send with it.
+        await page.evaluate(() => {
+          const canvas = document.querySelector('app-bitmap-3d-renderer canvas');
+          Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => canvas });
+          document.dispatchEvent(new Event('pointerlockchange'));
+        });
+
+        await expect(page.getByTestId('bitmap-walk-hint-mouse-locked')).toBeVisible();
+        await expect(page.getByTestId('bitmap-walk-hint-mouse-locked')).toContainText('Esc');
+        await expect(page.getByTestId('bitmap-walk-hint-mouse-click')).toBeHidden();
+      });
+
       test('losing the pointer lock prompts for the click that gets it back', async ({ page }) => {
         await mountFixture(page, [1, 2, 3, 2, 1]);
         await enterPfp(page);

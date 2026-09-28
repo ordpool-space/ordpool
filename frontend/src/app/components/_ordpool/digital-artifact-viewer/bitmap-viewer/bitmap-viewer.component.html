@@ -78,7 +78,12 @@
       <!-- PFP toggle: only meaningful in 3D context. From 3D enter PFP;
            from PFP exit back to 3D. Hidden in 2D mode entirely. -->
       @if (mode !== '2d') {
-        <button type="button" class="bitmap-toggle" (click)="togglePfp()" data-testid="bitmap-walk-toggle"
+        <!-- The tooltip is closed on the click: entering the walk locks the
+             pointer where it stands, over this button, and a hover under a
+             pointer lock never ends, so the tooltip would stay over the
+             walk's key list. -->
+        <button type="button" class="bitmap-toggle" (click)="walkTip.close(); togglePfp()" data-testid="bitmap-walk-toggle"
+          #walkTip="ngbTooltip"
           [attr.aria-label]="mode === 'pfp' ? 'Exit walk mode' : 'Enter walk mode'"
           placement="top-end"
           [disableTooltip]="coarsePointer"

@@ -115,3 +115,43 @@ export const easeAlpha = (frameDt: number, rate: number): number => {
   const a = rate * frameDt;
   return a > 1 ? 1 : a < 0 ? 0 : a;
 };
+
+/** The part of a Mondrian slot the spawn needs: its corner and its size. */
+export interface SpawnSlot {
+  position: { x: number; y: number };
+  size: number;
+}
+
+/**
+ * Z at which the walk starts, in front of the layout's +Z edge, looking
+ * towards -Z.
+ *
+ * Far enough back that no cube's top rises more than `maxElevation`
+ * radians above eye level, so the first frame shows the skyline and the
+ * streets rather than the face of whichever cube happens to stand at the
+ * front. Every slot counts, not only the front row: a tall cube two rows
+ * in is just as much a wall. Never closer than `minGap` to the edge.
+ *
+ * Slot geometry matches the renderer's: a cube of side `size - 0.5`
+ * spans z from `position.y - layoutHeight / 2` to that plus its side,
+ * and rises from y = 0.
+ */
+export const spawnZ = (
+  slots: readonly SpawnSlot[],
+  layoutHeight: number,
+  eyeY: number,
+  maxElevation: number,
+  minGap: number,
+): number => {
+  const edge = layoutHeight / 2;
+  const tan = Math.tan(maxElevation);
+  let z = edge + minGap;
+  for (const slot of slots) {
+    // A cube below eye level asks for a spot behind its own near face,
+    // which the edge gap already clears, so it never moves the spawn.
+    const side = slot.size - 0.5;
+    const nearFace = slot.position.y - edge + side;
+    z = Math.max(z, nearFace + (side - eyeY) / tan);
+  }
+  return z;
+};

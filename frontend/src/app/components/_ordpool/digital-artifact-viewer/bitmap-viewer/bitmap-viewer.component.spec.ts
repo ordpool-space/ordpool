@@ -1,5 +1,6 @@
 import { Location } from '@angular/common';
 import { Component, NO_ERRORS_SCHEMA } from '@angular/core';
+import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { TestBed } from '@angular/core/testing';
 import { DomSanitizer } from '@angular/platform-browser';
 import { provideLocationMocks } from '@angular/common/testing';
@@ -177,8 +178,10 @@ describe('BitmapViewerComponent 3D fallbacks', () => {
   const setup = () => {
     TestBed.configureTestingModule({
       declarations: [BitmapViewerComponent],
-      // The template mounts the renderer, the toolbar tooltips and the
-      // skeleton; none of them are under test here.
+      // The walk button's template holds a reference to its tooltip, so
+      // the real directive is needed; the renderer and the skeleton are
+      // not under test here.
+      imports: [NgbTooltipModule],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
         { provide: BitmapApiService, useValue: { getBitmap: () => of(ready()) } },
@@ -316,6 +319,7 @@ describe('BitmapViewerComponent deep link', () => {
   const open = async (url: string) => {
     TestBed.configureTestingModule({
       declarations: [BitmapViewerComponent, HostComponent],
+      imports: [NgbTooltipModule],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
         { provide: BitmapApiService, useValue: { getBitmap: () => of(ready()) } },

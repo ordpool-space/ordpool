@@ -13,6 +13,7 @@ import {
   PlayerState,
   SPEED_RUN_SQ,
   SPEED_WALK_SQ,
+  spawnZ,
 } from './bitmap-3d-physics';
 
 @Component({
@@ -24,7 +25,9 @@ import {
       <button type="button" #jumpBtn class="touch-jump" aria-label="Jump">▲</button>
       <div class="pfp-hint" aria-hidden="true" data-testid="bitmap-walk-hint">
         <span class="pfp-hint-controls" data-testid="bitmap-walk-hint-controls"><b>WASD</b> walk &middot; <b>Space</b> jump &middot;
-          <b>Shift</b> sprint &middot; <b>Arrows</b> look &middot; <b>Click</b> to look with the mouse</span>
+          <b>Shift</b> sprint &middot;
+          <span class="pfp-hint-mouse-locked" data-testid="bitmap-walk-hint-mouse-locked"><b>Mouse</b> or <b>Arrows</b> look &middot; <b>Esc</b> frees the mouse</span>
+          <span class="pfp-hint-mouse-click" data-testid="bitmap-walk-hint-mouse-click"><b>Arrows</b> look &middot; <b>Click</b> to look with the mouse</span></span>
         <span class="pfp-hint-relock" data-testid="bitmap-walk-hint-relock">Click to look with the mouse again</span>
       </div>
     </div>`,
@@ -128,6 +131,11 @@ import {
     .pfp-hint-relock { display: none; }
     .bitmap3d-host.hint-relock .pfp-hint-controls { display: none; }
     .bitmap3d-host.hint-relock .pfp-hint-relock { display: inline; }
+    /* The mouse half of the key list follows the lock: with it, the mouse
+       already looks; without it, a click on the canvas takes it. */
+    .pfp-hint-mouse-locked { display: none; }
+    .bitmap3d-host.lock-on .pfp-hint-mouse-locked { display: inline; }
+    .bitmap3d-host.lock-on .pfp-hint-mouse-click { display: none; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: false,
@@ -707,8 +715,12 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     // AND slips through the 0.5-unit street gaps (diameter 0.44).
     const PLAYER_RADIUS = 0.22;
     const SPAWN_X = 0;
-    const SPAWN_Z = layoutSize.height / 2 + 2;
     const SPAWN_EYE_Y = PLAYER_HEIGHT - PLAYER_RADIUS;
+    // Back far enough that no cube top rises above two thirds of the upper
+    // half of the walk's field of view, so the walk opens on the skyline
+    // instead of on the side of whatever cube stands at the front.
+    const SPAWN_MAX_ELEVATION = THREE.MathUtils.degToRad(FOV_PFP / 2) * (2 / 3);
+    const SPAWN_Z = spawnZ(mondrian.slots, layoutSize.height, SPAWN_EYE_Y, SPAWN_MAX_ELEVATION, 2);
     const playerCollider = new Capsule(
       new THREE.Vector3(SPAWN_X, PLAYER_RADIUS, SPAWN_Z),
       new THREE.Vector3(SPAWN_X, SPAWN_EYE_Y, SPAWN_Z),
@@ -824,21 +836,31 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
         playerVelocity.y = capVariableJump(playerVelocity.y, MIN_JUMP_VELOCITY);
       }
     };
+    const setLockClass = (on: boolean) => hostEl.classList.toggle('lock-on', on);
+    // The browser grants a pointer lock only inside a user gesture, and
+    // refuses it for about a second after Escape released it. A refusal
+    // leaves the walk in the state the hint already describes (no lock,
+    // "Click to look with the mouse"), and the canvas click asks again, so
+    // the rejection carries nothing further to act on.
+    const requestLook = () => {
+      if (document.pointerLockElement === renderer.domElement) return;
+      const request: Promise<void> | void = renderer.domElement.requestPointerLock?.();
+      if (request instanceof Promise) request.catch(() => setLockClass(false));
+    };
     const onCanvasClick = () => {
       if (state !== 'pfp') return;
       // Don't request pointer lock when the touch UI is visible -- iOS
       // Safari rejects pointer lock and we don't want to steal a tap from
       // the touch-look gesture.
       if (hostEl.classList.contains('touch-on')) return;
-      if (document.pointerLockElement !== renderer.domElement) {
-        renderer.domElement.requestPointerLock?.();
-      }
+      requestLook();
     };
     // Losing the pointer lock is not an exit: the keys still walk, only
     // mouse look stops, and the browser gives it back on the next click.
     // Without a word on screen that reads as the canvas half-dying, so the
     // hint comes back as the prompt for the click that fixes it.
     const onPointerLockChange = () => {
+      setLockClass(document.pointerLockElement === renderer.domElement);
       if (state !== 'pfp' || hostEl.classList.contains('touch-on')) return;
       if (document.pointerLockElement === renderer.domElement) {
         if (hintMode === 'relock') setHint('off');
@@ -1187,10 +1209,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
     };
     // Walking far enough out leaves the grid's fade radius, and past that
     // there is nothing at all: no landmark, no horizon, no way back except
-    // the toolbar. The old ground box ended at 5x the layout and dropped
-    // you, which at least tripped the fall check below; the floor plane
-    // that replaced it is infinite, so the horizontal bound has to be
-    // stated. Sits just inside where the grid has finished fading.
+    // the toolbar. The floor plane is infinite, so nothing ever trips the
+    // fall check out there and the horizontal bound has to be stated.
+    // Sits just inside where the grid has finished fading.
     const WORLD_RADIUS = maxSize * GRID_FADE_END_MULT;
     const respawn = () => {
       playerCollider.start.set(SPAWN_X, PLAYER_RADIUS, SPAWN_Z);
@@ -1313,6 +1334,11 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       container.scale.y = 1;
       directional.shadow.needsUpdate = true;
       state = 'fly-to-pfp';
+      // Ask for mouse look now, while the click that started the walk still
+      // counts as a user gesture, so the mouse looks from the first frame
+      // instead of after a second click. Touch readers steer with the
+      // joysticks and are never asked.
+      if (!startWithTouchUi) requestLook();
       // Build the collision octree here rather than on the first walking
       // frame, so the cost lands on the click instead of as a hitch on the
       // player's first step. It has to finish before the clock starts: the

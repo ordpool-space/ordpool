@@ -8,6 +8,7 @@ import {
   gravityForStep,
   SPEED_RUN_SQ as RUN_SQ,
   SPEED_WALK_SQ as WALK_SQ,
+  spawnZ,
 } from './bitmap-3d-physics';
 
 describe('derivePlayerState', () => {
@@ -212,5 +213,34 @@ describe('easeAlpha', () => {
 
   it('returns 0 for zero dt', () => {
     expect(easeAlpha(0, 10)).toBe(0);
+  });
+});
+
+describe('spawnZ', () => {
+  // A 10-deep layout: its +Z edge sits at z = 5.
+  const H = 10;
+  const EYE = 0.58;
+  const MAX = Math.PI / 4;   // tan = 1, so the gap in front of a cube equals its rise
+  const GAP = 2;
+
+  it('stays at the minimum gap when every cube is below eye level', () => {
+    expect(spawnZ([{ position: { x: 0, y: 9 }, size: 1 }], H, EYE, MAX, GAP)).toBe(7);
+  });
+
+  it('steps back from a tall cube at the front until its top is at the limit', () => {
+    // side 5.5 at z 9..14.5 in layout units, near face at 14.5 - 5 = 9.5;
+    // it rises 4.92 above the eye, so the spawn sits 4.92 in front of it.
+    expect(spawnZ([{ position: { x: 0, y: 9 }, size: 6 }], H, EYE, MAX, GAP)).toBeCloseTo(9.5 + 4.92, 10);
+  });
+
+  it('counts a tall cube behind the front row, not only the front row', () => {
+    const front = { position: { x: 0, y: 9 }, size: 1 };
+    // Near face at 0 + 9.5 - 5 = 4.5, rise 8.92.
+    const tallBehind = { position: { x: 3, y: 0 }, size: 10 };
+    expect(spawnZ([front, tallBehind], H, EYE, MAX, GAP)).toBeCloseTo(4.5 + 8.92, 10);
+  });
+
+  it('keeps the gap for an empty layout', () => {
+    expect(spawnZ([], H, EYE, MAX, GAP)).toBe(7);
   });
 });

@@ -107,6 +107,22 @@ export const bitmapToolbarSuite = (label: 'desktop' | 'mobile'): void => {
           await expect(tooltip).toHaveCount(0);
         }
       });
+
+      test('entering the walk takes the walk button\'s tooltip with it', async ({ page }) => {
+        // The walk locks the pointer where it stands, over this button, and
+        // a hover under a pointer lock never ends.
+        await mountViewer(page);
+        await page.getByTestId('bitmap-view-toggle').dispatchEvent('click');
+        const walk = page.getByTestId('bitmap-walk-toggle');
+        await walk.scrollIntoViewIfNeeded();
+        await walk.hover();
+        await expect(page.locator('ngb-tooltip-window')).toBeVisible();
+
+        await walk.click();
+
+        await expect(walk).toHaveAttribute('aria-label', 'Exit walk mode');
+        await expect(page.locator('ngb-tooltip-window')).toHaveCount(0);
+      });
     } else {
       test('a tap opens no tooltip, and the labels stay for assistive tech', async ({ page }) => {
         await mountViewer(page);
