@@ -71,14 +71,19 @@
   align-items: center;
   justify-content: center;
   padding: 6px;
-  background: rgba(0, 0, 0, 0.45);
+  // Near-opaque page navy: the 2D drawing behind the buttons is mostly
+  // brand orange, the same colour as the icon and the border, so anything
+  // thinner lets the button dissolve into it. The dark outer ring keeps
+  // the orange border apart from an orange square right next to it.
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   color: var(--primary);
   border: 1px solid var(--primary);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55);
   cursor: pointer;
   transition: background 120ms ease;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--bg);
   }
 
   svg {
