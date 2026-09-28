@@ -123,6 +123,22 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
     });
 
     if (label === 'desktop') {
+      // Whether a browser grants a pointer lock to an automated page differs
+      // by platform: headless Chromium on Linux does, on macOS it does not.
+      // Every lock state below is set by the test instead. The walk's
+      // requests are counted and never granted; a test that needs the lock
+      // held stands in for it through document.pointerLockElement.
+      test.beforeEach(async ({ page }) => {
+        await page.addInitScript(() => {
+          const w = window as unknown as { __lockRequests: number };
+          w.__lockRequests = 0;
+          HTMLCanvasElement.prototype.requestPointerLock = function () {
+            w.__lockRequests++;
+            return Promise.resolve();
+          } as typeof HTMLCanvasElement.prototype.requestPointerLock;
+        });
+      });
+
       test('the walk names its controls, and stops once the reader is driving', async ({ page }) => {
         await mountFixture(page, [1, 2, 3, 2, 1]);
         await enterPfp(page);
@@ -136,17 +152,7 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
       });
 
       test('the click that starts the walk also asks for mouse look', async ({ page }) => {
-        // Counted rather than granted: headless Chromium never grants a
-        // real pointer lock, so what is pinned is that the walk asks on
-        // entry, before any click on the canvas.
-        await page.addInitScript(() => {
-          const w = window as unknown as { __lockRequests: number };
-          w.__lockRequests = 0;
-          HTMLCanvasElement.prototype.requestPointerLock = function () {
-            w.__lockRequests++;
-            return Promise.resolve();
-          } as typeof HTMLCanvasElement.prototype.requestPointerLock;
-        });
+        // The walk asks on entry, before any click on the canvas.
         await mountFixture(page, [1, 2, 3, 2, 1]);
         await enterPfp(page);
 
@@ -157,7 +163,7 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
         await mountFixture(page, [1, 2, 3, 2, 1]);
         await enterPfp(page);
 
-        // No lock (headless never grants one): the click is the way in.
+        // No lock held: the click is the way in.
         await expect(page.getByTestId('bitmap-walk-hint-mouse-click')).toBeVisible();
         await expect(page.getByTestId('bitmap-walk-hint-mouse-locked')).toBeHidden();
 
@@ -181,8 +187,8 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
         await expect(hint(page)).toBeHidden();
 
         // The same event the browser dispatches when Escape releases the
-        // lock. Headless Chromium will not grant a real pointer lock, so
-        // this drives our handler rather than the browser's emission of it.
+        // lock. No lock is ever granted here (see beforeEach), so this
+        // drives our handler rather than the browser's emission of it.
         await page.evaluate(() => document.dispatchEvent(new Event('pointerlockchange')));
 
         await expect(hint(page)).toBeVisible();

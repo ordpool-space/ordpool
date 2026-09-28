@@ -23,6 +23,11 @@ test('finishes the exit transition while scrolled out of view', async ({ page })
   await page.getByTestId('e2e-enter-pfp').click();
   await waitForState(page, 'pfp');
 
+  // Entering the walk takes the pointer lock where the browser grants it
+  // to an automated page (headless Chromium on Linux), and under the lock
+  // every click lands on the canvas. A reader presses Escape first; this
+  // is what Escape does.
+  await page.evaluate(() => document.exitPointerLock());
   await page.getByTestId('e2e-exit-pfp').click();
   await scrollOutOfView(page);
   // The observer is asynchronous; give it a beat to report the canvas gone
