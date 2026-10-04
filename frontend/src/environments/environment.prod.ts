@@ -13,13 +13,11 @@ export const environment = {
   // online.
   ordBaseUrls: [
     'https://ord.ordpool.space',
-    'https://explorer.ordinalsbot.com',
   ],
-  // Testnet has its own list. We don't run a testnet ord instance, so
-  // this is single-upstream for now.
-  ordBaseUrlsTestnet: [
-    'https://testnet-explorer.ordinalsbot.com',
-  ],
+  // Testnet has its own list. We run no testnet ord instance and no public
+  // one serves JSON, so it is empty and testnet ord lookups fail fast with
+  // 'No ord upstreams configured' instead of waiting on a dead host.
+  ordBaseUrlsTestnet: [],
   cat21BaseUrl: 'https://backend2.cat21.space',
   // cat21-ord, the per-outpoint cat probe used by the SDK's UtxoContentScanner.
   // Distinct from cat21BaseUrl above, which is the cat21-indexer REST backend.

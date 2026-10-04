@@ -79,8 +79,9 @@ export class OrdApiService {
    * ord.cat21.space), never silent third-party fallback.
    *
    * Display calls (block info, rune metadata, inscription content)
-   * may safely omit the option; the fallback to ordinalsbot is
-   * acceptable there since the worst-case is a misrendered widget.
+   * may omit the option; a later upstream in the list is acceptable
+   * there since the worst case is a misrendered widget. The mainnet
+   * list currently holds only ord.ordpool.space, so there is no walk.
    *
    * See audit findings M7 + companion rule in workspace CLAUDE.md.
    */
