@@ -12,6 +12,12 @@ export const environment = {
   // online.
   ordBaseUrls: [
     'https://ord.ordpool.space',
+    // Third-party ords that answer JSON, kept OFF on purpose: we do not send our
+    // users' traffic to them. Uncomment one only as an emergency fallback when
+    // ord.ordpool.space is down. Neither is documented as public.
+    // 'https://ordinals.unisat.io', // UniSat, stock ord, no address index
+    // 'https://node.ord.net',       // ord.net, modified ord, extra /inscription fields
+    // TODO: when another compatible ord with the JSON API turns up, add it here.
   ],
   // Testnet has its own list. We run no testnet ord instance and no public
   // one serves JSON, so it is empty and testnet ord lookups fail fast with
