@@ -100,7 +100,7 @@
     "ngx-infinite-scroll": "^20.0.0",
     "nipplejs": "^1.0.4",
     "ordpool-parser": "github:ordpool-space/ordpool-parser#70cf3b0",
-    "ordpool-sdk": "github:ordpool-space/ordpool-sdk#d9d1e8f61a28efb1e17230774c3deaca7f619380",
+    "ordpool-sdk": "github:ordpool-space/ordpool-sdk#d484b108f7f8ec565e8f43dc02420f73e8f1003c",
     "qrcode": "1.5.1",
     "rxjs": "~7.8.1",
     "sats-connect": "^4.2.1",

@@ -51,6 +51,8 @@ jest.mock('ordpool-sdk', () => {
     BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE: 0.1,
     SMALL_UTXO_WARNING_THRESHOLD_SAT: 10_000,
     INSCRIBE_POSTAGE_SATS: 546,
+    // Tags the transport with the endpoints it was built for, so the wiring is assertable.
+    esploraInscribeTransport: (endpoints: string[]) => ({ kind: 'esplora-transport', endpoints }),
     Network: { Mainnet: 'mainnet', Testnet3: 'testnet', Regtest: 'regtest' },
     // Constructed by the component (`new InscribeMintOrchestrator(deps)`), not
     // injected: this mock class IS the instance the component drives. Real
@@ -303,7 +305,7 @@ describe('InscribeMintComponent', () => {
 
     const cat21 = {
       getUtxos: jest.fn((_: string) => of([] as TxnOutput[])),
-      postTransaction: jest.fn((_: string) => of('t'.repeat(64))),
+      mempoolApiUrl: 'http://electrs.test.invalid',
     };
     const walletService = {
       connectedWallet$: walletSubject.asObservable(),
@@ -338,6 +340,10 @@ describe('InscribeMintComponent', () => {
     orchestrator.setBatch = setBatchSpy;
     orchestrator.mint = jest.fn(async () => { mintSpy(); return { commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }; });
     fixture.detectChanges();
+  });
+
+  it('sends commit and reveal through a package transport on our own electrs', () => {
+    expect(orchestrator.deps.transport).toEqual({ kind: 'esplora-transport', endpoints: ['http://electrs.test.invalid/api'] });
   });
 
   it('reads a PNG file → content-type image/png and sets orchestrator content', async () => {

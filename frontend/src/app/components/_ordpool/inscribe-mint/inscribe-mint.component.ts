@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, esploraInscribeTransport, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -92,14 +92,15 @@ export class InscribeMintComponent implements OnInit {
    * The framework-agnostic inscribe orchestrator (a plain SDK class, constructed
    * here, not an Angular `@Injectable`). The staying Angular/SDK services are
    * wired in as its ports (getUtxos → Cat21Service, scan → `UtxoContentScanner`
-   * (fail-closed `ContentScanPort`, shares the UI's scan cache), broadcast →
-   * Cat21Service.postTransaction for commit+reveal).
+   * (fail-closed `ContentScanPort`, shares the UI's scan cache), transport →
+   * our electrs behind `Cat21Service.mempoolApiUrl`, which dry-runs and submits
+   * commit and reveal as one package).
    * Signing is wired internally by the orchestrator from the connected wallet.
    */
   private orchestrator = new InscribeMintOrchestrator({
     getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
     scan: this.scanner,
-    broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
+    transport: esploraInscribeTransport([`${this.cat21.mempoolApiUrl}/api`]),
     network: this.network,
     // Derive the wallet topology from the connected wallet, so a dirty-only
     // funding pool produces a NOTICE (separate payment address) instead of a
