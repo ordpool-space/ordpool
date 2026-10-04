@@ -14,6 +14,10 @@ module.exports = {
     '^@components/(.*)$': '<rootDir>/src/app/components/$1',
     '^@environments/(.*)$': '<rootDir>/src/environments/$1',
     '^@interfaces/(.*)$': '<rootDir>/src/app/interfaces/$1',
+    // base58-js (under sats-connect, which ordpool-sdk/core reaches) exports
+    // only an `import` condition, which Jest's CommonJS resolver cannot match.
+    // Its ESM is transformed below like the rest of the wallet chain.
+    '^base58-js$': '<rootDir>/node_modules/base58-js/index.js',
   },
   // @noble/secp256k1 ships as pure ESM ("type":"module"). Jest skips
   // transforming node_modules by default, so its import lands at runtime

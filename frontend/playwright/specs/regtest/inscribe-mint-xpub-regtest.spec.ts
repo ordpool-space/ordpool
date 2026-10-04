@@ -41,7 +41,7 @@ import {
  *      dialog. Read the unsigned base64, sign it with the offline account key,
  *      paste it back, Finalize & broadcast. The reveal is finalized inside the
  *      orchestrator with an ephemeral key (no second prompt); the page
- *      broadcasts commit + reveal sequentially.
+ *      sends commit + reveal as one package (dry run, then submitpackage).
  *   5. Read the reveal txid off the success panel, mine, confirm, and assert
  *      the on-chain reveal is a well-formed inscription: parses through
  *      `InscriptionParserService`, real compressed bytes that DECODE back

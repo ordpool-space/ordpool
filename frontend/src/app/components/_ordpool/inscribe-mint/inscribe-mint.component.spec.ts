@@ -1,262 +1,110 @@
 /**
- * Same ESM-dodge as cat21-mint.component.spec: mock ordpool-sdk +
- * ordpool-parser wholesale so Jest's CJS runner never loads the
- * sats-connect ESM chain. The component's DI targets the same class
- * identities we provide via TestBed.
+ * The component runs against the REAL SDK: `ordpool-sdk/core` is the same code
+ * as the main entry minus the stateful service classes, and loads without the
+ * wallet connectors' ESM chain that Jest's CJS runner cannot take. The real
+ * `InscribeMintOrchestrator`, gate, fee simulator, encoders and funding policy
+ * all run here, so a change to any of them reaches these assertions.
+ *
+ * Faked, and only these, because each is network IO:
+ * - ord lookups: `checkInscriptionsExist`, `findRareSatsInOutputs`, `lookupRuneEtching`
+ * - electrs and the content scan: the `Cat21Service.getUtxos` and
+ *   `UtxoContentScanner.classify` ports handed to the orchestrator
+ * - the wallet: `orchestrator.mint` (signing + broadcast)
+ * The three service classes are DI tokens only; TestBed supplies the doubles.
  */
-let gateResult: { ok: true; resources: object } | { ok: false; reason: string; detail?: string } = {
-  ok: true,
-  resources: {},
-};
-const setContentSpy = jest.fn();
-const setBatchSpy = jest.fn();
-const mintSpy = jest.fn();
-const validateSpy = jest.fn();
-const simulateSpy = jest.fn();
-
-// Swappable per-test so we can exercise the worthIt / not-worthIt branches.
-// Default: not worth it, so `compressed` is the original bytes, encoding none.
-type Assessment = {
-  worthIt: boolean; bestEncoding: 'none' | 'gzip' | 'br';
-  originalSize: number; compressedSize: number;
-  savedBytes: number; savedPercent: number; compressed: Uint8Array;
-};
-let assessCompressionImpl = async (bytes: Uint8Array): Promise<Assessment> => ({
-  worthIt: false, bestEncoding: 'none', originalSize: bytes.length, compressedSize: bytes.length,
-  savedBytes: 0, savedPercent: 0, compressed: bytes,
-});
-
-// Swappable gallery-existence stub. Default: every id passed in exists. Tests
-// override to return 'missing'/'unknown' for specific ids. The component
-// pre-filters to well-formed ids, so the stub only sees valid shapes.
 type Existence = 'exists' | 'missing' | 'invalid' | 'unknown';
 let checkInscriptionsExistImpl = async (ids: ReadonlyArray<string>): Promise<Map<string, Existence>> =>
   new Map(ids.map((id) => [id, 'exists' as Existence]));
 
-// Swappable rare-sat scan stub. Default: every coin is scanned-but-common (no
-// rare sat). Tests override to plant a rare sat or a failed lookup on a coin.
-type PickerRow = { utxo: unknown; address: string | null; rareSat: { sat: number; offset: number; rarity: string } | null; status: 'scanned' | 'unknown' };
-let findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number }>): Promise<PickerRow[]> =>
-  outputs.map((u) => ({ utxo: u, address: 'bc1p-ord', rareSat: null, status: 'scanned' as const }));
-
-// Swappable sat-source builder. Default: return a plausible source for a row
-// with a rare sat, null otherwise. Tests override to throw a key mismatch.
-let inscribeSatSourceFromRowImpl = (row: PickerRow): unknown =>
-  row.rareSat ? { txid: (row.utxo as { txid: string }).txid, vout: 0, value: 10_000, scriptPubKey: new Uint8Array(34), tapInternalKey: new Uint8Array(32), address: row.address, offset: row.rareSat.offset } : null;
+// Rare-sat scan (ord /output + /sat). Default: every coin scanned, none rare.
+type PickerRow = { utxo: { txid: string; vout: number; value: number }; address: string | null; rareSat: { sat: number; offset: number; rarity: string } | null; status: 'scanned' | 'unknown' };
+let findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number; value: number }>): Promise<PickerRow[]> =>
+  outputs.map((u) => ({ utxo: u, address: ORDINALS_ADDRESS, rareSat: null, status: 'scanned' as const }));
 
 jest.mock('ordpool-sdk', () => {
-  const { InjectionToken } = jest.requireActual('@angular/core');
+  const core = jest.requireActual('ordpool-sdk/core');
+  // The auto-scan threshold lives beside the stateful scanner, outside /core;
+  // read the real constant from that module rather than restating it.
+  const scannerModule = jest.requireActual(
+    require('path').join(require.resolve('ordpool-sdk/core'), '..', 'cat21-mint', 'utxo-content-scanner.service.js'),
+  );
   return {
-    AUTO_SCAN_MAX_VALUE_SAT: 50_000,
-    BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE: 0.1,
-    SMALL_UTXO_WARNING_THRESHOLD_SAT: 10_000,
-    INSCRIBE_POSTAGE_SATS: 546,
-    // Tags the transport with the endpoints it was built for, so the wiring is assertable.
-    esploraInscribeTransport: (endpoints: string[]) => ({ kind: 'esplora-transport', endpoints }),
-    Network: { Mainnet: 'mainnet', Testnet3: 'testnet', Regtest: 'regtest' },
-    // Constructed by the component (`new InscribeMintOrchestrator(deps)`), not
-    // injected: this mock class IS the instance the component drives. Real
-    // subscribe/getSnapshot surface + signal/subject-shaped shims → `_patch`.
-    InscribeMintOrchestrator: class InscribeMintOrchestrator {
-      deps: unknown;
-      _snap: {
-        state: string;
-        feeRate: number | null;
-        selectedUtxo: TxnOutput | null;
-        content: unknown;
-        simulations: unknown[];
-        fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
-        // The SDK's resolved verdict for the coin that WILL be spent (manual pick
-        // honoured, coin-based). The CTA gate reads THIS, not the topology-shaped
-        // `fundingRecommendation.status`.
-        resolvedFundingStatus: string | null;
-        resolvedFundingUtxo: TxnOutput | null;
-        errorMessage: string | null;
-        successResult: unknown;
-        signing: unknown;
-        padding: unknown;
-        parents: unknown;
-        userMessage: string | null;
-      } = {
-        state: 'ready', feeRate: null, selectedUtxo: null, content: null,
-        simulations: [], fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
-        resolvedFundingStatus: 'scanning', resolvedFundingUtxo: null,
-        errorMessage: null, successResult: null,
-        signing: null, padding: null, parents: null, userMessage: null,
-      };
-      _listeners: Array<(s: unknown) => void> = [];
-      constructor(deps: unknown) { this.deps = deps; }
-      getSnapshot() { return this._snap; }
-      subscribe(l: (s: unknown) => void) {
-        this._listeners.push(l);
-        l(this._snap);
-        return () => { this._listeners = this._listeners.filter((x) => x !== l); };
-      }
-      _patch(p: Record<string, unknown>) {
-        this._snap = { ...this._snap, ...p };
-        this._listeners.slice().forEach((l) => l(this._snap));
-      }
-      setWallet = jest.fn(async () => {});
-      setFeeRate = jest.fn((rate: number) => this._patch({ feeRate: rate }));
-      setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u }));
-      setContent = jest.fn((c: unknown) => this._patch({ content: c }));
-      setBatch = jest.fn((b: unknown) => this._patch({ batch: b }));
-      mint = jest.fn(async () => ({ commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }));
-      reset = jest.fn();
-      // Signal/subject-shaped shims (harness drivers) → `_patch`.
-      state = { set: (v: string) => this._patch({ state: v }) };
-      errorMessage = { set: (v: string | null) => this._patch({ errorMessage: v }) };
-      successResult = { set: (v: unknown) => this._patch({ successResult: v }) };
-      fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
-      // Drives the SDK's resolved-pick verdict, as its recompute would after a
-      // wallet/fee/selection change: the CTA gate reads these two fields.
-      resolvedFundingSubject = {
-        next: (v: { status: string | null; utxo?: TxnOutput | null }) =>
-          this._patch({ resolvedFundingStatus: v.status, resolvedFundingUtxo: v.utxo ?? null }),
-      };
-      selectedUtxo() { return this._snap.selectedUtxo; }
-    },
+    ...core,
+    AUTO_SCAN_MAX_VALUE_SAT: scannerModule.AUTO_SCAN_MAX_VALUE_SAT,
     Cat21Service: class Cat21Service {},
     UtxoContentScanner: class UtxoContentScanner {},
     WalletService: class WalletService {},
-    cat21Config: new InjectionToken('cat21Config'),
-    bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
-    bucketOf: (s: { kind: string }) => {
-      switch (s.kind) {
-        case 'not-scanned': return 'unscanned';
-        case 'scanning': return 'scanning';
-        case 'scanned-clean': return 'clean';
-        case 'scanned-with-assets': return 'assets';
-        case 'scan-failed': return 'failed';
-        default: return 'unscanned';
-      }
-    },
-    runeNamesFromContent: () => [],
-    lookupRuneEtching: jest.fn(async () => ({ kind: 'unavailable' as const })),
-    // Rune label + etching-link deps. formatRunePile's real ord-exact behaviour
-    // is unit-tested in rune-label.helper.spec.ts against the real SDK; here it
-    // only needs to not crash a render. lookupRuneEtching defaults to unavailable
-    // (no link, deterministic) so panel-render tests stay stable.
-    formatRunePile: (pile: { amount: unknown; symbol?: string | null }) =>
-      `${pile.amount} ${pile.symbol ?? '¤'}`,
-    // Four-character grouping for the "Fund <addr>" verification instruction.
-    addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
-    // The shared outpoint key the component uses to mark the recommended coin in
-    // place. Faithful to the SDK's one-liner; a value import, so the mock must
-    // provide it or `outpointKey(...)` is undefined at runtime.
-    outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
-    // Faithful re-implementation of the SDK's four-state fee classifier; the
-    // component routes its over-pay reading through this. Value import.
-    classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
-      // == null (not ===) mirrors the real SDK classifier (candidate-fees.ts):
-      // it catches an undefined field on a hand-built row, not just null.
-      if (row.finalFeeSats == null) { return 'unavailable'; }
-      if (row.absorbedSubDustSats == null) { return 'overpay-unknown'; }
-      return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
-    },
-    // Display labels keyed by type — the component reads
-    // KnownOrdinalWallets[wallet.type].label to name the wallet in the caveat.
-    KnownOrdinalWallets: {
-      xverse: { label: 'Xverse' },
-      leather: { label: 'Leather' },
-      unisat: { label: 'UniSat' },
-    },
-    // wallet-ux-round3 single-address custody API (faithful re-implementations;
-    // canonical versions in the SDK's wallet-capabilities.ts). singleAddressCaveat
-    // names the wallet in the opener when given a label ("Your UniSat wallet
-    // keeps..."), mirroring the SDK's opener grammar (a label already ending in
-    // "wallet" is not doubled).
-    usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
-      !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
-    singleAddressCaveat: (assets = 'cats', walletName?: string) => {
-      const opener = !walletName
-        ? 'This wallet'
-        : /\bwallet$/i.test(walletName.trim()) ? `Your ${walletName.trim()}` : `Your ${walletName.trim()} wallet`;
-      return `${opener} keeps your coins and your ${assets} at one address. That is fine here, because `
-      + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
-      + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
-      + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
-      + 'cat21.space, ordpool.space, cubes.haushoppe.art and CAT-21 wallet, or use a wallet that '
-      + `keeps your coins and your ${assets} apart.`;
-    },
-    getMinimumUtxoSize: () => 294,
-    toScureNetwork: () => ({}),
-    getDummyKeypair: () => ({
-      dummyPublicKey: new Uint8Array(33),
-      xOnlyDummyPublicKey: new Uint8Array(32),
-      addressP2WPKH: 'bc1qdummy',
-      addressP2TR: 'bc1pdummy',
-    }),
-    prepareInscribeFundingInput: () => ({ txid: 'f'.repeat(64), vout: 0, value: 10_000_000 }),
-    simulateInscribeFees: (...args: unknown[]) => { simulateSpy(...args); return { fundingRequirementSats: 4321, totalFeeSats: 3000 }; },
-    validateInscribeOperation: (args: unknown) => { validateSpy(args); return gateResult; },
-    assessCompression: (bytes: Uint8Array) => assessCompressionImpl(bytes),
     checkInscriptionsExist: (ids: ReadonlyArray<string>) => checkInscriptionsExistImpl(ids),
-    findRareSatsInOutputs: (outputs: ReadonlyArray<{ txid: string; vout: number }>) => findRareSatsInOutputsImpl(outputs),
-    // Stand-in: build a plausible InscribeSatSource from a rare-sat row, or
-    // null when the row has no rare sat. Tests override to throw (key mismatch).
-    inscribeSatSourceFromRow: (row: PickerRow, _args: unknown) => inscribeSatSourceFromRowImpl(row),
-    inscribeUserMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-    // Faithful stand-in for the SDK's per-address dust rule: taproot (bc1p)
-    // floor 330, else p2wpkh 294. The real one is unit-tested in the SDK.
-    satPaddingRequirement: (satOffset: number, paddingAddress: string) => {
-      const dustLimitSats = paddingAddress.startsWith('bc1p') ? 330 : 294;
-      const needsPadding = satOffset > 0 && satOffset < dustLimitSats;
-      return { needsPadding, shortfallSats: needsPadding ? dustLimitSats - satOffset : 0, dustLimitSats };
-    },
-    // Stand-in codec: UTF-8 of JSON so tests can decode + assert the value.
-    // The real deterministic-CBOR encoder is unit-tested in the SDK.
-    encodeCborDeterministic: (v: unknown) => new TextEncoder().encode(JSON.stringify(v)),
-    // Stand-in properties encoder: returns bytes when there is anything to
-    // encode, else undefined (matching ord). The real min-size dance is
-    // unit-tested in the SDK.
-    encodeInscriptionProperties: (input: { title?: unknown; traits?: unknown; gallery?: unknown }) => {
-      // Match the real encoder: throw on a duplicate trait name (ord rejects it).
-      const traits = input?.traits as Array<[string, unknown]> | undefined;
-      if (Array.isArray(traits)) {
-        const names = traits.map((t) => t[0]);
-        const dup = names.find((n, i) => names.indexOf(n) !== i);
-        if (dup !== undefined) { throw new Error('duplicate trait: ' + dup); }
-      }
-      const has = input && (input.title !== undefined || input.traits !== undefined || input.gallery !== undefined);
-      return has ? { properties: new TextEncoder().encode(JSON.stringify(input)) } : undefined;
-    },
-    ORD_TAGS: {
-      content_type: 1, pointer: 2, parent: 3, metadata: 5, metaprotocol: 7,
-      content_encoding: 9, delegate: 11, rune: 13, note: 15, properties: 17, property_encoding: 19,
-    },
-    encodeInscriptionId: (id: string) => new TextEncoder().encode(id),
+    findRareSatsInOutputs: (outputs: ReadonlyArray<{ txid: string; vout: number; value: number }>) => findRareSatsInOutputsImpl(outputs),
+    // No etching link, so panel renders stay deterministic.
+    lookupRuneEtching: jest.fn(async () => ({ kind: 'unavailable' as const })),
+    // Observed, not replaced: the real functions run and the tests read their arguments.
+    validateInscribeOperation: jest.fn(core.validateInscribeOperation),
+    simulateInscribeFees: jest.fn(core.simulateInscribeFees),
+    assessCompression: jest.fn(core.assessCompression),
   };
 });
 
-jest.mock('ordpool-parser', () => ({
-  detectMimeType: (bytes: Uint8Array): string | null => {
-    if (bytes[0] === 0x89 && bytes[1] === 0x50) return 'image/png';
-    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return 'application/pdf';
-    return null;
-  },
-}));
 
+import type { WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 
-import { Cat21Service, UtxoContentScanner, WalletService, singleAddressCaveat, type SimulateInscribeFeesResult, type TxnOutput, type WalletInfo } from 'ordpool-sdk';
+import { secp256k1 } from '@noble/curves/secp256k1';
+import { hex } from '@scure/base';
+import * as btc from '@scure/btc-signer';
+import {
+  Cat21Service, UtxoContentScanner, WalletService, assessCompression, encodeCborDeterministic, simulateInscribeFees, singleAddressCaveat, validateInscribeOperation,
+  type CompressionAssessment, type InscribeBroadcastTransport, type InscribeMintOrchestrator, type InscribeSnapshot, type SimulateInscribeFeesResult, type TxnOutput, type UtxoClassification, type WalletInfo,
+} from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { InscribeMintComponent, type ViableInscribeSimulation } from './inscribe-mint.component';
+import { RelativeUrlPipe } from '@app/shared/pipes/relative-url/relative-url.pipe';
+import { SafeResourceUrlPipe } from '../safe-url.pipe';
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
+
+// Real keys, so the real gate, simulator and taproot derivation accept them.
+const PAYMENT_PRIV = new Uint8Array(32).fill(1);
+const ORDINALS_PRIV = new Uint8Array(32).fill(2);
+const OTHER_PRIV = new Uint8Array(32).fill(3);
+const PAYMENT_PUB = secp256k1.getPublicKey(PAYMENT_PRIV, true);
+const ORDINALS_PUB = secp256k1.getPublicKey(ORDINALS_PRIV, true);
+const PAYMENT_ADDRESS = btc.p2wpkh(PAYMENT_PUB).address as string;
+const ORDINALS_ADDRESS = btc.p2tr(ORDINALS_PUB.slice(1)).address as string;
+/** A taproot address the connected wallet holds no key for. */
+const FOREIGN_TAPROOT = btc.p2tr(secp256k1.getPublicKey(OTHER_PRIV, true).slice(1)).address as string;
+/** A valid address on the wrong network for this mainnet page (BIP173 testnet vector). */
+const TESTNET_ADDRESS = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
 function wallet(over: Partial<WalletInfo> = {}): WalletInfo {
   return {
     type: 'xverse',
-    ordinalsAddress: 'bc1p-ordinals',
-    paymentAddress: 'bc1q-payment',
-    paymentPublicKey: '02'.repeat(33),
-    ordinalsPublicKey: '02'.repeat(33),
+    ordinalsAddress: ORDINALS_ADDRESS,
+    paymentAddress: PAYMENT_ADDRESS,
+    paymentPublicKey: hex.encode(PAYMENT_PUB),
+    ordinalsPublicKey: hex.encode(ORDINALS_PUB),
     ...over,
   } as WalletInfo;
 }
+
+/** A single-address wallet: one taproot address and key for coins and assets. */
+function singleAddressWallet(over: Partial<WalletInfo> = {}): WalletInfo {
+  return wallet({
+    type: 'unisat' as WalletInfo['type'],
+    paymentAddress: ORDINALS_ADDRESS,
+    paymentPublicKey: hex.encode(ORDINALS_PUB),
+    ...over,
+  });
+}
+
+function coin(seed: string, value: number, vout = 0): TxnOutput {
+  return { txid: seed.repeat(64).slice(0, 64), vout, value, status: { confirmed: true } } as TxnOutput;
+}
+
+const validateSpy = validateInscribeOperation as unknown as jest.Mock;
+const simulateSpy = simulateInscribeFees as unknown as jest.Mock;
 
 // jsdom's File lacks arrayBuffer(); attach a deterministic one so the
 // component's `await file.arrayBuffer()` returns the known bytes.
@@ -273,6 +121,11 @@ function pngFile(sizeBytes = 8, name = 'test.png'): File {
   return makeFile(bytes, name, 'image/png');
 }
 
+/** Highly repetitive text: every codec shrinks it well past the worth-it threshold. */
+function textFile(): File {
+  return makeFile(new TextEncoder().encode('ordpool '.repeat(500)), 'notes.txt', 'text/plain');
+}
+
 function jsFile(): File {
   return makeFile(new Uint8Array([0x2f, 0x2f]), 'evil.js', 'application/javascript');
 }
@@ -280,46 +133,77 @@ function jsFile(): File {
 describe('InscribeMintComponent', () => {
   let component: InscribeMintComponent;
   let fixture: ComponentFixture<InscribeMintComponent>;
-  let orchestrator: any;
+  let orchestrator: InscribeMintOrchestrator;
   let walletSubject: BehaviorSubject<WalletInfo | null>;
+  /** The electrs port: what `getUtxos` answers for the payment address. */
+  let utxos: TxnOutput[];
+  /** The content-scan port: verdict per outpoint, `clean` when unlisted. */
+  let verdicts: Map<string, UtxoClassification>;
+  let setContentSpy: jest.SpyInstance;
+  let setBatchSpy: jest.SpyInstance;
+  let setWalletSpy: jest.SpyInstance;
+  let resetSpy: jest.SpyInstance;
+  let mintSpy: jest.SpyInstance;
+  /** jsdom has no fetch; the real transport resolves it when it is built. */
+  let fetchSpy: jest.Mock;
+
+  /**
+   * Hands the component a snapshot that only the wallet can produce (signing
+   * progress, a sourced padding coin, resolved parents, a failed mint). The
+   * base is the REAL orchestrator's current snapshot and the override is typed
+   * `Partial<InscribeSnapshot>`, so a renamed or removed SDK field fails here.
+   */
+  function emit(over: Partial<InscribeSnapshot>): void {
+    (component as unknown as { snap: WritableSignal<InscribeSnapshot> }).snap.set({ ...orchestrator.getSnapshot(), ...over });
+  }
+
+  /** Lets the real orchestrator's async UTXO load and recompute settle. */
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); }
+    fixture.detectChanges();
+  }
 
   beforeEach(async () => {
-    gateResult = { ok: true, resources: {} };
-    assessCompressionImpl = async (bytes: Uint8Array) => ({
-      worthIt: false, bestEncoding: 'none', originalSize: bytes.length, compressedSize: bytes.length,
-      savedBytes: 0, savedPercent: 0, compressed: bytes,
-    });
     checkInscriptionsExistImpl = async (ids: ReadonlyArray<string>) =>
       new Map(ids.map((id) => [id, 'exists' as Existence]));
-    findRareSatsInOutputsImpl = async (outputs: ReadonlyArray<{ txid: string; vout: number }>) =>
-      outputs.map((u) => ({ utxo: u, address: 'bc1p-ord', rareSat: null, status: 'scanned' as const }));
-    inscribeSatSourceFromRowImpl = (row: PickerRow) =>
-      row.rareSat ? { txid: (row.utxo as { txid: string }).txid, vout: 0, value: 10_000, scriptPubKey: new Uint8Array(34), tapInternalKey: new Uint8Array(32), address: row.address, offset: row.rareSat.offset } : null;
-    setContentSpy.mockClear();
-    setBatchSpy.mockClear();
-    mintSpy.mockClear();
+    findRareSatsInOutputsImpl = async (outputs) =>
+      outputs.map((u) => ({ utxo: u, address: ORDINALS_ADDRESS, rareSat: null, status: 'scanned' as const }));
     validateSpy.mockClear();
     simulateSpy.mockClear();
+    utxos = [];
+    verdicts = new Map();
 
     walletSubject = new BehaviorSubject<WalletInfo | null>(null);
+    fetchSpy = jest.fn(async () => { throw new Error('unexpected network call'); });
+    (globalThis as { fetch?: unknown }).fetch = fetchSpy;
 
     const cat21 = {
-      getUtxos: jest.fn((_: string) => of([] as TxnOutput[])),
+      getUtxos: jest.fn((_: string) => of(utxos)),
       mempoolApiUrl: 'http://electrs.test.invalid',
     };
     const walletService = {
       connectedWallet$: walletSubject.asObservable(),
       requestWalletConnect: jest.fn(),
     };
-    const scanner = { states$: new BehaviorSubject(new Map()), autoScan: jest.fn(), reset: jest.fn(), scan: () => of(null) };
-    const stateService = { recommendedFees$: of({ fastestFee: 5, halfHourFee: 4, hourFee: 3, economyFee: 2, minimumFee: 1 }) };
+    const scanner = {
+      states$: new BehaviorSubject(new Map()),
+      autoScan: jest.fn(),
+      reset: jest.fn(),
+      scan: () => of(null),
+      classify: async (outpoint: string): Promise<UtxoClassification> => verdicts.get(outpoint) ?? 'clean',
+    };
+    const stateService = {
+      recommendedFees$: of({ fastestFee: 5, halfHourFee: 4, hourFee: 3, economyFee: 2, minimumFee: 1 }),
+      // Read by the real `relativeUrl` pipe on the asset links.
+      network: 'mainnet',
+      env: { ROOT_NETWORK: '', BASE_MODULE: 'ordpool' },
+    };
     const seo = { setTitle: jest.fn(), setDescription: jest.fn() };
 
     await TestBed.configureTestingModule({
-      declarations: [InscribeMintComponent],
+      declarations: [InscribeMintComponent, RelativeUrlPipe],
+      imports: [SafeResourceUrlPipe],
       providers: [
-        // The orchestrator is constructed by the component (not injected); we
-        // provide its deps + grab the constructed instance off the component.
         { provide: Cat21Service, useValue: cat21 },
         { provide: UtxoContentScanner, useValue: scanner },
         { provide: WalletService, useValue: walletService },
@@ -333,17 +217,26 @@ describe('InscribeMintComponent', () => {
 
     fixture = TestBed.createComponent(InscribeMintComponent);
     component = fixture.componentInstance;
-    orchestrator = (component as unknown as { orchestrator: any }).orchestrator;
-    // Alias the constructed orchestrator's setContent + mint to the module spies
-    // the tests assert on (harness IO; construction + ngOnInit call neither).
-    orchestrator.setContent = setContentSpy;
-    orchestrator.setBatch = setBatchSpy;
-    orchestrator.mint = jest.fn(async () => { mintSpy(); return { commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) }; });
+    // The real orchestrator the component constructed. Spies call through,
+    // except `mint`, which is the wallet: signing and broadcast.
+    orchestrator = (component as unknown as { orchestrator: InscribeMintOrchestrator }).orchestrator;
+    setContentSpy = jest.spyOn(orchestrator, 'setContent');
+    setBatchSpy = jest.spyOn(orchestrator, 'setBatch');
+    setWalletSpy = jest.spyOn(orchestrator, 'setWallet');
+    resetSpy = jest.spyOn(orchestrator, 'reset');
+    mintSpy = jest.spyOn(orchestrator, 'mint').mockResolvedValue(
+      { commitTxId: 'c'.repeat(64), revealTxId: 'r'.repeat(64) } as Awaited<ReturnType<InscribeMintOrchestrator['mint']>>,
+    );
     fixture.detectChanges();
   });
 
-  it('sends commit and reveal through a package transport on our own electrs', () => {
-    expect(orchestrator.deps.transport).toEqual({ kind: 'esplora-transport', endpoints: ['http://electrs.test.invalid/api'] });
+  it('sends commit and reveal through a package transport on our own electrs', async () => {
+    // The real transport, asked for its dry run: the request must reach our
+    // electrs' package endpoint, nowhere else.
+    const { transport } = (orchestrator as unknown as { deps: { transport: InscribeBroadcastTransport } }).deps;
+    fetchSpy.mockResolvedValueOnce({ ok: true, status: 200, text: async () => '[]' });
+    await transport.testPackage(['00', '11']).catch(() => undefined);
+    expect(fetchSpy.mock.calls[0][0]).toBe('http://electrs.test.invalid/api/txs/test');
   });
 
   it('reads a PNG file → content-type image/png and sets orchestrator content', async () => {
@@ -375,31 +268,31 @@ describe('InscribeMintComponent', () => {
 
   it('computes a pre-connect cost estimate once a file is picked', async () => {
     await (component as any).handleFile(pngFile());
-    expect(simulateSpy).toHaveBeenCalled();
-    expect(component.preConnectMintSats).toBe(4321);
+    // The estimate is the real simulator's funding requirement, unaltered.
+    const sim = simulateSpy.mock.results[simulateSpy.mock.results.length - 1].value as SimulateInscribeFeesResult;
+    expect(sim.fundingRequirementSats).toBeGreaterThan(0);
+    expect(component.preConnectMintSats).toBe(sim.fundingRequirementSats);
   });
 
   it('runs the gate before minting; ok → orchestrator.mint()', async () => {
     await (component as any).handleFile(pngFile());
-    gateResult = { ok: true, resources: {} };
     component.inscribe(wallet());
-    expect(validateSpy).toHaveBeenCalled();
+    expect(validateSpy.mock.results[0].value).toEqual(expect.objectContaining({ ok: true }));
     expect(mintSpy).toHaveBeenCalled();
     expect(component.mintGateError).toBe('');
   });
 
   it('gate rejection → mintGateError set, mint NOT called', async () => {
     await (component as any).handleFile(pngFile());
-    gateResult = { ok: false, reason: 'content-type-blocked', detail: 'application/javascript' };
-    component.inscribe(wallet());
+    // A testnet recipient on this mainnet page: the real gate refuses it.
+    component.inscribe(wallet({ ordinalsAddress: TESTNET_ADDRESS }));
     expect(mintSpy).not.toHaveBeenCalled();
-    expect(component.mintGateError).toContain('content-type-blocked');
+    expect(component.mintGateError).toContain('recipient-wrong-network');
   });
 
   it('single-address wallet → gate ownPaymentAddress is undefined', async () => {
     await (component as any).handleFile(pngFile());
-    const single = wallet({ ordinalsAddress: 'bc1q-same', paymentAddress: 'bc1q-same' });
-    component.inscribe(single);
+    component.inscribe(singleAddressWallet());
     const cfg = validateSpy.mock.calls[0][0].config;
     expect(cfg.ownPaymentAddress).toBeUndefined();
   });
@@ -408,7 +301,7 @@ describe('InscribeMintComponent', () => {
     await (component as any).handleFile(pngFile());
     component.inscribe(wallet());
     const cfg = validateSpy.mock.calls[0][0].config;
-    expect(cfg.ownPaymentAddress).toBe('bc1q-payment');
+    expect(cfg.ownPaymentAddress).toBe(PAYMENT_ADDRESS);
   });
 
   it('derives the inscription id as revealTxId + i0', () => {
@@ -425,28 +318,46 @@ describe('InscribeMintComponent', () => {
   it('inscribeAnother resets orchestrator + local file state', () => {
     component.pickedFile = { name: 'x', bytes: new Uint8Array(1), contentType: 'image/png', sizeBytes: 1 };
     component.inscribeAnother();
-    expect(orchestrator.reset).toHaveBeenCalled();
+    expect(resetSpy).toHaveBeenCalled();
     expect(component.pickedFile).toBeNull();
   });
 
   // ---- Compression (native gzip) ------------------------------------------
 
-  it('worthIt gzip → toggle on by default, compressed body + content_encoding gzip', async () => {
-    const compressed = new Uint8Array([1, 2, 3]);
-    assessCompressionImpl = async () => ({
-      worthIt: true, bestEncoding: 'gzip', originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97, compressed,
+  /**
+   * jsdom lacks the platform codec the SDK compresses with (`Blob.stream`,
+   * `CompressionStream`, `Response`), so a worth-it assessment is built here:
+   * the SDK's own type, with the body gzipped by Node's zlib. Image types never
+   * reach a codec, so the not-worth-it path runs the real function.
+   */
+  function gzipAssessmentOnce(): void {
+    (assessCompression as unknown as jest.Mock).mockImplementationOnce(async (bytes: Uint8Array): Promise<CompressionAssessment> => {
+      const compressed = new Uint8Array(require('zlib').gzipSync(bytes));
+      return {
+        worthIt: true, bestEncoding: 'gzip', originalSize: bytes.length, compressedSize: compressed.length,
+        savedBytes: bytes.length - compressed.length,
+        savedPercent: Math.round(((bytes.length - compressed.length) / bytes.length) * 100),
+        compressed,
+      };
     });
-    await (component as any).handleFile(pngFile());
+  }
+
+  it('worthIt → toggle on by default, compressed body + the winning content_encoding', async () => {
+    gzipAssessmentOnce();
+    await (component as any).handleFile(textFile());
+    const assessment = component.compression;
+    expect(assessment?.worthIt).toBe(true);
     expect(component.compressEnabled).toBe(true);
     expect(component.isCompressed).toBe(true);
-    expect(component.activeContentEncoding).toBe('gzip');
+    expect(component.activeContentEncoding).toBe(assessment?.bestEncoding);
     const last = lastContent();
-    expect(last.source.body).toBe(compressed);
-    expect(last.contentEncoding).toBe('gzip');
+    expect(last.source.body).toBe(assessment?.compressed);
+    expect(last.source.body.length).toBeLessThan(component.pickedFile?.sizeBytes ?? 0);
+    expect(last.contentEncoding).toBe(assessment?.bestEncoding);
   });
 
   it('not-worthIt (already compressed) → toggle off, raw body, no content_encoding', async () => {
-    await (component as any).handleFile(pngFile());   // default mock: worthIt false, encoding none
+    await (component as any).handleFile(pngFile());   // image/png is already compressed: worthIt false
     expect(component.compressEnabled).toBe(false);
     expect(component.activeContentEncoding).toBeUndefined();
     const last = lastContent();
@@ -455,11 +366,9 @@ describe('InscribeMintComponent', () => {
   });
 
   it('toggleCompression(false) after a worthIt pick → falls back to the raw body', async () => {
-    assessCompressionImpl = async () => ({
-      worthIt: true, bestEncoding: 'gzip', originalSize: 100, compressedSize: 3, savedBytes: 97, savedPercent: 97,
-      compressed: new Uint8Array([9, 9, 9]),
-    });
-    await (component as any).handleFile(pngFile());
+    gzipAssessmentOnce();
+    await (component as any).handleFile(textFile());
+    expect(component.isCompressed).toBe(true);
     setContentSpy.mockClear();
     component.toggleCompression(false);
     const last = lastContent();
@@ -489,16 +398,15 @@ describe('InscribeMintComponent', () => {
   function lastContent(): any {
     return setContentSpy.mock.calls[setContentSpy.mock.calls.length - 1]?.[0];
   }
-  function decodeMeta(bytes: Uint8Array): unknown {
-    return JSON.parse(new TextDecoder().decode(bytes));
-  }
+  /** The bytes the real deterministic-CBOR encoder writes for `value`. */
+  const cbor = (value: unknown): Uint8Array => encodeCborDeterministic(value);
 
   it('KV metadata → encoded bytes threaded into content', async () => {
     await (component as any).handleFile(pngFile());
     component.addMetadataRow();
     component.setMetadataRow(0, 'collection', 'cats');
     expect(component.metadataBytes).not.toBeNull();
-    expect(decodeMeta(lastContent().metadata)).toEqual({ collection: 'cats' });
+    expect(lastContent().metadata).toEqual(cbor({ collection: 'cats' }));
   });
 
   it('empty metadata → no metadata tag', async () => {
@@ -530,7 +438,7 @@ describe('InscribeMintComponent', () => {
     expect(component.metadataInvalid).toBe(false);
     const bytes = component.metadataBytes;
     expect(bytes).not.toBeNull();
-    expect(decodeMeta(bytes as Uint8Array)).toEqual({ a: { b: 1 }, list: [1, 2] });
+    expect(bytes).toEqual(cbor({ a: { b: 1 }, list: [1, 2] }));
   });
 
   it('KV → JSON mode serialises the current object', async () => {
@@ -610,13 +518,12 @@ describe('InscribeMintComponent', () => {
     const c = lastContent();
     expect(c.source.delegate).toBe(DELEGATE_ID);
     expect(c.note).toBe('ordpool.space');
-    expect(decodeMeta(c.metadata)).toEqual({ k: 'v' });
+    expect(c.metadata).toEqual(cbor({ k: 'v' }));
   });
 
   it('inscribe() in delegate mode → gate intent has empty body + no contentType, mint runs', () => {
     component.switchInscribeMode('delegate');
     component.onDelegateIdChange(DELEGATE_ID);
-    gateResult = { ok: true, resources: {} };
     component.inscribe(wallet());
     const intent = validateSpy.mock.calls[validateSpy.mock.calls.length - 1][0].operation.intent;
     expect(intent.body.length).toBe(0);
@@ -640,7 +547,6 @@ describe('InscribeMintComponent', () => {
     // 400 KB of metadata pushes body+metadata+note past the 350 KB cap even
     // though the file itself is tiny (the SDK gate only sees the 8-byte file).
     component.metadataBytes = new Uint8Array(400_000);
-    gateResult = { ok: true, resources: {} };
     component.inscribe(wallet());
     expect(component.mintGateError).toMatch(/cap|350/);
     expect(mintSpy).not.toHaveBeenCalled();
@@ -701,63 +607,91 @@ describe('InscribeMintComponent', () => {
     });
   });
 
+  // Every verdict here comes out of the real orchestrator and the real funding
+  // policy (`recommendFunding`), fed through its two IO ports: the coins electrs
+  // lists and what the content scan says about each.
   describe('funding-status gating (inscribe-button enable)', () => {
-    const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
-      orchestrator.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });
-    // The SDK's resolved verdict for the coin that will actually be spent
-    // (`resolvedFundingStatus`), which the CTA gate reads. Coin-based, so a
-    // manual pick of a dirty coin resolves to 'asset-notice' on every wallet.
-    const resolved = (status: string | null, u?: TxnOutput | null) =>
-      orchestrator.resolvedFundingSubject.next({ status, utxo: u ?? null });
+    const DELEGATE = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0';
+    const INSCRIPTION_ON_COIN = 'e'.repeat(64) + 'i0';
+    const carriesInscription: UtxoClassification = {
+      verdict: 'has-assets',
+      assets: { inscriptionIds: [INSCRIPTION_ON_COIN], runeNames: [], catIds: [], rareSat: null },
+    };
+    const outpoint = (u: TxnOutput) => `${u.txid}:${u.vout}`;
 
-    it('fundingStatus() mirrors the orchestrator recommendation (raw topology mirror)', () => {
-      rec('expert-required');
-      expect(component.fundingStatus()).toBe('expert-required');
-      rec('insufficient');
-      expect(component.fundingStatus()).toBe('insufficient');
-    });
+    /** Connect `w` holding `coins`, give it something to inscribe, let the SDK decide. */
+    async function fund(w: WalletInfo, coins: TxnOutput[], dirty: TxnOutput[] = []): Promise<void> {
+      utxos = coins;
+      dirty.forEach((u) => verdicts.set(outpoint(u), carriesInscription));
+      walletSubject.next(w);
+      fixture.detectChanges();
+      await settle();
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange(DELEGATE);
+      component.setFeeRate(2);
+      await settle();
+    }
 
-    it('hasFundingSource() is true on resolved status ready (safe-auto funds, no manual pick)', () => {
-      resolved('ready');
-      expect(component.hasFundingSource()).toBe(true);
+    it('a clean covering coin resolves to ready: CTA enabled, no notice', async () => {
+      await fund(wallet(), [coin('a', 100_000)]);
+      expect(component.fundingStatus()).toBe('auto');
       expect(component.fundingCta().kind).toBe('ready');
-    });
-
-    it('hasFundingSource() is true on resolved asset-notice (a dirty coin WILL be spent, CTA enabled WITH notice)', () => {
-      resolved('asset-notice');
       expect(component.hasFundingSource()).toBe(true);
-      expect(component.fundingCta().kind).toBe('notice');
+      expect(component.assetNotice()).toBeNull();
     });
 
-    it('hasFundingSource() is false on resolved expert-required / insufficient / scanning / null', () => {
-      resolved('expert-required');
-      expect(component.hasFundingSource()).toBe(false);
+    it('only a dirty coin covers, separate payment address: CTA enabled WITH a notice naming the inscription', async () => {
+      const dirty = coin('b', 100_000);
+      await fund(wallet(), [dirty], [dirty]);
+      expect(component.fundingCta().kind).toBe('notice');
+      expect(component.hasFundingSource()).toBe(true);
+      expect(component.assetNotice()?.inscriptionIds).toEqual([INSCRIPTION_ON_COIN]);
+    });
+
+    it('only a dirty coin covers, one address for everything: CTA disabled with the warning', async () => {
+      const dirty = coin('c', 100_000);
+      await fund(singleAddressWallet(), [dirty], [dirty]);
+      expect(component.fundingStatus()).toBe('expert-required');
       expect(component.fundingCta().kind).toBe('warning');
-      resolved('insufficient');
       expect(component.hasFundingSource()).toBe(false);
-      resolved('scanning');
-      expect(component.hasFundingSource()).toBe(false);
-      expect(component.fundingCta().kind).toBe('scanning');
-      resolved(null);
-      expect(component.fundingCta().kind).toBe('scanning');
     });
 
-    it('the CTA follows the RESOLVED coin verdict, not the topology recommendation: a manual dirty pick that recomputes to asset-notice is enabled WITH the assets named (no silent short-circuit to ready)', () => {
-      const dirty = { txid: 'a'.repeat(64), vout: 0, value: 50_000, status: { confirmed: true } } as TxnOutput;
-      rec('expert-required');
-      resolved('expert-required');
+    it('no coin covers: insufficient, CTA disabled', async () => {
+      await fund(wallet(), [coin('d', 1_000)]);
+      expect(component.fundingStatus()).toBe('insufficient');
+      expect(component.fundingCta().kind).toBe('insufficient');
       expect(component.hasFundingSource()).toBe(false);
-      // The user picks the dirty coin by hand; the SDK recomputes coin-based to
-      // 'asset-notice' with that annotated coin as the resolved pick.
-      const annotated = { ...dirty, assets: { inscriptionIds: ['abci0'], runeNames: [], catIds: [], rareSat: null } };
-      orchestrator.fundingRecommendationSubject.next({ status: 'expert-required', recommended: null, candidates: [annotated] as unknown as TxnOutput[] });
-      component.selectPaymentOutput({ paymentOutput: dirty, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000, commitAbsorbedSubDustSats: 0 } as SimulateInscribeFeesResult, available: true, scan: { kind: 'scanned-with-assets', content: {} } as never, bucket: 'assets' });
-      resolved('asset-notice', dirty);
+    });
+
+    it('a scan that has not answered holds the CTA in scanning', async () => {
+      const pending = coin('f', 100_000);
+      // A content scan that never answers: the verdict is unknown, so not clean.
+      const scanner = TestBed.inject(UtxoContentScanner) as unknown as { classify: (outpoint: string) => Promise<UtxoClassification> };
+      scanner.classify = () => new Promise<UtxoClassification>(() => undefined);
+      await fund(wallet(), [pending]);
+      expect(component.fundingCta().kind).toBe('scanning');
+      expect(component.hasFundingSource()).toBe(false);
+      // The snapshot type also allows no resolved verdict at all; that holds too.
+      emit({ resolvedFundingStatus: null });
+      expect(component.fundingCta().kind).toBe('scanning');
+      expect(component.hasFundingSource()).toBe(false);
+    });
+
+    it('the CTA follows the RESOLVED coin, not the recommendation: a hand-picked dirty coin on a one-address wallet is enabled WITH the assets named', async () => {
+      const dirty = coin('a', 100_000);
+      await fund(singleAddressWallet(), [dirty], [dirty]);
+      expect(component.fundingStatus()).toBe('expert-required');
+      expect(component.hasFundingSource()).toBe(false);
+      // The user picks the dirty coin by hand in the picker; the SDK re-decides
+      // for that coin.
+      const sim = orchestrator.getSnapshot().simulations.find((r) => outpoint(r.utxo) === outpoint(dirty));
+      expect(sim?.simulation).toBeTruthy();
+      component.selectPaymentOutput({ paymentOutput: dirty, simulation: sim?.simulation ?? null, available: true, scan: { kind: 'scanned-with-assets', content: {} } as never, bucket: 'assets' });
+      await settle();
+      expect(orchestrator.getSnapshot().resolvedFundingStatus).toBe('asset-notice');
       expect(component.hasFundingSource()).toBe(true);
       expect(component.fundingCta().kind).toBe('notice');
-      // The notice NAMES what the picked coin carries (read from the annotated
-      // candidate by outpoint), so it is not "this coin carries assets".
-      expect(component.assetNotice()?.inscriptionIds).toEqual(['abci0']);
+      expect(component.assetNotice()?.inscriptionIds).toEqual([INSCRIPTION_ON_COIN]);
     });
   });
 
@@ -772,16 +706,25 @@ describe('InscribeMintComponent', () => {
     const row = (u: TxnOutput, commitAbsorbedSubDustSats = 0): ViableInscribeSimulation =>
       ({ paymentOutput: u, simulation: { fundingRequirementSats: 4321, totalFeeSats: 3000, commitAbsorbedSubDustSats } as SimulateInscribeFeesResult, available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
 
-    it('marks the auto-pick coin, and only that one, by outpoint', () => {
+    it('marks the auto-pick coin, and only that one, by outpoint', async () => {
+      // Both cover; ord's best fit (the SDK's selection) takes the smaller one.
       const recCoin = out(40_000);
       const other = out(50_000);
-      orchestrator.fundingRecommendationSubject.next({ status: 'auto', recommended: recCoin, candidates: [recCoin, other] });
+      utxos = [other, recCoin];
+      walletSubject.next(wallet());
+      fixture.detectChanges();
+      await settle();
+      component.switchInscribeMode('delegate');
+      component.onDelegateIdChange('6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0');
+      component.setFeeRate(2);
+      await settle();
+      expect(orchestrator.getSnapshot().fundingRecommendation.recommended?.txid).toBe(recCoin.txid);
       expect(component.isRecommendedRow(row(recCoin))).toBe(true);
       expect(component.isRecommendedRow(row(other))).toBe(false);
     });
 
     it('marks nothing when there is no recommendation', () => {
-      orchestrator.fundingRecommendationSubject.next({ status: 'scanning', recommended: null, candidates: [] });
+      expect(orchestrator.getSnapshot().fundingRecommendation.recommended).toBeNull();
       expect(component.isRecommendedRow(row(out(50_000)))).toBe(false);
     });
 
@@ -817,7 +760,7 @@ describe('InscribeMintComponent', () => {
       const unavailable: ViableInscribeSimulation = { paymentOutput: out(500), simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
       component.selectPaymentOutput(unavailable);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orchestrator.selectedUtxo()).toBeNull();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
   });
 
@@ -1055,7 +998,7 @@ describe('InscribeMintComponent', () => {
   describe('Rare-sat picker (ord --sat targeting)', () => {
     const coin = (txid: string, vout = 0) => ({ txid, vout, value: 10_000, status: { confirmed: true } });
     const row = (over: Partial<PickerRow>): PickerRow => ({
-      utxo: coin('a'.repeat(64)), address: 'bc1p-ord', rareSat: null, status: 'scanned', ...over,
+      utxo: coin('a'.repeat(64)), address: ORDINALS_ADDRESS, rareSat: null, status: 'scanned', ...over,
     });
 
     it('scan splits rows into rare candidates, common, and unknown', async () => {
@@ -1064,7 +1007,7 @@ describe('InscribeMintComponent', () => {
         row({ utxo: coin('b'.repeat(64)), rareSat: null, status: 'scanned' }),       // common
         row({ utxo: coin('c'.repeat(64)), rareSat: null, status: 'unknown', address: null }), // couldn't check
       ];
-      await component.scanForRareSats('bc1p-ord');
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       expect(component.rareSatCandidates.length).toBe(1);
       expect(component.rareSatCandidates[0].rareSat?.rarity).toBe('uncommon');
       expect(component.rareSatUnknownCount).toBe(1);
@@ -1073,7 +1016,7 @@ describe('InscribeMintComponent', () => {
 
     it('a coin that is scanned-but-common is not a candidate and reads as empty', async () => {
       findRareSatsInOutputsImpl = async () => [row({ rareSat: null, status: 'scanned' })];
-      await component.scanForRareSats('bc1p-ord');
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       expect(component.rareSatCandidates.length).toBe(0);
       expect(component.rareSatUnknownCount).toBe(0);
       expect(component.rareSatScannedEmpty).toBe(true);
@@ -1081,14 +1024,14 @@ describe('InscribeMintComponent', () => {
 
     it('an unknown row is counted separately, never as a rare-sat candidate', async () => {
       findRareSatsInOutputsImpl = async () => [row({ status: 'unknown', address: null, rareSat: null })];
-      await component.scanForRareSats('bc1p-ord');
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       expect(component.rareSatCandidates.length).toBe(0);
       expect(component.rareSatUnknownCount).toBe(1);
     });
 
     it('pickRareSat selects, re-pick and clearRareSat both clear', async () => {
       findRareSatsInOutputsImpl = async () => [row({ rareSat: { sat: 1, offset: 0, rarity: 'rare' } })];
-      await component.scanForRareSats('bc1p-ord');
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       const r = component.rareSatCandidates[0];
       component.pickRareSat(r);
       expect(component.selectedRareSat).toBe(r);
@@ -1102,8 +1045,8 @@ describe('InscribeMintComponent', () => {
     it('a below-floor sat is no longer blocked: the orchestrator sources padding, satTarget still builds', async () => {
       walletSubject.next(wallet());
       fixture.detectChanges();
-      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 1, offset: 100, rarity: 'epic' } })];
-      await component.scanForRareSats('bc1p-ord');
+      findRareSatsInOutputsImpl = async () => [row({ address: ORDINALS_ADDRESS, rareSat: { sat: 1, offset: 100, rarity: 'epic' } })];
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       component.pickRareSat(component.rareSatCandidates[0]);
       expect(component.rareSatBlocked).toBe(false);              // padding is not a block anymore
       expect((component as any).satTarget?.kind).toBe('in-utxo'); // target still built
@@ -1111,16 +1054,16 @@ describe('InscribeMintComponent', () => {
 
     it('rareSatPadding surfaces the padding coin the orchestrator sourced (snapshot.padding)', () => {
       expect(component.rareSatPadding()).toBeNull(); // none by default
-      orchestrator._patch({ padding: { utxo: { txid: 'p'.repeat(64), vout: 2, value: 546, status: { confirmed: true } }, shortfallSats: 230, automatic: true } });
+      emit({ padding: { utxo: { txid: 'p'.repeat(64), vout: 2, value: 546, status: { confirmed: true } } as TxnOutput, shortfallSats: 230, automatic: true } });
       const pad = component.rareSatPadding();
-      expect(pad.automatic).toBe(true);
-      expect(pad.utxo.vout).toBe(2);
-      expect(pad.shortfallSats).toBe(230);
+      expect(pad?.automatic).toBe(true);
+      expect(pad?.utxo.vout).toBe(2);
+      expect(pad?.shortfallSats).toBe(230);
     });
 
     it('a scan failure sets an error and leaves no rows', async () => {
       findRareSatsInOutputsImpl = async () => { throw new Error('ord down'); };
-      await component.scanForRareSats('bc1p-ord');
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       expect(component.rareSatError).toBeTruthy();
       expect(component.rareSatRows).toBeNull();
     });
@@ -1141,8 +1084,8 @@ describe('InscribeMintComponent', () => {
 
     it('picking a no-padding rare sat threads an in-utxo satTarget onto the content', async () => {
       withWalletAndContent();
-      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 5, offset: 900, rarity: 'rare' } })];
-      await component.scanForRareSats('bc1p-ord');
+      findRareSatsInOutputsImpl = async () => [row({ address: ORDINALS_ADDRESS, rareSat: { sat: 5, offset: 900, rarity: 'rare' } })];
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       component.pickRareSat(component.rareSatCandidates[0]);
       expect(component.rareSatBlocked).toBe(false);
       expect(lastContent()?.satTarget?.kind).toBe('in-utxo');
@@ -1153,19 +1096,19 @@ describe('InscribeMintComponent', () => {
 
     it('a key mismatch blocks the mint with a reason and no satTarget', async () => {
       withWalletAndContent();
-      inscribeSatSourceFromRowImpl = () => { throw new Error('ordinals key does not derive this coin address'); };
-      findRareSatsInOutputsImpl = async () => [row({ rareSat: { sat: 5, offset: 900, rarity: 'rare' } })];
-      await component.scanForRareSats('bc1p-ord');
+      // The rare sat sits at a taproot address this wallet holds no key for.
+      findRareSatsInOutputsImpl = async () => [row({ address: FOREIGN_TAPROOT, rareSat: { sat: 5, offset: 900, rarity: 'rare' } })];
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       component.pickRareSat(component.rareSatCandidates[0]);
       expect(component.rareSatBlocked).toBe(true);
-      expect(component.rareSatBlockReason).toContain('key');
+      expect(component.rareSatBlockReason).toContain("not at your wallet's ordinals address");
       expect(lastContent()?.satTarget).toBeUndefined();
     });
 
     it('a sat below the dust floor still threads a satTarget (orchestrator pads it, no block)', async () => {
       withWalletAndContent();
-      findRareSatsInOutputsImpl = async () => [row({ address: 'bc1p-ord', rareSat: { sat: 5, offset: 100, rarity: 'epic' } })];
-      await component.scanForRareSats('bc1p-ord');
+      findRareSatsInOutputsImpl = async () => [row({ address: ORDINALS_ADDRESS, rareSat: { sat: 5, offset: 100, rarity: 'epic' } })];
+      await component.scanForRareSats(ORDINALS_ADDRESS);
       component.pickRareSat(component.rareSatCandidates[0]);
       expect(component.rareSatBlocked).toBe(false);            // padding is the orchestrator's job now
       expect(lastContent()?.satTarget?.kind).toBe('in-utxo');  // target still threaded
@@ -1228,7 +1171,6 @@ describe('InscribeMintComponent', () => {
     });
 
     it('inscribeBatch gates every entry: minting proceeds when the gate passes', async () => {
-      gateResult = { ok: true, resources: {} };
       component.toggleBatchMode(true);
       await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
       component.inscribe(wallet());
@@ -1238,8 +1180,8 @@ describe('InscribeMintComponent', () => {
     it('inscribeBatch blocks with an error and does not mint when the gate fails', async () => {
       component.toggleBatchMode(true);
       await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
-      gateResult = { ok: false, reason: 'blocked-content-type', detail: 'nope' };
-      mintSpy.mockClear();
+      // The entry's destination is a testnet address on a mainnet page.
+      component.setBatchEntryDestination(0, TESTNET_ADDRESS);
       component.inscribe(wallet());
       expect(component.mintGateError).toContain('refused');
       expect(mintSpy).not.toHaveBeenCalled();
@@ -1287,8 +1229,8 @@ describe('InscribeMintComponent', () => {
     it('threads ordinalsPublicKey onto the wallet context (parent resolution needs it)', () => {
       walletSubject.next(wallet());
       fixture.detectChanges();
-      expect(orchestrator.setWallet).toHaveBeenCalledWith(
-        expect.objectContaining({ ordinalsPublicKey: '02'.repeat(33) }),
+      expect(setWalletSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ ordinalsPublicKey: hex.encode(ORDINALS_PUB) }),
       );
     });
 
@@ -1301,29 +1243,29 @@ describe('InscribeMintComponent', () => {
       const w = wallet();
       walletSubject.next(w);
       fixture.detectChanges();
-      const callsAfterFirst = (orchestrator.setWallet as jest.Mock).mock.calls.length;
+      const callsAfterFirst = setWalletSpy.mock.calls.length;
       walletSubject.next({ ...w }); // same identity, fresh object reference
       fixture.detectChanges();
-      expect((orchestrator.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst);
+      expect(setWalletSpy.mock.calls.length).toBe(callsAfterFirst);
     });
 
     it('resolvedParents surfaces snapshot.parents', () => {
       expect(component.resolvedParents()).toBeNull();
-      orchestrator._patch({ parents: [{ id: 'a'.repeat(64) + 'i0', address: 'bc1p-parent', value: 546, outpoint: 'a'.repeat(64) + ':0' }] });
+      emit({ parents: [{ id: 'a'.repeat(64) + 'i0', address: ORDINALS_ADDRESS, value: 546, outpoint: 'a'.repeat(64) + ':0' }] });
       expect(component.resolvedParents()?.[0].value).toBe(546);
     });
 
     it('signingMessage names the step for a two-signature batch, generic otherwise', () => {
       expect(component.signingMessage()).toContain('confirm in your wallet'); // no signing yet
-      orchestrator._patch({ signing: { step: 2, of: 2, what: 'parent-inputs' } });
+      emit({ signing: { step: 2, of: 2, what: 'parent-inputs' } });
       expect(component.signingMessage()).toBe('Signature 2 of 2: approve the parent inputs in your wallet');
-      orchestrator._patch({ signing: { step: 1, of: 1, what: 'commit' } });
+      emit({ signing: { step: 1, of: 1, what: 'commit' } });
       expect(component.signingMessage()).toContain('confirm in your wallet'); // single-sig stays generic
     });
 
     it('mintError shows the person-facing userMessage, not the developer errorMessage', () => {
       (component as any).mintAttempted = true;
-      orchestrator._patch({ state: 'error', errorMessage: 'sat-offset-needs-padding', userMessage: 'No single coin covers the padding shortfall.' });
+      emit({ state: 'error', errorMessage: 'sat-offset-needs-padding', userMessage: 'No single coin covers the padding shortfall.' });
       expect(component.mintError()).toBe('No single coin covers the padding shortfall.');
     });
   });
@@ -1332,11 +1274,17 @@ describe('InscribeMintComponent', () => {
     const VALID_DELEGATE = '6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799i0';
     const TAPROOT = 'bc1p64fa7mjsvlfcutnfapwhxyuvchxgk22l4at7xsh4z02tuuqwaj5syt6x2e';
 
-    it('a duplicate trait name disables the inscribe button (was warn-only)', () => {
-      // everything else valid: delegate content + a resolved funding coin + a valid form
+    it('a duplicate trait name disables the inscribe button (was warn-only)', async () => {
+      // everything else valid: delegate content + a clean covering coin + a valid form
+      utxos = [coin('a', 100_000)];
+      walletSubject.next(wallet());
+      fixture.detectChanges();
+      await settle();
       component.switchInscribeMode('delegate');
       component.onDelegateIdChange(VALID_DELEGATE);
-      orchestrator._patch({ resolvedFundingStatus: 'ready' });
+      component.setFeeRate(2);
+      await settle();
+      expect(component.fundingCta().kind).toBe('ready');
       expect(component.mintDisabled).toBe(false);                 // baseline
       component.addTraitRow(); component.addTraitRow();
       component.onTraitNameChange(0, 'Color'); component.onTraitNameChange(1, 'Color');
@@ -1345,7 +1293,6 @@ describe('InscribeMintComponent', () => {
     });
 
     it('inscribeBatch gates each entry with its OWN destination, not the ordinals address', async () => {
-      gateResult = { ok: true, resources: {} };
       component.toggleBatchMode(true);
       await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
       component.setBatchEntryDestination(0, TAPROOT);
@@ -1356,7 +1303,6 @@ describe('InscribeMintComponent', () => {
     });
 
     it('inscribeBatch gates the ordinals address when an entry has no destination', async () => {
-      gateResult = { ok: true, resources: {} };
       component.toggleBatchMode(true);
       await (component as any).addBatchFiles([pngFile(8, 'a.png')]);
       validateSpy.mockClear();

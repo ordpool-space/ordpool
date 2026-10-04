@@ -43,7 +43,8 @@ import { confirmXverseSign } from './xverse-sign';
  *   6. Click it, approve the ONE Xverse sign popup (only the commit
  *      funding input is wallet-signed - the reveal is finalized inside
  *      the orchestrator with an ephemeral key it then zeroes). The page
- *      broadcasts commit + reveal sequentially via POST /api/tx.
+ *      sends commit + reveal as one package via /api/txs/test, then
+ *      /api/txs/package.
  *   7. Read the reveal txid off the success panel, mine, confirm, and
  *      assert the on-chain reveal is a well-formed inscription: parses
  *      through `InscriptionParserService`, carries a `content_encoding`
@@ -356,7 +357,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   expect(revealTxId).not.toBe(commitTxId);
 
   // ─── 9. Confirm both txs, verify the inscription on-chain ──────
-  // Commit + reveal are already in the mempool (broadcast sequentially
+  // Commit + reveal are already in the mempool (sent as one package
   // by the page). One block confirms both - bitcoind packs the reveal
   // in the same block as its unconfirmed commit parent.
   await waitForElectrsSync(mineBlocks(1));
