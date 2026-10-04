@@ -17,7 +17,7 @@ export const environment = {
     // users' traffic to them. Uncomment one only as an emergency fallback when
     // ord.ordpool.space is down. Neither is documented as public.
     // 'https://ordinals.unisat.io', // UniSat, stock ord, no address index
-    // 'https://node.ord.net',       // ord.net, modified ord, extra /inscription fields
+    // 'https://node.ord.net',       // ord.net, modified ord: hides BRC-20 inscriptions (404), so a poor fallback for us
     // TODO: when another compatible ord with the JSON API turns up, add it here.
   ],
   // Testnet has its own list. We run no testnet ord instance and no public
