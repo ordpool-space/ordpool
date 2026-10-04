@@ -1,7 +1,7 @@
 import express, { Express } from 'express';
 import * as http from 'http';
 import { AddressInfo } from 'net';
-import { applyImmutableBlockCacheHeader, createElectrsProxyMiddleware, isImmutableEsploraBlockPath } from '../electrs-proxy-middleware';
+import { applyImmutableBlockCacheHeader, createElectrsProxyMiddleware, isImmutableEsploraBlockPath, MAX_PROXIED_BODY_BYTES, stripMaxTxs } from '../electrs-proxy-middleware';
 
 jest.mock('../logger', () => ({
   __esModule: true,
@@ -327,6 +327,126 @@ describe('immutable esplora block cache', () => {
       const r = await fetchText(`${url}/api/block/${h}/status`);
       expect(r.status).toBe(200);
       expect(r.headers['cache-control']).toBe('public, max-age=10'); // electrs's own, preserved
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+});
+
+// The access rules upstream's nginx applies in front of the backend/electrs
+// split (production/nginx/location-api.conf, http-basic.conf).
+describe('upstream nginx access rules', () => {
+  type Seen = { url: string, bytes: number };
+
+  // A fake electrs that records every request it receives with its body size,
+  // so a test can assert exactly which requests got through.
+  async function recordingElectrs(): Promise<{ server: http.Server, url: string, seen: Seen[] }> {
+    const seen: Seen[] = [];
+    const e = await startFakeElectrs((req, res) => {
+      let bytes = 0;
+      req.on('data', (c: Buffer) => { bytes += c.length; });
+      req.on('end', () => {
+        seen.push({ url: req.url || '', bytes });
+        res.writeHead(200, { 'content-type': 'text/plain' });
+        res.end('electrs');
+      });
+    });
+    return { ...e, seen };
+  }
+
+  function send(url: string, method: string, body: Buffer, chunked: boolean): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const headers: http.OutgoingHttpHeaders = chunked
+        ? { 'transfer-encoding': 'chunked' }
+        : { 'content-length': String(body.length) };
+      const req = http.request(url, { method, headers }, (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode || 0));
+      });
+      // The proxy may answer 413 and close before the whole body is written.
+      req.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code !== 'EPIPE' && err.code !== 'ECONNRESET') { reject(err); }
+      });
+      if (chunked) {
+        const step = 1024 * 1024;
+        for (let i = 0; i < body.length; i += step) { req.write(body.subarray(i, i + step)); }
+        req.end();
+      } else {
+        req.end(body);
+      }
+    });
+  }
+
+  test('403 for electrs /internal and backend /v1/internal, case-insensitively, and nothing reaches either', async () => {
+    const electrs = await recordingElectrs();
+    const v1Hits: string[] = [];
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+    app.get('/api/v1/internal/blocks/definition/current', (req, res) => { v1Hits.push(req.originalUrl); res.send('backend'); });
+    app.get('/api/v1/blocks/tip/height', (req, res) => { v1Hits.push(req.originalUrl); res.send('backend'); });
+
+    const { server, url } = await startServer(app);
+    try {
+      expect((await fetchText(`${url}/api/internal/mempool/txs`)).status).toBe(403);
+      expect((await fetchText(`${url}/api/internal`)).status).toBe(403);
+      expect((await fetchText(`${url}/api/INTERNAL/mempool/txs/all`)).status).toBe(403);
+      expect((await fetchText(`${url}/api/v1/internal/blocks/definition/current`)).status).toBe(403);
+      expect((await fetchText(`${url}/API/V1/Internal/blocks/definition/current`)).status).toBe(403);
+      // Allowed neighbours, to prove the block is not a blanket one.
+      expect((await fetchText(`${url}/api/internalized/x`)).status).toBe(200);
+      expect((await fetchText(`${url}/api/v1/blocks/tip/height`)).status).toBe(200);
+
+      expect(electrs.seen.map(s => s.url)).toEqual(['/internalized/x']);
+      expect(v1Hits).toEqual(['/api/v1/blocks/tip/height']);
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('stripMaxTxs removes max_txs, including a percent-encoded key, and leaves every other URL byte-identical', () => {
+    expect(stripMaxTxs('/address/bc1q/txs?max_txs=100000000&after_txid=ab')).toBe('/address/bc1q/txs?after_txid=ab');
+    expect(stripMaxTxs('/address/bc1q/txs?max_txs=100000000')).toBe('/address/bc1q/txs');
+    expect(stripMaxTxs('/addresses/txs?max%5Ftxs=9&x=1')).toBe('/addresses/txs?x=1');
+    expect(stripMaxTxs('/address/bc1q?since=12345')).toBe('/address/bc1q?since=12345');
+    expect(stripMaxTxs('/q?a=b%20c&d=e+f')).toBe('/q?a=b%20c&d=e+f');
+    expect(stripMaxTxs('/blocks/tip/height')).toBe('/blocks/tip/height');
+  });
+
+  test('electrs receives the history request without max_txs', async () => {
+    const electrs = await recordingElectrs();
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+    const { server, url } = await startServer(app);
+    try {
+      expect((await fetchText(`${url}/api/address/bc1q/txs?max_txs=100000000&after_txid=ab`)).status).toBe(200);
+      expect(electrs.seen.map(s => s.url)).toEqual(['/address/bc1q/txs?after_txid=ab']);
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('a body of exactly the limit is forwarded whole; one byte more is 413 whether declared or chunked', async () => {
+    const electrs = await recordingElectrs();
+    const app = express();
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+    const { server, url } = await startServer(app);
+    try {
+      const atLimit = Buffer.alloc(MAX_PROXIED_BODY_BYTES, 0x61);
+      const overLimit = Buffer.alloc(MAX_PROXIED_BODY_BYTES + 1, 0x61);
+
+      expect(await send(`${url}/api/tx`, 'POST', atLimit, false)).toBe(200);
+      expect(await send(`${url}/api/tx`, 'POST', overLimit, false)).toBe(413);
+      expect(await send(`${url}/api/tx`, 'POST', overLimit, true)).toBe(413);
+      expect(await send(`${url}/api/tx`, 'POST', atLimit, true)).toBe(200);
+
+      // Only the two at-limit bodies arrived, each complete.
+      expect(electrs.seen).toEqual([
+        { url: '/tx', bytes: MAX_PROXIED_BODY_BYTES },
+        { url: '/tx', bytes: MAX_PROXIED_BODY_BYTES },
+      ]);
     } finally {
       await close(server);
       await close(electrs.server);
