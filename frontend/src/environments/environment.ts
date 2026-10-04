@@ -12,10 +12,12 @@ export const environment = {
   // online.
   ordBaseUrls: [
     'https://ord.ordpool.space',
-    // Third-party ords that answer JSON, kept OFF on purpose: we do not send our
-    // users' traffic to them. Uncomment one only as an emergency fallback when
-    // ord.ordpool.space is down. Neither is documented as public.
-    // 'https://ordinals.unisat.io', // UniSat, stock ord, no address index
+    // Fallback only: reached when ord.ordpool.space fails, and only by display
+    // calls through OrdApiService (rune metadata). Signing-path reads use
+    // ordBaseUrls[0] directly and never fall back. UniSat runs stock ord, with
+    // no address index; not documented as public, so it may change.
+    'https://ordinals.unisat.io',
+    // Kept OFF on purpose:
     // 'https://node.ord.net',       // ord.net, modified ord: hides BRC-20 inscriptions (404), so a poor fallback for us
     // TODO: when another compatible ord with the JSON API turns up, add it here.
   ],
