@@ -768,10 +768,14 @@ test('sign-popup cancel keeps state coherent', async () => {
       return true;
     },
   });
+  // "Review transaction" renders before the review has loaded; Xverse can
+  // still be on its spinner there, and a click then is lost. An enabled
+  // Confirm is the signal the review is interactive, as in the happy path.
+  await expect(cancelPopup.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
   await shot(cancelPopup, 'cancel-02-popup');
   const cancel = cancelPopup.getByRole('button', { name: /^cancel$/i }).first();
   await clickApprovalAndRequireClose(
-    { click: (o) => cancel.click({ ...o, force: true }), isVisible: () => cancel.isVisible(), isEnabled: () => cancel.isEnabled() },
+    { click: (o) => cancel.click(o), isVisible: () => cancel.isVisible(), isEnabled: () => cancel.isEnabled() },
     cancelPopup,
     { closeTimeoutMs: 30_000, label: 'Xverse cancel' },
   );

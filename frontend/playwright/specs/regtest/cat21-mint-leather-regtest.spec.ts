@@ -75,12 +75,18 @@ async function approveLeatherConnect(knownPages: Set<Page>, timeoutMs: number, o
   await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { closeTimeoutMs: 30_000, label: 'Leather connect popup' });
 }
 
-// Leather closes its own popup on sign completion; noWaitAfter dodges
-// the post-click stability wait racing the teardown.
+// Leather closes its own popup the moment it signs, which can land while the
+// click itself is still running. The SDK helper treats a page closed by the
+// click as success and then requires the popup to be gone, so a click that
+// never registered still fails.
 async function clickLeatherApproval(popup: Page): Promise<void> {
   const btn = popup.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first();
-  await expect(btn).toBeVisible({ timeout: 10_000 });
-  await btn.click({ noWaitAfter: true, timeout: 30_000 });
+  await expect(btn).toBeEnabled({ timeout: 10_000 });
+  await clickApprovalAndRequireClose(
+    { click: (o) => btn.click({ ...o, noWaitAfter: true }), isVisible: () => btn.isVisible(), isEnabled: () => btn.isEnabled() },
+    popup,
+    { clickTimeoutMs: 30_000, closeTimeoutMs: 30_000, label: 'Leather sign popup' },
+  );
 }
 
 test.beforeAll(async () => {
