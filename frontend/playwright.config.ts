@@ -11,15 +11,15 @@ import { defineConfig, devices } from '@playwright/test';
  *   dev sessions on this machine collide on 4200. Playwright owns a
  *   dedicated port so the two stacks can run side by side.
  * - webServer: auto-spawns `npm run start:ordpool-e2e` so the dev server is
- *   running before tests fire. The script runs `ng serve -c against-prod
- *   --port 4242` which proxies /api/* to the real api.ordpool.space — fine
- *   here since the bitmap-3d E2E route doesn't hit the backend (sizes come
- *   from a Playwright-injected fixture).
+ *   running before tests fire. The script runs `ng serve -c ordpool-e2e
+ *   --port 4242`, a serve config with no proxy: no request can leave
+ *   localhost. The bitmap-3d E2E route needs no backend, its sizes come from
+ *   a Playwright-injected fixture (playwright/fixtures/bitmap-800000.json).
  * - reuseExistingServer: lets `npm run start:ordpool-e2e` already running
  *   in another terminal serve the tests, skipping the ~30s cold-start wait.
  *
- * First-run setup: `npx playwright install chromium` (vendored browsers
- * are ~150MB and skipped by `npm install`).
+ * First-run setup: `npm run ordpool-e2e:install` (vendored browsers are
+ * ~150MB and skipped by `npm install`).
  */
 
 // Headless Chromium throttles setInterval and rAF to ~1Hz when there's

@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the Angular app on `ng serve -c ordpool-e2e` (no proxy, nothing leaves localhost), the bitmap-3d renderer, three.js, nipplejs, headless Chromium (Pixel 7 emulation)
+ * Faked:  the bitmap sizes: the test route /e2e/bitmap-3d reads them from window.__bitmap3dFixture, injected by addInitScript from playwright/fixtures/bitmap-800000.json (mainnet block 800000, committed 2026-05-30 in 527f806b1); BitmapApiService is not on this route
+ * Proves: on a touch device the renderer mounts, PFP mode shows the touch UI, and the jump button and joystick drive the player
+ */
 import { test, expect } from '@playwright/test';
 import {
   loadBitmapFixture,
