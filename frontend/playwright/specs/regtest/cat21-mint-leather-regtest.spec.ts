@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Leather 6.102.0 (.crx, onboarded by onboardLeather)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the /cat21-mint page mints a CAT-21 through Leather (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -6,10 +12,8 @@ import * as fs from 'node:fs';
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 
 import {
-  waitForUtxoAt,
+  fundCommonSats,
   waitForElectrsSync,
-  waitForOrdSync,
-  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
@@ -17,6 +21,7 @@ import {
   onboardLeather,
   waitForOptionalApprovalPopup,
   clickApprovalAndRequireClose,
+  installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -36,7 +41,6 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/cat21-mint';
 
 const FUND_AMOUNT_BTC = 0.001;
-const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 
 
 const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
@@ -89,6 +93,15 @@ async function clickLeatherApproval(popup: Page): Promise<void> {
   );
 }
 
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(
@@ -114,6 +127,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
   extensionId = worker.url().split('/')[2];
@@ -154,22 +168,11 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leathe
   console.log(`[cat21-mint-leather] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
-  console.log(`[cat21-mint-leather] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  const fundedTip = mineBlocks(1);
-  await waitForElectrsSync(fundedTip);
-  // Poll the address→utxo index until the funding UTXO is visible.
-  // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
-  // the address→utxo mapping a tick later, so an immediate getUtxos can
-  // miss the fresh output (observed flaking here across wallets).
-  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
-
-  // Both ords must have indexed the funding block before the funding-safety
-  // scan reads /output/<outpoint>. Stock ord (:8081) answers the inscription/
-  // rune half, cat21-ord (:8080) the cat half. Real endpoints, real empty
-  // result for a clean coin.
-  await waitForOrdStockSync(fundedTip);
-  await waitForOrdSync(fundedTip);
+  // A coin on common sats: the funding-safety scan reads /output on both real
+  // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
+  // first sat. fundCommonSats mines it and waits for electrs and both ords.
+  await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
+  console.log(`[cat21-mint-leather] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });

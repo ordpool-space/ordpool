@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the /cat21-mint page mints a CAT-21 through Unisat (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -6,10 +12,8 @@ import * as fs from 'node:fs';
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 
 import {
-  waitForUtxoAt,
+  fundCommonSats,
   waitForElectrsSync,
-  waitForOrdSync,
-  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
@@ -17,6 +21,7 @@ import {
   onboardUnisat,
   waitForOptionalApprovalPopup,
   clickApprovalAndRequireClose,
+  installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -42,7 +47,6 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/cat21-mint';
 
 const FUND_AMOUNT_BTC = 0.001;
-const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 
 const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.UNISAT_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/unisat');
@@ -79,6 +83,15 @@ async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number, op
   await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { closeTimeoutMs: 30_000, label: 'Unisat connect popup' });
 }
 
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(`Unisat extension not unpacked at ${EXT_PATH}.`);
@@ -101,12 +114,13 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
-  await onboardUnisat(primer, extensionId, { password: 'correct-horse-battery-staple-Tr0ub4dor-9876' });
+  await onboardUnisat(primer, extensionId);
   await primer.close();
 });
 
@@ -136,15 +150,11 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
   // ─── 3. Fund, mine, wait for electrs + BOTH ords ───────────────
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
-  console.log(`[cat21-mint-unisat] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  const fundedTip = mineBlocks(1);
-  await waitForElectrsSync(fundedTip);
-  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
-  // The mock-free funding scan reads /output on both real ords; they must have
-  // indexed the funding block before the scan runs.
-  await waitForOrdStockSync(fundedTip);
-  await waitForOrdSync(fundedTip);
+  // A coin on common sats: the funding-safety scan reads /output on both real
+  // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
+  // first sat. fundCommonSats mines it and waits for electrs and both ords.
+  await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
+  console.log(`[cat21-mint-unisat] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
   // ─── 4. Reload so the orchestrator re-fetches UTXOs ────────────
   const knownPagesBeforeReload = new Set(context.pages());

@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400
+ * Proves: the /cat21-mint page mints a CAT-21 through Xverse (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat); fee tiles set the rate and rates below 0.1 keep Mint disabled; a cat-flagged coin shows the asset badge and "Use anyway" spends it; a cancelled sign and a rejected broadcast show an error and no success; a typed rate (100, and 1 against a hot fee preset) is the on-chain rate
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -9,7 +15,7 @@ import { cleanOutputFixture } from 'ordpool-sdk';
 // Shared regtest helpers + the Xverse approval-popup machinery, single-
 // sourced from the SDK's compiled `ordpool-sdk/e2e` barrel.
 import {
-  getUtxos,
+  waitForUtxoMatching,
   waitForUtxoAt,
   waitForElectrsSync,
   rpc,
@@ -20,6 +26,8 @@ import {
   waitForOptionalApprovalPopup,
   approvalGate,
   clickApprovalAndRequireClose,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 import { confirmXverseSign } from './xverse-sign';
@@ -33,8 +41,8 @@ import { confirmXverseSign } from './xverse-sign';
  *   1. Launch Chromium headed under xvfb with the cached Xverse `.crx`
  *      loaded (its seed `user-data-dir` was produced by the SDK's
  *      global-setup against Bitcoin Regtest with the local electrs URL).
- *   2. Unlock the Xverse vault using the same TEST_PASSWORD the SDK
- *      uses for its own roundtrip spec.
+ *   2. Unlock the Xverse vault with PASSWORD_BY_WALLET.xverse, the
+ *      password the SDK global-setup seeded it with.
  *   3. Navigate to http://localhost:4242/cat21-mint (the dev server the
  *      workflow spins up with the regtest serve config).
  *   4. Click the connect-wallet affordance, approve the Xverse connect
@@ -66,7 +74,6 @@ import { confirmXverseSign } from './xverse-sign';
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/cat21-mint';
-const TEST_PASSWORD = 'TestPassword123!';
 
 // In regtest, 1 BTC = 100M sats. Fund with 0.001 BTC (100,000 sats) —
 // plenty of headroom for the 546-sat output + miner fee at any
@@ -119,6 +126,15 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(
@@ -165,6 +181,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
 
   // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
   // probes ord `/output/<outpoint>` for every covering candidate, regardless of
@@ -175,6 +192,9 @@ test.beforeAll(async () => {
   // outpoint clean at the CONTEXT level. The asset-scanner test registers its own
   // page-level `**/output/*` route, which Playwright evaluates before this one, so
   // its cat-bearing outpoint still surfaces the "asset found" warning.
+  // With /output answered here, no test in this file reads a funding coin's
+  // real sats, so they fund with a plain sendtoaddress: fundCommonSats would
+  // add nothing, and the asset-scanner test needs the funding txid.
   await context.route('**/output/*', async (route) => {
     // Canonical /output shape from the SDK's cleanOutputFixture, so this mock
     // tracks the classifier contract instead of drifting from it. A hand-written
@@ -215,7 +235,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
     return t.includes('unlock') || t.includes('account 1');
   }, undefined, { timeout: 30_000, polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
-    await primer.locator('input[type="password"]').first().fill(TEST_PASSWORD);
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();
@@ -513,22 +533,14 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   console.log(`[asset-scanner] cat-mock target txid=${fundTxid} (small UTXO ${SMALL_FUND_SATS} sat)`);
   const tip = mineBlocks(1);
   await waitForElectrsSync(tip);
-  // Look up the vout that received our 15_000 sat — sendtoaddress's
-  // change vout ordering isn't deterministic.
-  // electrs's address index can lag the chain tip — poll with a
-  // deadline so the test tolerates the per-address indexing delay.
-  let small: { txid: string; vout: number; value: number } | undefined;
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    small = (await getUtxos(paymentAddress)).find(
-      (u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid,
-    );
-    if (small) break;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  if (!small) {
-    throw new Error(`could not find the ${SMALL_FUND_SATS}-sat funding UTXO under ${paymentAddress}`);
-  }
+  // Look up the vout that received our 15_000 sat: sendtoaddress's
+  // change vout ordering isn't deterministic, and electrs's address index
+  // can lag the chain tip, so wait for the outpoint to appear.
+  const small = await waitForUtxoMatching(
+    paymentAddress,
+    (u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid,
+    `txid=${fundTxid} value=${SMALL_FUND_SATS}`,
+  );
   const catOutpoint = `${small.txid}:${small.vout}`;
   console.log(`[asset-scanner] cat-bearing outpoint = ${catOutpoint}`);
 

@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: for each asset class (rare sat, rune, cat, inscription) the inscribe commit spends the clean coin and every seeded dirty coin survives on-chain
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -21,6 +27,8 @@ import {
   SeededDirtyCoin,
   isVisibleWithin,
   waitForOptionalApprovalPopup,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
 import {
   simulateInscribe,
@@ -94,7 +102,6 @@ import { confirmXverseSign } from './xverse-sign';
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const INSCRIBE_PATH = '/inscribe';
-const TEST_PASSWORD = 'TestPassword123!';
 
 const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the inscribe requirement and > every dirty coin
 
@@ -193,6 +200,15 @@ async function measureInscribeTargets(feeRatePerVbyte: number): Promise<{ requir
   return { requirementSats: sim.fundingRequirementSats, preferredSats: sim.fundingPreferredSats };
 }
 
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(`Xverse extension not unpacked at ${EXT_PATH}.`);
@@ -225,6 +241,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
   extensionId = worker.url().split('/')[2];
@@ -238,7 +255,7 @@ test.beforeAll(async () => {
     return t.includes('unlock') || t.includes('account 1');
   }, undefined, { timeout: 30_000, polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
-    await primer.locator('input[type="password"]').first().fill(TEST_PASSWORD);
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();

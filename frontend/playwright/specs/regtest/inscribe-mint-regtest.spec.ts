@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the /inscribe page inscribes an SVG through Xverse: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -8,10 +14,8 @@ import { InscriptionParserService } from 'ordpool-parser';
 // Shared regtest helpers + approval-popup machinery, single-sourced from
 // the SDK's compiled `ordpool-sdk/e2e` barrel.
 import {
-  waitForUtxoAt,
+  fundCommonSats,
   waitForElectrsSync,
-  waitForOrdSync,
-  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
@@ -19,6 +23,8 @@ import {
   waitForApprovalPopup,
   isVisibleWithin,
   waitForOptionalApprovalPopup,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 import { confirmXverseSign } from './xverse-sign';
@@ -32,7 +38,7 @@ import { confirmXverseSign } from './xverse-sign';
  *   1. Launch Chromium headed under xvfb with the cached Xverse `.crx`
  *      loaded (seed `user-data-dir` from the SDK's global-setup, already
  *      switched to Bitcoin Regtest against the local electrs URL).
- *   2. Unlock the vault with the SDK's TEST_PASSWORD.
+ *   2. Unlock the vault with the SDK's PASSWORD_BY_WALLET.xverse.
  *   3. Navigate to /inscribe, click "connect your wallet", approve the
  *      Xverse connect popup, read the payment address from the rendered
  *      "could not find enough funds" hint.
@@ -74,14 +80,12 @@ import { confirmXverseSign } from './xverse-sign';
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/inscribe';
-const TEST_PASSWORD = 'TestPassword123!';
 
 // In regtest, 1 BTC = 100M sats. 0.001 BTC (100,000 sats) is plenty for
 // the two 546-sat inscription outputs + commit/reveal miner fees at any
 // reasonable rate, and large enough that auto-pick lands on it as the
 // only viable row.
 const FUND_AMOUNT_BTC = 0.001;
-const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 
 // The inscription fixture: a tiny SVG. detectMimeType() sniffs the
 // `<svg` prefix and reports image/svg+xml, so that is the content-type
@@ -114,6 +118,15 @@ async function shot(p: Page, name: string): Promise<void> {
     fullPage: true,
   });
 }
+
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
 
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
@@ -159,6 +172,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
 
   let [worker] = context.serviceWorkers();
   if (!worker) {
@@ -183,7 +197,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
     return t.includes('unlock') || t.includes('account 1');
   }, undefined, { timeout: 30_000, polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
-    await primer.locator('input[type="password"]').first().fill(TEST_PASSWORD);
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();
@@ -247,24 +261,11 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   expect(paymentAddress).toMatch(/^bcrt1q/);
 
   // ─── 4. Fund the payment address, mine, wait for electrs ──────
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
-  console.log(`[inscribe-page] funded ${paymentAddress} with ${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  const fundedTip = mineBlocks(1);
-  await waitForElectrsSync(fundedTip);
-
-  // Poll the address→utxo index until the funding UTXO is visible.
-  // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
-  // the address→utxo mapping a tick later, so an immediate getUtxos can
-  // miss the fresh output.
-  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
-
-  // Both ords must have indexed the funding block before the funding-safety
-  // scan reads /output/<outpoint>, or the probe 404s and the coin lands in
-  // the `failed` bucket (the same symptom the old mock papered over). Stock
-  // ord (:8081) answers the inscription/rune half; cat21-ord (:8080) the cat
-  // half. Real endpoints, real empty result for a clean coin.
-  await waitForOrdStockSync(fundedTip);
-  await waitForOrdSync(fundedTip);
+  // A coin on common sats: the funding-safety scan reads /output on both real
+  // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
+  // first sat. fundCommonSats mines it and waits for electrs and both ords.
+  await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
+  console.log(`[inscribe-page] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
   // ─── 4b. Reload so the orchestrator re-fetches UTXOs ───────────
   // getUtxos fires once on connect - funding AFTER connect doesn't

@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, no extension: a watch-only tpub from makeWatchOnlyTestAccount (ordpool-sdk), its PSBT signed outside the browser with that account's key
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the /inscribe page connects a pasted tpub as Taproot, exports the commit PSBT, accepts it signed and broadcasts commit and reveal: both confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -15,6 +21,7 @@ import {
   rpc,
   mineBlocks,
   getTx,
+  installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -88,6 +95,15 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
 test.beforeAll(async () => {
   if (!fs.existsSync(FIXTURE_PATH)) {
     throw new Error(`inscription fixture missing at ${FIXTURE_PATH}`);
@@ -107,6 +123,7 @@ test.beforeAll(async () => {
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
 });
 
 test.afterAll(async () => {

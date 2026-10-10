@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the funding picker flags a real inscription-bearing coin (seedInscribedCoin) and names its inscription id
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -10,6 +16,8 @@ import {
   isVisibleWithin,
   waitForOptionalApprovalPopup,
   approvalGate,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -54,7 +62,6 @@ import { readPaymentAddress } from './payment-address';
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/cat21-mint';
-const TEST_PASSWORD = 'TestPassword123!';
 
 // Big enough to be a covering candidate for a mint, so the funding-safety
 // scan actually considers it and the guard is genuinely asked. This is the
@@ -80,6 +87,15 @@ async function shot(p: Page, name: string): Promise<void> {
     fullPage: true,
   });
 }
+
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
 
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
@@ -112,6 +128,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
   extensionId = worker.url().split('/')[2];
@@ -133,7 +150,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
     return t.includes('unlock') || t.includes('account 1');
   }, undefined, { timeout: 30_000, polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
-    await primer.locator('input[type="password"]').first().fill(TEST_PASSWORD);
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();

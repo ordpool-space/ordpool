@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, cat21-wallet built from source (onboarded by onboardCat21Wallet)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400
+ * Proves: the /cat21-mint page connects cat21-wallet on a bcrt1q payment address and mints a CAT-21 (locktime 21, every input sequence 0xfffffffd, output 0 at 546 sat); a cat-flagged coin shows the asset badge and "Use anyway" spends it; a typed rate is the on-chain rate; a denied sign and a rejected broadcast show an error and no success
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -7,7 +13,7 @@ import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 import { cleanOutputFixture } from 'ordpool-sdk';
 
 import {
-  getUtxos,
+  waitForUtxoMatching,
   waitForUtxoAt,
   waitForElectrsSync,
   rpc,
@@ -19,6 +25,7 @@ import {
   onboardCat21Wallet,
   waitForOptionalApprovalPopup,
   approvalGate,
+  installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -101,6 +108,15 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(
@@ -119,6 +135,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
 
   // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
   // probes ord `/output/<outpoint>` for every covering candidate, regardless of
@@ -129,6 +146,9 @@ test.beforeAll(async () => {
   // outpoint clean at the CONTEXT level. The asset-scanner test registers its own
   // page-level `**/output/*` route, which Playwright evaluates before this one, so
   // its cat-bearing outpoint still surfaces the "asset found" warning.
+  // With /output answered here, no test in this file reads a funding coin's
+  // real sats, so they fund with a plain sendtoaddress: fundCommonSats would
+  // add nothing, and the asset-scanner test needs the funding txid.
   await context.route('**/output/*', async (route) => {
     // Canonical /output shape from the SDK's cleanOutputFixture, so this mock
     // tracks the classifier contract instead of drifting from it. A hand-written
@@ -522,16 +542,11 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   const SMALL_FUND_SATS = 15_000;
   const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.00015').trim();
   await waitForElectrsSync(mineBlocks(1));
-  let small: { txid: string; vout: number; value: number } | undefined;
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    small = (await getUtxos(sharedPaymentAddress)).find(
-      (u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid,
-    );
-    if (small) break;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  if (!small) throw new Error('could not find the small-funding UTXO');
+  const small = await waitForUtxoMatching(
+    sharedPaymentAddress,
+    (u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid,
+    `txid=${fundTxid} value=${SMALL_FUND_SATS}`,
+  );
   const catOutpoint = `${small.txid}:${small.vout}`;
   console.log(`[as] cat-bearing outpoint = ${catOutpoint}`);
 

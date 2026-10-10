@@ -1,3 +1,9 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Wizz 2.13.4 (.crx, onboarded by onboardWizz)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Wizz's vendor backends (ep.wizz.cash, ordx.wizz.cash, wallet-api.unisat.io, api.rgbpp.io) -> installWizzOfflineRoutes (ordpool-sdk)
+ * Proves: the /inscribe page inscribes an SVG through Wizz: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
+ */
 /* eslint-disable no-console */
 import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
@@ -6,19 +12,19 @@ import * as fs from 'node:fs';
 import { InscriptionParserService } from 'ordpool-parser';
 
 import {
-  waitForUtxoAt,
+  fundCommonSats,
   waitForElectrsSync,
-  waitForOrdSync,
-  waitForOrdStockSync,
   waitForTxConfirmed,
   rpc,
   mineBlocks,
   getTx,
   waitForApprovalPopup,
   installWizzOfflineRoutes,
+  approveWizzSignPopup,
   onboardWizz,
   waitForOptionalApprovalPopup,
   clickApprovalAndRequireClose,
+  installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -37,7 +43,6 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
 const MINT_PATH = '/inscribe';
 
 const FUND_AMOUNT_BTC = 0.001;
-const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 
 const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
 const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
@@ -79,36 +84,14 @@ async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number, opts
   await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { closeTimeoutMs: 30_000, label: 'Wizz connect popup' });
 }
 
-// Sign button carries a spinner overlay + braille chars in textContent
-// while Wizz analyses the PSBT - atomically match + click inside
-// page.evaluate to sidestep the pointer-events race.
-async function approveWizzSign(knownPages: Set<Page>): Promise<void> {
-  const approval = await waitForApprovalPopup({
-    context,
-    knownPages,
-    timeoutMs: 120_000,
-    isApproval: async (p) => {
-      await p.waitForURL(/notification\.html#\/approval/, { timeout: 120_000 });
-      return true;
-    },
-  });
-  await shot(approval, '05-sign-popup');
-  await approval.waitForFunction(() => {
-    const isSignButton = (el: Element) => {
-      const text = (el.textContent || '').trim();
-      return /^\s*[⠀-⣿•●]?\s*Sign\s*$/i.test(text);
-    };
-    const els = Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"], div'));
-    const candidate = els.find(isSignButton);
-    if (!candidate) return null;
-    const style = getComputedStyle(candidate);
-    if (style.pointerEvents === 'none') return null;
-    if (parseFloat(style.opacity) < 0.7) return null;
-    candidate.click();
-    return { text: candidate.textContent };
-  }, undefined, { timeout: 60_000, polling: 250 });
-  console.log('[inscribe-wizz] clicked sign button (popup may have closed)');
-}
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
 
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
@@ -138,6 +121,7 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  errorGuard = installContextErrorGuard(context);
   // Hermetic Wizz: stub the wallet's third-party balance/asset backends
   // (ep.wizz.cash / ordx.wizz.cash / wallet-api.unisat.io / api.rgbpp.io)
   // so the sign popup can enable Sign without Wizz server uptime — the
@@ -150,7 +134,7 @@ test.beforeAll(async () => {
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
-  await onboardWizz(primer, extensionId, { password: 'correct-horse-battery-staple-Tr0ub4dor-9876' });
+  await onboardWizz(primer, extensionId);
   await shot(primer, '00-onboarded');
   await primer.close();
 });
@@ -185,22 +169,11 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
   console.log(`[inscribe-wizz] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(FUND_AMOUNT_BTC)).trim();
-  console.log(`[inscribe-wizz] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
-  const fundedTip = mineBlocks(1);
-  await waitForElectrsSync(fundedTip);
-  // Poll the address→utxo index until the funding UTXO is visible.
-  // waitForElectrsSync only confirms the block HEIGHT; electrs indexes
-  // the address→utxo mapping a tick later, so an immediate getUtxos can
-  // miss the fresh output (observed flaking here across wallets).
-  await waitForUtxoAt(paymentAddress, FUND_AMOUNT_SATS);
-
-  // Both ords must have indexed the funding block before the funding-safety
-  // scan reads /output/<outpoint>. Stock ord (:8081) answers the inscription/
-  // rune half, cat21-ord (:8080) the cat half. Real endpoints, real empty
-  // result for a clean coin.
-  await waitForOrdStockSync(fundedTip);
-  await waitForOrdSync(fundedTip);
+  // A coin on common sats: the funding-safety scan reads /output on both real
+  // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
+  // first sat. fundCommonSats mines it and waits for electrs and both ords.
+  await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
+  console.log(`[inscribe-wizz] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -220,7 +193,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', asy
 
   const knownPagesBeforeSign = new Set(context.pages());
   await inscribeButton.click();
-  await approveWizzSign(knownPagesBeforeSign);
+  await approveWizzSignPopup({ context, knownPages: knownPagesBeforeSign, onScreenshot: shot });
   await page.bringToFront();
 
   const successPanel = page.locator('[data-testid="inscribe-success"]');
