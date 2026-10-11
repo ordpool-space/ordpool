@@ -108,14 +108,14 @@ You will probably want to set up a reverse proxy, TLS, etc. There are sample ngi
 <!-- HACK: START Ordpool E2E -->
 ## Ordpool E2E (Playwright)
 
-Ordpool ships browser end-to-end tests under `playwright/`. They cover the bitmap 3D viewer's renderer wiring (intro / orbit / PFP cinematic state machine) and the PFP physics (grounded, jump arc, sprint FOV, walking, exit). The upstream `npm run e2e` / Cypress harness is left alone; this is a separate, parallel suite.
+Ordpool ships browser end-to-end tests under `e2e/bitmap/`. They cover the bitmap 3D viewer's renderer wiring (intro / orbit / PFP cinematic state machine) and the PFP physics (grounded, jump arc, sprint FOV, walking, exit). The upstream `npm run e2e` / Cypress harness is left alone; this is a separate, parallel suite.
 
 ### Why both layers exist
 
 | File | Engine | Covers |
 |---|---|---|
 | `src/app/components/_ordpool/digital-artifact-viewer/bitmap-viewer/bitmap-3d-physics.spec.ts` | Jest | 40 pure-helper tests — state derivation, gravity branch, variable-jump cap, diagonal-magnitude clamp, pitch clamp, FOV target, ease alpha. No three.js, no DOM. |
-| `playwright/specs/bitmap-3d.spec.ts` | Playwright + real Chromium | 7 browser tests proving the renderer mounts, the state machine transitions, and the physics integrates correctly against a real Octree + Capsule. |
+| `e2e/bitmap/{desktop,mobile}/bitmap-3d.e2e.spec.ts` | Playwright + real Chromium | 7 browser tests proving the renderer mounts, the state machine transitions, and the physics integrates correctly against a real Octree + Capsule. |
 
 The Jest tests pin the math. The Playwright tests pin the wiring through three.js. Either layer alone is incomplete — the math may be right but mis-wired, or the wiring may be intact but the math wrong.
 
@@ -156,8 +156,8 @@ its own folder, so adding a desktop test doesn't double-run on mobile
 
 | Path | Project | Device | What's covered |
 |---|---|---|---|
-| `playwright/specs/desktop/` | `chromium` | Desktop Chrome | state machine, physics-via-`tick()`, keyboard input (driven by `setKey` debug hook) |
-| `playwright/specs/mobile/` | `mobile` | Pixel 7 (`hasTouch:true`) | touch UI visibility, joystick zone presence, nipplejs init, jump button tap, joystick drag |
+| `e2e/bitmap/desktop/` | `chromium` | Desktop Chrome | state machine, physics-via-`tick()`, keyboard input (driven by `setKey` debug hook) |
+| `e2e/bitmap/mobile/` | `mobile` | Pixel 7 (`hasTouch:true`) | touch UI visibility, joystick zone presence, nipplejs init, jump button tap, joystick drag |
 
 Drop a new spec into the matching folder — Playwright picks it up via
 the project's `testDir`. No config changes needed.
@@ -174,10 +174,10 @@ Why port **4242** (not the usual 4200): keeps Playwright's ephemeral dev server 
 
 The bitmap-3D viewer's input is a `sizes: number[]` array (Mondrian rectangles). Production reads it via `BitmapApiService.getBitmapData(height)` → `GET /api/v1/ordpool/bitmap/<height>`. E2E bypasses that chain:
 
-1. A canonical fixture (block 800,000 — healthy variety of cube sizes 1-6, immutable on-chain) lives at `playwright/fixtures/bitmap-800000.json`. To regenerate or add a new block:
+1. A canonical fixture (block 800,000 — healthy variety of cube sizes 1-6, immutable on-chain) lives at `e2e/bitmap/fixtures/bitmap-800000.json`. To regenerate or add a new block:
    ```bash
    curl -sf https://api.ordpool.space/api/v1/ordpool/bitmap/<height> \
-     > playwright/fixtures/bitmap-<height>.json
+     > e2e/bitmap/fixtures/bitmap-<height>.json
    ```
 2. Each spec injects the fixture via `page.addInitScript(...)` so `window.__bitmap3dFixture = { sizes: [...] }` is set before any page script runs.
 3. The spec navigates to `/e2e/bitmap-3d` — a test-only Angular route that mounts a thin wrapper component (`Bitmap3dE2EComponent`) which reads from `window.__bitmap3dFixture` and renders `<app-bitmap-3d-renderer [sizes]>`.
@@ -202,7 +202,7 @@ await page.evaluate(() => (window as any).__bitmap3d.setKey('KeyW', true));
 await page.evaluate(() => (window as any).__bitmap3d.jump());
 ```
 
-Cinematic transitions (intro → orbit, orbit → fly-to-pfp → pfp, pfp → fly-to-iso → exit-done) are still rAF-driven — but they complete within the default 30s `waitForFunction` timeout even on the heavily throttled rAF schedule.
+Cinematic transitions (intro → orbit, orbit → fly-to-pfp → pfp, pfp → fly-to-iso → exit-done) are still rAF-driven — but they complete within the runner's 30 s per-wait bound (`actionTimeout` in `playwright.config.ts`) even on the heavily throttled rAF schedule.
 
 ### CI
 
@@ -211,12 +211,12 @@ Cinematic transitions (intro → orbit, orbit → fly-to-pfp → pfp, pfp → fl
 - nightly at **03:17 UTC** (off-the-hour, dodges the 03:00 cron herd on shared GHA runners), and
 - on-demand via the Actions tab → "Ordpool E2E (Playwright)" → "Run workflow".
 
-Runs on `ubuntu-latest` (the `mempool-ci` self-hosted runner that the upstream Cypress workflows use isn't accessible to ordpool). The vendored Chromium is cached by Playwright version. On failure, `playwright-report/` and `test-results/` (videos + traces) upload as artifacts with 14-day retention — drop into Playwright's `show-report` viewer locally to inspect.
+Runs on `ubuntu-latest` (the `mempool-ci` self-hosted runner that the upstream Cypress workflows use isn't accessible to ordpool). The vendored Chromium is cached by Playwright version. The browser reaches loopback only (`offlineLaunchArgs` from `ordpool-sdk/e2e`) and writes Chrome's net log; a step after the suite runs `ordpool-sdk`'s `scripts/check-net-log.mjs` over it and fails on any request that left the runner. On failure, `playwright-report/` and `test-results/` (videos + traces) upload as artifacts with 14-day retention — drop into Playwright's `show-report` viewer locally to inspect.
 
 ### Adding a new spec
 
-1. Drop a `*.spec.ts` under `playwright/specs/`.
-2. Need a different bitmap? Capture it via the `curl` snippet above; commit the JSON to `playwright/fixtures/`.
+1. Drop a `*.e2e.spec.ts` under `e2e/bitmap/desktop/` or `e2e/bitmap/mobile/`.
+2. Need a different bitmap? Capture it via the `curl` snippet above; commit the JSON to `e2e/bitmap/fixtures/`.
 3. Asserting on physics? Use `tick()` rather than `page.waitForTimeout` — see the bitmap-3D spec for the calibrated frame counts (jumping ~30 frames after pulse, falling ~30-80, idle ~110+).
 4. Asserting on cinematic state? Use `waitForFunction` for `state === 'X'` — rAF is throttled but reaches each tween's destination within 30s.
 5. Run locally with `npm run ordpool-e2e:headed` first to watch the spec actually work; commit when green.

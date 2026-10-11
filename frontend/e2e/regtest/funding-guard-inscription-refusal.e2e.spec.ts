@@ -5,7 +5,7 @@
  * Proves: the funding picker flags a real inscription-bearing coin (seedInscribedCoin) and names its inscription id
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -18,6 +18,7 @@ import {
   approvalGate,
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -33,8 +34,8 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * leftover coins. So the pool here is not dirty-only, a clean leftover usually
  * auto-funds, and the status is non-deterministic run to run. The dirty-only
  * asset-notice path is proven separately, on a fresh-vault separate-address
- * wallet, in `funding-guard-notice-leather-regtest.spec.ts`; the one-address
- * block in `funding-guard-warning-block-unisat-regtest.spec.ts`.
+ * wallet, in `funding-guard-notice-leather.e2e.spec.ts`; the one-address
+ * block in `funding-guard-warning-block-unisat.e2e.spec.ts`.
  *
  * The setup seeds a real inscription-bearing UTXO on the payment address via the
  * SDK's `seedInscribedCoin` fixture at 2,000,000 sat (large enough to be a
@@ -68,12 +69,12 @@ const MINT_PATH = '/cat21-mint';
 // SDK fixture's default; named here for the assertion's sake.
 const INSCRIBED_POSTAGE_SATS = 2_000_000;
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
 const SEED_USER_DATA_DIR =
   process.env.XVERSE_SEED_USER_DATA_DIR
-  ?? path.resolve(__dirname, '../../../test-results/xverse-seed-user-data-dir');
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -148,15 +149,10 @@ test.beforeAll(async () => {
   // No /output mock. The scan hits the real local ords (stock :8081 for
   // inscriptions, cat21-ord :8080 for cats) that the workflow wired into
   // environment.ts — which is the whole point of this spec.
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);

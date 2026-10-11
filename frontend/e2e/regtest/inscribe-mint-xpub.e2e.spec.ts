@@ -22,6 +22,12 @@ import {
   mineBlocks,
   getTx,
   installContextErrorGuard,
+  assertPortRefuses,
+  DEAD_PROXY_HOST,
+  DEAD_PROXY_PORT,
+  offlineLaunchArgs,
+  reachableHosts,
+  netLogArgs,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -81,7 +87,7 @@ const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
 const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
 const EXPECTED_BODY = fs.readFileSync(FIXTURE_PATH);
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 
@@ -118,9 +124,12 @@ test.beforeAll(async () => {
 
   // No extension: a plain headed Chromium under xvfb. No .crx, no seeded
   // user-data-dir - the watch-only wallet is a pasted key, not an extension.
+  // No wallet extension, so not launchWalletContext; the same offline switches
+  // and net log the SDK applies to every wallet launch, from its own exports.
+  await assertPortRefuses(DEAD_PROXY_HOST, DEAD_PROXY_PORT);
   context = await chromium.launchPersistentContext('', {
     headless: false,
-    args: ['--no-sandbox', '--disable-dev-shm-usage'],
+    args: ['--no-sandbox', '--disable-dev-shm-usage', ...offlineLaunchArgs(reachableHosts()), ...netLogArgs('xpub')],
     viewport: { width: 1280, height: 900 },
   });
   errorGuard = installContextErrorGuard(context);

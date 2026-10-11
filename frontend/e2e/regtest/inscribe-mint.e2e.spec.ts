@@ -5,7 +5,7 @@
  * Proves: the /inscribe page inscribes an SVG through Xverse: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Locator, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -23,10 +23,11 @@ import {
   waitForApprovalPopup,
   raceApprovalPopup,
   approvalGate,
-  clickConfirmUntilClosed,
+  approveXverseSignPopup,
   installXverseOfflineRoutes,
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -96,13 +97,13 @@ const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
 const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
 const EXPECTED_BODY = fs.readFileSync(FIXTURE_PATH);
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
 const SEED_USER_DATA_DIR =
   process.env.XVERSE_SEED_USER_DATA_DIR
-  ?? path.resolve(__dirname, '../../../test-results/xverse-seed-user-data-dir');
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -150,33 +151,6 @@ async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void>
   await race.page.close();
 }
 
-/**
- * Confirm an Xverse sign popup and require it to close. Xverse can absorb a
- * Confirm click that lands before its handlers attach, so the SDK re-sends
- * the click only while nothing changed; `outcome` is the app's answer to the
- * sign (its success or error surface).
- */
-async function confirmXverseSign(popup: Page, outcome: Locator, label: string): Promise<void> {
-  // Xverse wires the Confirm handler after its fee/details resolve; a live,
-  // pointer-enabled Confirm is the signal the review is interactive.
-  await popup.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.some((b) => {
-      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
-      if (b.hasAttribute('disabled')) return false;
-      const style = getComputedStyle(b);
-      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
-    });
-  }, undefined, { polling: 250 });
-  const confirm = popup.getByRole('button', { name: /^confirm$/i }).first();
-  await expect(confirm).toBeEnabled();
-  await clickConfirmUntilClosed(confirm, popup, {
-    resolved: outcome.waitFor({ state: 'visible' }),
-    maxClicks: 3,
-    label,
-  });
-  await expect.poll(() => popup.isClosed(), { message: `${label}: the sign popup closes after Confirm` }).toBe(true);
-}
 
 // Fails the test on any console.error or uncaught exception of an app page;
 // wallet-extension pages are outside the guard (installContextErrorGuard).
@@ -221,15 +195,10 @@ test.beforeAll(async () => {
     fs.rmSync(path.join(workingDir, stale), { force: true });
   }
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
@@ -363,19 +332,12 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   const knownPagesBeforeSign = new Set(context.pages());
   await inscribeButton.click();
 
-  const approvalSign = await waitForApprovalPopup({
+  await approveXverseSignPopup({
     context,
     knownPages: knownPagesBeforeSign,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByText(/review transaction/i).first()
-        .waitFor({ state: 'visible' });
-      return true;
-    },
+    label: 'Xverse approvalSign',
+    onScreenshot: (p) => shot(p, '07-sign-approval'),
   });
-  await shot(approvalSign, '07-sign-approval');
-
-  await confirmXverseSign(approvalSign, page.locator('[data-testid="inscribe-success"]'), 'Xverse approvalSign');
 
   // ─── 8. Wait for success panel + read commit/reveal txids ──────
   const successPanel = page.locator('[data-testid="inscribe-success"]');

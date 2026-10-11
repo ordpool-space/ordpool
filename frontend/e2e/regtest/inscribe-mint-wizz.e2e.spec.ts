@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, cat21-wallet built from source (onboarded by onboardCat21Wallet)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
- * Proves: the /inscribe page inscribes an SVG through cat21-wallet: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Wizz 2.13.4 (.crx, onboarded by onboardWizz)
+ * Faked:  Wizz's wallet API -> installWizzOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Wizz's vendor backends (ep.wizz.cash, ordx.wizz.cash, wallet-api.unisat.io, api.rgbpp.io) -> installWizzOfflineRoutes (ordpool-sdk)
+ * Proves: the /inscribe page inscribes an SVG through Wizz: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -19,24 +19,26 @@ import {
   mineBlocks,
   getTx,
   waitForApprovalPopup,
-  onboardCat21Wallet,
+  installWizzOfflineRoutes,
+  approveWizzSignPopup,
+  onboardWizz,
   raceApprovalPopup,
   approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
- * E2E (regtest inscribe) - ordpool /inscribe via CAT-21 wallet.
+ * E2E (regtest inscribe) - ordpool /inscribe via Wizz.
  *
- * CAT-21 wallet is OUR Leather fork, a non-native regtest wallet: mainnet HRP from
+ * Wizz is a NON-NATIVE regtest wallet (Unisat-family): mainnet HRP from
  * `getAddresses`, rewritten to `bcrt1…` by the SDK connector's
- * `toRegtestWalletInfo` shim. Sibling of the Xverse/Unisat/Wizz inscribe
- * specs; onboarding + the connect (`get-addresses-approve-button`) and
- * sign (confirm/sign/approve, self-closing popup) choreography lifted
- * from cubes-frontend's proven `leather-cube-mint-roundtrip.spec.ts`.
- * CI-only.
+ * `toRegtestWalletInfo` shim. Proves the page-driven flow works through
+ * a second non-native wallet. Sibling of the Xverse/Unisat inscribe
+ * specs; onboarding + sign choreography lifted from cubes-frontend's
+ * proven `wizz-cube-mint-roundtrip.spec.ts`. CI-only.
  */
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
@@ -48,10 +50,10 @@ const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
 const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
 const EXPECTED_BODY = fs.readFileSync(FIXTURE_PATH);
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
-const EXT_PATH = process.env.CAT21WALLET_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/cat21wallet');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
+const EXT_PATH = process.env.WIZZ_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/wizz');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -61,17 +63,17 @@ test.describe.configure({ mode: 'serial' });
 async function shot(p: Page, name: string): Promise<void> {
   if (p.isClosed()) return;
   await p.screenshot({
-    path: path.resolve(RESULTS_DIR, `cat21wallet-inscribe-user-data-dir.png`),
+    path: path.resolve(RESULTS_DIR, `inscribe-wizz-regtest-${name}.png`),
     fullPage: true,
   });
 }
 
-// CAT-21 wallet (Leather fork) connect approval: get-addresses-approve-button.
-// local: SDK approveCat21WalletConnectPopup has no optional (reload) variant and clicks without requiring the popup to close.
+// Wizz inherits Unisat's connect-approval: a styled "Connect" div at
+// notification.html#/approval.
 /** The wallet's connect popup, recognised by its approve control. */
 const connectApproval = approvalGate({
-  url: /^chrome-extension:\/\//,
-  control: (p) => p.getByTestId('get-addresses-approve-button'),
+  url: /notification\.html#\/approval/,
+  control: (p) => p.getByText(/^Connect$/).first(),
 });
 
 /**
@@ -79,25 +81,17 @@ const connectApproval = approvalGate({
  * wallet from storage after a reload and shows it as connected without asking
  * the wallet, so the popup is approved only if the wallet opens one anyway.
  */
-async function approveCat21WalletConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+async function approveWizzConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
   const search = { context, knownPages, isApproval: connectApproval };
-  let popup: Page;
+  let approval: Page;
   if (opts.reloadedPage) {
     const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
     if (race.outcome === 'no-popup') return;
-    popup = race.page;
+    approval = race.page;
   } else {
-    popup = await waitForApprovalPopup(search);
+    approval = await waitForApprovalPopup(search);
   }
-  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { label: 'cat21-wallet connect popup' });
-}
-
-// CAT-21 wallet closes its own popup on sign completion.
-// local: SDK approveCat21WalletSignPopup anchors on the button's role name, not the sign-psbt-confirm-button testid, and does not require the popup to close.
-async function clickCat21WalletApproval(popup: Page): Promise<void> {
-  const btn = popup.getByTestId('sign-psbt-confirm-button');
-  await expect(btn).toBeVisible();
-  await clickApprovalAndRequireClose(btn, popup, { label: 'cat21-wallet sign popup' });
+  await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { label: 'Wizz connect popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -112,8 +106,8 @@ test.afterEach(() => {
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(
-      `CAT-21 wallet extension not unpacked at ${EXT_PATH}. The workflow should ` +
-      'have run the SDK\'s playwright-bootstrap.sh cat21wallet step.',
+      `Wizz extension not unpacked at ${EXT_PATH}. The workflow should ` +
+      'have run the SDK\'s playwright-bootstrap.sh wizz step.',
     );
   }
   if (!fs.existsSync(FIXTURE_PATH)) {
@@ -124,26 +118,28 @@ test.beforeAll(async () => {
     throw new Error(`regtest tip is ${tip} (<101). regtest-bootstrap.sh should have mined past maturity.`);
   }
 
-  const workingDir = path.resolve(RESULTS_DIR, `cat21wallet-inscribe-user-data-dir-${process.pid}-${Date.now()}`);
+  const workingDir = path.resolve(RESULTS_DIR, `wizz-inscribe-user-data-dir-${process.pid}-${Date.now()}`);
   fs.mkdirSync(workingDir, { recursive: true });
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'wizz',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   errorGuard = installContextErrorGuard(context);
+  // Hermetic Wizz: stub the wallet's third-party balance/asset backends
+  // (ep.wizz.cash / ordx.wizz.cash / wallet-api.unisat.io / api.rgbpp.io)
+  // so the sign popup can enable Sign without Wizz server uptime — the
+  // same canonical helper the SDK + cubes wizz specs use. Without it the
+  // popup shows "Failed to load balance" and Sign stays disabled.
+  await installWizzOfflineRoutes(context);
+
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
-  await onboardCat21Wallet(primer, extensionId);
+  await onboardWizz(primer, extensionId);
   await shot(primer, '00-onboarded');
   await primer.close();
 });
@@ -152,7 +148,7 @@ test.afterAll(async () => {
   await context?.close();
 });
 
-test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wallet', async () => {
+test('inscribe round-trip on regtest via the Angular /inscribe page + Wizz', async () => {
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
   // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
@@ -167,24 +163,24 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-cat21wallet').click();
+  await page.getByTestId('wallet-connect-wizz').click();
   await shot(page, '02-picker-clicked');
-  await approveCat21WalletConnect(knownPagesBeforeConnect);
+  await approveWizzConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
-  console.log(`[inscribe-cat21wallet] payment=${paymentAddress}`);
+  console.log(`[inscribe-wizz] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
   // A coin on common sats: the funding-safety scan reads /output on both real
   // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
   // first sat. fundCommonSats mines it and waits for electrs and both ords.
   await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
-  console.log(`[inscribe-cat21wallet] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
+  console.log(`[inscribe-wizz] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveCat21WalletConnect(knownPagesBeforeReload, { reloadedPage: page });
+  await approveWizzConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
@@ -200,18 +196,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
 
   const knownPagesBeforeSign = new Set(context.pages());
   await inscribeButton.click();
-  const signPopup = await waitForApprovalPopup({
-    context,
-    knownPages: knownPagesBeforeSign,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByTestId('sign-psbt-confirm-button')
-        .waitFor({ state: 'visible' });
-      return true;
-    },
-  });
-  await shot(signPopup, '05-sign-popup');
-  await clickCat21WalletApproval(signPopup);
+  await approveWizzSignPopup({ context, knownPages: knownPagesBeforeSign, onScreenshot: shot });
   await page.bringToFront();
 
   const successPanel = page.locator('[data-testid="inscribe-success"]');
@@ -220,7 +205,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
 
   const commitTxId = (await page.locator('[data-testid="inscribe-commit-txid"]').textContent())!.trim();
   const revealTxId = (await page.locator('[data-testid="inscribe-reveal-txid"]').textContent())!.trim();
-  console.log(`[inscribe-cat21wallet] commit=${commitTxId} reveal=${revealTxId}`);
+  console.log(`[inscribe-wizz] commit=${commitTxId} reveal=${revealTxId}`);
   expect(commitTxId).toMatch(/^[0-9a-f]{64}$/);
   expect(revealTxId).toMatch(/^[0-9a-f]{64}$/);
   expect(revealTxId).not.toBe(commitTxId);
@@ -228,7 +213,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + CAT-21 wal
   await waitForElectrsSync(mineBlocks(1));
   const commitTx = await waitForTxConfirmed(commitTxId);
   const revealTx = await waitForTxConfirmed(revealTxId);
-  console.log(`[inscribe-cat21wallet] commit locktime=${commitTx.locktime} reveal locktime=${revealTx.locktime}`);
+  console.log(`[inscribe-wizz] commit locktime=${commitTx.locktime} reveal locktime=${revealTx.locktime}`);
   expect(commitTx.locktime).toBe(21);
   expect(revealTx.locktime).toBe(21);
   expect(revealTx.status.block_hash).toBeTruthy();

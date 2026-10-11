@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Alby 3.14.2 (.crx, seeded by seedAlbyAccount)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Alby's sign confirm popup: window.alby.webbtc.signPsbt on the app page is patched (addInitScript) to call Alby's own webbtc/signPsbt service-worker route through an extension page, so the wallet signs and only its confirm dialog is skipped
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Alby's sign confirm popup: window.alby.webbtc.signPsbt on the app page is patched (addInitScript) to call Alby's own webbtc/signPsbt service-worker route through an extension page, so the wallet signs and only its confirm dialog is skipped; the seeded Alby account's LNDHub (example.invalid) -> aborted by installAlbyOfflineRoutes (ordpool-sdk)
  * Proves: the /cat21-mint page connects Alby and mints a CAT-21 (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -20,6 +20,8 @@ import {
   seedAlbyAccount,
   installAlbyAutoApprove,
   installContextErrorGuard,
+  launchWalletContext,
+  installAlbyOfflineRoutes,
 } from 'ordpool-sdk/e2e';
 import { readPaymentAddress } from './payment-address';
 
@@ -45,10 +47,10 @@ const MINT_PATH = '/cat21-mint';
 const FUND_AMOUNT_BTC = 0.001;
 
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.ALBY_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/alby');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -110,16 +112,12 @@ test.beforeAll(async () => {
   const workingDir = path.resolve(RESULTS_DIR, `alby-inscribe-user-data-dir-${process.pid}-${Date.now()}`);
   fs.mkdirSync(workingDir, { recursive: true });
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'alby',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
+  await installAlbyOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker');

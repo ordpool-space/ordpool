@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Leather 6.102.0 (.crx, onboarded by onboardLeather)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Leather's vendor backends (mempool.space reads, leather.io, hiro.so, price feeds, telemetry) -> installLeatherOfflineRoutes (ordpool-sdk, captured)
  * Proves: on a separate-address wallet with a dirty-only pool the notice names the inscription id while Mint stays enabled, and the picker flags the coin
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -19,6 +19,8 @@ import {
   approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  launchWalletContext,
+  installLeatherOfflineRoutes,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -60,7 +62,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * It deliberately does NOT click Mint: proceeding here would spend the asset with
  * the user's informed consent, and the point of this spec is the notice, not the
  * spend. The one-address BLOCK is the mirror in
- * funding-guard-warning-block-unisat-regtest.spec.ts.
+ * funding-guard-warning-block-unisat.e2e.spec.ts.
  *
  * CI-only (unverified .crx). See `playwright.regtest.config.ts`.
  */
@@ -72,9 +74,9 @@ const MINT_PATH = '/cat21-mint';
 // (50k), so the coin is auto-scanned to 'assets' and the notice can name it.
 const INSCRIBED_POSTAGE_SATS = 10_000;
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.LEATHER_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/leather');
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -137,16 +139,12 @@ test.beforeAll(async () => {
   const workingDir = path.resolve(RESULTS_DIR, `leather-notice-user-data-dir-${process.pid}-${Date.now()}`);
   fs.mkdirSync(workingDir, { recursive: true });
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'leather',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
+  await installLeatherOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker');

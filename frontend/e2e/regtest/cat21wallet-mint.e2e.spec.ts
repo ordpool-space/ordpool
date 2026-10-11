@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, cat21-wallet built from source (onboarded by onboardCat21Wallet)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400; Cat21 Wallet's vendor backends -> installLeatherOfflineRoutes (ordpool-sdk, captured); its cat21-ord reads (ord.cat21.space) -> the regtest cat21-ord through installCat21WalletOrdRoutes (ordpool-sdk)
  * Proves: the /cat21-mint page connects cat21-wallet on a bcrt1q payment address and mints a CAT-21 (locktime 21, every input sequence 0xfffffffd, output 0 at 546 sat); a cat-flagged coin shows the asset badge and "Use anyway" spends it; a typed rate is the on-chain rate; a denied sign and a rejected broadcast show an error and no success
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -26,6 +26,9 @@ import {
   raceApprovalPopup,
   approvalGate,
   installContextErrorGuard,
+  launchWalletContext,
+  installLeatherOfflineRoutes,
+  installCat21WalletOrdRoutes,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -71,10 +74,10 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4200';
 const MINT_PATH = '/cat21-mint';
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.CAT21WALLET_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/cat21wallet');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 // cat21-ord (cats) and the fees stub, as the regtest stack publishes them.
 const CAT21_ORD_URL = process.env.REGTEST_ORD_URL ?? 'http://localhost:8080';
@@ -157,15 +160,9 @@ test.beforeAll(async () => {
     );
   }
 
-  context = await chromium.launchPersistentContext('', {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'cat21wallet',
+    extensionPath: EXT_PATH,
   });
   errorGuard = installContextErrorGuard(context);
 
@@ -197,6 +194,13 @@ test.beforeAll(async () => {
       body: JSON.stringify(body),
     });
   });
+
+  // The wallet's vendor backends are answered locally or aborted, and its
+  // cat21-ord reads go to the regtest cat21-ord. Registered after the /output
+  // route above, so the wallet's own ord.cat21.space reads reach the regtest
+  // cat21-ord rather than the app's clean fixture (the last route wins).
+  await installLeatherOfflineRoutes(context);
+  await installCat21WalletOrdRoutes(context);
 
   let [worker] = context.serviceWorkers();
   if (!worker) {

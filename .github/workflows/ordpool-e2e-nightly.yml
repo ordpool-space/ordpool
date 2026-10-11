@@ -70,27 +70,37 @@ jobs:
       - name: Generate ordpool config + themes
         # Mirrors what `start:ordpool-e2e` does before `ng serve`. Done as
         # explicit steps here so failures show up cleanly in CI logs
-        # rather than buried in webServer stdout.
+        # rather than buried in webServer stdout. No sync-assets-dev: it
+        # downloads the Blockstream asset registry, and the bitmap route
+        # loads none of it.
         run: |
           npm run generate-themes
           npm run generate-config
-          npm run sync-assets-dev
         working-directory: frontend
 
       - name: Run Playwright suite
-        # CI=true keeps reuseExistingServer false (always spin up our own),
-        # adds 1 retry per spec, switches to the GitHub reporter.
+        # CI=true keeps reuseExistingServer false (always spin up our own)
+        # and switches to the GitHub reporter. The browser reaches loopback
+        # only and writes its net log to ORDPOOL_E2E_NET_LOG_DIR.
         run: npm run ordpool-e2e
         working-directory: frontend
         env:
           CI: 'true'
+          ORDPOOL_E2E_NET_LOG_DIR: ${{ github.workspace }}/net-log
+
+      - name: Check the net logs for requests that left the machine
+        if: always()
+        working-directory: frontend
+        run: node node_modules/ordpool-sdk/scripts/check-net-log.mjs "${{ github.workspace }}/net-log"
 
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: |
+            frontend/playwright-report/
+            net-log
           retention-days: 14
 
       - name: Upload test results (videos / traces on failure)

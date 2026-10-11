@@ -29,12 +29,12 @@ type Win = Window & { __bitmap3d?: Bitmap3dDebug };
 /**
  * Block 800,000 — canonical E2E bitmap. Healthy variety of cube sizes
  * (1-6) so step-up (size-1 auto-climb) and jump (size-2+) both get
- * exercised, immutable on-chain, lives in playwright/fixtures/.
+ * exercised, immutable on-chain, lives in e2e/bitmap/fixtures/.
  */
 export const loadBitmapFixture = (height = 800_000): { sizes: number[] } =>
   JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, `../../fixtures/bitmap-${height}.json`),
+      path.resolve(__dirname, `../fixtures/bitmap-${height}.json`),
       'utf8',
     ),
   );
@@ -44,13 +44,14 @@ export const readDebug = (page: Page) =>
 
 /**
  * In-browser polling for a state value. Avoids Node<->CDP roundtrip per
- * probe and unlike expect.poll catches transient values reliably.
+ * probe and unlike expect.poll catches transient values reliably. Bounded by
+ * the runner config's per-wait bound (`actionTimeout`).
  */
-export const waitForState = (page: Page, target: Bitmap3dDebug['state'], timeout = 30_000) =>
+export const waitForState = (page: Page, target: Bitmap3dDebug['state']) =>
   page.waitForFunction(
     s => (window as unknown as Win).__bitmap3d?.state === s,
     target,
-    { timeout, polling: 100 },
+    { polling: 100 },
   );
 
 /**

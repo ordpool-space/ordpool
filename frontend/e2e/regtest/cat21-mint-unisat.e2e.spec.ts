@@ -5,7 +5,7 @@
  * Proves: the /cat21-mint page mints a CAT-21 through Unisat (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -24,13 +24,14 @@ import {
   clickApprovalAndRequireClose,
   installContextErrorGuard,
   installUnisatOfflineRoutes,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) - ordpool /cat21-mint via Unisat.
  *
- * The cat21-mint counterpart of inscribe-mint-unisat-regtest.spec.ts: the same
+ * The cat21-mint counterpart of inscribe-mint-unisat.e2e.spec.ts: the same
  * non-native wallet (Unisat returns mainnet bc1q; the connector's shim rewrites
  * to bcrt1), the same mock-free real-ord funding scan (stock ord :8081 for
  * inscriptions, cat21-ord :8080 for cats), but drives the /cat21-mint page to a
@@ -50,9 +51,9 @@ const MINT_PATH = '/cat21-mint';
 
 const FUND_AMOUNT_BTC = 0.001;
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.UNISAT_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/unisat');
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -115,15 +116,10 @@ test.beforeAll(async () => {
   const workingDir = path.resolve(RESULTS_DIR, `unisat-cat21mint-user-data-dir-${process.pid}-${Date.now()}`);
   fs.mkdirSync(workingDir, { recursive: true });
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'unisat',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   await installUnisatOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);

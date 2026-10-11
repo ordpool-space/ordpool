@@ -18,6 +18,12 @@ import {
   rpc,
   mineBlocks,
   installContextErrorGuard,
+  assertPortRefuses,
+  DEAD_PROXY_HOST,
+  DEAD_PROXY_PORT,
+  offlineLaunchArgs,
+  reachableHosts,
+  netLogArgs,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -57,7 +63,7 @@ const MINT_PATH = '/cat21-mint';
 // as unscanned and auto-picks it, enabling Mint without a manual UTXO pick.
 const FUND_AMOUNT_BTC = 0.001;
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 
@@ -88,9 +94,12 @@ test.beforeAll(async () => {
       'mined past coinbase maturity before this spec ran.',
     );
   }
+  // No wallet extension, so not launchWalletContext; the same offline switches
+  // and net log the SDK applies to every wallet launch, from its own exports.
+  await assertPortRefuses(DEAD_PROXY_HOST, DEAD_PROXY_PORT);
   context = await chromium.launchPersistentContext('', {
     headless: false,
-    args: ['--no-sandbox', '--disable-dev-shm-usage'],
+    args: ['--no-sandbox', '--disable-dev-shm-usage', ...offlineLaunchArgs(reachableHosts()), ...netLogArgs('xpub')],
     viewport: { width: 1280, height: 900 },
   });
   errorGuard = installContextErrorGuard(context);

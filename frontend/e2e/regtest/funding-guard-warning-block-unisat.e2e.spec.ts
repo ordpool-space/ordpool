@@ -5,7 +5,7 @@
  * Proves: on a one-address wallet with a dirty-only pool the warning shows, Mint stays disabled, nothing is broadcast, and the picker names the inscription; a sub-floor coin renders as "can't fund at this rate"
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -20,6 +20,7 @@ import {
   clickApprovalAndRequireClose,
   installContextErrorGuard,
   installUnisatOfflineRoutes,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -75,9 +76,9 @@ const MINT_PATH = '/cat21-mint';
 // considers it and the guard is genuinely asked (funding-guard's fixture size).
 const INSCRIBED_POSTAGE_SATS = 2_000_000;
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.UNISAT_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/unisat');
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -138,15 +139,10 @@ test.beforeAll(async () => {
   const workingDir = path.resolve(RESULTS_DIR, `unisat-warning-block-user-data-dir-${process.pid}-${Date.now()}`);
   fs.mkdirSync(workingDir, { recursive: true });
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'unisat',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   await installUnisatOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);

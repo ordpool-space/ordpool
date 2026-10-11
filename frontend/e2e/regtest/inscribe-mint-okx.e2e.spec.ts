@@ -5,7 +5,7 @@
  * Proves: the /inscribe page inscribes an SVG through OKX: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -28,6 +28,7 @@ import {
   approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -38,7 +39,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * rewritten to `bcrt1…` by the SDK connector's `toRegtestWalletInfo`
  * shim. OKX's onboarding is the most involved of the .crx wallets
  * (multi-page, multi-iframe, CDP mouse events to defeat anti-bot; the
- * context must launch with `--disable-blink-features=AutomationControlled`).
+ * launch switches it needs come with `launchWalletContext({ wallet: 'okx' })`).
  * Onboarding uses the shared SDK `onboardOkx` helper;
  * connect anchors on the "Connect account" header, and OKX REUSES its
  * extension page for the sign popup (poll all pages for "Signature
@@ -54,10 +55,10 @@ const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
 const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
 const EXPECTED_BODY = fs.readFileSync(FIXTURE_PATH);
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.OKX_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/okx');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -133,19 +134,12 @@ test.beforeAll(async () => {
     throw new Error(`regtest tip is ${tip} (<101). regtest-bootstrap.sh should have mined past maturity.`);
   }
 
-  // Empty '' profile (fresh in-memory) + AutomationControlled off so the
-  // OKX welcome-screen click isn't absorbed by anti-bot. Reuse OKX's
+  // Fresh temporary profile; `wallet: 'okx'` adds the switch that keeps OKX's
+  // welcome-screen click from being absorbed by anti-bot. Reuse OKX's
   // auto-opened onboarding tab.
-  context = await chromium.launchPersistentContext('', {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-blink-features=AutomationControlled',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'okx',
+    extensionPath: EXT_PATH,
   });
   await installOkxOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);

@@ -1,16 +1,11 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Wizz 2.13.4 (.crx, onboarded by onboardWizz)
- * Faked:  Wizz's wallet API -> installWizzOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Wizz's vendor backends (ep.wizz.cash, ordx.wizz.cash, wallet-api.unisat.io, api.rgbpp.io) -> installWizzOfflineRoutes (ordpool-sdk)
- * Proves: the /cat21-mint page mints a CAT-21 through Wizz (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Leather 6.102.0 (.crx, onboarded by onboardLeather)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Leather's vendor backends (mempool.space reads, leather.io, hiro.so, price feeds, telemetry) -> installLeatherOfflineRoutes (ordpool-sdk, captured)
+ * Proves: the /cat21-mint page mints a CAT-21 through Leather (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
-// Runs LAST in the workflow, after inscribe-wizz. The two wizz specs contend
-// when adjacent (a wizz sign popup intermittently stalls past the 60s Sign-wait
-// if another wizz context ran just before), so the matrix separates them: this
-// one runs after every other spec. Proven mock-free against the real ords; the
-// unisat cat21-mint spec is the template.
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -23,25 +18,26 @@ import {
   rpc,
   mineBlocks,
   waitForApprovalPopup,
-  installWizzOfflineRoutes,
-  approveWizzSignPopup,
-  onboardWizz,
+  onboardLeather,
   raceApprovalPopup,
   approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  launchWalletContext,
+  installLeatherOfflineRoutes,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
- * E2E (regtest mint) - ordpool /cat21-mint via Wizz.
+ * E2E (regtest mint) - ordpool /cat21-mint via Leather.
  *
- * Wizz is a NON-NATIVE regtest wallet (Unisat-family): mainnet HRP from
+ * Leather is a NON-NATIVE regtest wallet: mainnet HRP from
  * `getAddresses`, rewritten to `bcrt1…` by the SDK connector's
- * `toRegtestWalletInfo` shim. Proves the page-driven flow works through
- * a second non-native wallet. Sibling of the Xverse/Unisat inscribe
- * specs; onboarding + sign choreography lifted from cubes-frontend's
- * proven `wizz-cube-mint-roundtrip.spec.ts`. CI-only.
+ * `toRegtestWalletInfo` shim. Sibling of the Xverse/Unisat/Wizz inscribe
+ * specs; onboarding + the connect (`get-addresses-approve-button`) and
+ * sign (confirm/sign/approve, self-closing popup) choreography lifted
+ * from cubes-frontend's proven `leather-cube-mint-roundtrip.spec.ts`.
+ * CI-only.
  */
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
@@ -50,10 +46,10 @@ const MINT_PATH = '/cat21-mint';
 const FUND_AMOUNT_BTC = 0.001;
 
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
-const EXT_PATH = process.env.WIZZ_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/wizz');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
+const EXT_PATH = process.env.LEATHER_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/leather');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -63,17 +59,16 @@ test.describe.configure({ mode: 'serial' });
 async function shot(p: Page, name: string): Promise<void> {
   if (p.isClosed()) return;
   await p.screenshot({
-    path: path.resolve(RESULTS_DIR, `cat21-mint-wizz-regtest-${name}.png`),
+    path: path.resolve(RESULTS_DIR, `cat21-mint-leather-regtest-${name}.png`),
     fullPage: true,
   });
 }
 
-// Wizz inherits Unisat's connect-approval: a styled "Connect" div at
-// notification.html#/approval.
+// Leather's connect approval uses the get-addresses-approve-button testid.
 /** The wallet's connect popup, recognised by its approve control. */
 const connectApproval = approvalGate({
-  url: /notification\.html#\/approval/,
-  control: (p) => p.getByText(/^Connect$/).first(),
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByTestId('get-addresses-approve-button'),
 });
 
 /**
@@ -81,17 +76,27 @@ const connectApproval = approvalGate({
  * wallet from storage after a reload and shows it as connected without asking
  * the wallet, so the popup is approved only if the wallet opens one anyway.
  */
-async function approveWizzConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+async function approveLeatherConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
   const search = { context, knownPages, isApproval: connectApproval };
-  let approval: Page;
+  let popup: Page;
   if (opts.reloadedPage) {
     const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
     if (race.outcome === 'no-popup') return;
-    approval = race.page;
+    popup = race.page;
   } else {
-    approval = await waitForApprovalPopup(search);
+    popup = await waitForApprovalPopup(search);
   }
-  await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { label: 'Wizz connect popup' });
+  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { label: 'Leather connect popup' });
+}
+
+// Leather closes its own popup the moment it signs, which can land while the
+// click itself is still running. The SDK helper treats a page closed by the
+// click as success and then requires the popup to be gone, so a click that
+// never registered still fails.
+async function clickLeatherApproval(popup: Page): Promise<void> {
+  const btn = popup.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first();
+  await expect(btn).toBeEnabled();
+  await clickApprovalAndRequireClose(btn, popup, { label: 'Leather sign popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -106,8 +111,8 @@ test.afterEach(() => {
 test.beforeAll(async () => {
   if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
     throw new Error(
-      `Wizz extension not unpacked at ${EXT_PATH}. The workflow should ` +
-      'have run the SDK\'s playwright-bootstrap.sh wizz step.',
+      `Leather extension not unpacked at ${EXT_PATH}. The workflow should ` +
+      'have run the SDK\'s playwright-bootstrap.sh leather step.',
     );
   }
   const tip = Number(rpc('getblockcount').trim());
@@ -115,33 +120,22 @@ test.beforeAll(async () => {
     throw new Error(`regtest tip is ${tip} (<101). regtest-bootstrap.sh should have mined past maturity.`);
   }
 
-  const workingDir = path.resolve(RESULTS_DIR, `wizz-inscribe-user-data-dir-${process.pid}-${Date.now()}`);
+  const workingDir = path.resolve(RESULTS_DIR, `leather-inscribe-user-data-dir-${process.pid}-${Date.now()}`);
   fs.mkdirSync(workingDir, { recursive: true });
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'leather',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
+  await installLeatherOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
-  // Hermetic Wizz: stub the wallet's third-party balance/asset backends
-  // (ep.wizz.cash / ordx.wizz.cash / wallet-api.unisat.io / api.rgbpp.io)
-  // so the sign popup can enable Sign without Wizz server uptime — the
-  // same canonical helper the SDK + cubes wizz specs use. Without it the
-  // popup shows "Failed to load balance" and Sign stays disabled.
-  await installWizzOfflineRoutes(context);
-
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
-  await onboardWizz(primer, extensionId);
+  await onboardLeather(primer, extensionId);
   await shot(primer, '00-onboarded');
   await primer.close();
 });
@@ -150,7 +144,7 @@ test.afterAll(async () => {
   await context?.close();
 });
 
-test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz', async () => {
+test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leather', async () => {
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
   // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
@@ -165,24 +159,24 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-wizz').click();
+  await page.getByTestId('wallet-connect-leather').click();
   await shot(page, '02-picker-clicked');
-  await approveWizzConnect(knownPagesBeforeConnect);
+  await approveLeatherConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
-  console.log(`[cat21-mint-wizz] payment=${paymentAddress}`);
+  console.log(`[cat21-mint-leather] payment=${paymentAddress}`);
   expect(paymentAddress).toMatch(/^bcrt1[qp]|^2/);
 
   // A coin on common sats: the funding-safety scan reads /output on both real
   // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
   // first sat. fundCommonSats mines it and waits for electrs and both ords.
   await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
-  console.log(`[cat21-mint-wizz] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
+  console.log(`[cat21-mint-leather] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveWizzConnect(knownPagesBeforeReload, { reloadedPage: page });
+  await approveLeatherConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
@@ -196,10 +190,21 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
   await expect(mintBtn).toBeEnabled();
   await shot(page, '01-ready-to-mint');
 
-  // ─── 6. Click Mint, approve the Wizz sign popup ────────────────
+  // ─── 6. Click Mint, approve the Leather sign popup ─────────────
   const knownPagesBeforeSign = new Set(context.pages());
   await mintBtn.click();
-  await approveWizzSignPopup({ context, knownPages: knownPagesBeforeSign, onScreenshot: shot });
+  const signPopup = await waitForApprovalPopup({
+    context,
+    knownPages: knownPagesBeforeSign,
+    isApproval: async (p) => {
+      if (!p.url().startsWith('chrome-extension://')) return false;
+      await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
+        .waitFor({ state: 'visible' });
+      return true;
+    },
+  });
+  await shot(signPopup, '02-sign-popup');
+  await clickLeatherApproval(signPopup);
   await page.bringToFront();
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
@@ -209,7 +214,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();
   const broadcastTxid = txidMatch![1];
-  console.log(`[cat21-mint-wizz] mint txid=${broadcastTxid}`);
+  console.log(`[cat21-mint-leather] mint txid=${broadcastTxid}`);
 
   // ─── 8. Mine, confirm, assert a well-formed CAT-21 on-chain ────
   await waitForElectrsSync(mineBlocks(1));

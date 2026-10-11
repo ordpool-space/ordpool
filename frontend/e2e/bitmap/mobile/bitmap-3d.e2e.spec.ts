@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the Angular app on `ng serve -c ordpool-e2e` (no proxy, nothing leaves localhost), the bitmap-3d renderer, three.js, nipplejs, headless Chromium (Pixel 7 emulation)
- * Faked:  the bitmap sizes: the test route /e2e/bitmap-3d reads them from window.__bitmap3dFixture, injected by addInitScript from playwright/fixtures/bitmap-800000.json (mainnet block 800000, committed 2026-05-30 in 527f806b1); BitmapApiService is not on this route
+ * Faked:  the bitmap sizes: the test route /e2e/bitmap-3d reads them from window.__bitmap3dFixture, injected by addInitScript from e2e/bitmap/fixtures/bitmap-800000.json (mainnet block 800000, committed 2026-05-30 in 527f806b1); BitmapApiService is not on this route
  * Proves: on a touch device the renderer mounts, PFP mode shows the touch UI, and the jump button and joystick drive the player
  */
 import { test, expect } from '@playwright/test';
@@ -97,7 +97,7 @@ test.describe('bitmap-3d renderer (mobile)', () => {
     await page.waitForFunction(() => {
       const z = document.querySelector('app-bitmap-3d-renderer .touch-joy-zone-left');
       return !!(z && z.childElementCount > 0);
-    }, undefined, { timeout: 10_000, polling: 100 });
+    }, undefined, { polling: 100 });
   });
 
   test('dragging the left joystick zone moves joy.fwd off zero', async ({ page }) => {
@@ -111,7 +111,7 @@ test.describe('bitmap-3d renderer (mobile)', () => {
     await page.waitForFunction(() => {
       const z = document.querySelector('app-bitmap-3d-renderer .touch-joy-zone-left');
       return !!(z && z.childElementCount > 0);
-    }, undefined, { timeout: 10_000, polling: 100 });
+    }, undefined, { polling: 100 });
 
     // Dispatch synthetic PointerEvents from inside the page — nipplejs
     // binds pointerdown on the zone and pointermove/pointerup on the

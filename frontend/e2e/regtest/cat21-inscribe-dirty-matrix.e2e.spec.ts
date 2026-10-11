@@ -5,7 +5,7 @@
  * Proves: for each asset class (rare sat, rune, cat, inscription) the inscribe commit spends the clean coin and every seeded dirty coin survives on-chain
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Locator, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -27,10 +27,11 @@ import {
   SeededDirtyCoin,
   raceApprovalPopup,
   approvalGate,
-  clickConfirmUntilClosed,
+  approveXverseSignPopup,
   installXverseOfflineRoutes,
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import {
   simulateInscribe,
@@ -47,7 +48,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * covering coin plus one dirty coin, inscribes a fixed SVG, and asserts the
  * dirty coin SURVIVES.
  *
- * The inscribe twin of `cat21-mint-dirty-matrix-regtest.spec.ts`. Same shape,
+ * The inscribe twin of `cat21-mint-dirty-matrix.e2e.spec.ts`. Same shape,
  * same SDK guard, different flow: the wallet signs ONE popup (the commit funding
  * input; the reveal is finalized inside the orchestrator), and the commit tx is
  * the one that spends the funding coin — so SURVIVAL is asserted against the
@@ -143,12 +144,12 @@ const CELLS: { asset: DirtyCoinAsset; label: string }[] = [
   { asset: 'inscription', label: 'inscription' }, // bottom rung, clears headroom
 ];
 
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
 const SEED_USER_DATA_DIR =
   process.env.XVERSE_SEED_USER_DATA_DIR
-  ?? path.resolve(__dirname, '../../../test-results/xverse-seed-user-data-dir');
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
@@ -195,33 +196,6 @@ async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void>
   await race.page.close();
 }
 
-/**
- * Confirm an Xverse sign popup and require it to close. Xverse can absorb a
- * Confirm click that lands before its handlers attach, so the SDK re-sends
- * the click only while nothing changed; `outcome` is the app's answer to the
- * sign (its success or error surface).
- */
-async function confirmXverseSign(popup: Page, outcome: Locator, label: string): Promise<void> {
-  // Xverse wires the Confirm handler after its fee/details resolve; a live,
-  // pointer-enabled Confirm is the signal the review is interactive.
-  await popup.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.some((b) => {
-      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
-      if (b.hasAttribute('disabled')) return false;
-      const style = getComputedStyle(b);
-      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
-    });
-  }, undefined, { polling: 250 });
-  const confirm = popup.getByRole('button', { name: /^confirm$/i }).first();
-  await expect(confirm).toBeEnabled();
-  await clickConfirmUntilClosed(confirm, popup, {
-    resolved: outcome.waitFor({ state: 'visible' }),
-    maxClicks: 3,
-    label,
-  });
-  await expect.poll(() => popup.isClosed(), { message: `${label}: the sign popup closes after Confirm` }).toBe(true);
-}
 
 /**
  * The two funding targets selection will use for this exact envelope + fee rate,
@@ -290,15 +264,10 @@ test.beforeAll(async () => {
   }
 
   // No /output mock: real ords report the seeded assets (survival needs a real coin).
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
@@ -430,7 +399,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   // is the diagnostic: this surface waits for toBeEnabled first, so it should be
   // clean, and a clicks>1 here is real evidence of the mechanism, not a guess.
   const knownBeforeSign = new Set(context.pages());
-  const { page: approvalSign, clicks } = await clickUntilApprovalPopup(inscribeButton, {
+  const { clicks } = await clickUntilApprovalPopup(inscribeButton, {
     context,
     knownPages: knownBeforeSign,
     isApproval: xverseSignApproval,
@@ -438,7 +407,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
     label: 'inscribe-btn',
   });
   expect(clicks, 'inscribe-btn opened the sign popup on ONE click; >1 means a swallowed click').toBe(1);
-  await confirmXverseSign(approvalSign, page.locator('[data-testid="inscribe-success"]'), 'Xverse approvalSign');
+  await approveXverseSignPopup({ context, knownPages: knownBeforeSign, label: 'Xverse approvalSign' });
 
   // Success panel → read the COMMIT txid (the tx that spends the funding coin).
   const successPanel = page.locator('[data-testid="inscribe-success"]');

@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the Angular app on `ng serve -c ordpool-e2e` (no proxy, nothing leaves localhost), the bitmap-3d renderer, three.js, headless Chromium (Desktop Chrome)
- * Faked:  the bitmap sizes: the test route /e2e/bitmap-3d reads them from window.__bitmap3dFixture, injected by addInitScript from playwright/fixtures/bitmap-800000.json (mainnet block 800000, committed 2026-05-30 in 527f806b1); BitmapApiService is not on this route
+ * Faked:  the bitmap sizes: the test route /e2e/bitmap-3d reads them from window.__bitmap3dFixture, injected by addInitScript from e2e/bitmap/fixtures/bitmap-800000.json (mainnet block 800000, committed 2026-05-30 in 527f806b1); BitmapApiService is not on this route
  * Proves: the renderer mounts once, walks the orbit -> pfp -> exit-done state machine, and its PFP physics (grounding, jump arc, walk, sprint FOV, bunny-hop) behave
  */
 import { test, expect } from '@playwright/test';
@@ -192,7 +192,7 @@ test.describe('bitmap-3d renderer', () => {
 
     // The fly tween IS rAF-driven (not tick-driven). Headless throttling
     // means rAF fires every ~2-5s, and the 1.5s tween completes in 1-2 of
-    // those firings. The default 30s waitForState timeout covers it.
+    // those firings. The runner's 30 s per-wait bound covers it.
     await waitForState(page, 'exit-done');
   });
 });

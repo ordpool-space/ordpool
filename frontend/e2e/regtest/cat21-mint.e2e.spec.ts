@@ -5,7 +5,7 @@
  * Proves: the /cat21-mint page mints a CAT-21 through Xverse (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat); fee tiles set the rate and rates below 0.1 keep Mint disabled; a cat-flagged coin shows the asset badge and "Use anyway" spends it; a cancelled sign and a rejected broadcast show an error and no success; a typed rate (100, and 1 against a hot fee preset) is the on-chain rate
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Locator, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -25,10 +25,11 @@ import {
   raceApprovalPopup,
   approvalGate,
   clickApprovalAndRequireClose,
-  clickConfirmUntilClosed,
+  approveXverseSignPopup,
   installContextErrorGuard,
   installXverseOfflineRoutes,
   PASSWORD_BY_WALLET,
+  launchWalletContext,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -85,13 +86,13 @@ const FUND_AMOUNT_SATS = Math.round(FUND_AMOUNT_BTC * 1e8);
 // The SDK ships its unpacked Xverse extension + seed user-data-dir
 // under its own e2e/ directory. The workflow caches both and they
 // land in node_modules at runtime via `npm ci`.
-const SDK_E2E_DIR = path.resolve(__dirname, '../../../node_modules/ordpool-sdk/e2e');
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
 const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
 const SEED_USER_DATA_DIR =
   process.env.XVERSE_SEED_USER_DATA_DIR
-  ?? path.resolve(__dirname, '../../../test-results/xverse-seed-user-data-dir');
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 // cat21-ord (cats) and the fees stub, as the regtest stack publishes them.
 const CAT21_ORD_URL = process.env.REGTEST_ORD_URL ?? 'http://localhost:8080';
@@ -160,33 +161,6 @@ async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void>
   await race.page.close();
 }
 
-/**
- * Confirm an Xverse sign popup and require it to close. Xverse can absorb a
- * Confirm click that lands before its handlers attach, so the SDK re-sends
- * the click only while nothing changed; `outcome` is the app's answer to the
- * sign (its success or error alert).
- */
-async function confirmXverseSign(popup: Page, outcome: Locator, label: string): Promise<void> {
-  // Xverse wires the Confirm handler after its fee/details resolve; a live,
-  // pointer-enabled Confirm is the signal the review is interactive.
-  await popup.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.some((b) => {
-      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
-      if (b.hasAttribute('disabled')) return false;
-      const style = getComputedStyle(b);
-      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
-    });
-  }, undefined, { polling: 250 });
-  const confirm = popup.getByRole('button', { name: /^confirm$/i }).first();
-  await expect(confirm).toBeEnabled();
-  await clickConfirmUntilClosed(confirm, popup, {
-    resolved: outcome.waitFor({ state: 'visible' }),
-    maxClicks: 3,
-    label,
-  });
-  await expect.poll(() => popup.isClosed(), { message: `${label}: the sign popup closes after Confirm` }).toBe(true);
-}
 
 // Fails the test on any console.error or uncaught exception of an app page;
 // wallet-extension pages are outside the guard (installContextErrorGuard).
@@ -233,15 +207,10 @@ test.beforeAll(async () => {
     fs.rmSync(path.join(workingDir, stale), { force: true });
   }
 
-  context = await chromium.launchPersistentContext(workingDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXT_PATH}`,
-      `--load-extension=${EXT_PATH}`,
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-    viewport: { width: 1280, height: 900 },
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
   });
   await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
@@ -442,13 +411,12 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   const knownPagesBeforeSign = new Set(context.pages());
   await mintButton.click();
 
-  const approvalSign = await waitForApprovalPopup({
+  await approveXverseSignPopup({
     context,
     knownPages: knownPagesBeforeSign,
-    isApproval: xverseSignApproval,
+    label: 'Xverse approvalSign',
+    onScreenshot: (p) => shot(p, '07-sign-approval'),
   });
-  await shot(approvalSign, '07-sign-approval');
-  await confirmXverseSign(approvalSign, page.locator('.alert.alert-success').first(), 'Xverse approvalSign');
 
   // ─── 7. Wait for success card + extract broadcast txid ────────
   const successAlert = page.locator('.alert.alert-success').first();
@@ -678,12 +646,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
 
   const knownBeforeBurnSign = new Set(context.pages());
   await mintBtn.click();
-  const burnSign = await waitForApprovalPopup({
-    context,
-    knownPages: knownBeforeBurnSign,
-    isApproval: xverseSignApproval,
-  });
-  await confirmXverseSign(burnSign, page.locator('.alert.alert-success').first(), 'Xverse burnSign');
+  await approveXverseSignPopup({ context, knownPages: knownBeforeBurnSign, label: 'Xverse burnSign' });
 
   const burnSuccess = page.locator('.alert.alert-success').first();
   await expect(burnSuccess).toBeVisible();
@@ -831,17 +794,12 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
   // fails downstream.
   const knownBeforeBcast = new Set(context.pages());
   await mintButton.click();
-  const bcastSign = await waitForApprovalPopup({
-    context,
-    knownPages: knownBeforeBcast,
-    isApproval: xverseSignApproval,
-  });
   // Chromium logs the fulfilled 400 as a failed resource load on the app page.
   errorGuard?.expectBrowserError(
     /the server responded with a status of 400 \(Bad Request\)/,
     'the spec fulfils POST /api/tx with 400 to prove the broadcast error path',
   );
-  await confirmXverseSign(bcastSign, page.locator('.alert.alert-danger, .alert-danger').first(), 'Xverse bcastSign');
+  await approveXverseSignPopup({ context, knownPages: knownBeforeBcast, label: 'Xverse bcastSign' });
 
   // Error alert must appear; success alert must NOT.
   const errorAlert = page.locator('.alert.alert-danger, .alert-danger').first();
@@ -950,13 +908,12 @@ async function ordpoolMintAtRate(opts: {
     // ─── Click Mint, approve Xverse sign popup ───────────────────
     const knownBeforeSign = new Set(context.pages());
     await mintButton.click();
-    const approvalSign = await waitForApprovalPopup({
+    await approveXverseSignPopup({
       context,
       knownPages: knownBeforeSign,
-      isApproval: xverseSignApproval,
+      label: 'Xverse approvalSign',
+      onScreenshot: (p) => shot(p, `mr-${opts.scenarioLabel}-03-sign-popup`),
     });
-    await shot(approvalSign, `mr-${opts.scenarioLabel}-03-sign-popup`);
-    await confirmXverseSign(approvalSign, page.locator('.alert.alert-success').first(), 'Xverse approvalSign');
 
     // ─── Wait for success alert + extract broadcast txid ─────────
     const successAlert = page.locator('.alert.alert-success').first();

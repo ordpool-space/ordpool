@@ -41,8 +41,8 @@ const TEST_TIMEOUT_MS = 300_000;
  * under xvfb to give it a display.
  */
 export default defineConfig({
-  testDir: path.resolve(__dirname, 'playwright/specs/regtest'),
-  testMatch: '**/*.spec.ts',
+  testDir: path.resolve(__dirname, 'e2e/regtest'),
+  testMatch: '**/*.e2e.spec.ts',
   fullyParallel: false,
   workers: 1,
   // Zero retries, on purpose. A retry hides a real failure behind a second roll

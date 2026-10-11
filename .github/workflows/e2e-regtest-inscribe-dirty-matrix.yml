@@ -40,10 +40,10 @@ on:
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
       - 'frontend/src/app/components/master-page/**'
-      - 'frontend/playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts'
-      - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
-      - 'frontend/playwright/specs/regtest/fixtures/**'
-      - 'frontend/playwright/specs/regtest/payment-address.ts'
+      - 'frontend/e2e/regtest/cat21-inscribe-dirty-matrix.e2e.spec.ts'
+      - 'frontend/e2e/regtest/funding-guard-notice-leather.e2e.spec.ts'
+      - 'frontend/e2e/regtest/fixtures/**'
+      - 'frontend/e2e/regtest/payment-address.ts'
 
 permissions:
   contents: read
@@ -72,6 +72,10 @@ jobs:
       # bitcoind is the consumer-environment's, so every rpc() has to name it -
       # the SDK default ordpool-e2e-bitcoind no longer exists in this job.
       REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+      # Every wallet browser writes Chrome's net log here (launchWalletContext);
+      # the net-log check after the specs fails on any request that left the
+      # machine.
+      ORDPOOL_E2E_NET_LOG_DIR: ${{ github.workspace }}/net-log
     steps:
       - name: Checkout ordpool
         uses: actions/checkout@v4
@@ -98,6 +102,13 @@ jobs:
         run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
         working-directory: frontend
 
+      # ordpool-electrs, cat21-ord and cat21-wallet build from the shas the
+      # pinned SDK was proven with (TESTING.md: CI builds exactly what is
+      # pinned); the SDK's bootstrap fails under CI on a checkout at another sha.
+      - name: Read the SDK's build pins
+        working-directory: frontend
+        run: grep -E '^[A-Z0-9_]+=' node_modules/ordpool-sdk/e2e/build-pins.env >> "$GITHUB_ENV"
+
       # OUR electrs. The SDK's consumer-environment.yml builds the electrs
       # service from the ordpool-electrs fork (not the upstream
       # mempool/electrs image) — ELECTRS_SRC points its build context at
@@ -107,7 +118,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/ordpool-electrs
-          ref: ordpool
+          ref: ${{ env.ORDPOOL_ELECTRS_SHA }}
           path: ordpool-electrs
 
       # cat21-ord source for BOTH ord containers the funding-safety scan
@@ -119,7 +130,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/cat21-ord
-          ref: index-cat21
+          ref: ${{ env.CAT21_ORD_SHA }}
           path: cat21-ord
 
       # buildx gha cache: reuse the compiled electrs image across runs
@@ -394,7 +405,7 @@ jobs:
             -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
             -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
             -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
-            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
+            -e "s|'https://ordinals.unisat.io'|'http://localhost:8081'|" \
             -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
             src/environments/environment.ts
           # ordBaseUrls -> the STOCK ord (:8081, real inscriptions/runes/sat_ranges)
@@ -522,7 +533,7 @@ jobs:
           REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts \
+            npx playwright test e2e/regtest/cat21-inscribe-dirty-matrix.e2e.spec.ts \
             --config=playwright.regtest.config.ts \
             --output=test-results/cat21-inscribe-dirty-matrix
 
@@ -544,9 +555,16 @@ jobs:
           REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts \
+            npx playwright test e2e/regtest/funding-guard-notice-leather.e2e.spec.ts \
             --config=playwright.regtest.config.ts \
             --output=test-results/funding-guard-notice-leather
+
+      # Nothing a spec's browser did may leave the runner: every launch was
+      # offline (launchWalletContext), and the net logs prove it.
+      - name: Check the net logs for requests that left the machine
+        if: always()
+        working-directory: frontend
+        run: node node_modules/ordpool-sdk/scripts/check-net-log.mjs "$ORDPOOL_E2E_NET_LOG_DIR"
 
       - name: Upload Playwright artifacts
         if: always()
@@ -559,6 +577,7 @@ jobs:
             build.log
             serve.log
             fees-stub.log
+            net-log
           retention-days: 14
           if-no-files-found: warn
 
