@@ -44,7 +44,6 @@ on:
       - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
       - 'frontend/playwright/specs/regtest/fixtures/**'
       - 'frontend/playwright/specs/regtest/payment-address.ts'
-      - 'frontend/playwright/specs/regtest/xverse-sign.ts'
 
 permissions:
   contents: read
@@ -205,18 +204,20 @@ jobs:
       # The SDK's package install in node_modules ships only the
       # runtime; running its playwright config requires the full repo.
 
+      # The SDK harness (global-setup, seeded vault, .crx, compose) comes from the
+      # same SDK sha as frontend/package-lock.json: CI builds exactly what is
+      # pinned (TESTING.md), so a pin bump moves the harness with it.
+      - name: Read the ordpool-sdk sha pinned in the lockfile
+        id: sdk-pin
+        working-directory: frontend
+        run: echo "sha=$(node -p "require('./package-lock.json').packages['node_modules/ordpool-sdk'].resolved.split('#')[1]")" >> "$GITHUB_OUTPUT"
+
       - name: Checkout ordpool-sdk (for Xverse extension + seeded vault)
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          # Pinned, not `main`: the harness (global-setup, seeded vault, .crx) is
-          # a sibling repo under active development, and an unpinned checkout means
-          # any push there can break this lane mid-deploy. It did: an SDK commit
-          # moved the seed directory out from under this workflow's fixed paths.
-          # Bump deliberately, so a harness change surfaces as a bump-time failure
-          # with an obvious cause, never as a mystery in the middle of a deploy.
-          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
+          ref: ${{ steps.sdk-pin.outputs.sha }}
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4

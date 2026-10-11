@@ -1,4 +1,14 @@
-import { expect, Page } from '@playwright/test';
+import { expect, Locator, Page } from '@playwright/test';
+
+/**
+ * Ordpool's wallet control once a wallet is connected. It renders only after
+ * the connect resolved (or the wallet was restored from storage), so it is the
+ * state that means no connect popup is coming. It renders twice (header and
+ * collapsed nav); the visible one is returned.
+ */
+export function connectedWalletButton(page: Page): Locator {
+  return page.getByTestId('connected-wallet-button').filter({ visible: true }).first();
+}
 
 /**
  * The connected wallet's payment address, read from the wallet popover's
@@ -10,9 +20,9 @@ import { expect, Page } from '@playwright/test';
  */
 export async function readPaymentAddress(page: Page): Promise<string> {
   // The wallet control renders twice (header and collapsed nav); one is visible.
-  const button = page.getByTestId('connected-wallet-button').filter({ visible: true });
+  const button = connectedWalletButton(page);
   const row = page.getByTestId('connected-payment-address');
-  await expect(button).toBeVisible({ timeout: 60_000 });
+  await expect(button).toBeVisible();
   await button.click();
   await expect(row).toBeVisible();
   const address = await row.getAttribute('title');

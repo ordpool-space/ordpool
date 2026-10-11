@@ -157,15 +157,20 @@ jobs:
           curl -fsS http://localhost:8999/api/blocks/tip/height
           echo
 
+      # The SDK harness (global-setup, seeded vault, .crx, compose) comes from the
+      # same SDK sha as frontend/package-lock.json: CI builds exactly what is
+      # pinned (TESTING.md), so a pin bump moves the harness with it.
+      - name: Read the ordpool-sdk sha pinned in the lockfile
+        id: sdk-pin
+        working-directory: frontend
+        run: echo "sha=$(node -p "require('./package-lock.json').packages['node_modules/ordpool-sdk'].resolved.split('#')[1]")" >> "$GITHUB_OUTPUT"
+
       - name: Checkout ordpool-sdk (for the cat21-wallet extension + bootstrap script)
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          # Pinned, not `main`: the SDK harness is a sibling repo under active
-          # development; an unpinned checkout lets any push there break this lane.
-          # Bump deliberately. (Matches the pin in e2e-regtest-mint.yml.)
-          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
+          ref: ${{ steps.sdk-pin.outputs.sha }}
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4

@@ -129,7 +129,7 @@ test.beforeAll(async () => {
   });
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   // seedPage: extension-origin page kept alive for SW-message fires.
@@ -146,7 +146,7 @@ test.beforeAll(async () => {
     () => typeof (globalThis as { chrome?: { runtime?: { sendMessage?: unknown } } })
       .chrome?.runtime?.sendMessage === 'function',
     undefined,
-    { timeout: 15_000, polling: 100 },
+    { polling: 100 },
   );
 
   await seedAlbyAccount(seedPage);
@@ -159,8 +159,6 @@ test.afterAll(async () => {
 });
 
 test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', async () => {
-  test.setTimeout(420_000);
-
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
   // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
@@ -204,15 +202,15 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   await page.waitForFunction(
     () => Boolean((window as unknown as { alby?: unknown }).alby),
     undefined,
-    { timeout: 60_000, polling: 250 },
+    { polling: 250 },
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-alby').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-alby').click();
   await shot(page, '02-picker-clicked');
 
   const paymentAddress = await readPaymentAddress(page);
@@ -230,18 +228,18 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   await page.waitForFunction(
     () => Boolean((window as unknown as { alby?: unknown }).alby),
     undefined,
-    { timeout: 60_000, polling: 250 },
+    { polling: 250 },
   );
   await shot(page, '03-reloaded');
 
   await page.setInputFiles('[data-testid="inscribe-file-input"]', FIXTURE_PATH);
-  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE, { timeout: 10_000 });
+  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE);
   const feeRateInput = page.locator('[data-testid="inscribe-fee-rate"]');
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
 
   const inscribeButton = page.locator('[data-testid="inscribe-btn"]');
-  await expect(inscribeButton).toBeEnabled({ timeout: 60_000 });
+  await expect(inscribeButton).toBeEnabled();
   await shot(page, '04-ready-to-inscribe');
 
   // The commit is signed through the patched signPsbt → SW-bypass; the
@@ -249,7 +247,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Alby', asy
   await inscribeButton.click();
 
   const successPanel = page.locator('[data-testid="inscribe-success"]');
-  await expect(successPanel).toBeVisible({ timeout: 120_000 });
+  await expect(successPanel).toBeVisible();
   await shot(page, '06-success');
 
   const commitTxId = (await page.locator('[data-testid="inscribe-commit-txid"]').textContent())!.trim();

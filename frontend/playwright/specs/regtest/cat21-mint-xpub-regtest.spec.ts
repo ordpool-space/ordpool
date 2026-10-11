@@ -101,8 +101,6 @@ test.afterAll(async () => {
 });
 
 test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-only xpub', async () => {
-  test.setTimeout(420_000);
-
   // ─── 1. Derive the watch-only account + fund receive #0 ────────
   const account = makeWatchOnlyTestAccount();
   const accountTpub = account.accountExtendedPublicKey;
@@ -127,10 +125,10 @@ test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
   await connectTrigger.click();
 
-  await page.getByTestId('wallet-connect-xpub').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-xpub').click();
   await page.getByTestId('xpub-connect-input').fill(accountTpub);
   await shot(page, '02-xpub-pasted');
 
@@ -139,13 +137,13 @@ test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-
   // script type deriving a different address family), then scan again.
   await page.getByTestId('xpub-connect-scan').click();
   const scriptType = page.getByTestId('xpub-script-type');
-  await expect(scriptType).toBeVisible({ timeout: 20_000 });
+  await expect(scriptType).toBeVisible();
   await scriptType.selectOption({ label: 'Taproot (P2TR), recommended for cats' });
   await page.getByTestId('xpub-connect-scan').click();
   await shot(page, '03-scanned');
 
   const confirmXpub = page.getByTestId('xpub-connect-confirm');
-  await expect(confirmXpub).toBeVisible({ timeout: 30_000 });
+  await expect(confirmXpub).toBeVisible();
 
   // Positive assertion at the point of the selection mistake: the derived
   // ordinals address must be the account's receive #0. The expected value is a
@@ -171,14 +169,14 @@ test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintBtn = page.getByTestId('mint-cat-button');
-  await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
+  await expect(mintBtn).toBeEnabled();
   await shot(page, '05-ready-to-mint');
 
   // ─── 4. Mint -> export dialog -> offline-sign -> paste ─────────
   await mintBtn.click();
 
   const unsignedField = page.locator('[data-testid="psbt-export-unsigned"]');
-  await expect(unsignedField).toBeVisible({ timeout: 60_000 });
+  await expect(unsignedField).toBeVisible();
   const unsignedBase64 = (await unsignedField.inputValue()).trim();
   expect(unsignedBase64.length).toBeGreaterThan(0);
   console.log(`[cat21-mint-xpub] exported unsigned PSBT (${unsignedBase64.length} b64 chars)`);
@@ -191,7 +189,7 @@ test('cat21-mint round-trip on regtest via the Angular /cat21-mint page + watch-
 
   // ─── 5. Success card -> broadcast txid ─────────────────────────
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 120_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();

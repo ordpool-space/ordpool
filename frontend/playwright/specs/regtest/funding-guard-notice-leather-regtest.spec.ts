@@ -15,11 +15,12 @@ import {
   rpc,
   waitForApprovalPopup,
   onboardLeather,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest) — the SEPARATE-ADDRESS NOTICE cell: asset-notice, CTA ENABLED.
@@ -91,21 +92,28 @@ async function shot(p: Page, name: string): Promise<void> {
 // Leather's connect approval is the get-addresses popup; click its stable
 // testid (lifted verbatim from the proven inscribe-mint-leather spec, whose
 // generic text/role match was NOT reliable for this button).
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveLeatherConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const popup = await wait({
-    context,
-    knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByTestId('get-addresses-approve-button').waitFor({ state: 'visible', timeout: timeoutMs });
-      return true;
-    },
-  });
-  if (!popup) return;
-  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { closeTimeoutMs: 30_000, label: 'Leather connect popup' });
+/** The wallet's connect popup, recognised by its approve control. */
+const connectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByTestId('get-addresses-approve-button'),
+});
+
+/**
+ * Approve the wallet's connect popup. With `reloadedPage`, the app restores the
+ * wallet from storage after a reload and shows it as connected without asking
+ * the wallet, so the popup is approved only if the wallet opens one anyway.
+ */
+async function approveLeatherConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+  const search = { context, knownPages, isApproval: connectApproval };
+  let popup: Page;
+  if (opts.reloadedPage) {
+    const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
+    if (race.outcome === 'no-popup') return;
+    popup = race.page;
+  } else {
+    popup = await waitForApprovalPopup(search);
+  }
+  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { label: 'Leather connect popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -141,7 +149,7 @@ test.beforeAll(async () => {
   });
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
@@ -154,18 +162,16 @@ test.afterAll(async () => {
 });
 
 test('separate-address wallet, dirty-only pool: asset-notice names the coin and proceeds (leather, real ord)', async () => {
-  test.setTimeout(300_000);
-
   // ─── 1. Open /cat21-mint, connect Leather (separate-address, fresh) ──
   const page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-leather').click({ timeout: 20_000 });
-  await approveLeatherConnect(knownPagesBeforeConnect, 60_000);
+  await page.getByTestId('wallet-connect-leather').click();
+  await approveLeatherConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -195,7 +201,7 @@ test('separate-address wallet, dirty-only pool: asset-notice names the coin and 
   // ─── 4. Reload so the orchestrator re-fetches + scans ─────────────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveLeatherConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await approveLeatherConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
 
   const feeRateInput = page.locator('[data-testid="cat21-fee-rate"]').first();
@@ -209,11 +215,11 @@ test('separate-address wallet, dirty-only pool: asset-notice names the coin and 
   const noticeAlert = page.locator('.alert.alert-warning', {
     hasText: /we'll fund this mint from a coin that carries an asset/i,
   }).first();
-  await expect(noticeAlert).toBeVisible({ timeout: 90_000 });
+  await expect(noticeAlert).toBeVisible();
   await expect(noticeAlert).toContainText(inscribed.inscriptionId);
 
   const mintButton = page.getByTestId('mint-cat-button');
-  await expect(mintButton).toBeVisible({ timeout: 30_000 });
+  await expect(mintButton).toBeVisible();
   await expect(mintButton).toBeEnabled();
   // The notice and the enabled CTA must be readable together (FAMILY_UX rule).
   await mintButton.scrollIntoViewIfNeeded();
@@ -224,10 +230,10 @@ test('separate-address wallet, dirty-only pool: asset-notice names the coin and 
 
   // ─── 6. Prove the coin is genuinely the dirty one (picker) ────────────
   const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
-  await expect(pickerSummary).toBeVisible({ timeout: 30_000 });
+  await expect(pickerSummary).toBeVisible();
   await pickerSummary.click();
   const assetRow = page.locator('.utxo-row-assets').filter({ hasText: inscribedOutpoint }).first();
-  await expect(assetRow).toBeVisible({ timeout: 30_000 });
+  await expect(assetRow).toBeVisible();
   await expect(assetRow.locator('.badge.bg-danger', { hasText: /asset found/i })).toBeVisible();
   const detail = assetRow.locator('.utxo-assets-detail');
   await expect(detail).toContainText('Inscription');

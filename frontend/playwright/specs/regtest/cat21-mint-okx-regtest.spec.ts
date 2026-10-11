@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, OKX 4.1.0 (.crx, onboarded by onboardOkx)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  OKX's welcome page -> installOkxOfflineRoutes (ordpool-sdk); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /cat21-mint page mints a CAT-21 through OKX (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
-import { test, expect, errors, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -18,13 +18,17 @@ import {
   rpc,
   mineBlocks,
   waitForApprovalPopup,
+  waitForApprovalByConfirmButton,
+  raceApprovalPopup,
+  approvalGate,
   onboardOkx,
-  isVisibleWithin,
-  waitForOptionalApprovalPopup,
+  extensionOnboardingPage,
+  dismissOkxAssetTransferPromo,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  installOkxOfflineRoutes,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) - ordpool /cat21-mint via OKX.
@@ -53,7 +57,7 @@ const RESULTS_DIR = path.resolve(__dirname, '../../../test-results');
 
 let context: BrowserContext;
 let extensionId: string;
-let onboardPage: Page | undefined;
+let onboardPage: Page;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -65,52 +69,42 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
-// OKX connect popup anchors on the "Connect account" header.
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveOkxConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const approval = await wait({
-    context,
-    knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByText('Connect account').first().waitFor({ state: 'visible', timeout: timeoutMs });
-      return true;
-    },
-  });
-  if (!approval) return;
-  await clickApprovalAndRequireClose(approval.getByRole('button', { name: /^connect$/i }).first(), approval, { closeTimeoutMs: 30_000, label: 'OKX connect popup' });
+// OKX connect popup anchors on the "Connect account" header, not on any
+// Connect/Confirm button: OKX can open a "Confirm Trade" popup during connect.
+const okxConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText('Connect account').first(),
+});
+
+/** Approve the connect popup a first connect opens; OKX closes it on accept. */
+async function approveOkxConnect(popup: Page): Promise<void> {
+  await clickApprovalAndRequireClose(popup.getByRole('button', { name: /^connect$/i }).first(), popup, { label: 'OKX connect popup' });
 }
 
-// OKX reuses its extension page for the sign approval - poll all pages
-// for the "Signature request" body, dismiss a promo overlay if present,
-// then click Confirm.
-async function approveOkxSign(): Promise<void> {
-  // OKX reuses its already-open extension page for the sign step, and
-  // waitForApprovalPopup checks open pages as well as new ones.
-  const approval = await waitForApprovalPopup({
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking OKX; approve the connect popup only if OKX opens
+ * one anyway.
+ */
+async function reconnectOkx(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
     context,
-    knownPages: new Set(),
-    timeoutMs: 120_000,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByText(/Signature request|Confirm Trade|Asset transfer pending/i).first()
-        .waitFor({ state: 'visible', timeout: 120_000 });
-      return true;
-    },
+    knownPages,
+    isApproval: okxConnectApproval,
+    noPopupState: connectedWalletButton(page),
   });
-  await shot(approval, '05-sign-popup');
+  if (race.outcome === 'popup') await approveOkxConnect(race.page);
+}
 
-  const promo = approval.getByText('Asset transfer pending');
-  if (await isVisibleWithin(promo, 2_000)) {
-    const closeBtn = approval.locator('button:has(svg), [aria-label="close" i], [aria-label="Close" i]').first();
-    if (await isVisibleWithin(closeBtn, 2_000)) {
-      await closeBtn.click({ force: true });
-    }
-    await expect(promo).toBeHidden({ timeout: 10_000 });
-  }
-  await approval.getByText('Confirm', { exact: true }).first().click();
+// OKX may serve the sign approval from an extension page that is already
+// open, so the search is by its Confirm button across every page. A promo
+// overlay OKX may layer over it is dismissed first; OKX closes the popup the
+// moment it accepts the click, so the close is the proof the click landed.
+async function approveOkxSign(): Promise<void> {
+  const approval = await waitForApprovalByConfirmButton({ context });
+  await shot(approval, '05-sign-popup');
+  await dismissOkxAssetTransferPromo(approval);
+  await clickApprovalAndRequireClose(approval.getByText('Confirm', { exact: true }).first(), approval, { label: 'OKX sign popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -148,21 +142,13 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installOkxOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
-  try {
-    onboardPage = await context.waitForEvent('page', {
-      predicate: (p) => p.url().startsWith(`chrome-extension://${extensionId}`),
-      timeout: 15_000,
-    });
-  } catch (e) {
-    // OKX did not open its onboarding tab by itself; a fresh page is used instead.
-    if (!(e instanceof errors.TimeoutError)) throw e;
-  }
-  if (!onboardPage) onboardPage = await context.newPage();
+  onboardPage = await extensionOnboardingPage(context, extensionId);
   await onboardOkx(onboardPage, extensionId);
   await shot(onboardPage, '00-onboarded');
   // Do NOT close onboardPage - OKX reuses its extension page for sign.
@@ -173,7 +159,6 @@ test.afterAll(async () => {
 });
 
 test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + OKX', async () => {
-  test.setTimeout(420_000);
 
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
@@ -185,13 +170,13 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + OKX', 
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-okx').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-okx').click();
   await shot(page, '02-picker-clicked');
-  await approveOkxConnect(knownPagesBeforeConnect, 60_000);
+  await approveOkxConnect(await waitForApprovalPopup({ context, knownPages: knownPagesBeforeConnect, isApproval: okxConnectApproval }));
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -206,7 +191,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + OKX', 
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveOkxConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await reconnectOkx(page, knownPagesBeforeReload);
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
@@ -217,7 +202,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + OKX', 
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintBtn = page.getByTestId('mint-cat-button');
-  await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
+  await expect(mintBtn).toBeEnabled();
   await shot(page, '01-ready-to-mint');
 
   // ─── 6. Click Mint, approve the OKX sign popup ─────────────────
@@ -227,7 +212,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + OKX', 
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 120_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();

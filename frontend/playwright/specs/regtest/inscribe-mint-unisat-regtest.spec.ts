@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /inscribe page inscribes an SVG through Unisat: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
@@ -20,11 +20,13 @@ import {
   getTx,
   waitForApprovalPopup,
   onboardUnisat,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  installUnisatOfflineRoutes,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe via Unisat.
@@ -75,21 +77,29 @@ async function shot(p: Page, name: string): Promise<void> {
 }
 
 // Unisat renders its connect + sign approvals at notification.html#/approval.
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const popup = await wait({
-    context,
-    knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
-      return true;
-    },
-  });
-  if (!popup) return;
+/** The wallet's connect popup, recognised by its approve control. */
+const connectApproval = approvalGate({
+  url: /notification\.html#\/approval/,
+  control: (p) => p.getByText(/^Connect$/).first(),
+});
+
+/**
+ * Approve the wallet's connect popup. With `reloadedPage`, the app restores the
+ * wallet from storage after a reload and shows it as connected without asking
+ * the wallet, so the popup is approved only if the wallet opens one anyway.
+ */
+async function approveUnisatConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+  const search = { context, knownPages, isApproval: connectApproval };
+  let popup: Page;
+  if (opts.reloadedPage) {
+    const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
+    if (race.outcome === 'no-popup') return;
+    popup = race.page;
+  } else {
+    popup = await waitForApprovalPopup(search);
+  }
   // Unisat renders Connect as a styled <div>, not a <button> - match by text.
-  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { closeTimeoutMs: 30_000, label: 'Unisat connect popup' });
+  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { label: 'Unisat connect popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -129,9 +139,10 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installUnisatOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
@@ -145,8 +156,6 @@ test.afterAll(async () => {
 });
 
 test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', async () => {
-  test.setTimeout(420_000);
-
   // ─── 1. Open /inscribe, connect Unisat via the picker ──────────
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
@@ -158,14 +167,14 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-unisat').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-unisat').click();
   await shot(page, '02-picker-clicked');
 
-  await approveUnisatConnect(knownPagesBeforeConnect, 60_000);
+  await approveUnisatConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   // ─── 2. Read the payment address (connector shim → bcrt1) ──────
@@ -183,19 +192,19 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
   // ─── 4. Reload so the orchestrator re-fetches UTXOs ────────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveUnisatConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await approveUnisatConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
   // ─── 5. Drop the fixture, pin the fee ──────────────────────────
   await page.setInputFiles('[data-testid="inscribe-file-input"]', FIXTURE_PATH);
-  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE, { timeout: 10_000 });
+  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE);
   const feeRateInput = page.locator('[data-testid="inscribe-fee-rate"]');
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
 
   const inscribeButton = page.locator('[data-testid="inscribe-btn"]');
-  await expect(inscribeButton).toBeEnabled({ timeout: 60_000 });
+  await expect(inscribeButton).toBeEnabled();
   await shot(page, '04-ready-to-inscribe');
 
   // ─── 6. Click Inscribe, approve the Unisat sign popup ──────────
@@ -204,19 +213,18 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Unisat', a
   const signPopup = await waitForApprovalPopup({
     context,
     knownPages: knownPagesBeforeSign,
-    timeoutMs: 120_000,
     isApproval: async (p) => {
-      await p.getByTestId('sign-psbt-button').waitFor({ state: 'visible', timeout: 120_000 });
+      await p.getByTestId('sign-psbt-button').waitFor({ state: 'visible' });
       return true;
     },
   });
   await shot(signPopup, '05-sign-approval');
-  await clickApprovalAndRequireClose(signPopup.getByTestId('sign-psbt-button'), signPopup, { closeTimeoutMs: 30_000, label: 'Unisat sign popup' });
+  await clickApprovalAndRequireClose(signPopup.getByTestId('sign-psbt-button'), signPopup, { label: 'Unisat sign popup' });
   await page.bringToFront();
 
   // ─── 7. Success panel → commit/reveal txids ────────────────────
   const successPanel = page.locator('[data-testid="inscribe-success"]');
-  await expect(successPanel).toBeVisible({ timeout: 120_000 });
+  await expect(successPanel).toBeVisible();
   await shot(page, '06-success');
 
   const commitTxId = (await page.locator('[data-testid="inscribe-commit-txid"]').textContent())!.trim();

@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /inscribe page inscribes an SVG through Xverse: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, chromium, BrowserContext, Locator, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -21,13 +21,14 @@ import {
   mineBlocks,
   getTx,
   waitForApprovalPopup,
-  isVisibleWithin,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
+  clickConfirmUntilClosed,
+  installXverseOfflineRoutes,
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
-import { confirmXverseSign } from './xverse-sign';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest inscribe) - ordpool /inscribe
@@ -119,6 +120,64 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
+/** Xverse's sign popup, recognised by its review screen. */
+const xverseSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText(/review transaction/i).first(),
+});
+
+/** Xverse's connect popup, recognised by its approve control. */
+const xverseConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Xverse; approve the connect popup only if Xverse
+ * opens one anyway.
+ */
+async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: xverseConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await race.page.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await race.page.close();
+}
+
+/**
+ * Confirm an Xverse sign popup and require it to close. Xverse can absorb a
+ * Confirm click that lands before its handlers attach, so the SDK re-sends
+ * the click only while nothing changed; `outcome` is the app's answer to the
+ * sign (its success or error surface).
+ */
+async function confirmXverseSign(popup: Page, outcome: Locator, label: string): Promise<void> {
+  // Xverse wires the Confirm handler after its fee/details resolve; a live,
+  // pointer-enabled Confirm is the signal the review is interactive.
+  await popup.waitForFunction(() => {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    return buttons.some((b) => {
+      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
+      if (b.hasAttribute('disabled')) return false;
+      const style = getComputedStyle(b);
+      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
+    });
+  }, undefined, { polling: 250 });
+  const confirm = popup.getByRole('button', { name: /^confirm$/i }).first();
+  await expect(confirm).toBeEnabled();
+  await clickConfirmUntilClosed(confirm, popup, {
+    resolved: outcome.waitFor({ state: 'visible' }),
+    maxClicks: 3,
+    label,
+  });
+  await expect.poll(() => popup.isClosed(), { message: `${label}: the sign popup closes after Confirm` }).toBe(true);
+}
+
 // Fails the test on any console.error or uncaught exception of an app page;
 // wallet-extension pages are outside the guard (installContextErrorGuard).
 let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
@@ -172,11 +231,12 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
 
   let [worker] = context.serviceWorkers();
   if (!worker) {
-    worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+    worker = await context.waitForEvent('serviceworker');
   }
   extensionId = worker.url().split('/')[2];
 });
@@ -186,8 +246,6 @@ test.afterAll(async () => {
 });
 
 test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', async () => {
-  test.setTimeout(420_000); // 7 min - wallet popups + commit/reveal + blocks
-
   // ─── 1. Unlock the vault ───────────────────────────────────────
   const primer = await context.newPage();
   await primer.setViewportSize({ width: 400, height: 800 });
@@ -195,18 +253,21 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   await primer.waitForFunction(() => {
     const t = (document.body.innerText || '').toLowerCase();
     return t.includes('unlock') || t.includes('account 1');
-  }, undefined, { timeout: 30_000, polling: 250 });
+  }, undefined, { polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
     await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();
       return t.includes('account 1') || t.includes('not now') || t.includes('zest') || t.includes('send');
-    }, undefined, { timeout: 30_000, polling: 250 });
+    }, undefined, { polling: 250 });
   }
+  // The unlocked dashboard may carry a "Not now" prompt; it is read off the
+  // screen the wait above settled on, not waited for.
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await isVisibleWithin(notNow, 1_500)) {
-    await notNow.click({ force: true });
+  if (await notNow.isVisible()) {
+    await notNow.click();
+    await expect(notNow).toBeHidden();
   }
   await shot(primer, '01-unlocked');
   await primer.close();
@@ -226,31 +287,31 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // The pre-connect prompt renders a "connect your wallet" link that
   // calls WalletService.requestWalletConnect() → the ngb-modal picker.
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
   // Picker: pick Xverse via the per-wallet Connect button's stable testid.
   await page.getByTestId('wallet-connect-xverse')
-    .click({ timeout: 20_000 });
+    .click();
   await shot(page, '03-picker-clicked');
 
   const approvalConnect = await waitForApprovalPopup({
     context,
     knownPages: knownPagesBeforeConnect,
-    timeoutMs: 60_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
       await p.waitForFunction(() => {
         const t = (document.body.innerText || '').toLowerCase();
         return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
-      }, undefined, { timeout: 60_000, polling: 500 });
+      }, undefined, { polling: 500 });
       return true;
     },
   });
   await shot(approvalConnect, '04-connect-approval');
   await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
     .first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
   // Closing the connect popup forces Xverse to open a FRESH tab for the
   // sign step later - same dance the cat21-mint + SDK roundtrip specs use.
   await approvalConnect.close();
@@ -273,24 +334,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // Xverse pops a permission-renewal popup we approve it.
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForOptionalApprovalPopup({
-    context,
-    knownPages: knownPagesBeforeReload,
-    timeoutMs: 8_000,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.waitForFunction(() => {
-        const t = (document.body.innerText || '').toLowerCase();
-        return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
-      }, undefined, { timeout: 8_000, polling: 250 });
-      return true;
-    },
-  });
-  if (reapprove) {
-    await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
-      .first().click();
-    await reapprove.close();
-  }
+  await reconnectXverse(page, knownPagesBeforeReload);
   await shot(page, '04b-reloaded');
 
   // ─── 5. Drop the fixture file on the dropzone ──────────────────
@@ -300,8 +344,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   // (Re-pick AFTER the reload: reload clears the component's picked-file
   // state.)
   await page.setInputFiles('[data-testid="inscribe-file-input"]', FIXTURE_PATH);
-  await expect(page.locator('[data-testid="inscribe-file-name"]')).toContainText('inscribe-probe.svg', { timeout: 10_000 });
-  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE, { timeout: 10_000 });
+  await expect(page.locator('[data-testid="inscribe-file-name"]')).toContainText('inscribe-probe.svg');
+  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE);
   await shot(page, '05-file-picked');
 
   // ─── 6. Pin the fee rate + wait for the Inscribe button ────────
@@ -312,7 +356,7 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   const inscribeButton = page.locator('[data-testid="inscribe-btn"]');
   // Enabled only when form valid + a viable UTXO auto-picked + a file is
   // set - all three now hold.
-  await expect(inscribeButton).toBeEnabled({ timeout: 60_000 });
+  await expect(inscribeButton).toBeEnabled();
   await shot(page, '06-ready-to-inscribe');
 
   // ─── 7. Click Inscribe, approve the ONE sign popup ─────────────
@@ -322,32 +366,20 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   const approvalSign = await waitForApprovalPopup({
     context,
     knownPages: knownPagesBeforeSign,
-    timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
       await p.getByText(/review transaction/i).first()
-        .waitFor({ state: 'visible', timeout: 120_000 });
+        .waitFor({ state: 'visible' });
       return true;
     },
   });
   await shot(approvalSign, '07-sign-approval');
 
-  await approvalSign.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.some((b) => {
-      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
-      if (b.hasAttribute('disabled')) return false;
-      const style = getComputedStyle(b);
-      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
-    });
-  }, undefined, { timeout: 30_000, polling: 250 });
-  await expect(approvalSign.getByRole('button', { name: /^confirm$/i }).first()).toBeEnabled({ timeout: 30_000 });
-
   await confirmXverseSign(approvalSign, page.locator('[data-testid="inscribe-success"]'), 'Xverse approvalSign');
 
   // ─── 8. Wait for success panel + read commit/reveal txids ──────
   const successPanel = page.locator('[data-testid="inscribe-success"]');
-  await expect(successPanel).toBeVisible({ timeout: 120_000 });
+  await expect(successPanel).toBeVisible();
   await shot(page, '08-success');
 
   const commitTxId = (await page.locator('[data-testid="inscribe-commit-txid"]').textContent())!.trim();

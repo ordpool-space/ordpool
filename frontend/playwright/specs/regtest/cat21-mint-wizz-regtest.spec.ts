@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Wizz 2.13.4 (.crx, onboarded by onboardWizz)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Wizz's vendor backends (ep.wizz.cash, ordx.wizz.cash, wallet-api.unisat.io, api.rgbpp.io) -> installWizzOfflineRoutes (ordpool-sdk)
+ * Faked:  Wizz's wallet API -> installWizzOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Wizz's vendor backends (ep.wizz.cash, ordx.wizz.cash, wallet-api.unisat.io, api.rgbpp.io) -> installWizzOfflineRoutes (ordpool-sdk)
  * Proves: the /cat21-mint page mints a CAT-21 through Wizz (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
@@ -26,11 +26,12 @@ import {
   installWizzOfflineRoutes,
   approveWizzSignPopup,
   onboardWizz,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) - ordpool /cat21-mint via Wizz.
@@ -69,20 +70,28 @@ async function shot(p: Page, name: string): Promise<void> {
 
 // Wizz inherits Unisat's connect-approval: a styled "Connect" div at
 // notification.html#/approval.
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveWizzConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const approval = await wait({
-    context,
-    knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
-      return true;
-    },
-  });
-  if (!approval) return;
-  await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { closeTimeoutMs: 30_000, label: 'Wizz connect popup' });
+/** The wallet's connect popup, recognised by its approve control. */
+const connectApproval = approvalGate({
+  url: /notification\.html#\/approval/,
+  control: (p) => p.getByText(/^Connect$/).first(),
+});
+
+/**
+ * Approve the wallet's connect popup. With `reloadedPage`, the app restores the
+ * wallet from storage after a reload and shows it as connected without asking
+ * the wallet, so the popup is approved only if the wallet opens one anyway.
+ */
+async function approveWizzConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+  const search = { context, knownPages, isApproval: connectApproval };
+  let approval: Page;
+  if (opts.reloadedPage) {
+    const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
+    if (race.outcome === 'no-popup') return;
+    approval = race.page;
+  } else {
+    approval = await waitForApprovalPopup(search);
+  }
+  await clickApprovalAndRequireClose(approval.getByText(/^Connect$/).first(), approval, { label: 'Wizz connect popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -128,7 +137,7 @@ test.beforeAll(async () => {
   await installWizzOfflineRoutes(context);
 
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
@@ -142,8 +151,6 @@ test.afterAll(async () => {
 });
 
 test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz', async () => {
-  test.setTimeout(420_000);
-
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
   // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
@@ -154,13 +161,13 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-wizz').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-wizz').click();
   await shot(page, '02-picker-clicked');
-  await approveWizzConnect(knownPagesBeforeConnect, 60_000);
+  await approveWizzConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -175,7 +182,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveWizzConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await approveWizzConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
@@ -186,7 +193,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintBtn = page.getByTestId('mint-cat-button');
-  await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
+  await expect(mintBtn).toBeEnabled();
   await shot(page, '01-ready-to-mint');
 
   // ─── 6. Click Mint, approve the Wizz sign popup ────────────────
@@ -197,7 +204,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Wizz',
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 120_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();

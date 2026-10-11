@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the funding picker flags a real inscription-bearing coin (seedInscribedCoin) and names its inscription id
  */
 /* eslint-disable no-console */
@@ -13,13 +13,13 @@ import {
   seedInscribedCoin,
   rpc,
   waitForApprovalPopup,
-  isVisibleWithin,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  installXverseOfflineRoutes,
   approvalGate,
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest) — the funding picker FLAGS and NAMES an inscribed coin.
@@ -88,6 +88,36 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
+/** Xverse's sign popup, recognised by its review screen. */
+const xverseSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText(/review transaction/i).first(),
+});
+
+/** Xverse's connect popup, recognised by its approve control. */
+const xverseConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Xverse; approve the connect popup only if Xverse
+ * opens one anyway.
+ */
+async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: xverseConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await race.page.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await race.page.close();
+}
+
 // Fails the test on any console.error or uncaught exception of an app page;
 // wallet-extension pages are outside the guard (installContextErrorGuard).
 let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
@@ -128,9 +158,10 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 });
 
@@ -139,8 +170,6 @@ test.afterAll(async () => {
 });
 
 test('the funding picker flags and names an inscribed coin (real ord, no mock)', async () => {
-  test.setTimeout(300_000);
-
   // ─── 1. Unlock the vault ───────────────────────────────────────
   const primer = await context.newPage();
   await primer.setViewportSize({ width: 400, height: 800 });
@@ -148,18 +177,21 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   await primer.waitForFunction(() => {
     const t = (document.body.innerText || '').toLowerCase();
     return t.includes('unlock') || t.includes('account 1');
-  }, undefined, { timeout: 30_000, polling: 250 });
+  }, undefined, { polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
     await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();
       return t.includes('account 1') || t.includes('not now') || t.includes('send');
-    }, undefined, { timeout: 30_000, polling: 250 });
+    }, undefined, { polling: 250 });
   }
+  // The unlocked dashboard may carry a "Not now" prompt; it is read off the
+  // screen the wait above settled on, not waited for.
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await isVisibleWithin(notNow, 1_500)) {
-    await notNow.click({ force: true });
+  if (await notNow.isVisible()) {
+    await notNow.click();
+    await expect(notNow).toBeHidden();
   }
   await primer.close();
 
@@ -167,27 +199,27 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   const page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-xverse').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-xverse').click();
 
   const approvalConnect = await waitForApprovalPopup({
     context,
     knownPages: knownPagesBeforeConnect,
-    timeoutMs: 60_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
       await p.waitForFunction(() => {
         const t = (document.body.innerText || '').toLowerCase();
         return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
-      }, undefined, { timeout: 60_000, polling: 500 });
+      }, undefined, { polling: 500 });
       return true;
     },
   });
   await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
     .first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
   await approvalConnect.close();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -216,21 +248,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   // ─── 4. Reload so the orchestrator re-fetches UTXOs and scans ─────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForOptionalApprovalPopup({
-    context,
-    knownPages: knownPagesBeforeReload,
-    timeoutMs: 6_000,
-    isApproval: approvalGate({
-      url: /^chrome-extension:\/\//,
-      control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
-      timeoutMs: 6_000,
-    }),
-  });
-  if (reapprove) {
-    await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
-      .first().click();
-    await reapprove.close();
-  }
+  await reconnectXverse(page, knownPagesBeforeReload);
   await page.bringToFront();
   await shot(page, '01-after-seed-reload');
 
@@ -241,7 +259,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   // button state is deliberately NOT asserted: a clean leftover on the shared
   // vault usually auto-funds it, and the status is non-deterministic here.
   const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
-  await expect(pickerSummary).toBeVisible({ timeout: 30_000 });
+  await expect(pickerSummary).toBeVisible();
   await pickerSummary.click();
   await shot(page, '02-picker-open');
 
@@ -252,7 +270,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   // do not, alone, prove the inscription half. The inscription-specific proof is
   // the detail assertion further down.
   const assetBadge = page.locator('.badge.bg-danger', { hasText: /asset found/i }).first();
-  await expect(assetBadge).toBeVisible({ timeout: 60_000 });
+  await expect(assetBadge).toBeVisible();
   await shot(page, '03-asset-found');
 
   const assetRow = page.locator('.utxo-row-assets').filter({ hasText: inscribedOutpoint }).first();

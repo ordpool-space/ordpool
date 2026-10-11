@@ -122,7 +122,7 @@ test.beforeAll(async () => {
   });
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   // seedPage: extension-origin page kept alive for SW-message fires.
@@ -139,7 +139,7 @@ test.beforeAll(async () => {
     () => typeof (globalThis as { chrome?: { runtime?: { sendMessage?: unknown } } })
       .chrome?.runtime?.sendMessage === 'function',
     undefined,
-    { timeout: 15_000, polling: 100 },
+    { polling: 100 },
   );
 
   await seedAlbyAccount(seedPage);
@@ -152,8 +152,6 @@ test.afterAll(async () => {
 });
 
 test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Alby', async () => {
-  test.setTimeout(420_000);
-
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
   // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
@@ -197,15 +195,15 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Alby',
   await page.waitForFunction(
     () => Boolean((window as unknown as { alby?: unknown }).alby),
     undefined,
-    { timeout: 60_000, polling: 250 },
+    { polling: 250 },
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-alby').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-alby').click();
   await shot(page, '02-picker-clicked');
 
   const paymentAddress = await readPaymentAddress(page);
@@ -223,7 +221,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Alby',
   await page.waitForFunction(
     () => Boolean((window as unknown as { alby?: unknown }).alby),
     undefined,
-    { timeout: 60_000, polling: 250 },
+    { polling: 250 },
   );
   await shot(page, '03-reloaded');
 
@@ -234,7 +232,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Alby',
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintBtn = page.getByTestId('mint-cat-button');
-  await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
+  await expect(mintBtn).toBeEnabled();
   await shot(page, '01-ready-to-mint');
 
   // ─── 6. Click Mint. The mint tx is signed through the patched
@@ -244,7 +242,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Alby',
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 120_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();

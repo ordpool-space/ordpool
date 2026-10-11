@@ -1,11 +1,11 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: for each asset class (rare sat, rune, cat, inscription) the mint spends the clean coin and every seeded dirty coin survives on-chain
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, chromium, BrowserContext, Locator, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -21,17 +21,18 @@ import {
   mineBlocks,
   waitForTxConfirmed,
   waitForApprovalPopup,
-  clickUntilEffect,
+  clickUntilApprovalPopup,
   DirtyCoinAsset,
   SeededDirtyCoin,
-  isVisibleWithin,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
+  clickConfirmUntilClosed,
+  installXverseOfflineRoutes,
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
 } from 'ordpool-sdk/e2e';
 import { calculateRecommendedFundingSats, calculateRecommendedPreferredSats } from 'ordpool-sdk';
-import { readPaymentAddress } from './payment-address';
-import { confirmXverseSign } from './xverse-sign';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest) — dirty-coin protection matrix for the MINT flow, all four asset
@@ -127,6 +128,64 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
+/** Xverse's sign popup, recognised by its review screen. */
+const xverseSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText(/review transaction/i).first(),
+});
+
+/** Xverse's connect popup, recognised by its approve control. */
+const xverseConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Xverse; approve the connect popup only if Xverse
+ * opens one anyway.
+ */
+async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: xverseConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await race.page.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await race.page.close();
+}
+
+/**
+ * Confirm an Xverse sign popup and require it to close. Xverse can absorb a
+ * Confirm click that lands before its handlers attach, so the SDK re-sends
+ * the click only while nothing changed; `outcome` is the app's answer to the
+ * sign (its success or error surface).
+ */
+async function confirmXverseSign(popup: Page, outcome: Locator, label: string): Promise<void> {
+  // Xverse wires the Confirm handler after its fee/details resolve; a live,
+  // pointer-enabled Confirm is the signal the review is interactive.
+  await popup.waitForFunction(() => {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    return buttons.some((b) => {
+      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
+      if (b.hasAttribute('disabled')) return false;
+      const style = getComputedStyle(b);
+      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
+    });
+  }, undefined, { polling: 250 });
+  const confirm = popup.getByRole('button', { name: /^confirm$/i }).first();
+  await expect(confirm).toBeEnabled();
+  await clickConfirmUntilClosed(confirm, popup, {
+    resolved: outcome.waitFor({ state: 'visible' }),
+    maxClicks: 3,
+    label,
+  });
+  await expect.poll(() => popup.isClosed(), { message: `${label}: the sign popup closes after Confirm` }).toBe(true);
+}
+
 // Fails the test on any console.error or uncaught exception of an app page;
 // wallet-extension pages are outside the guard (installContextErrorGuard).
 let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
@@ -165,9 +224,10 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installXverseOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   // ─── Unlock the vault ──────────────────────────────────────────
@@ -177,18 +237,21 @@ test.beforeAll(async () => {
   await primer.waitForFunction(() => {
     const t = (document.body.innerText || '').toLowerCase();
     return t.includes('unlock') || t.includes('account 1');
-  }, undefined, { timeout: 30_000, polling: 250 });
+  }, undefined, { polling: 250 });
   if (/unlock/i.test(await primer.locator('body').innerText())) {
     await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
     await primer.getByRole('button', { name: /^unlock$/i }).first().click();
     await primer.waitForFunction(() => {
       const t = (document.body.innerText || '').toLowerCase();
       return t.includes('account 1') || t.includes('not now') || t.includes('send');
-    }, undefined, { timeout: 30_000, polling: 250 });
+    }, undefined, { polling: 250 });
   }
+  // The unlocked dashboard may carry a "Not now" prompt; it is read off the
+  // screen the wait above settled on, not waited for.
   const notNow = primer.getByText('Not now', { exact: true }).first();
-  if (await isVisibleWithin(notNow, 1_500)) {
-    await notNow.click({ force: true });
+  if (await notNow.isVisible()) {
+    await notNow.click();
+    await expect(notNow).toBeHidden();
   }
   await primer.close();
 
@@ -196,25 +259,25 @@ test.beforeAll(async () => {
   page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
   const knownBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-xverse').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-xverse').click();
   const approvalConnect = await waitForApprovalPopup({
     context,
     knownPages: knownBeforeConnect,
-    timeoutMs: 60_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
       await p.waitForFunction(() => {
         const t = (document.body.innerText || '').toLowerCase();
         return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
-      }, undefined, { timeout: 60_000, polling: 500 });
+      }, undefined, { polling: 500 });
       return true;
     },
   });
   await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
     .first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
   await approvalConnect.close();
 
   paymentAddress = await readPaymentAddress(page);
@@ -269,23 +332,7 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   // Reload so the orchestrator re-fetches + scans (re-approve if Xverse asks).
   const knownBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const reapprove = await waitForOptionalApprovalPopup({
-    context,
-    knownPages: knownBeforeReload,
-    timeoutMs: 8_000,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.waitForFunction(() => {
-        const t = (document.body.innerText || '').toLowerCase();
-        return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
-      }, undefined, { timeout: 8_000, polling: 250 });
-      return true;
-    },
-  });
-  if (reapprove) {
-    await reapprove.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
-    await reapprove.close();
-  }
+  await reconnectXverse(page, knownBeforeReload);
   await shot(page, `${asset}-01-after-seed`);
 
   // Green-path confirmation (not the mutation target): the mint auto-picks the
@@ -294,9 +341,9 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintButton = page.getByTestId('mint-cat-button');
-  await expect(mintButton).toBeEnabled({ timeout: 60_000 });
+  await expect(mintButton).toBeEnabled();
 
-  // Mint + approve the Xverse sign popup. clickUntilEffect re-clicks the CTA
+  // Mint + approve the Xverse sign popup. clickUntilApprovalPopup re-clicks the CTA
   // ONLY while it stays visible+enabled with no popup (the signature of a
   // swallowed click); once the mint registers the button leaves that state
   // (state='minting'), so a slow-but-registered click is never double-sent and
@@ -305,38 +352,18 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
   // clean, and a clicks>1 here would be real evidence that this repo reproduces
   // the swallowed-click mechanism rather than a guess that it might.
   const knownBeforeSign = new Set(context.pages());
-  let approvalSign!: Page;
-  const signPopupEffect = {
-    waitFor: async ({ timeout }: { state: 'visible'; timeout: number }) => {
-      approvalSign = await waitForApprovalPopup({
-        context,
-        knownPages: knownBeforeSign,
-        timeoutMs: timeout,
-        isApproval: async (p) => {
-          if (!p.url().startsWith('chrome-extension://')) return false;
-          await p.getByText(/review transaction/i).first().waitFor({ state: 'visible', timeout });
-          return true;
-        },
-      });
-    },
-  };
-  const { clicks } = await clickUntilEffect(mintButton, signPopupEffect, {
-    label: 'mint-cat-button', settleMs: 60_000, maxClicks: 3,
+  const { page: approvalSign, clicks } = await clickUntilApprovalPopup(mintButton, {
+    context,
+    knownPages: knownBeforeSign,
+    isApproval: xverseSignApproval,
+    maxClicks: 3,
+    label: 'mint-cat-button',
   });
   expect(clicks, 'mint-cat-button opened the sign popup on ONE click; >1 means a swallowed click').toBe(1);
-  await approvalSign.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.some((b) => {
-      if (!/^confirm$/i.test(b.textContent?.trim() ?? '')) return false;
-      if (b.hasAttribute('disabled')) return false;
-      const style = getComputedStyle(b);
-      return style.pointerEvents !== 'none' && style.visibility !== 'hidden';
-    });
-  }, undefined, { timeout: 30_000, polling: 250 });
   await confirmXverseSign(approvalSign, page.locator('.alert.alert-success').first(), 'Xverse approvalSign');
 
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 90_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const broadcastTxid = successHref?.match(/\/tx\/([0-9a-f]{64})/)?.[1];
   expect(broadcastTxid).toBeTruthy();
@@ -378,7 +405,6 @@ async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex:
 
 CELLS.forEach((cell, cellIndex) => {
   test(`mint auto-picks clean; the ${cell.label} coin (and all prior) survive`, async () => {
-    test.setTimeout(360_000);
     await runDirtyCoinCell(cell.asset, cell.label, cellIndex);
   });
 });

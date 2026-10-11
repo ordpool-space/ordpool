@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: on a one-address wallet with a dirty-only pool the warning shows, Mint stays disabled, nothing is broadcast, and the picker names the inscription; a sub-floor coin renders as "can't fund at this rate"
  */
 /* eslint-disable no-console */
@@ -15,11 +15,13 @@ import {
   rpc,
   waitForApprovalPopup,
   onboardUnisat,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  installUnisatOfflineRoutes,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 // A CLEAN coin sized at exactly the CAT-21 postage: it can cover the 546-sat cat
 // output but leaves ZERO for the miner fee, so the mint requirement (postage +
@@ -91,20 +93,28 @@ async function shot(p: Page, name: string, fullPage = true): Promise<void> {
 }
 
 // Unisat renders its connect approval at notification.html#/approval.
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const popup = await wait({
-    context,
-    knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
-      return true;
-    },
-  });
-  if (!popup) return;
-  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { closeTimeoutMs: 30_000, label: 'Unisat connect popup' });
+/** The wallet's connect popup, recognised by its approve control. */
+const connectApproval = approvalGate({
+  url: /notification\.html#\/approval/,
+  control: (p) => p.getByText(/^Connect$/).first(),
+});
+
+/**
+ * Approve the wallet's connect popup. With `reloadedPage`, the app restores the
+ * wallet from storage after a reload and shows it as connected without asking
+ * the wallet, so the popup is approved only if the wallet opens one anyway.
+ */
+async function approveUnisatConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+  const search = { context, knownPages, isApproval: connectApproval };
+  let popup: Page;
+  if (opts.reloadedPage) {
+    const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
+    if (race.outcome === 'no-popup') return;
+    popup = race.page;
+  } else {
+    popup = await waitForApprovalPopup(search);
+  }
+  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { label: 'Unisat connect popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -138,9 +148,10 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installUnisatOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
@@ -153,18 +164,16 @@ test.afterAll(async () => {
 });
 
 test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, real ord)', async () => {
-  test.setTimeout(300_000);
-
   // ─── 1. Open /cat21-mint, connect Unisat (one address for everything) ──
   const page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-unisat').click({ timeout: 20_000 });
-  await approveUnisatConnect(knownPagesBeforeConnect, 60_000);
+  await page.getByTestId('wallet-connect-unisat').click();
+  await approveUnisatConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -195,7 +204,7 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   // ─── 3. Reload so the orchestrator re-fetches UTXOs and scans ─────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveUnisatConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await approveUnisatConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
 
   // Pin a fee so the recommendation resolves against a concrete requirement.
@@ -210,15 +219,15 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   const warningAlert = page.locator('.alert.alert-warning', {
     hasText: /every coin big enough to cover the fee also carries an asset/i,
   }).first();
-  await expect(warningAlert).toBeVisible({ timeout: 90_000 });
+  await expect(warningAlert).toBeVisible();
 
   const mintButton = page.getByTestId('mint-cat-button');
-  await expect(mintButton).toBeVisible({ timeout: 30_000 });
+  await expect(mintButton).toBeVisible();
   await expect(mintButton).toBeDisabled();
 
   // The picker is OFFERED (collapsed): the summary is present without expanding.
   const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
-  await expect(pickerSummary).toBeVisible({ timeout: 30_000 });
+  await expect(pickerSummary).toBeVisible();
 
   // THE SCREENSHOT: warning + disabled CTA + picker offer, picker collapsed.
   // Scroll the disabled button into view so the viewport frames it together with
@@ -244,7 +253,7 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   // first, with the picker collapsed.)
   await pickerSummary.click();
   const assetRow = page.locator('.utxo-row-assets').filter({ hasText: inscribedOutpoint }).first();
-  await expect(assetRow).toBeVisible({ timeout: 30_000 });
+  await expect(assetRow).toBeVisible();
   await expect(assetRow.locator('.badge.bg-danger', { hasText: /asset found/i })).toBeVisible();
   await expect(assetRow.getByRole('button', { name: /use anyway/i })).toBeVisible();
   const detail = assetRow.locator('.utxo-assets-detail');
@@ -258,7 +267,7 @@ test('one-address wallet: a dirty-only pool WARNS and BLOCKS the mint (unisat, r
   // can't — whether dimmed reads as deliberate — so it is captured in the
   // screenshot below, and asserted here so the spec fails if the state regresses.
   const unavailableRow = page.locator('.shape-border.utxo-row-unavailable').first();
-  await expect(unavailableRow).toBeVisible({ timeout: 30_000 });
+  await expect(unavailableRow).toBeVisible();
   await expect(unavailableRow.locator('[data-testid="utxo-cant-fund"]')).toContainText(/can.?t fund at this rate/i);
   // Unpickable: no Use button on it (the handler refuses it too).
   await expect(unavailableRow.getByRole('button')).toHaveCount(0);

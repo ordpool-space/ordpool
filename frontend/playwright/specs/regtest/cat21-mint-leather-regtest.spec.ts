@@ -19,11 +19,12 @@ import {
   mineBlocks,
   waitForApprovalPopup,
   onboardLeather,
-  waitForOptionalApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) - ordpool /cat21-mint via Leather.
@@ -62,21 +63,28 @@ async function shot(p: Page, name: string): Promise<void> {
 }
 
 // Leather's connect approval uses the get-addresses-approve-button testid.
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveLeatherConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const popup = await wait({
-    context,
-    knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      if (!p.url().startsWith('chrome-extension://')) return false;
-      await p.getByTestId('get-addresses-approve-button').waitFor({ state: 'visible', timeout: timeoutMs });
-      return true;
-    },
-  });
-  if (!popup) return;
-  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { closeTimeoutMs: 30_000, label: 'Leather connect popup' });
+/** The wallet's connect popup, recognised by its approve control. */
+const connectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByTestId('get-addresses-approve-button'),
+});
+
+/**
+ * Approve the wallet's connect popup. With `reloadedPage`, the app restores the
+ * wallet from storage after a reload and shows it as connected without asking
+ * the wallet, so the popup is approved only if the wallet opens one anyway.
+ */
+async function approveLeatherConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
+  const search = { context, knownPages, isApproval: connectApproval };
+  let popup: Page;
+  if (opts.reloadedPage) {
+    const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
+    if (race.outcome === 'no-popup') return;
+    popup = race.page;
+  } else {
+    popup = await waitForApprovalPopup(search);
+  }
+  await clickApprovalAndRequireClose(popup.getByTestId('get-addresses-approve-button'), popup, { label: 'Leather connect popup' });
 }
 
 // Leather closes its own popup the moment it signs, which can land while the
@@ -85,12 +93,8 @@ async function approveLeatherConnect(knownPages: Set<Page>, timeoutMs: number, o
 // never registered still fails.
 async function clickLeatherApproval(popup: Page): Promise<void> {
   const btn = popup.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first();
-  await expect(btn).toBeEnabled({ timeout: 10_000 });
-  await clickApprovalAndRequireClose(
-    { click: (o) => btn.click({ ...o, noWaitAfter: true }), isVisible: () => btn.isVisible(), isEnabled: () => btn.isEnabled() },
-    popup,
-    { clickTimeoutMs: 30_000, closeTimeoutMs: 30_000, label: 'Leather sign popup' },
-  );
+  await expect(btn).toBeEnabled();
+  await clickApprovalAndRequireClose(btn, popup, { label: 'Leather sign popup' });
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -129,7 +133,7 @@ test.beforeAll(async () => {
   });
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
@@ -143,8 +147,6 @@ test.afterAll(async () => {
 });
 
 test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leather', async () => {
-  test.setTimeout(420_000);
-
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
   // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
@@ -155,13 +157,13 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leathe
   await shot(page, '01-page-loaded');
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-leather').click({ timeout: 20_000 });
+  await page.getByTestId('wallet-connect-leather').click();
   await shot(page, '02-picker-clicked');
-  await approveLeatherConnect(knownPagesBeforeConnect, 60_000);
+  await approveLeatherConnect(knownPagesBeforeConnect);
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -176,7 +178,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leathe
 
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveLeatherConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await approveLeatherConnect(knownPagesBeforeReload, { reloadedPage: page });
   await page.bringToFront();
   await shot(page, '03-reloaded');
 
@@ -187,7 +189,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leathe
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintBtn = page.getByTestId('mint-cat-button');
-  await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
+  await expect(mintBtn).toBeEnabled();
   await shot(page, '01-ready-to-mint');
 
   // ─── 6. Click Mint, approve the Leather sign popup ─────────────
@@ -196,11 +198,10 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leathe
   const signPopup = await waitForApprovalPopup({
     context,
     knownPages: knownPagesBeforeSign,
-    timeoutMs: 120_000,
     isApproval: async (p) => {
       if (!p.url().startsWith('chrome-extension://')) return false;
       await p.getByRole('button', { name: /^(confirm|sign|approve)$/i }).first()
-        .waitFor({ state: 'visible', timeout: 120_000 });
+        .waitFor({ state: 'visible' });
       return true;
     },
   });
@@ -210,7 +211,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leathe
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 120_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();

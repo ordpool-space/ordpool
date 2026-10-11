@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /cat21-mint page mints a CAT-21 through Unisat (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
@@ -18,12 +18,14 @@ import {
   rpc,
   mineBlocks,
   waitForApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
   onboardUnisat,
-  waitForOptionalApprovalPopup,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
+  installUnisatOfflineRoutes,
 } from 'ordpool-sdk/e2e';
-import { readPaymentAddress } from './payment-address';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 /**
  * E2E (regtest mint) - ordpool /cat21-mint via Unisat.
@@ -66,21 +68,30 @@ async function shot(p: Page, name: string): Promise<void> {
 }
 
 // Unisat renders its connect + sign approvals at notification.html#/approval.
-/** Approve the connect popup. Required unless `optional`: a first connect always asks, a reload may not. */
-async function approveUnisatConnect(knownPages: Set<Page>, timeoutMs: number, opts: { optional?: boolean } = {}): Promise<void> {
-  const wait = opts.optional ? waitForOptionalApprovalPopup : waitForApprovalPopup;
-  const popup = await wait({
+// Connect is a styled <div>, not a <button>, so it is matched by text.
+const unisatConnectApproval = approvalGate({
+  url: /notification\.html#\/approval/,
+  control: (p) => p.getByText(/^Connect$/).first(),
+});
+
+/** Approve the connect popup; Unisat closes it on accept. */
+async function approveUnisatConnect(popup: Page): Promise<void> {
+  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { label: 'Unisat connect popup' });
+}
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Unisat; approve the connect popup only if Unisat
+ * opens one anyway.
+ */
+async function reconnectUnisat(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
     context,
     knownPages,
-    timeoutMs,
-    isApproval: async (p) => {
-      await p.waitForURL(/notification\.html#\/approval/, { timeout: timeoutMs });
-      return true;
-    },
+    isApproval: unisatConnectApproval,
+    noPopupState: connectedWalletButton(page),
   });
-  if (!popup) return;
-  // Unisat renders Connect as a styled <div>, not a <button> - match by text.
-  await clickApprovalAndRequireClose(popup.getByText(/^Connect$/).first(), popup, { closeTimeoutMs: 30_000, label: 'Unisat connect popup' });
+  if (race.outcome === 'popup') await approveUnisatConnect(race.page);
 }
 
 // Fails the test on any console.error or uncaught exception of an app page;
@@ -114,9 +125,10 @@ test.beforeAll(async () => {
     ],
     viewport: { width: 1280, height: 900 },
   });
+  await installUnisatOfflineRoutes(context);
   errorGuard = installContextErrorGuard(context);
   let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker', { timeout: 30_000 });
+  if (!worker) worker = await context.waitForEvent('serviceworker');
   extensionId = worker.url().split('/')[2];
 
   const primer = await context.newPage();
@@ -129,19 +141,18 @@ test.afterAll(async () => {
 });
 
 test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat', async () => {
-  test.setTimeout(420_000);
 
   // ─── 1. Open /cat21-mint, connect Unisat ───────────────────────
   const page = await context.newPage();
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
 
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
-  await expect(connectTrigger).toBeVisible({ timeout: 30_000 });
+  await expect(connectTrigger).toBeVisible();
 
   const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
-  await page.getByTestId('wallet-connect-unisat').click({ timeout: 20_000 });
-  await approveUnisatConnect(knownPagesBeforeConnect, 60_000);
+  await page.getByTestId('wallet-connect-unisat').click();
+  await approveUnisatConnect(await waitForApprovalPopup({ context, knownPages: knownPagesBeforeConnect, isApproval: unisatConnectApproval }));
   await page.bringToFront();
 
   // ─── 2. Read the payment address (connector shim → bcrt1) ──────
@@ -159,7 +170,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   // ─── 4. Reload so the orchestrator re-fetches UTXOs ────────────
   const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveUnisatConnect(knownPagesBeforeReload, 8_000, { optional: true });
+  await reconnectUnisat(page, knownPagesBeforeReload);
   await page.bringToFront();
 
   // ─── 5. Pin the fee, wait for the Mint button ──────────────────
@@ -173,7 +184,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   await feeRateInput.fill('1');
   await feeRateInput.press('Tab');
   const mintBtn = page.getByTestId('mint-cat-button');
-  await expect(mintBtn).toBeEnabled({ timeout: 60_000 });
+  await expect(mintBtn).toBeEnabled();
   await shot(page, '01-ready-to-mint');
 
   // ─── 6. Click Mint, approve the Unisat sign popup ──────────────
@@ -182,19 +193,15 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Unisat
   const signPopup = await waitForApprovalPopup({
     context,
     knownPages: knownPagesBeforeSign,
-    timeoutMs: 120_000,
-    isApproval: async (p) => {
-      await p.getByTestId('sign-psbt-button').waitFor({ state: 'visible', timeout: 120_000 });
-      return true;
-    },
+    isApproval: approvalGate({ control: (p) => p.getByTestId('sign-psbt-button') }),
   });
   await shot(signPopup, '02-sign-approval');
-  await clickApprovalAndRequireClose(signPopup.getByTestId('sign-psbt-button'), signPopup, { closeTimeoutMs: 30_000, label: 'Unisat sign popup' });
+  await clickApprovalAndRequireClose(signPopup.getByTestId('sign-psbt-button'), signPopup, { label: 'Unisat sign popup' });
   await page.bringToFront();
 
   // ─── 7. Success card → broadcast txid ──────────────────────────
   const successAlert = page.locator('.alert.alert-success').first();
-  await expect(successAlert).toBeVisible({ timeout: 120_000 });
+  await expect(successAlert).toBeVisible();
   const successHref = await successAlert.locator('a').first().getAttribute('href');
   const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
   expect(txidMatch).not.toBeNull();

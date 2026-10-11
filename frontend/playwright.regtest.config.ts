@@ -1,5 +1,22 @@
 import { defineConfig } from '@playwright/test';
 import * as path from 'node:path';
+import { E2E_TIMEOUT_ENV } from 'ordpool-sdk/e2e';
+
+/**
+ * The per-wait bound (TESTING.md): every assertion, action, navigation and
+ * page event, and, through ORDPOOL_E2E_TIMEOUT_MS, every SDK polling helper
+ * (electrs, ord, bitcoind, a wallet popup search). A state that needs longer
+ * to arrive is a defect in the app, the harness or the helper, fixed there,
+ * never by raising this bound.
+ */
+const WAIT_TIMEOUT_MS = 30_000;
+process.env[E2E_TIMEOUT_ENV] = String(WAIT_TIMEOUT_MS);
+
+/**
+ * The per-test bound. A test is a sequence of waits, not one wait.
+ * Twice the longest green test: 142 s, cat21-mint-dirty-matrix cell 2 in ordpool run 37765141941.
+ */
+const TEST_TIMEOUT_MS = 300_000;
 
 /**
  * Playwright config for the regtest cat21-mint round-trip suite.
@@ -34,19 +51,17 @@ export default defineConfig({
   // here is an error to FIX (a missing wait, a race), not to paper over. If a
   // wallet popup times out, the fix is a better wait, not another attempt.
   retries: 0,
-  // Each spec includes ~2 wallet popups + 2 block mines + electrs
-  // polling. The default 60s isn't anywhere near enough.
-  timeout: 480_000,
+  timeout: TEST_TIMEOUT_MS,
   expect: {
-    timeout: 30_000,
+    timeout: WAIT_TIMEOUT_MS,
   },
   use: {
     headless: false,
     screenshot: 'on',
     video: 'retain-on-failure',
     trace: 'retain-on-failure',
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
+    actionTimeout: WAIT_TIMEOUT_MS,
+    navigationTimeout: WAIT_TIMEOUT_MS,
   },
   reporter: [
     [process.env.CI ? 'github' : 'list'],
