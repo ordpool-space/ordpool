@@ -115,10 +115,19 @@ test.describe('bitmap-3d renderer', () => {
     await setKey(page, 'ShiftLeft', true);
     await setKey(page, 'KeyW', true);
 
-    // FOV eases at rate=10. 30 frames @ 1/60 = 0.5s of simulated time,
-    // alpha=10*1/60 per frame → ~99% of the gap closed.
-    await tick(page, 30);
-    expect((await readDebug(page)).fov).toBeGreaterThan(85);
+    // The renderer's own frames carry the sprint. Wait until the player runs
+    // and the FOV has eased onto the renderer's target, and take both values
+    // in that same frame: the run ends at the first cube ahead of the spawn
+    // (about 3 units), after which the target drops back to 75. Checked on
+    // every animation frame, so the state is seen at any frame rate.
+    const sprint = await page.waitForFunction(() => {
+      const d = (window as unknown as { __bitmap3d?: { playerState: string; fov: number; fovTarget: number } }).__bitmap3d;
+      if (!d || d.playerState !== 'running' || Math.abs(d.fov - d.fovTarget) >= 0.5) return false;
+      return { fov: d.fov, fovTarget: d.fovTarget };
+    }, undefined, { polling: 'raf' });
+    const { fov, fovTarget } = await sprint.jsonValue() as { fov: number; fovTarget: number };
+    expect(fovTarget).toBe(90);
+    expect(fov).toBeGreaterThan(85);
 
     await setKey(page, 'KeyW', false);
     await setKey(page, 'ShiftLeft', false);

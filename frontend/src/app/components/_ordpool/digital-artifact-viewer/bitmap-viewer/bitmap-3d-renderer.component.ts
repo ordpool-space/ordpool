@@ -930,6 +930,10 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       }
     };
     const physicsClock = new THREE.Clock();
+    // The FOV the PFP camera eases towards, set by every PFP frame: FOV_SPRINT
+    // while running on the floor, FOV_PFP otherwise. The E2E hook reads it to
+    // wait until the ease has arrived instead of counting frames.
+    let pfpFovTarget = FOV_PFP;
 
     // One PFP physics+visual frame. Extracted from the animate loop so the
     // E2E debug hook can drive it deterministically — headless Chromium
@@ -966,9 +970,9 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
       // with the state machine.
       const hSpeedSq = playerVelocity.x * playerVelocity.x + playerVelocity.z * playerVelocity.z;
       const actuallyRunning = sprinting && hSpeedSq > SPEED_RUN_SQ;
-      const targetFov = fovTarget(actuallyRunning, playerOnFloor, FOV_PFP, FOV_SPRINT);
-      if (Math.abs(camera.fov - targetFov) > 0.01) {
-        camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, easeAlpha(Math.min(0.05, frameDt), 10));
+      pfpFovTarget = fovTarget(actuallyRunning, playerOnFloor, FOV_PFP, FOV_SPRINT);
+      if (Math.abs(camera.fov - pfpFovTarget) > 0.01) {
+        camera.fov = THREE.MathUtils.lerp(camera.fov, pfpFovTarget, easeAlpha(Math.min(0.05, frameDt), 10));
         camera.updateProjectionMatrix();
       }
       playerState = derivePlayerState(
@@ -1251,6 +1255,7 @@ export class Bitmap3dRendererComponent implements AfterViewInit, OnDestroy {
           get playerState() { return playerState; },
           get pos() { return [playerCollider.end.x, playerCollider.end.y, playerCollider.end.z]; },
           get fov() { return camera.fov; },
+          get fovTarget() { return pfpFovTarget; },
           get onFloor() { return playerOnFloor; },
           get vel() { return [playerVelocity.x, playerVelocity.y, playerVelocity.z]; },
           // Joystick + look-stick analog values, jump-pulse flag, host UI

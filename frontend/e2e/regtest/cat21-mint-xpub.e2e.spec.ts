@@ -5,7 +5,7 @@
  * Proves: the /cat21-mint page connects a pasted tpub as Taproot, exports the mint PSBT, accepts it signed and broadcasts a CAT-21 (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat)
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
@@ -18,12 +18,7 @@ import {
   rpc,
   mineBlocks,
   installContextErrorGuard,
-  assertPortRefuses,
-  DEAD_PROXY_HOST,
-  DEAD_PROXY_PORT,
-  offlineLaunchArgs,
-  reachableHosts,
-  netLogArgs,
+  launchOfflineContext,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -94,14 +89,10 @@ test.beforeAll(async () => {
       'mined past coinbase maturity before this spec ran.',
     );
   }
-  // No wallet extension, so not launchWalletContext; the same offline switches
-  // and net log the SDK applies to every wallet launch, from its own exports.
-  await assertPortRefuses(DEAD_PROXY_HOST, DEAD_PROXY_PORT);
-  context = await chromium.launchPersistentContext('', {
-    headless: false,
-    args: ['--no-sandbox', '--disable-dev-shm-usage', ...offlineLaunchArgs(reachableHosts()), ...netLogArgs('xpub')],
-    viewport: { width: 1280, height: 900 },
-  });
+  // No wallet extension: the SDK's offline launch without one, under the same
+  // guarantees as launchWalletContext (dead proxy checked, only the local stack
+  // resolves, one net log named `xpub`).
+  context = await launchOfflineContext({ name: 'xpub', headless: false, options: { viewport: { width: 1280, height: 900 } } });
   errorGuard = installContextErrorGuard(context);
 });
 

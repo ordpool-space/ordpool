@@ -82,10 +82,7 @@ export default defineConfig({
     baseURL: 'http://localhost:4242',
     actionTimeout: WAIT_TIMEOUT_MS,
     navigationTimeout: WAIT_TIMEOUT_MS,
-    // No trace: with a trace recording, 'sprint widens the FOV' fails on every local
-    // macOS run (FOV 76.9, needs > 85) and passes without one; the cause inside
-    // the renderer's frame pacing is unknown.
-    trace: 'off',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },

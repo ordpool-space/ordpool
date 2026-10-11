@@ -27,6 +27,7 @@ import {
   launchWalletContext,
   installLeatherOfflineRoutes,
   installCat21WalletOrdRoutes,
+  closeCat21WalletPage,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -147,7 +148,7 @@ test.beforeAll(async () => {
   const primer = await context.newPage();
   await onboardCat21Wallet(primer, extensionId);
   await shot(primer, '00-onboarded');
-  await primer.close();
+  await closeCat21WalletPage(primer);
 });
 
 test.afterAll(async () => {

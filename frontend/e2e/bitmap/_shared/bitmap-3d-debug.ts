@@ -13,6 +13,8 @@ export interface Bitmap3dDebug {
   playerState: 'idle' | 'walking' | 'running' | 'jumping' | 'falling';
   pos: [number, number, number];
   fov: number;
+  /** The FOV the PFP camera eases towards this frame: 90 while running on the floor, 75 otherwise. */
+  fovTarget: number;
   onFloor: boolean;
   vel: [number, number, number];
   joy: { fwd: number; right: number };

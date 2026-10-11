@@ -18,14 +18,14 @@ import {
   rpc,
   mineBlocks,
   getTx,
-  waitForApprovalPopup,
   waitForApprovalByConfirmButton,
   onboardOkx,
   extensionOnboardingPage,
   dismissOkxAssetTransferPromo,
   installOkxOfflineRoutes,
   raceApprovalPopup,
-  approvalGate,
+  approveOkxConnectPopup,
+  isOkxConnectApproval,
   clickApprovalAndRequireClose,
   installContextErrorGuard,
   launchWalletContext,
@@ -41,7 +41,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * (multi-page, multi-iframe, CDP mouse events to defeat anti-bot; the
  * launch switches it needs come with `launchWalletContext({ wallet: 'okx' })`).
  * Onboarding uses the shared SDK `onboardOkx` helper;
- * connect anchors on the "Connect account" header, and OKX REUSES its
+ * connect goes through the SDK's `approveOkxConnectPopup`, and OKX REUSES its
  * extension page for the sign popup (poll all pages for "Signature
  * request" / "Confirm Trade"). CI-only.
  */
@@ -74,29 +74,20 @@ async function shot(p: Page, name: string): Promise<void> {
   });
 }
 
-// OKX connect popup anchors on the "Connect account" header.
-/** The wallet's connect popup, recognised by its approve control. */
-const connectApproval = approvalGate({
-  url: /^chrome-extension:\/\//,
-  control: (p) => p.getByText('Connect account').first(),
-});
-
 /**
- * Approve the wallet's connect popup. With `reloadedPage`, the app restores the
- * wallet from storage after a reload and shows it as connected without asking
- * the wallet, so the popup is approved only if the wallet opens one anyway.
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking OKX; approve OKX's connect request only if it shows
+ * one anyway. OKX may show it in a page that was already open (it reuses its
+ * popup window), so the search covers every page and the URL decides.
  */
-async function approveOkxConnect(knownPages: Set<Page>, opts: { reloadedPage?: Page } = {}): Promise<void> {
-  const search = { context, knownPages, isApproval: connectApproval };
-  let approval: Page;
-  if (opts.reloadedPage) {
-    const race = await raceApprovalPopup({ ...search, noPopupState: connectedWalletButton(opts.reloadedPage) });
-    if (race.outcome === 'no-popup') return;
-    approval = race.page;
-  } else {
-    approval = await waitForApprovalPopup(search);
-  }
-  await clickApprovalAndRequireClose(approval.getByRole('button', { name: /^connect$/i }).first(), approval, { label: 'OKX connect popup' });
+async function reconnectOkx(page: Page): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages: new Set(),
+    isApproval: isOkxConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'popup') await approveOkxConnectPopup({ context });
 }
 
 // OKX may serve the sign approval from an extension page that is already
@@ -170,11 +161,10 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
   const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
   await expect(connectTrigger).toBeVisible();
 
-  const knownPagesBeforeConnect = new Set(context.pages());
   await connectTrigger.click();
   await page.getByTestId('wallet-connect-okx').click();
   await shot(page, '02-picker-clicked');
-  await approveOkxConnect(knownPagesBeforeConnect);
+  await approveOkxConnectPopup({ context });
   await page.bringToFront();
 
   const paymentAddress = await readPaymentAddress(page);
@@ -187,9 +177,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + OKX', asyn
   await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
   console.log(`[inscribe-okx] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
 
-  const knownPagesBeforeReload = new Set(context.pages());
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await approveOkxConnect(knownPagesBeforeReload, { reloadedPage: page });
+  await reconnectOkx(page);
   await page.bringToFront();
   await shot(page, '03-reloaded');
 

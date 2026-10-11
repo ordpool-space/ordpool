@@ -5,7 +5,7 @@
  * Proves: the /inscribe page connects a pasted tpub as Taproot, exports the commit PSBT, accepts it signed and broadcasts commit and reveal: both confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, BrowserContext, Page } from '@playwright/test';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -22,12 +22,7 @@ import {
   mineBlocks,
   getTx,
   installContextErrorGuard,
-  assertPortRefuses,
-  DEAD_PROXY_HOST,
-  DEAD_PROXY_PORT,
-  offlineLaunchArgs,
-  reachableHosts,
-  netLogArgs,
+  launchOfflineContext,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -122,16 +117,12 @@ test.beforeAll(async () => {
     );
   }
 
-  // No extension: a plain headed Chromium under xvfb. No .crx, no seeded
-  // user-data-dir - the watch-only wallet is a pasted key, not an extension.
-  // No wallet extension, so not launchWalletContext; the same offline switches
-  // and net log the SDK applies to every wallet launch, from its own exports.
-  await assertPortRefuses(DEAD_PROXY_HOST, DEAD_PROXY_PORT);
-  context = await chromium.launchPersistentContext('', {
-    headless: false,
-    args: ['--no-sandbox', '--disable-dev-shm-usage', ...offlineLaunchArgs(reachableHosts()), ...netLogArgs('xpub')],
-    viewport: { width: 1280, height: 900 },
-  });
+  // No extension: a headed Chromium under xvfb, no .crx, no seeded
+  // user-data-dir; the watch-only wallet is a pasted key. The SDK's offline
+  // launch without an extension, under the same guarantees as
+  // launchWalletContext (dead proxy checked, only the local stack resolves,
+  // one net log named `xpub`).
+  context = await launchOfflineContext({ name: 'xpub', headless: false, options: { viewport: { width: 1280, height: 900 } } });
   errorGuard = installContextErrorGuard(context);
 });
 
