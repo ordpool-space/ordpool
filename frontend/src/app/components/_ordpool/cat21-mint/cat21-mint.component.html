@@ -82,6 +82,30 @@
             </div>
           </div>
 
+          <!-- A pick the SDK replaced (droppedSelection): name the coin the user
+               chose, why it no longer funds the mint, and the coin the mint spends
+               instead (resolvedFundingUtxo), before the click. The SDK decides the
+               drop; this panel only renders it. -->
+          <div class="alert alert-warning p-2 mt-4" role="alert" data-testid="funding-dropped-selection"
+            *ngIf="droppedSelection() as dropped" [attr.data-reason]="dropped.reason">
+            <ng-container [ngSwitch]="dropped.reason">
+              <ng-container *ngSwitchCase="'gone'">
+                The coin you picked, <code class="text-break" data-testid="funding-dropped-outpoint">{{ dropped.txid }}:{{ dropped.vout }}</code>,
+                is no longer available. Pick another coin under <strong>Choose a different funding source</strong>.
+              </ng-container>
+              <ng-container *ngSwitchCase="'below-requirement'">
+                The coin you picked, <code class="text-break" data-testid="funding-dropped-outpoint">{{ dropped.txid }}:{{ dropped.vout }}</code>,
+                no longer covers this mint at <strong class="bitcoin">{{ cfeeRate.value }} sat/vB</strong>. Lower the fee rate, or pick
+                another coin under <strong>Choose a different funding source</strong>.
+              </ng-container>
+            </ng-container>
+            <ng-container *ngIf="resolvedFundingCoin() as coin; else noFundingCoin">
+              Until you do, the mint spends <code class="text-break" data-testid="funding-resolved-outpoint">{{ coin.txid }}:{{ coin.vout }}</code>
+              ({{ coin.value | number }} sat).
+            </ng-container>
+            <ng-template #noFundingCoin>No other coin funds the mint right now.</ng-template>
+          </div>
+
           <!-- asset-notice (FAMILY_UX funding-panel rule): the coin that will fund
                the mint carries an asset. The CTA stays ENABLED, but this notice
                names what that coin holds and must be read BEFORE the click, kept in
@@ -188,13 +212,13 @@
               </p>
 
               <div class="mt-4 ps-2 pe-2 pt-1 pb-1 shape-border" *ngFor="let x of paymentOutputs$ | async"
-                [ngClass]="{ selected: x === this.selectedPaymentOutput, 'utxo-row-assets': x.bucket === 'assets', 'utxo-row-clean': x.bucket === 'clean', 'utxo-row-unavailable': !x.available }">
+                [ngClass]="{ selected: isPickedRow(x), 'utxo-row-assets': x.bucket === 'assets', 'utxo-row-clean': x.bucket === 'clean', 'utxo-row-unavailable': !x.available }">
 
-                <button *ngIf="x.available && x !== this.selectedPaymentOutput && x.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
+                <button *ngIf="x.available && !isPickedRow(x) && x.bucket !== 'assets'" class="btn btn-primary float-end text-white mt-2"
                   (click)="selectPaymentOutput(x)" type="button">
                   Use this UTXO
                 </button>
-                <button *ngIf="x.available && x !== this.selectedPaymentOutput && x.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
+                <button *ngIf="x.available && !isPickedRow(x) && x.bucket === 'assets'" class="btn btn-outline-danger float-end mt-2"
                   (click)="selectPaymentOutput(x)" type="button">
                   Use anyway
                 </button>
@@ -219,6 +243,11 @@
                      below then answers "why not the cheaper row above it?". -->
                 <span *ngIf="isRecommendedRow(x)" class="badge bg-primary ms-2"
                   title="The safest, best-fit coin we'd pay with automatically. You can still pick another." data-testid="utxo-recommended">recommended</span>
+
+                <!-- The user's own pick, only while the SDK still spends it: a pick it
+                     replaced (droppedSelection) is named in the notice above the
+                     Mint button instead. -->
+                <span *ngIf="isPickedRow(x)" class="badge bg-info text-dark ms-2" data-testid="utxo-picked">you picked this coin</span>
 
                 <button type="button" *ngIf="x.available && x.bucket === 'unscanned'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(x)">Scan</button>
                 <button type="button" *ngIf="x.available && x.bucket === 'failed'" class="ms-2 small btn btn-link p-0 align-baseline" (click)="scanRow(x)">Retry scan</button>

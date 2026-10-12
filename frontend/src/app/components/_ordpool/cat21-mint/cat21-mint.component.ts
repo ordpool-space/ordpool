@@ -214,26 +214,55 @@ export class Cat21MintComponent implements OnInit {
         }
       }
 
-      // Preserve the user's manual pick across re-emissions by refreshing its
-      // row reference (the highlight and the cost line read it). The pick reaches
-      // the orchestrator once, from selectPaymentOutput; its own recompute then
-      // reflects a pick that a raised fee rate dropped in resolvedFundingStatus,
-      // so there is no setSelectedUtxo re-drive here. Re-driving it re-decided
-      // the SDK's verdict on the consumer side and fed a recompute loop.
-      const current = this.selectedPaymentOutput;
-      this.selectedPaymentOutput = (current && rows.find(
-        (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
-      )) || undefined;
+      // The rows the picker shows, for the picked-row lookup. Whether the pick
+      // still funds the mint is the SDK's answer (droppedSelection), never a
+      // re-check of these rows: the pick reaches the orchestrator once, from
+      // selectPaymentOutput, and its recompute decides.
+      this.shownRows = rows;
       this.cd.markForCheck();
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
-  // Template-bound field, set ONLY by the user's manual pick
-  // (selectPaymentOutput -> "Use this UTXO"); the `tap` above preserves it
-  // across re-emissions and otherwise leaves it undefined so the orchestrator's
-  // safe auto-recommendation funds the mint.
-  selectedPaymentOutput: ViableSimulation | undefined;
+  /** The picker rows of the last emission. */
+  private shownRows: ViableSimulation[] = [];
+
+  /**
+   * The outpoint of the coin the user picked, while the SDK still spends it.
+   * `selectedUtxo` records what was asked for; `droppedSelection` says the SDK
+   * replaced it (the coin is gone, or no longer covers at this rate). Null
+   * without a pick and after a drop, so "you picked this coin" never stays on
+   * a coin the mint will not spend.
+   */
+  private pickedOutpoint = computed(() => {
+    const s = this.snap();
+    return s.selectedUtxo && s.droppedSelection === null ? outpointKey(s.selectedUtxo) : null;
+  });
+
+  /**
+   * The picker row of the user's pick while the SDK still spends it, else
+   * undefined, and the orchestrator's safe auto-recommendation funds the mint.
+   */
+  get selectedPaymentOutput(): ViableSimulation | undefined {
+    const picked = this.pickedOutpoint();
+    return picked === null ? undefined : this.shownRows.find((r) => outpointKey(r.paymentOutput) === picked);
+  }
+
+  /** Whether `row` is the coin the user picked and the SDK still spends. */
+  isPickedRow(row: ViableSimulation): boolean {
+    return this.pickedOutpoint() === outpointKey(row.paymentOutput);
+  }
+
+  /**
+   * The user's pick the SDK replaced, with the reason (`gone`: no longer in
+   * the wallet; `below-requirement`: no longer covers at this rate), or null.
+   * Rendered beside {@link resolvedFundingCoin}, so the user sees which coin
+   * they chose, why it no longer funds the mint and which coin will.
+   */
+  readonly droppedSelection = computed(() => this.snap().droppedSelection);
+
+  /** The coin the mint WILL spend (the SDK's `resolvedFundingUtxo`), or null. */
+  readonly resolvedFundingCoin = computed(() => this.snap().resolvedFundingUtxo);
 
   /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
    *  `asset-notice` (a coin with NAMED assets covers, separate-address wallet),
@@ -255,9 +284,8 @@ export class Cat21MintComponent implements OnInit {
   private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(() => {
     const pick = this.snap().resolvedFundingUtxo;
     if (!pick) { return undefined; }
-    const annotated = this.snap().fundingRecommendation.candidates.find(
-      (c) => c.txid === pick.txid && c.vout === pick.vout,
-    );
+    const key = outpointKey(pick);
+    const annotated = this.snap().fundingRecommendation.candidates.find((c) => outpointKey(c) === key);
     return annotated?.assets;
   });
 
@@ -524,7 +552,6 @@ export class Cat21MintComponent implements OnInit {
    *  the user can't spend can never become the selection (FAMILY_UX). */
   selectPaymentOutput(row: ViableSimulation): void {
     if (!row.available) { return; }
-    this.selectedPaymentOutput = row;
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
 
@@ -620,22 +647,18 @@ export class Cat21MintComponent implements OnInit {
   }
 
   /**
-   * The simulation for the funding source the mint will actually use: the
-   * user's explicit pick if they chose one in the expert picker, otherwise the
-   * orchestrator's auto-recommended source when the mint may spend it on its
-   * own ({@link recommendationActionable}). This is why the total below shows
-   * in the collapsed default, before anyone opens the picker, and why it is
-   * absent while the funding is blocked: a blocked coin is not what anyone pays.
+   * The simulation for the coin the mint will actually spend: the SDK's
+   * `resolvedFundingUtxo`, which honours a pick the SDK still accepts and is
+   * otherwise the recommendation the mint may spend on its own. This is why
+   * the total below shows in the collapsed default, before anyone opens the
+   * picker, and why it is absent while the funding is blocked: a blocked coin
+   * is not what anyone pays.
    */
   private activeSimulation(): UtxoSimulationView | null {
-    if (this.selectedPaymentOutput) { return this.selectedPaymentOutput.simulation; }
-    if (!this.recommendationActionable()) { return null; }
-    const rec = this.snap().fundingRecommendation.recommended;
-    if (!rec) { return null; }
-    const match = this.snap().simulations.find(
-      (s) => s.utxo.txid === rec.txid && s.utxo.vout === rec.vout,
-    );
-    return match?.simulation ?? null;
+    const coin = this.snap().resolvedFundingUtxo;
+    if (!coin) { return null; }
+    const key = outpointKey(coin);
+    return this.snap().simulations.find((s) => outpointKey(s.utxo) === key)?.simulation ?? null;
   }
 
   /**

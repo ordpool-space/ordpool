@@ -300,16 +300,11 @@ export class InscribeMintComponent implements OnInit {
         }
       }
 
-      // Preserve the user's manual pick across re-emissions by refreshing its
-      // row reference (the highlight and the cost line read it). The pick reaches
-      // the orchestrator once, from selectPaymentOutput; its own recompute then
-      // reflects a pick that a raised fee rate dropped in resolvedFundingStatus,
-      // so there is no setSelectedUtxo re-drive here. Re-driving it re-decided
-      // the SDK's verdict on the consumer side and fed a recompute loop.
-      const current = this.selectedPaymentOutput;
-      this.selectedPaymentOutput = (current && rows.find(
-        (r) => r.available && r.paymentOutput.txid === current.paymentOutput.txid && r.paymentOutput.vout === current.paymentOutput.vout,
-      )) || undefined;
+      // The rows the picker shows, for the picked-row lookup. Whether the pick
+      // still funds the inscription is the SDK's answer (droppedSelection),
+      // never a re-check of these rows: the pick reaches the orchestrator once,
+      // from selectPaymentOutput, and its recompute decides.
+      this.shownRows = rows;
       this.cd.markForCheck();
     }),
     // Two async pipes in the template consume this (the row count + the *ngFor).
@@ -319,11 +314,46 @@ export class InscribeMintComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
-  // Template-bound field, set ONLY by the user's manual pick
-  // (selectPaymentOutput -> "Use this UTXO"); the `tap` above preserves it
-  // across re-emissions and otherwise leaves it undefined so the orchestrator's
-  // safe auto-recommendation funds the inscription.
-  selectedPaymentOutput: ViableInscribeSimulation | undefined;
+  /** The picker rows of the last emission. */
+  private shownRows: ViableInscribeSimulation[] = [];
+
+  /**
+   * The outpoint of the coin the user picked, while the SDK still spends it.
+   * `selectedUtxo` records what was asked for; `droppedSelection` says the SDK
+   * replaced it (the coin is gone, or no longer covers at this rate). Null
+   * without a pick and after a drop, so "you picked this coin" never stays on
+   * a coin the inscription will not spend.
+   */
+  private pickedOutpoint = computed(() => {
+    const s = this.snap();
+    return s.selectedUtxo && s.droppedSelection === null ? outpointKey(s.selectedUtxo) : null;
+  });
+
+  /**
+   * The picker row of the user's pick while the SDK still spends it, else
+   * undefined, and the orchestrator's safe auto-recommendation funds the
+   * inscription.
+   */
+  get selectedPaymentOutput(): ViableInscribeSimulation | undefined {
+    const picked = this.pickedOutpoint();
+    return picked === null ? undefined : this.shownRows.find((r) => outpointKey(r.paymentOutput) === picked);
+  }
+
+  /** Whether `row` is the coin the user picked and the SDK still spends. */
+  isPickedRow(row: ViableInscribeSimulation): boolean {
+    return this.pickedOutpoint() === outpointKey(row.paymentOutput);
+  }
+
+  /**
+   * The user's pick the SDK replaced, with the reason (`gone`: no longer in
+   * the wallet; `below-requirement`: no longer covers at this rate), or null.
+   * Rendered beside {@link resolvedFundingCoin}, so the user sees which coin
+   * they chose, why it no longer funds the inscription and which coin will.
+   */
+  readonly droppedSelection = computed(() => this.snap().droppedSelection);
+
+  /** The coin the inscription WILL spend (the SDK's `resolvedFundingUtxo`), or null. */
+  readonly resolvedFundingCoin = computed(() => this.snap().resolvedFundingUtxo);
 
   /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
    *  `asset-notice` (a coin with NAMED assets covers, separate-address wallet),
@@ -345,9 +375,8 @@ export class InscribeMintComponent implements OnInit {
   private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(() => {
     const pick = this.snap().resolvedFundingUtxo;
     if (!pick) { return undefined; }
-    const annotated = this.snap().fundingRecommendation.candidates.find(
-      (c) => c.txid === pick.txid && c.vout === pick.vout,
-    );
+    const key = outpointKey(pick);
+    const annotated = this.snap().fundingRecommendation.candidates.find((c) => outpointKey(c) === key);
     return annotated?.assets;
   });
 
@@ -1597,15 +1626,23 @@ export class InscribeMintComponent implements OnInit {
 
   // ---- Cost readouts ------------------------------------------------------
 
-  /** Exact wallet debit for the selected UTXO, dust-aware. */
+  /**
+   * Exact wallet debit, dust-aware, for the coin the inscription WILL spend:
+   * the SDK's `resolvedFundingUtxo`, which honours a pick the SDK still
+   * accepts and is otherwise the recommendation it may spend on its own. Null
+   * while nothing funds it: a blocked coin is not what anyone pays.
+   */
   totalSpendSats(wallet: WalletInfo | null | undefined): number | null {
-    const row = this.selectedPaymentOutput;
-    if (!row) {return null;}
-    const funding = row.simulation.fundingRequirementSats;
+    const coin = this.snap().resolvedFundingUtxo;
+    if (!coin) {return null;}
+    const key = outpointKey(coin);
+    const simulation = this.snap().simulations.find((s) => outpointKey(s.utxo) === key)?.simulation;
+    if (!simulation) {return null;}
+    const funding = simulation.fundingRequirementSats;
     if (!wallet) {return funding;}
     const changeMin = getMinimumUtxoSize(wallet.paymentAddress);
-    const change = row.paymentOutput.value - funding;
-    return change < changeMin ? row.paymentOutput.value : funding;
+    const change = coin.value - funding;
+    return change < changeMin ? coin.value : funding;
   }
 
   // ---- Commands -----------------------------------------------------------
@@ -1633,7 +1670,6 @@ export class InscribeMintComponent implements OnInit {
    *  (FAMILY_UX). */
   selectPaymentOutput(row: ViableInscribeSimulation): void {
     if (!row.available) { return; }
-    this.selectedPaymentOutput = row;
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
 

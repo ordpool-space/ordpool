@@ -51,6 +51,8 @@ jest.mock('ordpool-sdk', () => {
         // `fundingRecommendation.status`.
         resolvedFundingStatus: string | null;
         resolvedFundingUtxo: TxnOutput | null;
+        // The SDK's record of a pick it replaced; null while the pick stands.
+        droppedSelection: { txid: string; vout: number; reason: 'gone' | 'below-requirement' } | null;
         simulations: { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean }[];
         candidateFees: { txid: string; vout: number; finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }[];
         errorMessage: string | null;
@@ -58,7 +60,7 @@ jest.mock('ordpool-sdk', () => {
       } = {
         state: 'idle', feeRate: null, selectedUtxo: null,
         fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
-        resolvedFundingStatus: 'scanning', resolvedFundingUtxo: null,
+        resolvedFundingStatus: 'scanning', resolvedFundingUtxo: null, droppedSelection: null,
         simulations: [], candidateFees: [], errorMessage: null, successTxId: null,
       };
       _listeners: Array<(s: unknown) => void> = [];
@@ -75,7 +77,8 @@ jest.mock('ordpool-sdk', () => {
       }
       setWallet = jest.fn(async () => {});
       setFeeRate = jest.fn((rate: number) => this._patch({ feeRate: rate }));
-      setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u }));
+      // A new pick clears the previous drop in the same tick, as the SDK does.
+      setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u, droppedSelection: null }));
       mint = jest.fn(async () => ({ txId: 't'.repeat(64) }));
       reset = jest.fn();
       // Signal/subject-shaped shims (harness drivers): map to `_patch`.
@@ -91,6 +94,11 @@ jest.mock('ordpool-sdk', () => {
       resolvedFundingSubject = {
         next: (v: { status: string | null; utxo?: TxnOutput | null }) =>
           this._patch({ resolvedFundingStatus: v.status, resolvedFundingUtxo: v.utxo ?? null }),
+      };
+      // Drives the SDK's record of a pick its recompute replaced.
+      droppedSelectionSubject = {
+        next: (v: { txid: string; vout: number; reason: 'gone' | 'below-requirement' } | null) =>
+          this._patch({ droppedSelection: v }),
       };
       selectedUtxo() { return this._snap.selectedUtxo; }
     },
@@ -548,7 +556,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(orch.selectedUtxo()!.value).toBe(20_000);
     });
 
-    it('E7: a user pick that disappears clears the local display without a consumer-side re-drive (the SDK drops a stale selection on its own recompute)', () => {
+    it('E7: a user pick the SDK drops as gone clears the local display without a consumer-side re-drive', () => {
       const gone = big(20_000);
       pushRows([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
@@ -557,6 +565,9 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
       pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
+      // The SDK's recompute names the dropped pick, as it does for a coin no
+      // longer among its candidates.
+      orch.droppedSelectionSubject.next({ txid: gone.txid, vout: gone.vout, reason: 'gone' });
       // The local display defers back to the safe-auto (no picked row to show) ...
       expect(component.selectedPaymentOutput).toBeUndefined();
       // ... but the consumer does NOT clear or re-decide the orchestrator's
@@ -869,18 +880,24 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('L. total mint spend', () => {
-    it('L1: null until a funding source is picked', () => {
+    it('L1: null until the SDK resolves a coin to spend', () => {
       expect(component.totalMintSpendSats()).toBeNull();
     });
 
-    it('L2: once picked, it is the miner fee plus the cat postage, not just one', () => {
+    it('L2: once the SDK spends a picked coin, it is the miner fee plus the cat postage, not just one', () => {
       // simulation(): finalTransactionFee 200n + amountToRecipient 546n
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      const picked = utxo({ value: 80_000 });
+      orch.simulationsSubject.next([{ utxo: picked, simulation: simulation(), insufficient: false }]);
+      component.selectPaymentOutput({ paymentOutput: picked, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      orch.resolvedFundingSubject.next({ status: 'ready', utxo: picked });
       expect(component.totalMintSpendSats()).toBe(746);
     });
 
     it('L3: tracks the fee, so it is a real total and not a hardcoded 546', () => {
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      const picked = utxo({ value: 80_000 });
+      orch.simulationsSubject.next([{ utxo: picked, simulation: simulation({ finalTransactionFee: 1_454n }), insufficient: false }]);
+      component.selectPaymentOutput({ paymentOutput: picked, simulation: simulation({ finalTransactionFee: 1_454n }), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      orch.resolvedFundingSubject.next({ status: 'ready', utxo: picked });
       expect(component.totalMintSpendSats()).toBe(2_000); // 1454 fee + 546 cat
     });
 
@@ -888,6 +905,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const rec = utxo({ txid: 'r'.repeat(64), vout: 1, value: 80_000 });
       orch.simulationsSubject.next([{ utxo: rec, simulation: simulation(), insufficient: false }]);
       orch.fundingRecommendationSubject.next({ status: 'auto', recommended: rec, candidates: [rec] });
+      orch.resolvedFundingSubject.next({ status: 'ready', utxo: rec });
       expect(component.selectedPaymentOutput).toBeUndefined();
       expect(component.totalMintSpendSats()).toBe(746); // no manual pick needed
       expect(component.catPostageSats()).toBe(546);
@@ -1366,7 +1384,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(captured!.length).toBe(4);
     });
 
-    it('P3: a pick that flips to unavailable on a re-emit clears the local display without a consumer-side re-drive (the SDK reflects it in resolvedFundingStatus)', () => {
+    it('P3: a pick the SDK drops as below-requirement clears the local display without a consumer-side re-drive', () => {
       const chosen = big(80_000);
       scanner.setStates([[`${chosen.txid}:${chosen.vout}`, { kind: 'scanned-clean' }]]);
       orch.simulationsSubject.next([{ utxo: chosen, simulation: simulation(), insufficient: false }]);
@@ -1375,15 +1393,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
       expect(component.selectedPaymentOutput).toBeDefined();
       expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
-      // The same coin re-emits as insufficient (e.g. the user raised the rate).
+      // The same coin re-emits as insufficient (e.g. the user raised the rate),
+      // and the SDK's recompute names the pick it dropped.
       orch.simulationsSubject.next([{ utxo: chosen, simulation: null, insufficient: true }]);
+      orch.droppedSelectionSubject.next({ txid: chosen.txid, vout: chosen.vout, reason: 'below-requirement' });
       component.paymentOutputs$.subscribe().unsubscribe();
       fixture.detectChanges();
       // Local display defers back (unavailable row no longer shown as picked) ...
       expect(component.selectedPaymentOutput).toBeUndefined();
       // ... and the consumer does NOT re-decide the orchestrator's selection: no
       // second setSelectedUtxo. The SDK drops a pick a raised fee rate made
-      // unusable on its own recompute (resolvedFundingStatus reflects it).
+      // unusable on its own recompute (droppedSelection names it).
       expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
     });
   });
@@ -1474,10 +1494,18 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
   const dualAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-ord', paymentAddress: '3-pay' });
   const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
 
+  /** Show `row` in the picker and pick it, the way a click on its Use button does. */
+  function pickRow(row: ViableSimulation): void {
+    scanner.setStates([[`${row.paymentOutput.txid}:${row.paymentOutput.vout}`, row.scan]]);
+    orch.simulationsSubject.next([{ utxo: row.paymentOutput, simulation: row.simulation, insufficient: false }]);
+    component.paymentOutputs$.subscribe().unsubscribe();
+    component.selectPaymentOutput(row);
+    fixture.detectChanges();
+  }
+
   it('renders the single-address note for a single-address wallet even with a LARGE CLEAN coin selected (info beside the mint button, not gated on coin)', () => {
     wallets.connectedWalletSubject.next(singleAddr());
-    component.selectedPaymentOutput = viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' });
-    fixture.detectChanges();
+    pickRow(viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' }));
 
     const note = q('[data-testid="single-address-note"]');
     expect(note).toBeTruthy();
@@ -1492,10 +1520,9 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
 
   it('does NOT render the single-address note for a dual-address wallet', () => {
     wallets.connectedWalletSubject.next(dualAddr());
-    component.selectedPaymentOutput = viable({
+    pickRow(viable({
       paymentOutput: utxo({ value: 3_000 }), bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState,
-    });
-    fixture.detectChanges();
+    }));
     expect(q('[data-testid="single-address-note"]')).toBeNull();
   });
 
@@ -1503,10 +1530,7 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     wallets.connectedWalletSubject.next(singleAddr());
     // the picker renders only when paymentOutputs$ has rows
     const u = utxo({ value: 5_000 });
-    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'not-scanned' } as UtxoScanState]]);
-    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
-    component.selectedPaymentOutput = viable({ paymentOutput: u, bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState });
-    fixture.detectChanges();
+    pickRow(viable({ paymentOutput: u, bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState }));
 
     expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
     // the single-address info note also shows, distinct from the per-coin one
