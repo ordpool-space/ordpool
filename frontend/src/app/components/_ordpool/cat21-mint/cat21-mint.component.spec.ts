@@ -136,6 +136,10 @@ jest.mock('ordpool-sdk', () => {
     // (canonical in candidate-fees.ts); a value import, so the mock must provide
     // it or `outpointKey(...)` is undefined at runtime.
     outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
+    // The SDK's own reading of why an `expert-required` recommendation blocks,
+    // loaded for real: the component picks its warning copy from it, and a
+    // stand-in here would let the copy branch drift from the SDK's causes.
+    expertRequiredCause: jest.requireActual('ordpool-sdk').expertRequiredCause,
     // Faithful re-implementation of the SDK's four-state fee classifier
     // (canonical in candidate-fees.ts). The component routes its over-pay reading
     // through this so it can't drift from cat21.space; a value import, so the mock

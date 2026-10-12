@@ -38,6 +38,8 @@ on:
       # broad for this heavy lane, so scope to just the inscribe / wallet-
       # connect surfaces plus the page shell.
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
+      # The funding scan-port token the mint and inscribe components inject.
+      - 'frontend/src/app/services/ordinals/sdk-tokens.ts'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
       - 'frontend/src/app/components/master-page/**'
       - 'frontend/e2e/regtest/cat21-inscribe-dirty-matrix.e2e.spec.ts'

@@ -494,11 +494,47 @@
             Prefer to use a different coin? Open <strong>Choose a different funding source</strong> below.
           </div>
 
-          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'warning' && !selectedPaymentOutput && !utxoLoading()">
-            We found funds, but every coin big enough to cover the fee also carries an asset
-            (an inscription, rune, rare sat, or cat). Inscribing with one would send that asset to the
-            miner as fee, so we won't auto-select it. Open <strong>Choose a different funding source</strong>
-            below and pick a coin yourself if you're sure it is safe to spend.
+          <!-- expert-required (FAMILY_UX funding-panel rule): the CTA is DISABLED
+               until the user picks a coin in the picker. The copy follows the
+               SDK's expertRequiredCause: assets the scan named (listed, as the
+               notice does), assets it could not name, or content it could not
+               check because the scan failed (with a retry beside it). -->
+          <div class="alert alert-warning p-2 mt-4" role="alert" data-testid="funding-warning" [attr.data-cause]="warningCause()"
+            *ngIf="fundingCta().kind === 'warning' && !selectedPaymentOutput && !utxoLoading()" [ngSwitch]="warningCause()">
+            <ng-container *ngSwitchCase="'named-assets'">
+              We found funds, but every coin big enough to cover the fee also carries an asset
+              (an inscription, rune, rare sat, or cat). Inscribing with one would send that asset to the
+              miner as fee, so we won't auto-select it.
+              <ng-container *ngIf="warningAssets() as a">
+                The best fit carries:
+                <ul class="m-0 mt-1" data-testid="funding-warning-assets">
+                  <li *ngIf="a.inscriptionIds.length">
+                    Inscription{{ a.inscriptionIds.length === 1 ? '' : 's' }}:
+                    <ng-container *ngFor="let id of a.inscriptionIds; let last = last"><a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container></ng-container>
+                  </li>
+                  <li *ngIf="a.runeNames.length">Rune{{ a.runeNames.length === 1 ? '' : 's' }}: {{ a.runeNames.join(', ') }}</li>
+                  <li *ngIf="a.catIds.length">Cat{{ a.catIds.length === 1 ? '' : 's' }}: {{ a.catIds.join(', ') }}</li>
+                  <li *ngIf="a.rareSat">Rare sat: {{ a.rareSat.sat }} ({{ a.rareSat.rarity }})</li>
+                </ul>
+              </ng-container>
+              Open <strong>Choose a different funding source</strong>
+              below and pick a coin yourself if you're sure it is safe to spend.
+            </ng-container>
+            <ng-container *ngSwitchCase="'unnamed-assets'">
+              We found funds, but a coin that covers the fee carries something the scan could not
+              identify. Inscribing with it could send that to the miner as fee, so we won't auto-select it.
+              Open <strong>Choose a different funding source</strong>
+              below and pick a coin yourself if you're sure it is safe to spend.
+            </ng-container>
+            <ng-container *ngSwitchDefault>
+              We found funds, but we couldn't check what the coins big enough to cover the fee are
+              carrying, because the scan got no answer. An unchecked coin can hold an inscription, rune,
+              rare sat, or cat, and inscribing with it would send that to the miner as fee, so we won't
+              auto-select it.
+              <button type="button" class="btn btn-link p-0 align-baseline funding-warning-retry" data-testid="funding-warning-retry" (click)="retryFundingScan()">Retry scan</button>,
+              or open <strong>Choose a different funding source</strong>
+              below and pick a coin yourself if you're sure it is safe to spend.
+            </ng-container>
           </div>
 
           <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingCta().kind === 'insufficient' && !utxoLoading()">

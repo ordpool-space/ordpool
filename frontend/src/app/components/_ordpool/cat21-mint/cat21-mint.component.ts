@@ -3,8 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, filter, firstValueFrom, interval, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, CandidateFeeState, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWallets, MintSnapshot, UtxoSimulationView, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, classifyCandidateFee, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
-import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, CandidateFeeState, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, ExpertRequiredCause, KnownOrdinalWallets, MintSnapshot, UtxoSimulationView, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, classifyCandidateFee, expertRequiredCause, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { bitcoinNetwork, cat21Config, fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
@@ -45,6 +45,8 @@ export class Cat21MintComponent implements OnInit {
   cat21ApiService = inject(Cat21ApiService);
   private cat21 = inject(Cat21Service);
   private scanner = inject(UtxoContentScanner);
+  /** The orchestrator's `ContentScanPort`: the same scanner instance in the app (see `fundingContentScan`). */
+  private fundingScan = inject(fundingContentScan);
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
   private psbtExportPrompt = inject(PsbtExportPromptService);
@@ -58,7 +60,7 @@ export class Cat21MintComponent implements OnInit {
    * here, not an Angular `@Injectable`). The staying Angular/SDK services are
    * wired in as its ports:
    *   - `getUtxos`  → `Cat21Service` (electrs payment-address UTXOs)
-   *   - `scan`      → `UtxoContentScanner` (fail-closed `ContentScanPort`; shares the UI's per-row scan cache so each coin hits ord/cat21-ord once)
+   *   - `scan`      → `fundingContentScan`, the root `UtxoContentScanner` (fail-closed `ContentScanPort`; shares the UI's per-row scan cache so each coin hits ord/cat21-ord once)
    *   - `broadcast` → `Cat21Service.postTransaction`
    * Signing is wired internally by the orchestrator from the connected wallet's
    * type; the consumer only supplies these IO ports + drives it via `setWallet`
@@ -66,13 +68,15 @@ export class Cat21MintComponent implements OnInit {
    */
   private orchestrator = new Cat21MintOrchestrator({
     getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
-    scan: this.scanner,
+    scan: this.fundingScan,
     broadcast: (hex) => firstValueFrom(this.cat21.postTransaction(hex)),
     network: this.network,
-    // Derive the wallet topology from the connected wallet, so a dirty-only
-    // funding pool produces a NOTICE (separate payment address) instead of a
-    // blocking WARNING (one address for everything). Same 'derive' the other
-    // SDK consumers pass; omitting it keeps the always-block default.
+    // Derive the wallet topology from the connected wallet. A coin whose scan
+    // NAMED its assets then produces a NOTICE on a separate-payment-address
+    // wallet and a blocking WARNING on a one-address wallet; a coin whose
+    // assets are unnamed or whose scan failed blocks on every topology. Same
+    // 'derive' the other SDK consumers pass; omitting it keeps the
+    // always-block default.
     fundingTopology: 'derive',
   });
 
@@ -232,9 +236,11 @@ export class Cat21MintComponent implements OnInit {
   selectedPaymentOutput: ViableSimulation | undefined;
 
   /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
-   *  `asset-notice` (dirty covers, separate-address wallet), `expert-required`
-   *  (dirty covers, one-address wallet), `insufficient`, `scanning`. The CTA and
-   *  the notices derive from {@link fundingCta}, never from this directly, so the
+   *  `asset-notice` (a coin with NAMED assets covers, separate-address wallet),
+   *  `expert-required` (blocked: named assets on a one-address wallet, or assets
+   *  the scan could not name, or a failed scan, on any wallet; the cause is
+   *  {@link expertRequiredCause}), `insufficient`, `scanning`. The CTA and the
+   *  notices derive from {@link fundingCta}, never from this directly, so the
    *  button state and the message can't disagree. */
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
@@ -271,7 +277,7 @@ export class Cat21MintComponent implements OnInit {
   readonly fundingCta = computed<
     | { kind: 'ready' }
     | { kind: 'notice'; assets: UtxoAssetDetail | undefined }
-    | { kind: 'warning' }
+    | { kind: 'warning'; cause: ExpertRequiredCause | null; assets: UtxoAssetDetail | undefined }
     | { kind: 'insufficient' }
     | { kind: 'scanning' }
   >(() => {
@@ -279,7 +285,13 @@ export class Cat21MintComponent implements OnInit {
     switch (status) {
       case 'ready': return { kind: 'ready' };
       case 'asset-notice': return { kind: 'notice', assets: this.resolvedPickAssets() };
-      case 'expert-required': return { kind: 'warning' };
+      // The cause is the SDK's reading of the recommended coin, the same fact
+      // the agent-facing `expertRequiredMessage` is built from, so the warning
+      // says why it blocks without re-deriving it from bucket and detail.
+      case 'expert-required': {
+        const rec = this.snap().fundingRecommendation;
+        return { kind: 'warning', cause: expertRequiredCause(rec), assets: rec.recommended?.assets };
+      }
       case 'insufficient': return { kind: 'insufficient' };
       case 'scanning': return { kind: 'scanning' };
       case null: return { kind: 'scanning' };
@@ -288,12 +300,12 @@ export class Cat21MintComponent implements OnInit {
     return _exhaustive;
   });
 
-  /** The mint is fundable when a clean coin auto-covers (`ready`) or a dirty coin
-   *  covers on a separate-address wallet (`notice`: CTA stays ENABLED with the
-   *  notice shown before the click). `warning` (one-address block), `insufficient`
-   *  and `scanning` leave it unfundable until the user acts in the picker. Derived
-   *  from {@link fundingCta} so the button can't enable while the notice says
-   *  otherwise. */
+  /** The mint is fundable when a clean coin auto-covers (`ready`) or a coin with
+   *  named assets covers on a separate-address wallet (`notice`: CTA stays ENABLED
+   *  with the notice shown before the click). `warning` (`expert-required`, for
+   *  any of its three causes), `insufficient` and `scanning` leave it unfundable
+   *  until the user acts in the picker. Derived from {@link fundingCta} so the
+   *  button can't enable while the notice says otherwise. */
   readonly hasFundingSource = computed(() => {
     const kind = this.fundingCta().kind;
     return kind === 'ready' || kind === 'notice';
@@ -306,6 +318,32 @@ export class Cat21MintComponent implements OnInit {
   readonly assetNotice = computed(() => {
     const cta = this.fundingCta();
     return cta.kind === 'notice' ? cta.assets ?? null : null;
+  });
+
+  /** Why the `warning` state blocks, for the copy branch: `named-assets`,
+   *  `unnamed-assets` or `unknown-content`. Null outside the `warning` state. */
+  readonly warningCause = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'warning' ? cta.cause : null;
+  });
+
+  /** The assets the recommended coin carries in the `named-assets` warning, so
+   *  the warning names them the way the notice does. Null otherwise. */
+  readonly warningAssets = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'warning' && cta.cause === 'named-assets' ? cta.assets ?? null : null;
+  });
+
+  /**
+   * Whether the recommendation is a coin the mint may spend without a manual
+   * pick: `auto` (clean) or `asset-notice` (named assets, separate-address
+   * wallet). On `expert-required` the recommendation is only the best fit
+   * among blocked coins, so it is neither marked as recommended nor priced as
+   * what the user will pay.
+   */
+  private recommendationActionable = computed(() => {
+    const status = this.snap().fundingRecommendation.status;
+    return status === 'auto' || status === 'asset-notice';
   });
 
   // State-machine projections: read-only views of the snapshot's `state`
@@ -490,9 +528,22 @@ export class Cat21MintComponent implements OnInit {
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
 
-  /** Template handler: per-row "Scan anyway" / "Retry scan" button. */
+  /** Template handler: per-row "Scan anyway" / "Retry scan" button. A retried
+   *  row re-decides the funding once its scan answers, because the funding
+   *  verdict was taken while that coin's content was unknown and only a
+   *  recompute reads the new answer. */
   scanRow(row: ViableSimulation): void {
-    this.scanner.scan(`${row.paymentOutput.txid}:${row.paymentOutput.vout}`).subscribe();
+    const retried = row.bucket === 'failed';
+    this.scanner.scan(`${row.paymentOutput.txid}:${row.paymentOutput.vout}`).subscribe({
+      complete: () => { if (retried) { void this.orchestrator.refreshUtxos(); } },
+    });
+  }
+
+  /** Template handler: "Retry scan" in the unknown-content warning. Re-reads
+   *  the funding set; the recompute classifies every covering coin again, and
+   *  the scanner re-attempts a failed scan rather than serving it from cache. */
+  retryFundingScan(): void {
+    void this.orchestrator.refreshUtxos();
   }
 
   /** Template handler: form submit / mint button. */
@@ -571,11 +622,14 @@ export class Cat21MintComponent implements OnInit {
   /**
    * The simulation for the funding source the mint will actually use: the
    * user's explicit pick if they chose one in the expert picker, otherwise the
-   * orchestrator's auto-recommended source. This is why the total below shows
-   * in the collapsed default, before anyone opens the picker.
+   * orchestrator's auto-recommended source when the mint may spend it on its
+   * own ({@link recommendationActionable}). This is why the total below shows
+   * in the collapsed default, before anyone opens the picker, and why it is
+   * absent while the funding is blocked: a blocked coin is not what anyone pays.
    */
   private activeSimulation(): UtxoSimulationView | null {
     if (this.selectedPaymentOutput) { return this.selectedPaymentOutput.simulation; }
+    if (!this.recommendationActionable()) { return null; }
     const rec = this.snap().fundingRecommendation.recommended;
     if (!rec) { return null; }
     const match = this.snap().simulations.find(
@@ -664,9 +718,11 @@ export class Cat21MintComponent implements OnInit {
    * PLACE (a badge on its natural value-sorted row), never sorted to the top:
    * the cost column exists so a reader can see the recommended coin is cheaper
    * for a reason, and "why not the cheaper one above it?" is only answerable
-   * while that cheaper row stays visible above it (FAMILY_UX).
+   * while that cheaper row stays visible above it (FAMILY_UX). Only for an
+   * actionable recommendation: the badge's "safest, best-fit coin" tooltip
+   * would be false on a coin the funding policy blocks.
    */
   isRecommendedRow(row: ViableSimulation): boolean {
-    return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
+    return this.recommendationActionable() && this.recommendedOutpoint() === outpointKey(row.paymentOutput);
   }
 }

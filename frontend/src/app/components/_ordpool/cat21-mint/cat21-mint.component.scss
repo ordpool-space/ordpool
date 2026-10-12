@@ -94,3 +94,20 @@
   display: inline;
   margin-right: 0.35em;
 }
+
+// The retry inside the light warning alert: the alert's own dark text colour,
+// bold and underlined, because the link orange on the alert's pale yellow
+// does not reach a readable contrast.
+.funding-warning-retry {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  vertical-align: baseline;
+}
+
+// Asset links inside the notice and the warning (both pale-yellow alerts) take
+// the alert's dark text colour, underlined, for the same contrast reason.
+.alert-warning a {
+  color: inherit;
+  text-decoration: underline;
+}

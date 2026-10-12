@@ -45,6 +45,8 @@ on:
       # MAINTENANCE: extend this list when the spec boots another _ordpool
       # component, or the same silent-drift break returns for it.
       - 'frontend/src/app/components/_ordpool/cat21-mint/**'
+      # The funding scan-port token the mint and inscribe components inject.
+      - 'frontend/src/app/services/ordinals/sdk-tokens.ts'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
 
 permissions:

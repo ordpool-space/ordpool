@@ -74,6 +74,9 @@ on:
       - 'frontend/e2e/regtest/inscribe-mint-okx.e2e.spec.ts'
       - 'frontend/e2e/regtest/inscribe-mint-alby.e2e.spec.ts'
       - 'frontend/e2e/regtest/inscribe-mint-xpub.e2e.spec.ts'
+      - 'frontend/e2e/regtest/funding-guard-unknown-content-xpub.e2e.spec.ts'
+      # The funding scan-port token the mint and inscribe components inject.
+      - 'frontend/src/app/services/ordinals/sdk-tokens.ts'
       - 'frontend/e2e/regtest/fixtures/**'
       - 'frontend/e2e/regtest/payment-address.ts'
 
@@ -805,6 +808,21 @@ jobs:
             npx playwright test e2e/regtest/cat21-mint-xpub.e2e.spec.ts \
             --config=playwright.regtest.config.ts \
             --output=test-results/cat21-mint-xpub
+
+      # The unknown-content funding guard: an unconfirmed coin no ord has
+      # indexed blocks the mint with its own warning, and the warning's Retry
+      # scan re-reads ord once the coin confirms. Watch-only on its own account
+      # path, so it shares no address with the xpub specs above.
+      - name: Run the unknown-content funding-guard spec (watch-only xpub)
+        if: always()
+        working-directory: frontend
+        env:
+          FRONTEND_URL: http://localhost:4200
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            npx playwright test e2e/regtest/funding-guard-unknown-content-xpub.e2e.spec.ts \
+            --config=playwright.regtest.config.ts \
+            --output=test-results/funding-guard-unknown-content-xpub
 
       # cat21-mint via Wizz. Runs LAST, after inscribe-wizz: the two wizz specs
       # contend when adjacent (a wizz sign popup intermittently stalls past the

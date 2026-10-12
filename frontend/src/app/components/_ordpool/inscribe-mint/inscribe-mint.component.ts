@@ -4,8 +4,8 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, esploraInscribeTransport, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
-import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, ExpertRequiredCause, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, esploraInscribeTransport, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, expertRequiredCause, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { bitcoinNetwork, cat21Config, fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
 
@@ -82,6 +82,8 @@ export class InscribeMintComponent implements OnInit {
   private psbtExportPrompt = inject(PsbtExportPromptService);
   private runeResolver = inject(RuneEtchingResolverService);
   private scanner = inject(UtxoContentScanner);
+  /** The orchestrator's `ContentScanPort`: the same scanner instance in the app (see `fundingContentScan`). */
+  private fundingScan = inject(fundingContentScan);
   private config = inject(cat21Config);
   private network = inject(bitcoinNetwork);
   cd = inject(ChangeDetectorRef);
@@ -91,7 +93,7 @@ export class InscribeMintComponent implements OnInit {
   /**
    * The framework-agnostic inscribe orchestrator (a plain SDK class, constructed
    * here, not an Angular `@Injectable`). The staying Angular/SDK services are
-   * wired in as its ports (getUtxos → Cat21Service, scan → `UtxoContentScanner`
+   * wired in as its ports (getUtxos → Cat21Service, scan → `fundingContentScan`, the root `UtxoContentScanner`
    * (fail-closed `ContentScanPort`, shares the UI's scan cache), transport →
    * our electrs behind `Cat21Service.mempoolApiUrl`, which dry-runs and submits
    * commit and reveal as one package).
@@ -99,13 +101,15 @@ export class InscribeMintComponent implements OnInit {
    */
   private orchestrator = new InscribeMintOrchestrator({
     getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
-    scan: this.scanner,
+    scan: this.fundingScan,
     transport: esploraInscribeTransport([`${this.cat21.mempoolApiUrl}/api`]),
     network: this.network,
-    // Derive the wallet topology from the connected wallet, so a dirty-only
-    // funding pool produces a NOTICE (separate payment address) instead of a
-    // blocking WARNING (one address for everything). Same 'derive' the other
-    // SDK consumers pass; omitting it keeps the always-block default.
+    // Derive the wallet topology from the connected wallet. A coin whose scan
+    // NAMED its assets then produces a NOTICE on a separate-payment-address
+    // wallet and a blocking WARNING on a one-address wallet; a coin whose
+    // assets are unnamed or whose scan failed blocks on every topology. Same
+    // 'derive' the other SDK consumers pass; omitting it keeps the
+    // always-block default.
     fundingTopology: 'derive',
     // Resolves a batch's parentIds to their current outpoints (snapshot.parents).
     ordBaseUrl: environment.ordBaseUrls[0],
@@ -179,10 +183,12 @@ export class InscribeMintComponent implements OnInit {
    * PLACE on its natural value-sorted row (FAMILY_UX), never sorted to the top,
    * so the per-coin fee breakdown below stays answerable to "why not the cheaper
    * row above it?". The inscribe fee cell qualifies itself as the COMMIT + REVEAL
-   * package total.
+   * package total. Only for an actionable recommendation: the badge's
+   * "safest, best-fit coin" tooltip would be false on a coin the funding
+   * policy blocks.
    */
   isRecommendedRow(row: ViableInscribeSimulation): boolean {
-    return this.recommendedOutpoint() === outpointKey(row.paymentOutput);
+    return this.recommendationActionable() && this.recommendedOutpoint() === outpointKey(row.paymentOutput);
   }
 
   /**
@@ -320,9 +326,11 @@ export class InscribeMintComponent implements OnInit {
   selectedPaymentOutput: ViableInscribeSimulation | undefined;
 
   /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
-   *  `asset-notice` (dirty covers, separate-address wallet), `expert-required`
-   *  (dirty covers, one-address wallet), `insufficient`, `scanning`. The CTA and
-   *  the notices derive from {@link fundingCta}, never from this directly, so the
+   *  `asset-notice` (a coin with NAMED assets covers, separate-address wallet),
+   *  `expert-required` (blocked: named assets on a one-address wallet, or assets
+   *  the scan could not name, or a failed scan, on any wallet; the cause is
+   *  {@link expertRequiredCause}), `insufficient`, `scanning`. The CTA and the
+   *  notices derive from {@link fundingCta}, never from this directly, so the
    *  button state and the message can't disagree. */
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
@@ -359,7 +367,7 @@ export class InscribeMintComponent implements OnInit {
   readonly fundingCta = computed<
     | { kind: 'ready' }
     | { kind: 'notice'; assets: UtxoAssetDetail | undefined }
-    | { kind: 'warning' }
+    | { kind: 'warning'; cause: ExpertRequiredCause | null; assets: UtxoAssetDetail | undefined }
     | { kind: 'insufficient' }
     | { kind: 'scanning' }
   >(() => {
@@ -367,7 +375,13 @@ export class InscribeMintComponent implements OnInit {
     switch (status) {
       case 'ready': return { kind: 'ready' };
       case 'asset-notice': return { kind: 'notice', assets: this.resolvedPickAssets() };
-      case 'expert-required': return { kind: 'warning' };
+      // The cause is the SDK's reading of the recommended coin, the same fact
+      // the agent-facing `expertRequiredMessage` is built from, so the warning
+      // says why it blocks without re-deriving it from bucket and detail.
+      case 'expert-required': {
+        const rec = this.snap().fundingRecommendation;
+        return { kind: 'warning', cause: expertRequiredCause(rec), assets: rec.recommended?.assets };
+      }
       case 'insufficient': return { kind: 'insufficient' };
       case 'scanning': return { kind: 'scanning' };
       case null: return { kind: 'scanning' };
@@ -376,12 +390,12 @@ export class InscribeMintComponent implements OnInit {
     return _exhaustive;
   });
 
-  /** The inscription is fundable when a clean coin auto-covers (`ready`) or a dirty
-   *  coin covers on a separate-address wallet (`notice`: CTA stays ENABLED with the
-   *  notice shown before the click). `warning` (one-address block), `insufficient`
-   *  and `scanning` leave it unfundable until the user acts in the picker. Derived
-   *  from {@link fundingCta} so the button can't enable while the notice says
-   *  otherwise. */
+  /** The inscription is fundable when a clean coin auto-covers (`ready`) or a coin
+   *  with named assets covers on a separate-address wallet (`notice`: CTA stays
+   *  ENABLED with the notice shown before the click). `warning` (`expert-required`,
+   *  for any of its three causes), `insufficient` and `scanning` leave it
+   *  unfundable until the user acts in the picker. Derived from {@link fundingCta}
+   *  so the button can't enable while the notice says otherwise. */
   readonly hasFundingSource = computed(() => {
     const kind = this.fundingCta().kind;
     return kind === 'ready' || kind === 'notice';
@@ -394,6 +408,31 @@ export class InscribeMintComponent implements OnInit {
   readonly assetNotice = computed(() => {
     const cta = this.fundingCta();
     return cta.kind === 'notice' ? cta.assets ?? null : null;
+  });
+
+  /** Why the `warning` state blocks, for the copy branch: `named-assets`,
+   *  `unnamed-assets` or `unknown-content`. Null outside the `warning` state. */
+  readonly warningCause = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'warning' ? cta.cause : null;
+  });
+
+  /** The assets the recommended coin carries in the `named-assets` warning, so
+   *  the warning names them the way the notice does. Null otherwise. */
+  readonly warningAssets = computed(() => {
+    const cta = this.fundingCta();
+    return cta.kind === 'warning' && cta.cause === 'named-assets' ? cta.assets ?? null : null;
+  });
+
+  /**
+   * Whether the recommendation is a coin the inscription may spend without a
+   * manual pick: `auto` (clean) or `asset-notice` (named assets,
+   * separate-address wallet). On `expert-required` the recommendation is only
+   * the best fit among blocked coins, so it is not marked as recommended.
+   */
+  private recommendationActionable = computed(() => {
+    const status = this.snap().fundingRecommendation.status;
+    return status === 'auto' || status === 'asset-notice';
   });
 
   // ---- State-machine projections ------------------------------------------
@@ -1598,8 +1637,22 @@ export class InscribeMintComponent implements OnInit {
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
 
+  /** Template handler: per-row "Scan" / "Retry scan" button. A retried row
+   *  re-decides the funding once its scan answers, because the funding verdict
+   *  was taken while that coin's content was unknown and only a recompute
+   *  reads the new answer. */
   scanRow(row: ViableInscribeSimulation): void {
-    this.scanner.scan(`${row.paymentOutput.txid}:${row.paymentOutput.vout}`).subscribe();
+    const retried = row.bucket === 'failed';
+    this.scanner.scan(`${row.paymentOutput.txid}:${row.paymentOutput.vout}`).subscribe({
+      complete: () => { if (retried) { void this.orchestrator.refreshUtxos(); } },
+    });
+  }
+
+  /** Template handler: "Retry scan" in the unknown-content warning. Re-reads
+   *  the funding set; the recompute classifies every covering coin again, and
+   *  the scanner re-attempts a failed scan rather than serving it from cache. */
+  retryFundingScan(): void {
+    void this.orchestrator.refreshUtxos();
   }
 
   runeNames(content: UtxoContent): string[] { return runeNamesFromContent(content); }
