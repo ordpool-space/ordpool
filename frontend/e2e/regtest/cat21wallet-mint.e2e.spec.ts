@@ -30,6 +30,7 @@ import {
   installLeatherOfflineRoutes,
   installCat21WalletOrdRoutes,
   regtestServiceUrls,
+  regtestWallet,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -74,8 +75,8 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 const FRONTEND_URL = regtestServiceUrls().app;
 
-/** The funder wallet the consumer bootstrap creates (REGTEST_WALLET, the SDK helpers' default otherwise). */
-const RPC_WALLET_ARG = `-rpcwallet=${process.env.REGTEST_WALLET ?? 'ordpool-e2e'}`;
+/** The bitcoind wallet the SDK's bootstrap creates and its helpers spend from. */
+const RPC_WALLET_ARG = `-rpcwallet=${regtestWallet()}`;
 const MINT_PATH = '/cat21-mint';
 
 const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');

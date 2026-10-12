@@ -20,6 +20,7 @@ import {
   installContextErrorGuard,
   launchOfflineContext,
   regtestServiceUrls,
+  regtestWallet,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -49,7 +50,7 @@ const FUND_AMOUNT_BTC = '0.001';
 const FUND_AMOUNT_SATS = 100_000;
 
 /** The bitcoind wallet the SDK's bootstrap creates and its helpers spend from. */
-const RPC_WALLET_ARG = `-rpcwallet=${process.env.REGTEST_WALLET ?? 'ordpool-e2e'}`;
+const RPC_WALLET_ARG = `-rpcwallet=${regtestWallet()}`;
 
 const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 

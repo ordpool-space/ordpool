@@ -31,6 +31,7 @@ import {
   PASSWORD_BY_WALLET,
   launchWalletContext,
   regtestServiceUrls,
+  regtestWallet,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -76,8 +77,8 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
 const FRONTEND_URL = regtestServiceUrls().app;
 
-/** The funder wallet the consumer bootstrap creates (REGTEST_WALLET, the SDK helpers' default otherwise). */
-const RPC_WALLET_ARG = `-rpcwallet=${process.env.REGTEST_WALLET ?? 'ordpool-e2e'}`;
+/** The bitcoind wallet the SDK's bootstrap creates and its helpers spend from. */
+const RPC_WALLET_ARG = `-rpcwallet=${regtestWallet()}`;
 const MINT_PATH = '/cat21-mint';
 
 // In regtest, 1 BTC = 100M sats. Fund with 0.001 BTC (100,000 sats) —
