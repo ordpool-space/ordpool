@@ -1,13 +1,15 @@
 /**
  * @test-kind unit
  * Real:   Cat21MintComponent with its production template; ordpool-sdk loaded for real and wired the way app.module.ts wires it (Cat21MintOrchestrator, UtxoContentScanner, Cat21Service, Cat21ApiService, WalletService, recommendFunding, expertRequiredCause)
- * Faked:  fetch: electrs /api/address/:a/utxo (esplora API.md shape, the SDK's TxnOutput), ord and cat21-ord /output (the SDK's inscribedOutputFixture / cleanOutputFixture, or HTTP 503 for a failed scan); WalletService storage (a persisted LAST_CONNECTED_WALLET); StateService.recommendedFees$ (the websocket feed) -> recommendedFeesFixture (ordpool-sdk); the `fundingContentScan` port, in the unnamed-assets cases only, answering the bare 'has-assets' a ContentScanPort may return (ports.ts UtxoClassification) and the real scanner never does; mempool's SeoService and relativeUrl pipe (upstream, not read by the funding panel)
- * Proves: the expert-required warning says which of the SDK's three causes blocks the mint while the CTA stays disabled; the recommended badge and the total line appear only for a recommendation the mint may spend
+ * Faked:  fetch: electrs /api/address/:a/utxo (electrsConfirmedUtxoFixture, ordpool-sdk/testing, captured) and POST /api/tx (the txid as text, esplora API.md), ord and cat21-ord /output (the SDK's inscribedOutputFixture / cleanOutputFixture, or HTTP 503 for a failed scan); WalletService storage (a persisted LAST_CONNECTED_WALLET); Leather's window.LeatherProvider signPsbt (the { result: { hex } } shape the SDK's Leather signer reads, signing with the harness key); StateService.recommendedFees$ (the websocket feed) -> recommendedFeesFixture (ordpool-sdk); the `fundingContentScan` port, in the unnamed-assets cases only, answering the bare 'has-assets' a ContentScanPort may return (ports.ts UtxoClassification) and the real scanner never does; mempool's SeoService and relativeUrl pipe (upstream, not read by the funding panel)
+ * Proves: the expert-required warning says which of the SDK's three causes blocks the mint while the CTA stays disabled; the recommended badge and the total line appear only for a recommendation the mint may spend; on asset-notice, Mint spends the recommended asset coin the notice names
  */
 import { CommonModule } from '@angular/common';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import * as btc from '@scure/btc-signer';
+import { hex } from '@scure/base';
 import * as fs from 'fs';
 import * as path from 'path';
 import { of } from 'rxjs';
@@ -18,7 +20,8 @@ import { fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
 import {
-  CoinScan, electrsUtxo, FakeNetwork, oneAddressWallet, outpointOf, sdkProviders, separateAddressWallet, settle, textOf,
+  CoinScan, electrsUtxo, FakeNetwork, inputOutpoint, installLeatherSigner, oneAddressWallet, outpointOf, sdkProviders,
+  separateAddressLeatherWallet, separateAddressWallet, settle, textOf,
 } from '../funding-panel.spec-harness';
 import { Cat21MintComponent } from './cat21-mint.component';
 
@@ -229,6 +232,31 @@ describe('Cat21MintComponent funding causes (real ordpool-sdk)', () => {
       expect(textOf(q('[data-testid="utxo-recommended"]'))).toBe('recommended');
       expect(textOf(q('[data-testid="mint-total-cost"]'))).toMatch(TOTAL_LINE);
       expect(mintButton().disabled).toBe(false);
+    });
+  });
+
+  describe('asset-notice proceeds: Mint spends the coin the notice names', () => {
+    let leather: ReturnType<typeof installLeatherSigner>;
+    afterEach(() => leather.uninstall());
+
+    it('a separate-address wallet whose only covering coin carries a named inscription signs and broadcasts a mint spending that coin', async () => {
+      leather = installLeatherSigner();
+      const coin = electrsUtxo('f', COVERING_SCANNED);
+      await boot(separateAddressLeatherWallet(), coin, inscribedOutputFixture(INSCRIPTION_ID));
+      expect(component.fundingCta().kind).toBe('notice');
+      expect(textOf(q('.alert.alert-warning'))).toContain(`Inscription: ${INSCRIPTION_ID}`);
+
+      mintButton().click();
+      await settle(() => fixture.detectChanges(), () => net.broadcasts.length > 0 || component.mintCat21Error() !== '');
+
+      expect(leather.requests.map((r) => inputOutpoint(r.psbt, r.signAtIndex))).toEqual([outpointOf(coin)]);
+      expect(net.broadcasts.length).toBe(1);
+      const minted = btc.Transaction.fromRaw(hex.decode(net.broadcasts[0]));
+      expect(`${hex.encode(minted.getInput(0).txid ?? new Uint8Array())}:${minted.getInput(0).index}`).toBe(outpointOf(coin));
+      expect(minted.lockTime).toBe(21);
+      await settle(() => fixture.detectChanges(), () => component.mintCat21Success() !== undefined);
+      expect(component.mintCat21Success()).toEqual({ txId: minted.id });
+      expect(textOf(q('.alert.alert-success'))).toContain('Your CAT-21 transaction has now been submitted to the mempool.');
     });
   });
 });

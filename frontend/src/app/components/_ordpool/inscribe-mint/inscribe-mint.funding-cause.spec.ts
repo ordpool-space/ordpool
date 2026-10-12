@@ -1,8 +1,8 @@
 /**
  * @test-kind unit
  * Real:   InscribeMintComponent with its production template; ordpool-sdk loaded for real and wired the way app.module.ts wires it (InscribeMintOrchestrator, UtxoContentScanner, Cat21Service, Cat21ApiService, WalletService, recommendFunding, expertRequiredCause)
- * Faked:  fetch: electrs /api/address/:a/utxo (esplora API.md shape, the SDK's TxnOutput), ord and cat21-ord /output (the SDK's inscribedOutputFixture / cleanOutputFixture, or HTTP 503 for a failed scan); WalletService storage (a persisted LAST_CONNECTED_WALLET); StateService.recommendedFees$ (the websocket feed) -> recommendedFeesFixture (ordpool-sdk); the `fundingContentScan` port, in the unnamed-assets cases only, answering the bare 'has-assets' a ContentScanPort may return (ports.ts UtxoClassification) and the real scanner never does; mempool's SeoService and relativeUrl pipe (upstream, not read by the funding panel)
- * Proves: the expert-required warning says which of the SDK's three causes blocks the inscription while the CTA stays disabled; the recommended badge appears only for a recommendation the inscription may spend
+ * Faked:  fetch: electrs /api/address/:a/utxo (electrsConfirmedUtxoFixture, ordpool-sdk/testing, captured), ord and cat21-ord /output (the SDK's inscribedOutputFixture / cleanOutputFixture, or HTTP 503 for a failed scan); WalletService storage (a persisted LAST_CONNECTED_WALLET); Leather's window.LeatherProvider signPsbt (the { result: { hex } } shape the SDK's Leather signer reads, signing with the harness key); StateService.recommendedFees$ (the websocket feed) -> recommendedFeesFixture (ordpool-sdk); the `fundingContentScan` port, in the unnamed-assets cases only, answering the bare 'has-assets' a ContentScanPort may return (ports.ts UtxoClassification) and the real scanner never does; mempool's SeoService and relativeUrl pipe (upstream, not read by the funding panel)
+ * Proves: the expert-required warning says which of the SDK's three causes blocks the inscription while the CTA stays disabled; the recommended badge appears only for a recommendation the inscription may spend; on asset-notice, Inscribe has the wallet sign a commit funded by the recommended asset coin the notice names
  */
 import { CommonModule } from '@angular/common';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
@@ -18,7 +18,8 @@ import { fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
 import {
-  CoinScan, electrsUtxo, FakeNetwork, oneAddressWallet, outpointOf, sdkProviders, separateAddressWallet, settle, textOf,
+  CoinScan, electrsUtxo, FakeNetwork, inputOutpoint, installLeatherSigner, oneAddressWallet, outpointOf, sdkProviders,
+  separateAddressLeatherWallet, separateAddressWallet, settle, textOf,
 } from '../funding-panel.spec-harness';
 import { InscribeMintComponent } from './inscribe-mint.component';
 
@@ -233,6 +234,26 @@ describe('InscribeMintComponent funding causes (real ordpool-sdk)', () => {
       expect(component.fundingCta().kind).toBe('notice');
       expect(textOf(q('[data-testid="utxo-recommended"]'))).toBe('recommended');
       expect(inscribeButton().disabled).toBe(false);
+    });
+  });
+
+  describe('asset-notice proceeds: Inscribe spends the coin the notice names', () => {
+    let leather: ReturnType<typeof installLeatherSigner>;
+    afterEach(() => leather.uninstall());
+
+    // The harness serves no package endpoint, so the flow ends at the
+    // transport's first request; the pin is the coin the wallet signs away.
+    it('a separate-address wallet whose only covering coin carries a named inscription signs a commit funded by that coin', async () => {
+      leather = installLeatherSigner();
+      const coin = electrsUtxo('f', COVERING_SCANNED);
+      await boot(separateAddressLeatherWallet(), coin, inscribedOutputFixture(INSCRIPTION_ID));
+      expect(component.fundingCta().kind).toBe('notice');
+      expect(textOf(q('.alert.alert-warning'))).toContain(`Inscription: ${INSCRIPTION_ID}`);
+
+      inscribeButton().click();
+      await settle(() => fixture.detectChanges(), () => net.requested.includes('http://electrs.test/api/txs/test'));
+
+      expect(leather.requests.map((r) => inputOutpoint(r.psbt, r.signAtIndex))).toEqual([outpointOf(coin)]);
     });
   });
 });

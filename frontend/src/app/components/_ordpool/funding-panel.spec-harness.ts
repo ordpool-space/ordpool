@@ -5,14 +5,18 @@
  * `app.module.ts` builds and answers the network calls those SDK classes make.
  *
  * Faked, and only at the IO boundary:
- *   - `globalThis.fetch`: electrs `GET /api/address/:a/utxo` in esplora's
- *     documented shape (esplora API.md, typed by the SDK's `TxnOutput`), ord
+ *   - `globalThis.fetch`: electrs `GET /api/address/:a/utxo` from the SDK's
+ *     captured row (`electrsConfirmedUtxoFixture`, ordpool-sdk/testing), ord
  *     and cat21-ord `GET /output/:outpoint` from the SDK's canonical
  *     `/output` fixtures, or an HTTP 503 for a coin whose scan must fail.
  *     Every other URL is answered 404, the indexer status reads on the mint
  *     hero fall back to their empty state on it.
  *   - WalletService's storage: a persisted `LAST_CONNECTED_WALLET`, which is
  *     how a reload restores a connection.
+ *   - Leather's wallet API, for the specs that mint: `window.LeatherProvider`
+ *     answers `signPsbt` in the shape the SDK's Leather signer reads
+ *     (`{ result: { hex } }`), signing with the harness key; electrs
+ *     `POST /api/tx` answers the txid as text, as esplora API.md documents.
  */
 import { secp256k1 } from '@noble/curves/secp256k1';
 import * as btc from '@scure/btc-signer';
@@ -21,6 +25,7 @@ import {
   Cat21ApiService, Cat21Service, KnownOrdinalWalletType, LAST_CONNECTED_WALLET, Network, OutputFixture,
   TxnOutput, UtxoContentScanner, WalletInfo, WalletService,
 } from 'ordpool-sdk';
+import { electrsConfirmedUtxoFixture } from 'ordpool-sdk/testing';
 
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
@@ -31,17 +36,25 @@ export const HARNESS_CONFIG = {
   cat21OrdApiUrl: 'http://cat21-ord.test',
 };
 
-/** A deterministic key from one repeated byte. Only for building real addresses. */
-function pubkeyFrom(byte: number): Uint8Array {
-  return secp256k1.getPublicKey(new Uint8Array(32).fill(byte), true);
+/** A deterministic private key from one repeated byte. Only for building real addresses and signatures. */
+function privkeyFrom(byte: number): Uint8Array {
+  return new Uint8Array(32).fill(byte);
 }
+
+/** The public key of `privkeyFrom(byte)`. */
+function pubkeyFrom(byte: number): Uint8Array {
+  return secp256k1.getPublicKey(privkeyFrom(byte), true);
+}
+
+/** The byte of the separate-address wallets' payment key, the key that signs a funding input. */
+const PAYMENT_KEY_BYTE = 0x11;
 
 /**
  * A wallet whose payment and ordinals addresses are DIFFERENT (Xverse's
  * layout): `recommendFunding` sees topology `separate-payment-address`.
  */
 export function separateAddressWallet(): WalletInfo {
-  const pay = pubkeyFrom(0x11);
+  const pay = pubkeyFrom(PAYMENT_KEY_BYTE);
   const ord = pubkeyFrom(0x22);
   return {
     type: KnownOrdinalWalletType.xverse,
@@ -51,6 +64,48 @@ export function separateAddressWallet(): WalletInfo {
     ordinalsPublicKey: hex.encode(ord),
     signingSupported: true,
   };
+}
+
+/**
+ * `separateAddressWallet`'s addresses and keys as a Leather wallet, whose
+ * signer `installLeatherSigner` answers, so a spec can mint end to end.
+ */
+export function separateAddressLeatherWallet(): WalletInfo {
+  return { ...separateAddressWallet(), type: KnownOrdinalWalletType.leather };
+}
+
+/** One `signPsbt` request Leather received: the PSBT as sent and the input it was asked to sign. */
+export interface LeatherSignRequest {
+  psbt: btc.Transaction;
+  signAtIndex: number;
+}
+
+/**
+ * Answer Leather's `window.LeatherProvider.request('signPsbt', ...)` the way
+ * the wallet does after the user approves: the PSBT comes back with the
+ * requested input signed by the payment key. Returns every request received,
+ * and a function that removes the provider again.
+ */
+export function installLeatherSigner(): { requests: LeatherSignRequest[]; uninstall: () => void } {
+  const requests: LeatherSignRequest[] = [];
+  const win = window as unknown as { LeatherProvider?: unknown };
+  win.LeatherProvider = {
+    request: async (method: string, params: { hex: string; signAtIndex: number }) => {
+      if (method !== 'signPsbt') { throw new Error(`the harness Leather answers signPsbt only, got ${method}`); }
+      requests.push({ psbt: btc.Transaction.fromPSBT(hex.decode(params.hex)), signAtIndex: params.signAtIndex });
+      const tx = btc.Transaction.fromPSBT(hex.decode(params.hex));
+      tx.signIdx(privkeyFrom(PAYMENT_KEY_BYTE), params.signAtIndex);
+      return { result: { hex: hex.encode(tx.toPSBT()) } };
+    },
+  };
+  return { requests, uninstall: () => { delete win.LeatherProvider; } };
+}
+
+/** The outpoint a PSBT input spends, as `txid:vout`. */
+export function inputOutpoint(psbt: btc.Transaction, index: number): string {
+  const input = psbt.getInput(index);
+  if (!input.txid || input.index === undefined) { throw new Error(`PSBT input ${index} names no outpoint`); }
+  return `${hex.encode(input.txid)}:${input.index}`;
 }
 
 /**
@@ -70,14 +125,12 @@ export function oneAddressWallet(): WalletInfo {
   };
 }
 
-/** One confirmed electrs UTXO row (esplora `GET /address/:a/utxo` element). */
+/**
+ * One confirmed electrs UTXO row: the SDK's captured `GET /address/:a/utxo`
+ * row with its outpoint and value set per coin.
+ */
 export function electrsUtxo(byte: string, value: number): TxnOutput {
-  return {
-    txid: byte.repeat(64),
-    vout: 0,
-    value,
-    status: { confirmed: true, block_height: 900_000, block_hash: 'f'.repeat(64), block_time: 1_760_000_000 },
-  };
+  return electrsConfirmedUtxoFixture({ txid: byte.repeat(64), vout: 0, value });
 }
 
 export const outpointOf = (u: TxnOutput): string => `${u.txid}:${u.vout}`;
@@ -93,12 +146,15 @@ export class FakeNetwork {
   readonly utxosByAddress = new Map<string, TxnOutput[]>();
   readonly scans = new Map<string, CoinScan>();
   readonly requested: string[] = [];
+  /** Raw transactions posted to electrs `POST /api/tx`, in order. */
+  readonly broadcasts: string[] = [];
 
   install(): void {
-    globalThis.fetch = (async (input: RequestInfo | URL) => this.answer(String(input))) as typeof fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      this.answer(String(input), init)) as typeof fetch;
   }
 
-  private answer(url: string): Response {
+  private answer(url: string, init?: RequestInit): Response {
     this.requested.push(url);
     // The two members the SDK's fetch helpers read (`ok`, `status`) plus the
     // body readers; jsdom ships no `Response` to construct.
@@ -109,6 +165,11 @@ export class FakeNetwork {
       ok: false, status, json: async () => { throw new Error(body); }, text: async () => body,
     }) as unknown as Response;
 
+    if (url === 'http://electrs.test/api/tx' && init?.method === 'POST' && typeof init.body === 'string') {
+      this.broadcasts.push(init.body);
+      const txid = btc.Transaction.fromRaw(hex.decode(init.body)).id;
+      return { ok: true, status: 200, text: async () => txid } as unknown as Response;
+    }
     const utxoMatch = url.match(/^http:\/\/electrs\.test\/api\/address\/([^/]+)\/utxo$/);
     if (utxoMatch) {
       return json(this.utxosByAddress.get(utxoMatch[1]) ?? []);
