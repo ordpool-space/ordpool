@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
- * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
+ * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /cat21-mint page mints a CAT-21 through Unisat (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
@@ -25,6 +25,7 @@ import {
   installContextErrorGuard,
   installUnisatOfflineRoutes,
   launchWalletContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -33,8 +34,8 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  *
  * The cat21-mint counterpart of inscribe-mint-unisat.e2e.spec.ts: the same
  * non-native wallet (Unisat returns mainnet bc1q; the connector's shim rewrites
- * to bcrt1), the same mock-free real-ord funding scan (stock ord :8081 for
- * inscriptions, cat21-ord :8080 for cats), but drives the /cat21-mint page to a
+ * to bcrt1), the same mock-free real-ord funding scan (the stock ord for
+ * inscriptions, cat21-ord for cats), but drives the /cat21-mint page to a
  * real CAT-21 mint instead of an inscription. Asserts the on-chain tx is a
  * well-formed cat: nLockTime=21, RBF-safe input sequence, 546-sat cat output,
  * and parses through Cat21ParserService.
@@ -46,7 +47,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * CI-only (unverified .crx). See `playwright.regtest.config.ts`.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 const FUND_AMOUNT_BTC = 0.001;

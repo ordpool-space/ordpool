@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, no extension: a watch-only tpub from makeWatchOnlyTestAccount (ordpool-sdk)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, no extension: a watch-only tpub from makeWatchOnlyTestAccount (ordpool-sdk)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: a funding coin no ord has indexed yet blocks the mint with the unknown-content warning and no recommended badge, and the warning's Retry scan re-reads both ords once the coin confirms
  */
 /* eslint-disable no-console */
@@ -19,6 +19,7 @@ import {
   mineBlocks,
   installContextErrorGuard,
   launchOfflineContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -39,7 +40,7 @@ import {
  * into `auto` and the warning assertions would test nothing.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 /** Its own account, so the funded receive address is fresh on every lane. */

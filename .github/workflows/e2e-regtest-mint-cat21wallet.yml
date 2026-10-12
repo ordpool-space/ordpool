@@ -62,12 +62,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      # regtest-bootstrap.sh dropped (consumer-environment-bootstrap.sh is a
-      # strict superset; running both collided on host :18443 once the compose
-      # project derives from E2E_PREFIX). With it gone the only bitcoind is the
-      # consumer-environment's, so rpc() must name it - the SDK default
-      # ordpool-e2e-bitcoind no longer exists in this job.
-      REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
       # Every wallet browser writes Chrome's net log here (launchWalletContext);
       # the net-log check after the specs fails on any request that left the
       # machine.
@@ -86,6 +80,15 @@ jobs:
       - name: Install frontend npm deps (brings ordpool-sdk into node_modules)
         run: npm ci
         working-directory: frontend
+
+      # The stack runs in a machine-wide slot (ordpool-sdk e2e/README.md,
+      # "Slots"): every host port, the compose prefix and the container names
+      # the helpers docker exec into come from it, and land in GITHUB_ENV for
+      # every later step. The runner's worker process ($PPID) holds the slot
+      # for the whole job; the teardown step releases it.
+      - name: Acquire a regtest stack slot
+        working-directory: frontend
+        run: node node_modules/ordpool-sdk/scripts/e2e-slots.mjs acquire --kind consumer --owner-pid "$PPID" --format github >> "$GITHUB_ENV"
 
       - name: Make SDK consumer-environment scripts executable
         run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
@@ -109,8 +112,8 @@ jobs:
           path: ordpool-electrs
 
       # cat21-ord source for BOTH ord containers the mock-free inscribe scan
-      # queries: cat21-ord (--index-cat21, :8080, cats) and ord-stock (same
-      # binary WITHOUT --index-cat21, :8081, inscriptions/runes/sat_ranges).
+      # queries: cat21-ord (--index-cat21, cats) and ord-stock (same
+      # binary WITHOUT --index-cat21, inscriptions/runes/sat_ranges).
       - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
         uses: actions/checkout@v4
         with:
@@ -144,15 +147,15 @@ jobs:
             > stack.json
           cat stack.json
 
-      - name: Start fees + electrs HTTP+WS shim on :8999
+      - name: Start the fees + electrs HTTP+WS shim
         run: |
           cd frontend
-          ELECTRS_URL=http://localhost:3010 PORT=8999 WS_ENABLED=1 \
+          WS_ENABLED=1 \
             nohup node node_modules/ordpool-sdk/e2e/regtest/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
           echo $! > ../fees-stub.pid
           cd ..
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8999/healthz >/dev/null 2>&1; then
+            if curl -fsS "http://localhost:$E2E_FEES_STUB_PORT/healthz" >/dev/null 2>&1; then
               echo "fees-stub up"; break
             fi
             if [ "$i" = "30" ]; then
@@ -164,10 +167,10 @@ jobs:
       - name: Smoke-test stub endpoints
         run: |
           echo "--- fees/recommended"
-          curl -fsS http://localhost:8999/api/v1/fees/recommended
+          curl -fsS "http://localhost:$E2E_FEES_STUB_PORT/api/v1/fees/recommended"
           echo
           echo "--- blocks/tip/height (electrs)"
-          curl -fsS http://localhost:8999/api/blocks/tip/height
+          curl -fsS "http://localhost:$E2E_FEES_STUB_PORT/api/blocks/tip/height"
           echo
 
       # The SDK harness (global-setup, seeded vault, .crx, compose) comes from the
@@ -270,7 +273,7 @@ jobs:
       # earlier) is a strict superset - same funder identity, same 101-block
       # funding, nothing reads its output. Running both merged into one bitcoind
       # by accident; once the compose project derives from E2E_PREFIX they
-      # collide on host :18443. The cat21-wallet mint spec mocks /output and
+      # collide on the bitcoind RPC port. The cat21-wallet mint spec mocks /output and
       # verifies via Cat21ParserService, so it needs no ord - only the consumer
       # environment's bitcoind + electrs.
       - name: Generate frontend config (Ordpool defaults)
@@ -281,12 +284,12 @@ jobs:
         working-directory: frontend
         run: |
           sed -i \
-            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
-            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
-            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
-            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
-            -e "s|'https://ordinals.unisat.io'|'http://localhost:8081'|" \
-            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
+            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:${E2E_FEES_STUB_PORT}'|" \
+            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:${E2E_FEES_STUB_PORT}'|" \
+            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:${E2E_FEES_STUB_PORT}'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:${E2E_ORD_STOCK_HOST_PORT}'|" \
+            -e "s|'https://ordinals.unisat.io'|'http://localhost:${E2E_ORD_STOCK_HOST_PORT}'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:${E2E_ORD_HOST_PORT}'|" \
             src/environments/environment.ts
 
       - name: Patch bitcoinNetwork to Regtest
@@ -322,15 +325,15 @@ jobs:
           fi
           echo "BROWSER_DIR=$BROWSER_DIR" >> "$GITHUB_ENV"
 
-      - name: Serve the static bundle on :4200
+      - name: Serve the static bundle on the slot's app port
         run: |
-          nohup npx -y serve@14 -s "$BROWSER_DIR" -l 4200 --no-clipboard > serve.log 2>&1 &
+          nohup npx -y serve@14 -s "$BROWSER_DIR" -l "$E2E_APP_PORT" --no-clipboard > serve.log 2>&1 &
           echo $! > serve.pid
 
-      - name: Wait for static server ready on :4200
+      - name: Wait for the static server
         run: |
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/ 2>/dev/null || echo 000)
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$E2E_APP_PORT/" 2>/dev/null || echo 000)
             if [ "$code" = "200" ]; then
               echo "static server up"; break
             fi
@@ -348,7 +351,6 @@ jobs:
         working-directory: frontend
         env:
           CAT21WALLET_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/cat21wallet
-          FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test e2e/regtest/cat21wallet-mint.e2e.spec.ts \
@@ -362,7 +364,6 @@ jobs:
         working-directory: frontend
         env:
           CAT21WALLET_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/cat21wallet
-          FRONTEND_URL: http://localhost:4200
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             npx playwright test e2e/regtest/inscribe-mint-cat21wallet.e2e.spec.ts \
@@ -393,7 +394,7 @@ jobs:
       - name: Dump container logs on failure
         if: failure()
         run: |
-          for c in ordpool-e2e-consumer-bitcoind ordpool-e2e-consumer-electrs ordpool-e2e-consumer-mariadb; do
+          for c in "$E2E_PREFIX-consumer-bitcoind" "$E2E_PREFIX-consumer-electrs" "$E2E_PREFIX-consumer-mariadb"; do
             echo "=== $c ==="
             docker logs "$c" 2>&1 | tail -200 || true
           done
@@ -401,9 +402,9 @@ jobs:
       - name: Tear down stack
         if: always()
         run: |
-          docker compose \
-            -f frontend/node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
-            down -v || true
+          if [ -n "${E2E_SLOT:-}" ]; then
+            node frontend/node_modules/ordpool-sdk/scripts/e2e-slots.mjs down "$E2E_SLOT" --force
+          fi
           if [ -f fees-stub.pid ]; then
             kill "$(cat fees-stub.pid)" 2>/dev/null || true
           fi

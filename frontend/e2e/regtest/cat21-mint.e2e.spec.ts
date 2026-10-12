@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400
  * Proves: the /cat21-mint page mints a CAT-21 through Xverse (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat); fee tiles set the rate and rates below 0.1 keep Mint disabled; a cat-flagged coin shows the asset badge and "Use anyway" spends it; a cancelled sign and a rejected broadcast show an error and no success; a typed rate (100, and 1 against a hot fee preset) is the on-chain rate
  */
 /* eslint-disable no-console */
@@ -30,6 +30,7 @@ import {
   installXverseOfflineRoutes,
   PASSWORD_BY_WALLET,
   launchWalletContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -44,8 +45,8 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  *      global-setup against Bitcoin Regtest with the local electrs URL).
  *   2. Unlock the Xverse vault with PASSWORD_BY_WALLET.xverse, the
  *      password the SDK global-setup seeded it with.
- *   3. Navigate to http://localhost:4242/cat21-mint (the dev server the
- *      workflow spins up with the regtest serve config).
+ *   3. Navigate to the app's /cat21-mint (the static build the workflow
+ *      serves on the slot's app port).
  *   4. Click the connect-wallet affordance, approve the Xverse connect
  *      popup, read back the connected payment + ordinals addresses
  *      from the rendered UI.
@@ -73,7 +74,10 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * component the filter omits can break this spec with no lane to catch it.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
+
+/** The funder wallet the consumer bootstrap creates (REGTEST_WALLET, the SDK helpers' default otherwise). */
+const RPC_WALLET_ARG = `-rpcwallet=${process.env.REGTEST_WALLET ?? 'ordpool-e2e'}`;
 const MINT_PATH = '/cat21-mint';
 
 // In regtest, 1 BTC = 100M sats. Fund with 0.001 BTC (100,000 sats) —
@@ -95,8 +99,8 @@ const SEED_USER_DATA_DIR =
 const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 // cat21-ord (cats) and the fees stub, as the regtest stack publishes them.
-const CAT21_ORD_URL = process.env.REGTEST_ORD_URL ?? 'http://localhost:8080';
-const FEES_STUB_URL = process.env.FEES_STUB_URL ?? 'http://localhost:8999';
+const CAT21_ORD_URL = regtestServiceUrls().ord;
+const FEES_STUB_URL = regtestServiceUrls().feesStub;
 
 let context: BrowserContext;
 let extensionId: string;
@@ -187,7 +191,7 @@ test.beforeAll(async () => {
 
   // Cheap regtest sanity check: confirm bitcoind is up + the chain has
   // matured 101 blocks (coinbase maturity requirement). The workflow's
-  // earlier "wait for stack" step has already proved port 8999, but a
+  // earlier "wait for stack" step has already proved the fees stub answers, but a
   // missing 101-block tip is the kind of failure mode that produces a
   // mysterious mid-spec "insufficient funds" rather than a clean error.
   const tip = Number(rpc('getblockcount').trim());
@@ -233,8 +237,8 @@ test.beforeAll(async () => {
     // body that omitted `sat_ranges` is what reddened both base mint lanes once
     // the classifier began requiring proof-of-indexing; the fixture carries the
     // ranges a real indexed output has, and an SDK spec pins it to the
-    // classifier. Route each host to its half: the stock ord (:8081) gets the
-    // ord response, cat21-ord (:8080) the cats.
+    // classifier. Route each host to its half: the stock ord gets the
+    // ord response, cat21-ord the cats.
     const fx = cleanOutputFixture();
     const body = route.request().url().startsWith(CAT21_ORD_URL) ? fx.cat21Ord : fx.ord;
     await route.fulfill({
@@ -325,7 +329,7 @@ test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Xverse
   sharedPaymentAddress = paymentAddress;
 
   // ─── 4. Fund the payment address, mine, wait for electrs ──────
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', wallet.paymentAddress, String(FUND_AMOUNT_BTC)).trim();
+  const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', wallet.paymentAddress, String(FUND_AMOUNT_BTC)).trim();
   console.log(`[mint-page] funded ${wallet.paymentAddress} with ${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
   const fundedTip = mineBlocks(1);
   await waitForElectrsSync(fundedTip);
@@ -517,7 +521,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   // stays `unscanned`.
   const SMALL_FUND_BTC = 0.00015;
   const SMALL_FUND_SATS = Math.round(SMALL_FUND_BTC * 1e8);
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddress, String(SMALL_FUND_BTC)).trim();
+  const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', paymentAddress, String(SMALL_FUND_BTC)).trim();
   console.log(`[asset-scanner] cat-mock target txid=${fundTxid} (small UTXO ${SMALL_FUND_SATS} sat)`);
   const tip = mineBlocks(1);
   await waitForElectrsSync(tip);
@@ -701,7 +705,7 @@ test('sign-popup cancel keeps state coherent', async () => {
   if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
 
   const FUND_BTC = 0.0003;
-  rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC));
+  rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC));
   await waitForElectrsSync(mineBlocks(1));
 
   const page = await context.newPage();
@@ -761,7 +765,7 @@ test('broadcast failure surfaces as an error, not a fake success', async () => {
   if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
 
   const FUND_BTC = 0.0003;
-  rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC));
+  rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC));
   await waitForElectrsSync(mineBlocks(1));
 
   const page = await context.newPage();
@@ -873,7 +877,7 @@ async function ordpoolMintAtRate(opts: {
   try {
     // ─── Fund a fresh UTXO at the shared payment address ─────────
     const FUND_BTC = 0.001;
-    const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC)).trim();
+    const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC)).trim();
     console.log(`[${opts.scenarioLabel}] funded ${sharedPaymentAddress} +${FUND_BTC} BTC tx=${fundTxid}`);
     const tip = mineBlocks(1);
     await waitForElectrsSync(tip);

@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
- * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Unisat 1.7.15 (.crx, onboarded by onboardUnisat)
+ * Faked:  Unisat's wallet API -> installUnisatOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: on a one-address wallet with a dirty-only pool the warning shows, Mint stays disabled, nothing is broadcast, and the picker names the inscription; a sub-floor coin renders as "can't fund at this rate"
  */
 /* eslint-disable no-console */
@@ -21,6 +21,7 @@ import {
   installContextErrorGuard,
   installUnisatOfflineRoutes,
   launchWalletContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -46,8 +47,8 @@ const SUB_FLOOR_COIN_BTC = 0.00000546;
  *
  * The setup is funding-guard's: the ONLY funding candidate on the payment
  * address is a real inscription-bearing UTXO (`seedInscribedCoin`, 2M sat so it
- * is a covering candidate the scan actually considers). The stock ord (:8081)
- * reports its inscription; cat21-ord (:8080) its cats; the funding-safety scan
+ * is a covering candidate the scan actually considers). The stock ord
+ * reports its inscription; cat21-ord its cats; the funding-safety scan
  * reads both and classifies the coin unsafe. On a one-address wallet that
  * produces `expert-required`, so:
  *   - the Mint button is DISABLED (the block — the user must decide in the
@@ -69,7 +70,7 @@ const SUB_FLOOR_COIN_BTC = 0.00000546;
  * CI-only (unverified .crx). See `playwright.regtest.config.ts`.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 // Big enough to be a covering candidate for a mint, so the funding-safety scan

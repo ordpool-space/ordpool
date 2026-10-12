@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: for each asset class (rare sat, rune, cat, inscription) the mint spends the clean coin and every seeded dirty coin survives on-chain
  */
 /* eslint-disable no-console */
@@ -31,6 +31,7 @@ import {
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
   launchWalletContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { calculateRecommendedFundingSats, calculateRecommendedPreferredSats } from 'ordpool-sdk';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
@@ -68,13 +69,13 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * No serial mode: the config is already workers:1 + fullyParallel:false, so tests
  * run sequentially and share module state; adding `serial` would only hide reds
  * behind skips when the mutation is run. No /output mock: survival is on-chain, and
- * the real ords (:8081 --index-sats --index-runes, :8080 cat21-ord) report the
+ * the real ords (stock ord --index-sats --index-runes, cat21-ord) report the
  * seeded assets.
  *
  * CI-only (unverified Xverse .crx). See `playwright.regtest.config.ts`.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the mint requirement and > every dirty coin

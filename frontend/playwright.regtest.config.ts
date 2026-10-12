@@ -23,11 +23,13 @@ const TEST_TIMEOUT_MS = 300_000;
  *
  * Runs ONLY in CI — the workflow (`e2e-regtest-mint.yml`) takes
  * responsibility for:
+ *   - acquiring a stack slot (ordpool-sdk scripts/e2e-slots.mjs), whose
+ *     environment gives every host port below,
  *   - bringing up bitcoind + electrs + mariadb (via the SDK's
  *     consumer-environment),
- *   - starting ordpool-backend on :8999,
- *   - serving the frontend at FRONTEND_URL with the regtest serve
- *     config,
+ *   - starting the SDK's fees stub on E2E_FEES_STUB_PORT,
+ *   - serving the built frontend on E2E_APP_PORT (the specs read it
+ *     through regtestServiceUrls().app),
  *   - downloading + unpacking the Xverse `.crx` (via the SDK's
  *     `playwright-bootstrap.sh xverse`),
  *   - running the SDK's globalSetup against regtest to seed the

@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Leather 6.102.0 (.crx, onboarded by onboardLeather)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Leather's vendor backends (mempool.space reads, leather.io, hiro.so, price feeds, telemetry) -> installLeatherOfflineRoutes (ordpool-sdk, captured)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Leather 6.102.0 (.crx, onboarded by onboardLeather)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Leather's vendor backends (mempool.space reads, leather.io, hiro.so, price feeds, telemetry) -> installLeatherOfflineRoutes (ordpool-sdk, captured)
  * Proves: on a separate-address wallet with a dirty-only pool the notice names the inscription id while Mint stays enabled, and the picker flags the coin
  */
 /* eslint-disable no-console */
@@ -21,6 +21,7 @@ import {
   installContextErrorGuard,
   launchWalletContext,
   installLeatherOfflineRoutes,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -67,7 +68,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * CI-only (unverified .crx). See `playwright.regtest.config.ts`.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 // Covering (mint needs ~700-1300 at 1 sat/vB) and <= AUTO_SCAN_MAX_VALUE_SAT

@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the funding picker flags a real inscription-bearing coin (seedInscribedCoin) and names its inscription id
  */
 /* eslint-disable no-console */
@@ -19,6 +19,7 @@ import {
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
   launchWalletContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -39,8 +40,8 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  *
  * The setup seeds a real inscription-bearing UTXO on the payment address via the
  * SDK's `seedInscribedCoin` fixture at 2,000,000 sat (large enough to be a
- * covering candidate). The stock ord (:8081) reports it under `inscriptions`,
- * cat21-ord (:8080) reports its cats; the scan reads both. The picker then shows
+ * covering candidate). The stock ord reports it under `inscriptions`,
+ * cat21-ord reports its cats; the scan reads both. The picker then shows
  * the coin flagged: the "asset found" danger badge, a "Use anyway" override in
  * place of "Use this UTXO", and the asset detail naming the real inscription by
  * id. That naming is the load-bearing proof and the only assertion the mutation
@@ -48,20 +49,20 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * but not sufficient.
  *
  * THE MUTATION CHECK (run on a throwaway branch, not in CI): point `ordBaseUrls`
- * at :8080 instead of :8081. cat21-ord has no `inscriptions` field, so the
+ * at cat21-ord instead of the stock ord. cat21-ord has no `inscriptions` field, so the
  * inscription becomes invisible and the "Inscription: <id>" line never renders,
  * turning the `toContainText(inscriptionId)` assertion RED. The generic "asset
  * found" badge and "Use anyway" override do NOT flip, because this coin also
  * carries a rare sat and both ords run --index-sats, which is exactly why the
  * inscription-id assertion, not the badge, is the load-bearing proof. A guard
  * spec that passed under both wirings would not be reading the inscription
- * verdict. Verified: at :8081 GREEN, at :8080 RED on the inscription-id line.
+ * verdict. Verified: at the stock ord GREEN, at cat21-ord RED on the inscription-id line.
  * No mock: a real inscribed coin, real stock ord reporting it, real detection.
  *
  * CI-only (unverified Xverse .crx). See `playwright.regtest.config.ts`.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 // Big enough to be a covering candidate for a mint, so the funding-safety
@@ -146,8 +147,8 @@ test.beforeAll(async () => {
     fs.rmSync(path.join(workingDir, stale), { force: true });
   }
 
-  // No /output mock. The scan hits the real local ords (stock :8081 for
-  // inscriptions, cat21-ord :8080 for cats) that the workflow wired into
+  // No /output mock. The scan hits the real local ords (the stock ord for
+  // inscriptions, cat21-ord for cats) that the workflow wired into
   // environment.ts — which is the whole point of this spec.
   context = await launchWalletContext({
     wallet: 'xverse',
@@ -261,7 +262,7 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
 
   // Necessary but NOT sufficient: the coin is flagged unsafe (the "asset found"
   // danger badge, the row offers "Use anyway" not "Use this UTXO"). These fire
-  // for ANY asset and persist at :8080, because this 2M coin also carries a rare
+  // for ANY asset and persist under that mutation, because this 2M coin also carries a rare
   // sat and both ords run --index-sats. They show the guard flags the coin; they
   // do not, alone, prove the inscription half. The inscription-specific proof is
   // the detail assertion further down.
@@ -277,12 +278,12 @@ test('the funding picker flags and names an inscribed coin (real ord, no mock)',
   // THE inscription-specific proof, and the only assertion the mutation check
   // turns red. The asset detail names the REAL inscription by id (the template
   // renders "Inscription: <id>" from scan.content.inscriptionIds, which is
-  // populated ONLY from the stock ord's inscriptions field). Under the :8080
+  // populated ONLY from the stock ord's inscriptions field). Under the
   // mutation (ordBaseUrls -> cat21-ord, which has no inscriptions field)
   // inscriptionIds is empty, the "Inscription" line never renders, and this
   // flips RED. That isolates the inscription guard from the coin's incidental
   // rare sat: both ords run --index-sats, so the generic "asset found" badge
-  // and the "Use anyway" override above persist even at :8080 and cannot, on
+  // and the "Use anyway" override above persist even under it and cannot, on
   // their own, prove the inscription half of the guard.
   const detail = assetRow.locator('.utxo-assets-detail');
   await expect(detail).toContainText('Inscription');

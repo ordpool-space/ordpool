@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Leather 6.102.0 (.crx, onboarded by onboardLeather)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Leather's vendor backends (mempool.space reads, leather.io, hiro.so, price feeds, telemetry) -> installLeatherOfflineRoutes (ordpool-sdk, captured)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Leather 6.102.0 (.crx, onboarded by onboardLeather)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); Leather's vendor backends (mempool.space reads, leather.io, hiro.so, price feeds, telemetry) -> installLeatherOfflineRoutes (ordpool-sdk, captured)
  * Proves: the /cat21-mint page mints a CAT-21 through Leather (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat)
  */
 /* eslint-disable no-console */
@@ -25,6 +25,7 @@ import {
   installContextErrorGuard,
   launchWalletContext,
   installLeatherOfflineRoutes,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -40,7 +41,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * CI-only.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 const FUND_AMOUNT_BTC = 0.001;
@@ -147,8 +148,8 @@ test.afterAll(async () => {
 test('cat21 mint round-trip on regtest via the Angular /cat21-mint page + Leather', async () => {
   const page = await context.newPage();
   // No /output mock. The funding-safety scan probes the REAL local ords the
-  // workflow wired into environment.ts: stock ord (:8081) for inscriptions/
-  // runes/sat_ranges and cat21-ord (:8080) for cats. A clean regtest payment
+  // workflow wired into environment.ts: stock ord for inscriptions/
+  // runes/sat_ranges and cat21-ord for cats. A clean regtest payment
   // coin returns empty from both, so it classifies usable for real. The sync
   // waits after funding ensure both ords have indexed the funding block first.
   await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });

@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, cat21-wallet built from source (onboarded by onboardCat21Wallet)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400; Cat21 Wallet's vendor backends -> installLeatherOfflineRoutes (ordpool-sdk, captured); its cat21-ord reads (ord.cat21.space) -> the regtest cat21-ord through installCat21WalletOrdRoutes (ordpool-sdk)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, cat21-wallet built from source (onboarded by onboardCat21Wallet)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400; Cat21 Wallet's vendor backends -> installLeatherOfflineRoutes (ordpool-sdk, captured); its cat21-ord reads (ord.cat21.space) -> the regtest cat21-ord through installCat21WalletOrdRoutes (ordpool-sdk)
  * Proves: the /cat21-mint page connects cat21-wallet on a bcrt1q payment address and mints a CAT-21 (locktime 21, every input sequence 0xfffffffd, output 0 at 546 sat); a cat-flagged coin shows the asset badge and "Use anyway" spends it; a typed rate is the on-chain rate; a denied sign and a rejected broadcast show an error and no success
  */
 /* eslint-disable no-console */
@@ -29,6 +29,7 @@ import {
   launchWalletContext,
   installLeatherOfflineRoutes,
   installCat21WalletOrdRoutes,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -71,7 +72,10 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * the orchestrator-built PSBT.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4200';
+const FRONTEND_URL = regtestServiceUrls().app;
+
+/** The funder wallet the consumer bootstrap creates (REGTEST_WALLET, the SDK helpers' default otherwise). */
+const RPC_WALLET_ARG = `-rpcwallet=${process.env.REGTEST_WALLET ?? 'ordpool-e2e'}`;
 const MINT_PATH = '/cat21-mint';
 
 const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
@@ -80,8 +84,8 @@ const EXT_PATH = process.env.CAT21WALLET_EXT_PATH ?? path.join(SDK_E2E_DIR, 'ext
 const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
 
 // cat21-ord (cats) and the fees stub, as the regtest stack publishes them.
-const CAT21_ORD_URL = process.env.REGTEST_ORD_URL ?? 'http://localhost:8080';
-const FEES_STUB_URL = process.env.FEES_STUB_URL ?? 'http://localhost:8999';
+const CAT21_ORD_URL = regtestServiceUrls().ord;
+const FEES_STUB_URL = regtestServiceUrls().feesStub;
 
 let context: BrowserContext;
 let extensionId: string;
@@ -184,8 +188,8 @@ test.beforeAll(async () => {
     // body that omitted `sat_ranges` is what reddened both base mint lanes once
     // the classifier began requiring proof-of-indexing; the fixture carries the
     // ranges a real indexed output has, and an SDK spec pins it to the
-    // classifier. Route each host to its half: the stock ord (:8081) gets the
-    // ord response, cat21-ord (:8080) the cats.
+    // classifier. Route each host to its half: the stock ord gets the
+    // ord response, cat21-ord the cats.
     const fx = cleanOutputFixture();
     const body = route.request().url().startsWith(CAT21_ORD_URL) ? fx.cat21Ord : fx.ord;
     await route.fulfill({
@@ -311,7 +315,7 @@ test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page',
   //     its mempool-acceleration UI contract preserves
   //     nLockTime=21 on replacement)
   const FUND_AMOUNT_BTC = 0.001;
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', paymentAddr, String(FUND_AMOUNT_BTC)).trim();
+  const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', paymentAddr, String(FUND_AMOUNT_BTC)).trim();
   console.log(`[cat21wallet] funded ${paymentAddr} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
   const fundedTip = mineBlocks(1);
   await waitForElectrsSync(fundedTip);
@@ -429,7 +433,7 @@ async function cat21walletMintAtRate(opts: {
 
   try {
     const FUND_BTC = 0.001;
-    const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC)).trim();
+    const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC)).trim();
     console.log(`[${opts.scenarioLabel}] funded ${sharedPaymentAddress} +${FUND_BTC} BTC tx=${fundTxid}`);
     const tip = mineBlocks(1);
     await waitForElectrsSync(tip);
@@ -521,7 +525,7 @@ test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', as
   if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
 
   const SMALL_FUND_SATS = 15_000;
-  const fundTxid = rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.00015').trim();
+  const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, '0.00015').trim();
   await waitForElectrsSync(mineBlocks(1));
   const small = await waitForUtxoMatching(
     sharedPaymentAddress,
@@ -638,7 +642,7 @@ test('manual override: typing 1 while the picker suggests 100 — low rate wins 
 
 test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
   if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
-  rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.0003');
+  rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, '0.0003');
   await waitForElectrsSync(mineBlocks(1));
 
   const page = await context.newPage();
@@ -674,7 +678,7 @@ test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
 
 test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake success)', async () => {
   if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
-  rpc('-rpcwallet=ordpool-e2e', 'sendtoaddress', sharedPaymentAddress, '0.0003');
+  rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, '0.0003');
   await waitForElectrsSync(mineBlocks(1));
 
   const page = await context.newPage();

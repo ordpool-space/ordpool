@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, no extension: a watch-only tpub from makeWatchOnlyTestAccount (ordpool-sdk), its PSBT signed outside the browser with that account's key
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, no extension: a watch-only tpub from makeWatchOnlyTestAccount (ordpool-sdk), its PSBT signed outside the browser with that account's key
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /cat21-mint page connects a pasted tpub as Taproot, exports the mint PSBT, accepts it signed and broadcasts a CAT-21 (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat)
  */
 /* eslint-disable no-console */
@@ -19,6 +19,7 @@ import {
   mineBlocks,
   installContextErrorGuard,
   launchOfflineContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 
 /**
@@ -51,7 +52,7 @@ import {
  * .crx - just the regtest stack + the in-page export/paste bridge.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/cat21-mint';
 
 // >50k sats: over AUTO_SCAN_MAX_VALUE_SAT, so the orchestrator treats the coin

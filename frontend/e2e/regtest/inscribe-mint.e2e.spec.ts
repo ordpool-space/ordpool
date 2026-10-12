@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
- * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord :8080, ord-stock :8081, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs on :8999 stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
  * Proves: the /inscribe page inscribes an SVG through Xverse: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
  */
 /* eslint-disable no-console */
@@ -28,6 +28,7 @@ import {
   installContextErrorGuard,
   PASSWORD_BY_WALLET,
   launchWalletContext,
+  regtestServiceUrls,
 } from 'ordpool-sdk/e2e';
 import { connectedWalletButton, readPaymentAddress } from './payment-address';
 
@@ -80,7 +81,7 @@ import { connectedWalletButton, readPaymentAddress } from './payment-address';
  * component the filter omits can break this spec with no lane to catch it.
  */
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:4242';
+const FRONTEND_URL = regtestServiceUrls().app;
 const MINT_PATH = '/inscribe';
 
 // In regtest, 1 BTC = 100M sats. 0.001 BTC (100,000 sats) is plenty for
@@ -245,8 +246,8 @@ test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', a
   const page = await context.newPage();
   // No /output mock. The funding-safety scan (the SDK orchestrator's
   // fundingRecommendation$) probes the REAL local ords the workflow wired
-  // into environment.ts: stock ord (:8081) for inscriptions/runes/sat_ranges
-  // and cat21-ord (:8080) for cats. For a clean regtest payment coin both
+  // into environment.ts: stock ord for inscriptions/runes/sat_ranges
+  // and cat21-ord for cats. For a clean regtest payment coin both
   // return empty, so the coin classifies usable for real. The sync waits
   // after funding (below) ensure both ords have indexed the funding block
   // before the scan reads /output/<outpoint>.
