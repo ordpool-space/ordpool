@@ -16,6 +16,15 @@ concurrency:
   group: ordpool-e2e-${{ github.ref }}
   cancel-in-progress: true
 
+# Harden installs against transient registry blips like ECONNRESET: retry more
+# times over a longer backoff window than npm's default of 2. npm and pnpm both
+# read these npm_config_* values.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
 jobs:
   ordpool-e2e:
     name: Playwright E2E
