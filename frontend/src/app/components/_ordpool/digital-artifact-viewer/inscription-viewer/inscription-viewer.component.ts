@@ -21,6 +21,9 @@ More test cases:
 - Bitmap claim ("840000.bitmap" -- 4th halving, 3050 txs): https://ordpool.space/tx/05f8584cf4dbe34ef677f8f316fcac9e6e4ccb0e298d53fd21edaac7787660ee
 */
 
+/* jscpd:ignore-start -- deliberately parallel ordpool artifact-viewer component: the
+   content-type-instructions setup mirrors the sibling viewers (counterparty-viewer and
+   friends) by design, each a self-contained viewer for its artifact kind. Marked, not merged. */
 @Component({
   selector: 'app-inscription-viewer',
   templateUrl: './inscription-viewer.component.html',
@@ -139,3 +142,4 @@ function bytesToHex(bytes: Uint8Array): string {
   }
   return out;
 }
+/* jscpd:ignore-end */

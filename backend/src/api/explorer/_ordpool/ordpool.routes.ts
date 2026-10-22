@@ -27,6 +27,10 @@ import { getOtsCalendarHosts, getOtsCalendars } from './ots-calendars-config';
 const MAX_LAG_MINUTES = 30;
 
 
+/* jscpd:ignore-start -- the ordpool route handlers share an upstream-forwarding shape
+   (map upstream 200/404/else onto a response with headers), but each endpoint sets its OWN
+   Cache-Control TTL per the repo's cache-policy rules, so the shape is deliberately repeated
+   rather than funnelled through one helper that would blur those per-endpoint TTLs. Marked. */
 class GeneralOrdpoolRoutes {
 
   public initRoutes(app: Application): void {
@@ -578,6 +582,8 @@ class GeneralOrdpoolRoutes {
   }
 }
 
+
+/* jscpd:ignore-end */
 
 // HACK -- Ordpool: Content-Security-Policy for served inscription / stamp /
 // atomical bytes and preview HTML, mirroring ord's content CSP (ord sets

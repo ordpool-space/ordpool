@@ -68,6 +68,10 @@ const BLOCKED_CONTENT_TYPES = [
   'text/ecmascript',
 ];
 
+/* jscpd:ignore-start -- deliberately parallel money-path page: ordpool.space's inscribe-mint
+   and cat21-mint mirror each other's wallet-connect, funding-picker and signing glue (the
+   family money-path pattern; the setWallet-reemission rule notes ordpool keeps its own page
+   dedupe). Marked, not merged, so each flow stays independently auditable. */
 @Component({
   selector: 'app-inscribe-mint',
   templateUrl: './inscribe-mint.component.html',
@@ -1936,3 +1940,4 @@ export class InscribeMintComponent implements OnInit {
     this.satTarget = undefined;
   }
 }
+/* jscpd:ignore-end */

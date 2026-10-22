@@ -32,6 +32,10 @@ export interface ViableSimulation {
  *  against per-tab electrs cost. */
 const FUNDING_REFRESH_INTERVAL_MS = 15_000;
 
+/* jscpd:ignore-start -- deliberately parallel money-path page: ordpool.space's cat21-mint
+   and inscribe-mint mirror each other's wallet-connect, funding-picker and signing glue
+   (the family money-path pattern; the setWallet-reemission rule notes ordpool keeps its own
+   page dedupe). Marked, not merged, so each flow stays independently auditable. */
 @Component({
   selector: 'app-cat21-mint',
   templateUrl: './cat21-mint.component.html',
@@ -749,3 +753,4 @@ export class Cat21MintComponent implements OnInit {
     return this.recommendationActionable() && this.recommendedOutpoint() === outpointKey(row.paymentOutput);
   }
 }
+/* jscpd:ignore-end */

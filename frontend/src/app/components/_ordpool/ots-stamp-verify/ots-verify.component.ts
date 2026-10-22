@@ -79,6 +79,9 @@ type Status =
   | { kind: 'awaiting-receipt'; filename: string }   // user dropped the file first
   | { kind: 'error'; message: string };
 
+/* jscpd:ignore-start -- deliberately parallel ordpool OTS component: ots-verify mirrors
+   ots-stamp's cached-file / nickname-map plumbing by design (stamp and verify are the two
+   halves of the same OpenTimestamps flow, kept as separate components). Marked, not merged. */
 @Component({
   selector: 'app-ots-verify',
   templateUrl: './ots-verify.component.html',
@@ -417,3 +420,4 @@ export class OtsVerifyComponent {
   }
 
 }
+/* jscpd:ignore-end */

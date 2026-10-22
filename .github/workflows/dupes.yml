@@ -1,0 +1,40 @@
+name: Duplicate check (jscpd)
+
+# Ordpool-authored duplicate gate. Scoped by .jscpd.json to the _ordpool
+# directories only (our exclusive code); upstream mempool files are never
+# scanned, so this can never conflict with an upstream merge. Runs via npx so
+# neither frontend/ nor backend/ needs jscpd added to its (large, mempool)
+# package-lock.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main, stage_prod ]
+    paths:
+      - 'frontend/src/app/components/_ordpool/**'
+      - 'frontend/src/app/components/block-overview-graph/_ordpool/**'
+      - 'backend/src/api/_ordpool/**'
+      - 'backend/src/api/explorer/_ordpool/**'
+      - 'backend/src/tasks/_ordpool/**'
+      - '.jscpd.json'
+      - '.github/workflows/dupes.yml'
+
+# Harden installs against transient registry blips like ECONNRESET: retry more
+# times over a longer backoff window than npm's default of 2.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
+jobs:
+  dupes:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+    - name: Duplicate check (jscpd, scoped to _ordpool via .jscpd.json)
+      run: npx --yes jscpd@4.3.0
