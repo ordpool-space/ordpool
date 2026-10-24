@@ -267,6 +267,82 @@ describe('electrs-proxy-middleware', () => {
   });
 });
 
+// A browser CORS preflight (OPTIONS) to a cross-origin non-simple request must
+// be answered by THIS process, with a 2xx and the Access-Control-* headers.
+// electrs has no OPTIONS route and 404s it; a failed preflight makes the browser
+// suppress the real request. The inscribe package broadcast posts
+// `application/json` to /txs/test + /txs/package, which the browser preflights;
+// the raw-hex `text/plain` tx POST (mint) is CORS-simple and is never preflighted.
+// The faithful chain is the global CORS-header middleware (as in index.ts) ahead
+// of the proxy; a request method of OPTIONS must stop at the proxy, never reach
+// electrs.
+describe('CORS preflight (OPTIONS) termination', () => {
+  // Mirror the global CORS-header middleware index.ts mounts ahead of the proxy,
+  // so the preflight response under test carries the same headers it does in prod.
+  function corsHeaders(_req: express.Request, res: express.Response, next: express.NextFunction): void {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Accept,Authorization,Cache-Control,Content-Type,DNT,If-Modified-Since,Keep-Alive,Origin,User-Agent,X-Requested-With');
+    next();
+  }
+
+  // A fake electrs that records the method+url of everything it receives, so a
+  // test can prove the OPTIONS never got forwarded. It answers 200 to every
+  // method (more permissive than real electrs, which 404s OPTIONS): the proof is
+  // that electrs is NEVER REACHED, which holds regardless of how it would answer.
+  async function recordingElectrs(): Promise<{ server: http.Server, url: string, seen: { method: string, url: string }[] }> {
+    const seen: { method: string, url: string }[] = [];
+    const e = await startFakeElectrs((req, res) => {
+      seen.push({ method: req.method || '', url: req.url || '' });
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end('electrs');
+    });
+    return { ...e, seen };
+  }
+
+  test('OPTIONS /api/txs/package | /txs/test | /tx answers 204 with CORS headers and never reaches electrs', async () => {
+    const electrs = await recordingElectrs();
+    const app = express();
+    app.use(corsHeaders);
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      for (const path of ['/api/txs/package', '/api/txs/test', '/api/tx']) {
+        const r = await fetchText(`${url}${path}`, { method: 'OPTIONS' });
+        expect(r.status).toBe(204);
+        // The preflight response carries the headers the browser checks.
+        expect(r.headers['access-control-allow-origin']).toBe('*');
+        expect(r.headers['access-control-allow-methods']).toContain('POST');
+        expect(r.headers['access-control-allow-headers']).toContain('Content-Type');
+        expect(r.headers['access-control-max-age']).toBe('86400');
+      }
+      // The preflight was terminated at the proxy: electrs saw none of them.
+      expect(electrs.seen).toEqual([]);
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+
+  test('the actual POST /api/tx still proxies to electrs (only the preflight is short-circuited)', async () => {
+    const electrs = await recordingElectrs();
+    const app = express();
+    app.use(corsHeaders);
+    app.use('/api', createElectrsProxyMiddleware(electrs.url));
+
+    const { server, url } = await startServer(app);
+    try {
+      const r = await fetchText(`${url}/api/tx`, { method: 'POST' });
+      expect(r.status).toBe(200);
+      expect(electrs.seen).toEqual([{ method: 'POST', url: '/tx' }]);
+    } finally {
+      await close(server);
+      await close(electrs.server);
+    }
+  });
+});
+
 describe('immutable esplora block cache', () => {
   test('isImmutableEsploraBlockPath — block-by-hash yes, /status + /blocks list no', () => {
     const h = '0'.repeat(64);

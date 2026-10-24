@@ -97,6 +97,22 @@ export function createElectrsProxyMiddleware(electrsBaseUrl: string | undefined)
   const hostHeader = `${electrsHost.hostname}:${port}`;
 
   return (req: Request, res: Response, next: NextFunction) => {
+    // HACK -- Ordpool: answer the browser CORS preflight here, so an OPTIONS
+    // never reaches electrs. electrs has no OPTIONS route and 404s it; a 404
+    // fails the preflight, so the browser suppresses the real request. That
+    // kills every cross-origin non-simple request to this API, e.g. the
+    // inscribe package broadcast's `application/json` POST to /txs/package and
+    // /txs/test (a `text/plain` tx POST is CORS-simple and needs no preflight,
+    // which is why mint was unaffected). The global CORS middleware ahead of
+    // this proxy sets the `Access-Control-*` headers; a 204 here carries them.
+    // `Max-Age` lets the browser cache the preflight so a multi-POST broadcast
+    // does not re-preflight each leg. Upstream's nginx answers OPTIONS the same
+    // way in front of this split, so it is the nginx-replacement's job.
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Max-Age', '86400');
+      res.status(204).end();
+      return;
+    }
     if (INTERNAL_PATH.test(req.path)) {
       res.status(403).end();
       return;
