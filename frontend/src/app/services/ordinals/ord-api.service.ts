@@ -81,7 +81,9 @@ export class OrdApiService {
    * Display calls (block info, rune metadata, inscription content)
    * may omit the option; a later upstream in the list is acceptable
    * there since the worst case is a misrendered widget. The mainnet
-   * list currently holds only ord.ordpool.space, so there is no walk.
+   * list is ord.ordpool.space (primary) plus ordinals.unisat.io as a
+   * display-only fallback, so a display read walks to UniSat only when
+   * our own ord fails; a trusted read stays on ord.ordpool.space.
    *
    * See audit findings M7 + companion rule in workspace CLAUDE.md.
    */
