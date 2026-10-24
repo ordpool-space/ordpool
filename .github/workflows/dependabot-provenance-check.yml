@@ -30,7 +30,7 @@ jobs:
         if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
         uses: actions/setup-node@v4
         with:
-          node-version: "24.13.0"
+          node-version: "26.12.1"
 
       - name: Check npm provenance attestation
         if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'

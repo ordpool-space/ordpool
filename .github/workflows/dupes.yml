@@ -35,6 +35,6 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: 24
+        node-version: 26
     - name: Duplicate check (jscpd, scoped to _ordpool via .jscpd.json)
       run: npx --yes jscpd@4.3.0

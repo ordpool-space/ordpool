@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        node: ["24.13.0"]
+        node: ["26.12.1"]
       fail-fast: false
 
     steps:
