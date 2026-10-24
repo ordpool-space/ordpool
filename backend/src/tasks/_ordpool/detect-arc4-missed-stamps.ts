@@ -27,10 +27,14 @@
  * Running it against production RPC competes with the live indexer, so that is
  * the maintainer's call. Size it on a subrange first: the per-block timing print
  * extrapolates to the full era. Invoke deliberately, e.g.
- *   START=788041 END=871500 node dist/tasks/_ordpool/detect-arc4-missed-stamps.js
- * START must be the first SRC-20/STAMP (ARC4) height for a complete result; it
- * is required rather than defaulted so the floor is a measured input, not a
- * guess.
+ *   START=793068 END=<tip> node dist/tasks/_ordpool/detect-arc4-missed-stamps.js
+ * START must be the ARC4-path start height -- the parser's documented ARC4 /
+ * Counterparty-multisig boundary, 793068 (the parser session measured the first
+ * actually-decoded ARC4 stamp at 793487, so the documented constant sits
+ * conservatively below it). It is the ERA boundary, not the first on-chain STAMP
+ * (pre-OLGA Counterparty issuances run a different, unaffected path) and not the
+ * first observed miss (a stride can hide earlier ones). START is required, never
+ * defaulted, so the floor is a cited input: pass the authoritative value.
  */
 import { convertVerboseBlockToSimplePlus, DigitalArtifactAnalyserService } from 'ordpool-parser';
 
