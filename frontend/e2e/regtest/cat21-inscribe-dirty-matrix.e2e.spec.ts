@@ -1,0 +1,475 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: for each asset class (rare sat, rune, cat, inscription) the inscribe commit spends the clean coin and every seeded dirty coin survives on-chain
+ */
+/* eslint-disable no-console */
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+import {
+  seedDirtyCoin,
+  assertDirtyCoinIsBestFit,
+  fundCommonSats,
+  getUtxos,
+  getTx,
+  waitForElectrsSync,
+  waitForOrdSync,
+  waitForOrdStockSync,
+  rpc,
+  mineBlocks,
+  waitForTxConfirmed,
+  waitForApprovalPopup,
+  clickUntilApprovalPopup,
+  DirtyCoinAsset,
+  SeededDirtyCoin,
+  raceApprovalPopup,
+  approvalGate,
+  approveXverseSignPopup,
+  installXverseOfflineRoutes,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
+  launchWalletContext,
+  regtestServiceUrls,
+} from 'ordpool-sdk/e2e';
+import {
+  simulateInscribe,
+  getDummyKeypair,
+  toScureNetwork,
+  Network,
+  KnownOrdinalWalletType,
+} from 'ordpool-sdk';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
+
+/**
+ * E2E (regtest) — dirty-coin protection matrix for the INSCRIBE flow, all four
+ * asset classes (rare sat, rune, cat, inscription). Each cell seeds a CLEAN
+ * covering coin plus one dirty coin, inscribes a fixed SVG, and asserts the
+ * dirty coin SURVIVES.
+ *
+ * The inscribe twin of `cat21-mint-dirty-matrix.e2e.spec.ts`. Same shape,
+ * same SDK guard, different flow: the wallet signs ONE popup (the commit funding
+ * input; the reveal is finalized inside the orchestrator), and the commit tx is
+ * the one that spends the funding coin — so SURVIVAL is asserted against the
+ * COMMIT tx's inputs, not the reveal's.
+ *
+ * WHY THIS HAS ITS OWN LANE (both facts, because the second is the one a future
+ * reader will otherwise try to "improve"):
+ *   1. The mint matrix and this inscribe matrix seed to the SAME wallet address
+ *      and their smallest-covering ladders OVERLAP, so on a shared chain each
+ *      matrix's "the dirty coin is the smallest covering candidate" premise would
+ *      depend on the other's leftovers. A dedicated chain removes that coupling.
+ *   2. The funding address is FIXED BY THE VAULT SEED and cannot be randomised
+ *      (a standalone randomBytes account's UTXOs are not wallet-controlled, so
+ *      the SDK would never consider them and the guard would never be exercised).
+ *      Isolation therefore comes from the dedicated chain (a fresh bitcoind per
+ *      CI run means no leftovers exist at all) PLUS the setup guard below, which
+ *      throws AT SETUP naming the trap when a stale local chain undercuts the
+ *      dirty coin — turning a second local iteration into a one-line diagnosis
+ *      instead of a confusing green.
+ *
+ * SURVIVAL IS THE MUTATION TARGET for ordpool's inscribe (Scenario A: a clean
+ * coin covers, so topology is never consulted and the target is survival). The
+ * inscribe gates only on hasFundingSource (no UI bucket-gate) and calls
+ * orchestrator.mint() with no re-check, so under the SDK clean-filter mutation
+ * the dirty coin becomes best-fit and is spent by the commit — each cell's
+ * survival assertion goes RED. Selection (button enabled, cost shown) is
+ * green-path CONFIRMATION, not the target.
+ *
+ * SIZING: the dirty coin is seeded JUST above the MEASURED inscribe requirement,
+ * never a round number, so it is the smallest covering coin in the pool the spec
+ * actually runs against. Both targets are MEASURED per cell via `simulateInscribe`
+ * against a dummy-keypair funding input (the same numbers selection computes, and
+ * pool-independent — an inscribe target comes from the envelope + fee rate alone,
+ * so both come back even for an empty pool). assertDirtyCoinIsBestFit proves the
+ * placement at setup and throws (naming the trap) if a leftover ever undercuts it.
+ *
+ * ACCUMULATION: Scenario A does NOT spend the dirty coin, so every cell's coin
+ * SURVIVES into the next cell's pool. The margins STRICTLY DECREASE across cells,
+ * by a step that EXCEEDS THE FLOW'S REQUIREMENT, so each cell's coin is the global
+ * smallest covering with no ties AND so the mutated commit's change coin
+ * (dirty - requirement) still lands below the next rung rather than undercutting
+ * it. To catch a cross-cell burn anyway, every cell asserts not only ITS coin
+ * survives but that EVERY previously-seeded dirty coin still survives.
+ *
+ * No serial mode: the config is already workers:1 + fullyParallel:false, so tests
+ * run sequentially and share module state; adding `serial` would only hide reds
+ * behind skips when the mutation is run. No /output mock: survival is on-chain, and
+ * the real ords (stock ord --index-sats --index-runes, cat21-ord) report the
+ * seeded assets.
+ *
+ * CI-only (unverified Xverse .crx). See `playwright.regtest.config.ts`.
+ */
+
+const FRONTEND_URL = regtestServiceUrls().app;
+const INSCRIBE_PATH = '/inscribe';
+
+const CLEAN_FUND_BTC = 0.001; // 100_000 sat, well above the inscribe requirement and > every dirty coin
+
+// The inscription fixture: a tiny SVG, CONSTANT across all four cells so the
+// envelope (and therefore the measured requirement/preferred) is identical per
+// cell. detectMimeType sniffs the `<svg` prefix → image/svg+xml.
+const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
+const FIXTURE_BYTES = new Uint8Array(fs.readFileSync(FIXTURE_PATH));
+const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
+const FEE_RATE = 1;
+
+// The ladder is DERIVED from two MEASURED targets, not hardcoded:
+//   requirement (simulateInscribe.fundingRequirementSats) — the commit output +
+//     commit fee a coin must cover at all (the feasibility floor).
+//   preferred (simulateInscribe.fundingPreferredSats) — the CHANGE-HEADROOM target
+//     selection prefers whenever any candidate clears it: a coin covering only
+//     `requirement` is SKIPPED when something clears headroom, so a rung below
+//     `preferred` is UNREACHABLE and its coin survives the mutation for being
+//     never-selected, not for being protected.
+// Two constraints, both load-bearing under the mutation:
+//   1. Every rung >= preferred, so it is reachable (a rung below headroom is the
+//      trap that lets a cell silently survive when the guard only checks
+//      feasibility).
+//   2. STEP > requirement, so the mutated commit's change (dirty - requirement)
+//      stays above the next rung instead of undercutting it (a step <= requirement
+//      fires the placement guard on the NEXT cell at setup, a false negative).
+// The bottom rung sits HEADROOM_BUFFER above `preferred`; each rung above adds STEP.
+// Both numbers are re-measured per cell (constant here — same envelope, same fee —
+// but measured so a future fee/envelope change moves the whole ladder rather than
+// silently invalidating it). The green path is unaffected (it spends the 100k clean
+// coin); this only sharpens the mutation into four own-assertion reds.
+const STEP_SATS = 1_000;             // > the inscribe requirement: the mutated change can't undercut the next rung
+const HEADROOM_BUFFER_SATS = 200;    // the bottom rung clears `preferred` by this much
+const CELLS: { asset: DirtyCoinAsset; label: string }[] = [
+  { asset: 'rareSat', label: 'rare sat' },       // top rung
+  { asset: 'rune', label: 'rune' },
+  { asset: 'cat', label: 'cat' },
+  { asset: 'inscription', label: 'inscription' }, // bottom rung, clears headroom
+];
+
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
+const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
+const SEED_USER_DATA_DIR =
+  process.env.XVERSE_SEED_USER_DATA_DIR
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
+
+let context: BrowserContext;
+let extensionId: string;
+let page: Page;
+let paymentAddress: string;
+// Every dirty coin seeded so far, so each cell can assert none of them was spent.
+const seededDirty: SeededDirtyCoin[] = [];
+
+async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
+  await p.screenshot({
+    path: path.resolve(RESULTS_DIR, `inscribe-dirty-matrix-${name}.png`),
+    fullPage: true,
+  });
+}
+
+/** Xverse's sign popup, recognised by its review screen. */
+const xverseSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText(/review transaction/i).first(),
+});
+
+/** Xverse's connect popup, recognised by its approve control. */
+const xverseConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Xverse; approve the connect popup only if Xverse
+ * opens one anyway.
+ */
+async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: xverseConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await race.page.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await race.page.close();
+}
+
+
+/**
+ * The two funding targets selection will use for this exact envelope + fee rate,
+ * measured through the SDK's own `simulateInscribe` so the spec's ladder can never
+ * drift from the selection it is testing. Pool-independent: an inscribe target is
+ * the commit output + commit fee derived from the envelope alone, so a dummy
+ * regtest keypair + empty ports return the same numbers the connected Xverse wallet
+ * (also native-segwit p2wpkh) will size against. walletType/network match the real
+ * flow so the input vsize estimate is identical.
+ */
+async function measureInscribeTargets(feeRatePerVbyte: number): Promise<{ requirementSats: number; preferredSats: number }> {
+  const dummy = getDummyKeypair(toScureNetwork(Network.Regtest));
+  const sim = await simulateInscribe(
+    {
+      walletType: KnownOrdinalWalletType.xverse,
+      paymentPublicKey: dummy.dummyPublicKey,
+      paymentAddress: dummy.addressP2WPKH,
+      recipientAddress: dummy.addressP2TR,
+      body: FIXTURE_BYTES,
+      contentType: EXPECTED_CONTENT_TYPE,
+      feeRatePerVbyte,
+      network: Network.Regtest,
+    },
+    {
+      utxos: { spendableUtxos: async () => [] },
+      scan: { classify: async () => 'clean' },
+    },
+  );
+  if (sim.fundingRequirementSats == null || sim.fundingPreferredSats == null) {
+    throw new Error(
+      `simulateInscribe returned null targets (requirement=${sim.fundingRequirementSats}, ` +
+      `preferred=${sim.fundingPreferredSats}); the SVG envelope must be buildable at ${feeRatePerVbyte} sat/vB`,
+    );
+  }
+  return { requirementSats: sim.fundingRequirementSats, preferredSats: sim.fundingPreferredSats };
+}
+
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
+test.beforeAll(async () => {
+  if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
+    throw new Error(`Xverse extension not unpacked at ${EXT_PATH}.`);
+  }
+  if (!fs.existsSync(path.join(SEED_USER_DATA_DIR, 'Default'))) {
+    throw new Error(`Xverse seed user-data-dir missing at ${SEED_USER_DATA_DIR}.`);
+  }
+  if (!fs.existsSync(FIXTURE_PATH)) {
+    throw new Error(`inscription fixture missing at ${FIXTURE_PATH}`);
+  }
+  const tip = Number(rpc('getblockcount').trim());
+  if (tip < 101) {
+    throw new Error(`regtest tip is ${tip} (<101). bootstrap should have mined past maturity.`);
+  }
+
+  const workingDir = `${SEED_USER_DATA_DIR}.inscribe-dirty-matrix-${process.pid}-${Date.now()}`;
+  fs.cpSync(SEED_USER_DATA_DIR, workingDir, { recursive: true });
+  for (const stale of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    fs.rmSync(path.join(workingDir, stale), { force: true });
+  }
+
+  // No /output mock: real ords report the seeded assets (survival needs a real coin).
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
+  });
+  await installXverseOfflineRoutes(context);
+  errorGuard = installContextErrorGuard(context);
+  let [worker] = context.serviceWorkers();
+  if (!worker) worker = await context.waitForEvent('serviceworker');
+  extensionId = worker.url().split('/')[2];
+
+  // ─── Unlock the vault ──────────────────────────────────────────
+  const primer = await context.newPage();
+  await primer.setViewportSize({ width: 400, height: 800 });
+  await primer.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
+  await primer.waitForFunction(() => {
+    const t = (document.body.innerText || '').toLowerCase();
+    return t.includes('unlock') || t.includes('account 1');
+  }, undefined, { polling: 250 });
+  if (/unlock/i.test(await primer.locator('body').innerText())) {
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
+    await primer.getByRole('button', { name: /^unlock$/i }).first().click();
+    await primer.waitForFunction(() => {
+      const t = (document.body.innerText || '').toLowerCase();
+      return t.includes('account 1') || t.includes('not now') || t.includes('send');
+    }, undefined, { polling: 250 });
+  }
+  // The unlocked dashboard may carry a "Not now" prompt; it is read off the
+  // screen the wait above settled on, not waited for.
+  const notNow = primer.getByText('Not now', { exact: true }).first();
+  if (await notNow.isVisible()) {
+    await notNow.click();
+    await expect(notNow).toBeHidden();
+  }
+  await primer.close();
+
+  // ─── Open /inscribe, connect Xverse, read the payment address ─
+  page = await context.newPage();
+  await page.goto(`${FRONTEND_URL}${INSCRIBE_PATH}`, { waitUntil: 'domcontentloaded' });
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible();
+  const knownBeforeConnect = new Set(context.pages());
+  await connectTrigger.click();
+  await page.getByTestId('wallet-connect-xverse').click();
+  const approvalConnect = await waitForApprovalPopup({
+    context,
+    knownPages: knownBeforeConnect,
+    isApproval: async (p) => {
+      if (!p.url().startsWith('chrome-extension://')) return false;
+      await p.waitForFunction(() => {
+        const t = (document.body.innerText || '').toLowerCase();
+        return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
+      }, undefined, { polling: 500 });
+      return true;
+    },
+  });
+  await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
+    .first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await approvalConnect.close();
+
+  paymentAddress = await readPaymentAddress(page);
+  expect(paymentAddress).toMatch(/^bcrt1q/);
+  console.log(`[inscribe-dirty-matrix] payment=${paymentAddress}`);
+});
+
+test.afterAll(async () => {
+  await context?.close();
+});
+
+/**
+ * One matrix cell: seed a clean covering coin + one dirty coin sized just above
+ * the measured inscribe requirement, prove placement, inscribe (auto-picks clean),
+ * assert this coin AND every earlier dirty coin survive the commit.
+ */
+async function runDirtyCoinCell(asset: DirtyCoinAsset, label: string, cellIndex: number): Promise<void> {
+  // Measure BOTH targets PER CELL through the SDK's own selection preview.
+  const { requirementSats, preferredSats } = await measureInscribeTargets(FEE_RATE);
+  // Rung = preferred + buffer, plus STEP for each cell BELOW this one, so the
+  // bottom rung clears headroom and every step exceeds the requirement.
+  const rungsBelow = CELLS.length - 1 - cellIndex;
+  const dirtyValueSats = preferredSats + HEADROOM_BUFFER_SATS + rungsBelow * STEP_SATS;
+  expect(STEP_SATS).toBeGreaterThan(requirementSats);        // change can't undercut the next rung
+  expect(dirtyValueSats).toBeGreaterThanOrEqual(preferredSats); // reachable (clears headroom)
+  expect(dirtyValueSats).toBeLessThanOrEqual(50_000);         // scanned, not left unscanned
+
+  // Clean coin first (fundCommonSats routes the coinbase's uncommon sat to change,
+  // so the payment output is genuinely common), then the dirty coin. Both land on
+  // the payment address; both helpers mine and wait for electrs + both ords.
+  await fundCommonSats(paymentAddress, CLEAN_FUND_BTC);
+  const dirty = await seedDirtyCoin({ asset, address: paymentAddress, valueSats: dirtyValueSats });
+  expect(dirty.value).toBe(dirtyValueSats);
+  console.log(`[inscribe-dirty-matrix] ${label}: dirty ${dirty.outpoint} value=${dirty.value} (req=${requirementSats} pref=${preferredSats})`);
+
+  const tip = mineBlocks(1);
+  await waitForElectrsSync(tip);
+  await waitForOrdStockSync(tip);
+  await waitForOrdSync(tip);
+
+  // Placement guard: this dirty coin is the coin an unguarded selection actually
+  // takes — passing `preferredSats` makes the guard mirror the flow's headroom
+  // preference, not just feasibility, so a rung below headroom fails HERE at setup
+  // instead of silently surviving the mutation as never-selected.
+  const pool = (await getUtxos(paymentAddress)).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value }));
+  assertDirtyCoinIsBestFit(pool, dirty.outpoint, requirementSats, preferredSats);
+  seededDirty.push(dirty);
+
+  // Reload so the orchestrator re-fetches + scans (re-approve if Xverse asks).
+  const knownBeforeReload = new Set(context.pages());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await reconnectXverse(page, knownBeforeReload);
+
+  // Re-pick the file AFTER the reload (reload clears the component's picked-file
+  // state). setInputFiles works on the hidden dropzone input.
+  await page.setInputFiles('[data-testid="inscribe-file-input"]', FIXTURE_PATH);
+  await expect(page.locator('[data-testid="inscribe-file-name"]')).toContainText('inscribe-probe.svg');
+  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE);
+  await shot(page, `${asset}-01-after-seed`);
+
+  // Green-path confirmation (not the mutation target): the inscribe auto-picks the
+  // clean coin, so the button enables without a picker choice.
+  const feeRateInput = page.locator('[data-testid="inscribe-fee-rate"]').first();
+  await feeRateInput.fill(String(FEE_RATE));
+  await feeRateInput.press('Tab');
+  const inscribeButton = page.locator('[data-testid="inscribe-btn"]');
+  await expect(inscribeButton).toBeEnabled();
+
+  // Inscribe + approve the ONE Xverse sign popup (the commit funding input; the
+  // reveal is finalized inside the orchestrator with an ephemeral key).
+  // clickUntilApprovalPopup re-clicks only while inscribe-btn stays visible+enabled with
+  // no popup (a swallowed click); once the inscribe registers the button leaves
+  // that state, so a slow-but-registered click is never double-sent. clicks===1
+  // is the diagnostic: this surface waits for toBeEnabled first, so it should be
+  // clean, and a clicks>1 here is real evidence of the mechanism, not a guess.
+  const knownBeforeSign = new Set(context.pages());
+  const { clicks } = await clickUntilApprovalPopup(inscribeButton, {
+    context,
+    knownPages: knownBeforeSign,
+    isApproval: xverseSignApproval,
+    maxClicks: 3,
+    label: 'inscribe-btn',
+  });
+  expect(clicks, 'inscribe-btn opened the sign popup on ONE click; >1 means a swallowed click').toBe(1);
+  await approveXverseSignPopup({ context, knownPages: knownBeforeSign, label: 'Xverse approvalSign' });
+
+  // Success panel → read the COMMIT txid (the tx that spends the funding coin).
+  const successPanel = page.locator('[data-testid="inscribe-success"]');
+  await expect(successPanel).toBeVisible();
+  const commitTxId = (await page.locator('[data-testid="inscribe-commit-txid"]').textContent())!.trim();
+  const revealTxId = (await page.locator('[data-testid="inscribe-reveal-txid"]').textContent())!.trim();
+  expect(commitTxId).toMatch(/^[0-9a-f]{64}$/);
+  expect(revealTxId).toMatch(/^[0-9a-f]{64}$/);
+  console.log(`[inscribe-dirty-matrix] ${label}: commit=${commitTxId} reveal=${revealTxId}`);
+
+  // Confirm the package (commit + reveal are in the mempool; one block packs both).
+  const confirmedTip = mineBlocks(1);
+  await waitForElectrsSync(confirmedTip);
+  const commitTx = await waitForTxConfirmed(commitTxId);
+  await waitForTxConfirmed(revealTxId);
+  // The SDK builder convention sets nLockTime=21 on the commit (a bonus cat).
+  expect(commitTx.locktime).toBe(21);
+
+  // THE "IT HAPPENED" ANCHOR — forecloses the inscribe-only vacuity risk. A mint
+  // is one tx, so a failure to broadcast dies visibly; an inscribe is commit+reveal
+  // with more places to throw between the funding decision and a tx on-chain (build,
+  // sign, reveal-fee). If any of those threw before broadcast, the dirty coin would
+  // survive TRIVIALLY (nothing spent it) and, under the mutation, the survival check
+  // below would PASS and read as "the guard protected it" — the exact opposite of the
+  // truth. So assert POSITIVELY that the commit confirmed on-chain (its inputs, read
+  // below, are the real chain inputs) before trusting survival either way. Green:
+  // commit spent the clean coin. Mutation: commit spent THIS dirty coin -> survival reds.
+  expect(commitTx.status.block_hash, `the ${label} commit must actually confirm on-chain (not a pre-broadcast throw)`).toBeTruthy();
+  await shot(page, `${asset}-02-inscribed`);
+
+  // THE MUTATION TARGET — the dirty coins survive. The commit spent the clean coin,
+  // so this cell's coin AND every earlier cell's coin are still unspent. Survival is
+  // checked against the COMMIT tx's inputs (the funding coin is a commit input; the
+  // reveal only spends the commit's own output).
+  const survivors = await getUtxos(paymentAddress);
+  const commitVins = (commitTx.vin as Array<{ txid: string; vout: number }>);
+  const alive = (d: SeededDirtyCoin) => survivors.some((u) => u.txid === d.txid && u.vout === d.vout);
+  const notSpentBy = (d: SeededDirtyCoin) => !commitVins.some((v) => v.txid === d.txid && v.vout === d.vout);
+
+  // OWN coin FIRST. Under the clean-filter mutation, best-fit spends the smallest
+  // covering coin, which by the strictly-decreasing sizing is THIS cell's coin, so
+  // the cell reds on its OWN survival assertion and the prior checks below never
+  // run — one own-assertion red per cell, zero consequence reds.
+  console.log(`[inscribe-dirty-matrix] after ${label} inscribe: own ${asset} ${dirty.outpoint} survives=${alive(dirty)}`);
+  expect(alive(dirty), `own dirty ${asset} coin ${dirty.outpoint} must survive its own inscribe`).toBe(true);
+  expect(notSpentBy(dirty), `${label} inscribe commit must not spend its own dirty coin as funding`).toBe(true);
+
+  // Then every EARLIER coin. In the GREEN run a failure here is a real cross-cell
+  // burn (an earlier cell's asset spent by this inscribe) — a ladder bug this
+  // catches and names. Under the mutation the own assertion above has already
+  // failed, so these do not run, keeping the red count clean.
+  for (const d of seededDirty) {
+    if (d.outpoint === dirty.outpoint) continue;
+    console.log(`[inscribe-dirty-matrix] after ${label} inscribe: prior ${d.asset} ${d.outpoint} survives=${alive(d)}`);
+    expect(alive(d), `earlier dirty ${d.asset} coin ${d.outpoint} must still survive the ${label} inscribe`).toBe(true);
+    expect(notSpentBy(d), `${label} inscribe commit must not spend the earlier ${d.asset} coin as funding`).toBe(true);
+  }
+}
+
+CELLS.forEach((cell, cellIndex) => {
+  test(`inscribe auto-picks clean; the ${cell.label} coin (and all prior) survive`, async () => {
+    await runDirtyCoinCell(cell.asset, cell.label, cellIndex);
+  });
+});

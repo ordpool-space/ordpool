@@ -1,10 +1,10 @@
 module.exports = {
   preset: 'jest-preset-angular',
   // testMatch: ['**/*.jest.ts'],
-  // playwright/ is excluded so Jest doesn't try to run our browser specs
+  // HACK -- Ordpool: e2e/ is excluded so Jest doesn't try to run our browser specs
   // (they import @playwright/test which can't load in the jsdom env and
   // explodes with "Class extends value undefined" out of playwright-core).
-  testPathIgnorePatterns: ['<rootDir>/cypress/', '<rootDir>/playwright/'],
+  testPathIgnorePatterns: ['<rootDir>/cypress/', '<rootDir>/e2e/'],
   setupFilesAfterEnv: ['<rootDir>/setup-jest.ts'],
   maxWorkers: 1,
   // Path aliases from tsconfig.app.json -- Jest doesn't read them automatically.
@@ -14,6 +14,10 @@ module.exports = {
     '^@components/(.*)$': '<rootDir>/src/app/components/$1',
     '^@environments/(.*)$': '<rootDir>/src/environments/$1',
     '^@interfaces/(.*)$': '<rootDir>/src/app/interfaces/$1',
+    // base58-js (under sats-connect, which ordpool-sdk/core reaches) exports
+    // only an `import` condition, which Jest's CommonJS resolver cannot match.
+    // Its ESM is transformed below like the rest of the wallet chain.
+    '^base58-js$': '<rootDir>/node_modules/base58-js/index.js',
   },
   // @noble/secp256k1 ships as pure ESM ("type":"module"). Jest skips
   // transforming node_modules by default, so its import lands at runtime

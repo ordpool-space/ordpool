@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.13.0"
+          node-version: "26.12.1"
           registry-url: "https://registry.npmjs.org"
 
       - name: Audit backend install scripts
@@ -42,7 +42,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.13.0"
+          node-version: "26.12.1"
           registry-url: "https://registry.npmjs.org"
 
       - name: Audit frontend install scripts

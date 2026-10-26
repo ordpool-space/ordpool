@@ -38,13 +38,14 @@ on:
       # broad for this heavy lane, so scope to just the inscribe / wallet-
       # connect surfaces plus the page shell.
       - 'frontend/src/app/components/_ordpool/inscribe-mint/**'
+      # The funding scan-port token the mint and inscribe components inject.
+      - 'frontend/src/app/services/ordinals/sdk-tokens.ts'
       - 'frontend/src/app/components/_ordpool/wallet-connect/**'
       - 'frontend/src/app/components/master-page/**'
-      - 'frontend/playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts'
-      - 'frontend/playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts'
-      - 'frontend/playwright/specs/regtest/fixtures/**'
-      - 'frontend/playwright/specs/regtest/payment-address.ts'
-      - 'frontend/playwright/specs/regtest/xverse-sign.ts'
+      - 'frontend/e2e/regtest/cat21-inscribe-dirty-matrix.e2e.spec.ts'
+      - 'frontend/e2e/regtest/funding-guard-notice-leather.e2e.spec.ts'
+      - 'frontend/e2e/regtest/fixtures/**'
+      - 'frontend/e2e/regtest/payment-address.ts'
 
 permissions:
   contents: read
@@ -58,21 +59,25 @@ concurrency:
   # commit's check history clean.
   cancel-in-progress: false
 
+# Harden installs against transient registry blips like ECONNRESET: retry more
+# times over a longer backoff window than npm's default of 2. npm and pnpm both
+# read these npm_config_* values.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
 jobs:
   regtest-inscribe-dirty-matrix:
     name: Bring up stack + inscribe dirty-coin matrix
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      # regtest-bootstrap.sh is DROPPED: consumer-environment-bootstrap.sh is a
-      # strict superset (same hardcoded funder identity, same 101-block funding,
-      # and it is the WIF source the Xverse onboarding + every rpc() already
-      # rely on). Running both used to work only because they merged into one
-      # compose project by accident; once the project is derived from E2E_PREFIX
-      # they collide on host :18443. With regtest-bootstrap gone the only
-      # bitcoind is the consumer-environment's, so every rpc() has to name it -
-      # the SDK default ordpool-e2e-bitcoind no longer exists in this job.
-      REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+      # Every wallet browser writes Chrome's net log here (launchWalletContext);
+      # the net-log check after the specs fails on any request that left the
+      # machine.
+      ORDPOOL_E2E_NET_LOG_DIR: ${{ github.workspace }}/net-log
     steps:
       - name: Checkout ordpool
         uses: actions/checkout@v4
@@ -85,7 +90,7 @@ jobs:
         # plain ci sidesteps that.
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 26
           cache: 'npm'
           cache-dependency-path: 'frontend/package-lock.json'
 
@@ -93,11 +98,27 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # The stack runs in a machine-wide slot (ordpool-sdk e2e/README.md,
+      # "Slots"): every host port, the compose prefix and the container names
+      # the helpers docker exec into come from it, and land in GITHUB_ENV for
+      # every later step. The runner's worker process ($PPID) holds the slot
+      # for the whole job; the teardown step releases it.
+      - name: Acquire a regtest stack slot
+        working-directory: frontend
+        run: node node_modules/ordpool-sdk/scripts/e2e-slots.mjs acquire --kind consumer --owner-pid "$PPID" --format github >> "$GITHUB_ENV"
+
       - name: Make SDK consumer-environment scripts executable
         # Git on Linux preserves the bit, but defensive against any
         # cross-platform clone that lost it.
         run: chmod +x node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh
         working-directory: frontend
+
+      # ordpool-electrs, cat21-ord and cat21-wallet build from the shas the
+      # pinned SDK was proven with (TESTING.md: CI builds exactly what is
+      # pinned); the SDK's bootstrap fails under CI on a checkout at another sha.
+      - name: Read the SDK's build pins
+        working-directory: frontend
+        run: grep -E '^[A-Z0-9_]+=' node_modules/ordpool-sdk/e2e/build-pins.env >> "$GITHUB_ENV"
 
       # OUR electrs. The SDK's consumer-environment.yml builds the electrs
       # service from the ordpool-electrs fork (not the upstream
@@ -108,19 +129,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/ordpool-electrs
-          ref: ordpool
+          ref: ${{ env.ORDPOOL_ELECTRS_SHA }}
           path: ordpool-electrs
 
       # cat21-ord source for BOTH ord containers the funding-safety scan
-      # queries for real: cat21-ord (--index-cat21, port 8080, cats) and
-      # ord-stock (same binary WITHOUT --index-cat21, port 8081,
+      # queries for real: cat21-ord (--index-cat21, cats) and
+      # ord-stock (same binary WITHOUT --index-cat21,
       # inscriptions/runes/sat_ranges). The consumer-environment builds
       # both from this one checkout (ORD_SRC falls back to CAT21_ORD_SRC).
       - name: Checkout cat21-ord (for the cat21-ord + ord-stock containers)
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/cat21-ord
-          ref: index-cat21
+          ref: ${{ env.CAT21_ORD_SHA }}
           path: cat21-ord
 
       # buildx gha cache: reuse the compiled electrs image across runs
@@ -151,7 +172,7 @@ jobs:
             > stack.json
           cat stack.json
 
-      - name: Start fees + electrs HTTP+WS shim on :8999
+      - name: Start the fees + electrs HTTP+WS shim
         # We bring up just the SDK consumer-environment (bitcoind +
         # electrs + mariadb). For the mempool-style API surface the
         # frontend needs (/api/v1/fees/recommended + Esplora-shaped
@@ -174,12 +195,12 @@ jobs:
         # signal fires.
         run: |
           cd frontend
-          ELECTRS_URL=http://localhost:3010 PORT=8999 WS_ENABLED=1 \
+          WS_ENABLED=1 \
             nohup node node_modules/ordpool-sdk/e2e/regtest/fees-electrs-stub.mjs > ../fees-stub.log 2>&1 &
           echo $! > ../fees-stub.pid
           cd ..
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8999/healthz >/dev/null 2>&1; then
+            if curl -fsS "http://localhost:$E2E_FEES_STUB_PORT/healthz" >/dev/null 2>&1; then
               echo "fees-stub up"; break
             fi
             if [ "$i" = "30" ]; then
@@ -191,10 +212,10 @@ jobs:
       - name: Smoke-test stub endpoints
         run: |
           echo "--- fees/recommended"
-          curl -fsS http://localhost:8999/api/v1/fees/recommended
+          curl -fsS "http://localhost:$E2E_FEES_STUB_PORT/api/v1/fees/recommended"
           echo
           echo "--- blocks/tip/height (electrs)"
-          curl -fsS http://localhost:8999/api/blocks/tip/height
+          curl -fsS "http://localhost:$E2E_FEES_STUB_PORT/api/blocks/tip/height"
           echo
 
       # ── Iter 2 + 3 — Playwright + Xverse + the page-driven mint ─────
@@ -205,23 +226,25 @@ jobs:
       # The SDK's package install in node_modules ships only the
       # runtime; running its playwright config requires the full repo.
 
+      # The SDK harness (global-setup, seeded vault, .crx, compose) comes from the
+      # same SDK sha as frontend/package-lock.json: CI builds exactly what is
+      # pinned (TESTING.md), so a pin bump moves the harness with it.
+      - name: Read the ordpool-sdk sha pinned in the lockfile
+        id: sdk-pin
+        working-directory: frontend
+        run: echo "sha=$(node -p "require('./package-lock.json').packages['node_modules/ordpool-sdk'].resolved.split('#')[1]")" >> "$GITHUB_OUTPUT"
+
       - name: Checkout ordpool-sdk (for Xverse extension + seeded vault)
         uses: actions/checkout@v4
         with:
           repository: ordpool-space/ordpool-sdk
           path: sdk
-          # Pinned, not `main`: the harness (global-setup, seeded vault, .crx) is
-          # a sibling repo under active development, and an unpinned checkout means
-          # any push there can break this lane mid-deploy. It did: an SDK commit
-          # moved the seed directory out from under this workflow's fixed paths.
-          # Bump deliberately, so a harness change surfaces as a bump-time failure
-          # with an obvious cause, never as a mystery in the middle of a deploy.
-          ref: 3758071d3e86c3c00fd3cab2244a65eab386b7fb
+          ref: ${{ steps.sdk-pin.outputs.sha }}
 
       - name: Setup Node (sdk)
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '26.12.1'
           cache: 'npm'
           cache-dependency-path: 'sdk/package-lock.json'
 
@@ -335,7 +358,7 @@ jobs:
       # identical 101-block funding, and its descriptor is what the Xverse
       # onboarding + every rpc() read. Running both used to merge into one
       # bitcoind by accident; with the compose project derived from E2E_PREFIX
-      # they collide on host :18443. One bitcoind now: the consumer-environment's.
+      # they collide on the bitcoind RPC port. One bitcoind now: the consumer-environment's.
       - name: Run SDK's Xverse onboarding (produces seeded user-data-dir)
         working-directory: sdk
         # Pin the seed location explicitly on the PRODUCER, so writer and reader
@@ -368,7 +391,7 @@ jobs:
       # proxy entirely: patch environment.ts so apiBaseUrl +
       # websocketBaseUrl are absolute localhost URLs, then run plain
       # `ng serve` with no -c flag (the default has no proxyConfig).
-      # The frontend talks directly to ordpool-backend on :8999, which
+      # The frontend talks directly to the fees stub, which
       # in turn proxies /api/* to electrs.
 
       - name: Generate frontend config (Ordpool defaults)
@@ -379,9 +402,9 @@ jobs:
         working-directory: frontend
         # Three URL knobs that have to be rewritten in-place to land on
         # the regtest stub:
-        #   apiBaseUrl         '' → http://localhost:8999  (mempool API + electrs proxy)
-        #   websocketBaseUrl   '' → ws://localhost:8999    (mempool WS)
-        #   cat21BaseUrl       http://localhost:3333 → http://localhost:8999
+        #   apiBaseUrl         '' → the fees stub  (mempool API + electrs proxy)
+        #   websocketBaseUrl   '' → the fees stub  (mempool WS)
+        #   cat21BaseUrl       http://localhost:3333 → the fees stub
         #     (the wallet asset-scanner calls /api/status + /api/cats/numbers/...
         #     to identify cat sats among UTXOs; without redirecting these the
         #     scanner blocks on ECONNREFUSED and the page never reaches a
@@ -389,15 +412,15 @@ jobs:
         #     never clears in trace logs of failed runs)
         run: |
           sed -i \
-            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:8999'|" \
-            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:8999'|" \
-            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:8999'|" \
-            -e "s|'https://ord.ordpool.space'|'http://localhost:8081'|" \
-            -e "s|'https://explorer.ordinalsbot.com'|'http://localhost:8081'|" \
-            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:8080'|" \
+            -e "s|apiBaseUrl: ''|apiBaseUrl: 'http://localhost:${E2E_FEES_STUB_PORT}'|" \
+            -e "s|websocketBaseUrl: ''|websocketBaseUrl: 'ws://localhost:${E2E_FEES_STUB_PORT}'|" \
+            -e "s|cat21BaseUrl: 'http://localhost:3333'|cat21BaseUrl: 'http://localhost:${E2E_FEES_STUB_PORT}'|" \
+            -e "s|'https://ord.ordpool.space'|'http://localhost:${E2E_ORD_STOCK_HOST_PORT}'|" \
+            -e "s|'https://ordinals.unisat.io'|'http://localhost:${E2E_ORD_STOCK_HOST_PORT}'|" \
+            -e "s|cat21OrdBaseUrl: 'https://ord.cat21.space'|cat21OrdBaseUrl: 'http://localhost:${E2E_ORD_HOST_PORT}'|" \
             src/environments/environment.ts
-          # ordBaseUrls -> the STOCK ord (:8081, real inscriptions/runes/sat_ranges)
-          # and cat21OrdBaseUrl -> cat21-ord (:8080, cats). This is the split the
+          # ordBaseUrls -> the STOCK ord (real inscriptions/runes/sat_ranges)
+          # and cat21OrdBaseUrl -> cat21-ord (cats). This is the split the
           # UtxoContentScanner's classifier expects: pointing ordBaseUrls at
           # cat21-ord would read every inscribed coin as clean (it has no
           # inscriptions field), silently disabling the funding-safety guard.
@@ -454,19 +477,19 @@ jobs:
           echo "BROWSER_DIR=$BROWSER_DIR" >> "$GITHUB_ENV"
           ls "$BROWSER_DIR" | head -8
 
-      - name: Serve the static bundle on :4200
+      - name: Serve the static bundle on the slot's app port
         run: |
           # Dependency-free SPA server (runner-preinstalled node, zero
           # network at serve time): the nohup'd `npx -y serve@14` used
           # here raced its cold npm download against the 30s readiness
-          # loop and lost (empty serve.log, :4200 refused) — the same
+          # loop and lost (empty serve.log, the app port refused), the same
           # flake class fixed in cat21-indexer's workflows today. The
           # index.html fallback keeps /cat21-mint + /inscribe resolving
           # (the Angular router owns those paths).
           cat > spa-server.cjs <<'EOF'
           const http = require('http'), fs = require('fs'), path = require('path');
           const root = path.resolve(process.argv[2]);
-          const port = Number(process.argv[3] ?? 4200);
+          const port = Number(process.argv[3]);
           const types = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon', woff2: 'font/woff2', woff: 'font/woff', txt: 'text/plain', map: 'application/json' };
           http.createServer((req, res) => {
             let p = path.normalize(decodeURIComponent((req.url ?? '/').split('?')[0]));
@@ -477,13 +500,13 @@ jobs:
             fs.createReadStream(f).pipe(res);
           }).listen(port, () => console.log(`spa-server on :${port} root=${root}`));
           EOF
-          nohup node spa-server.cjs "$BROWSER_DIR" 4200 > serve.log 2>&1 &
+          nohup node spa-server.cjs "$BROWSER_DIR" "$E2E_APP_PORT" > serve.log 2>&1 &
           echo $! > serve.pid
 
-      - name: Wait for static server ready on :4200
+      - name: Wait for the static server
         run: |
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4200/ 2>/dev/null || echo 000)
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$E2E_APP_PORT/" 2>/dev/null || echo 000)
             if [ "$code" = "200" ]; then
               echo "static server up"
               break
@@ -513,15 +536,9 @@ jobs:
           # Seeded Xverse vault + unpacked .crx (populated one level up by the cache).
           XVERSE_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/xverse
           XVERSE_SEED_USER_DATA_DIR: ${{ github.workspace }}/sdk/.e2e-wallet-seed/user-data-dir
-          FRONTEND_URL: http://localhost:4200
-          # seedDirtyCoin docker-execs the ord wallets, so it needs the
-          # consumer-environment ord container names (cat21-ord for cats,
-          # ord-stock for inscriptions / runes / rare sats).
-          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
-          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test playwright/specs/regtest/cat21-inscribe-dirty-matrix-regtest.spec.ts \
+            npx playwright test e2e/regtest/cat21-inscribe-dirty-matrix.e2e.spec.ts \
             --config=playwright.regtest.config.ts \
             --output=test-results/cat21-inscribe-dirty-matrix
 
@@ -532,20 +549,24 @@ jobs:
       # their seeds. Here only the Xverse-driven matrix runs, so leather's address
       # (a different derivation) is untouched, and the cell gets a genuinely
       # dirty-only pool. leather is already bootstrapped in this lane;
-      # seedInscribedCoin docker-execs the ord wallets, hence the container env.
+      # seedInscribedCoin docker-execs the ord wallets the slot's environment names.
       - name: Run the separate-address notice cell (Leather)
         if: always()
         working-directory: frontend
         env:
           LEATHER_EXT_PATH: ${{ github.workspace }}/sdk/e2e/extensions/leather
-          FRONTEND_URL: http://localhost:4200
-          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
-          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            npx playwright test playwright/specs/regtest/funding-guard-notice-leather-regtest.spec.ts \
+            npx playwright test e2e/regtest/funding-guard-notice-leather.e2e.spec.ts \
             --config=playwright.regtest.config.ts \
             --output=test-results/funding-guard-notice-leather
+
+      # Nothing a spec's browser did may leave the runner: every launch was
+      # offline (launchWalletContext), and the net logs prove it.
+      - name: Check the net logs for requests that left the machine
+        if: always()
+        working-directory: frontend
+        run: node node_modules/ordpool-sdk/scripts/check-net-log.mjs "$ORDPOOL_E2E_NET_LOG_DIR"
 
       - name: Upload Playwright artifacts
         if: always()
@@ -558,14 +579,14 @@ jobs:
             build.log
             serve.log
             fees-stub.log
+            net-log
           retention-days: 14
           if-no-files-found: warn
 
       - name: Dump container logs on failure
         if: failure()
         run: |
-          for c in ordpool-e2e-consumer-bitcoind ordpool-e2e-consumer-electrs \
-                   ordpool-e2e-consumer-mariadb; do
+          for c in "$E2E_PREFIX-consumer-bitcoind" "$E2E_PREFIX-consumer-electrs" "$E2E_PREFIX-consumer-mariadb"; do
             echo "=== $c ==="
             docker logs "$c" 2>&1 | tail -200 || true
           done
@@ -573,9 +594,9 @@ jobs:
       - name: Tear down stack
         if: always()
         run: |
-          docker compose \
-            -f frontend/node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
-            down -v || true
+          if [ -n "${E2E_SLOT:-}" ]; then
+            node frontend/node_modules/ordpool-sdk/scripts/e2e-slots.mjs down "$E2E_SLOT" --force
+          fi
           if [ -f fees-stub.pid ]; then
             kill "$(cat fees-stub.pid)" 2>/dev/null || true
           fi

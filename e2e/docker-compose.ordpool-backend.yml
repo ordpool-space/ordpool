@@ -12,12 +12,12 @@
 # mempool-config.json), so there's no host bind-mount to trip the macOS
 # file-sharing quirk and no external config path to thread through.
 #
-# Brought up together with the base via:
+# Brought up together with the base, inside a stack slot (its environment sets
+# E2E_PREFIX and E2E_APP_BACKEND_PORT), via:
 #   ./build-ordpool-backend.sh
-#   docker compose \
-#     -f node_modules/ordpool-sdk/e2e/docker-compose.consumer-environment.yml \
-#     -f e2e/docker-compose.ordpool-backend.yml \
-#     up -d
+#   node frontend/node_modules/ordpool-sdk/scripts/e2e-slots.mjs run --kind consumer -- \
+#     frontend/node_modules/ordpool-sdk/e2e/consumer-environment-bootstrap.sh \
+#       --extra-file "$PWD/e2e/docker-compose.ordpool-backend.yml"
 
 services:
 
@@ -25,7 +25,9 @@ services:
     image: ordpool-e2e-backend:local
     # Local-only image (built by build-ordpool-backend.sh); never pull.
     pull_policy: never
-    container_name: ordpool-e2e-backend
+    # Named after the stack's slot prefix (E2E_PREFIX), like the SDK compose's
+    # containers, so two slots' stacks never share a name.
+    container_name: ${E2E_PREFIX:-ordpool-e2e}-backend
     depends_on:
       bitcoind:
         condition: service_healthy
@@ -58,8 +60,10 @@ services:
       DATABASE_DATABASE: "mempool"
       DATABASE_USERNAME: "mempool"
       DATABASE_PASSWORD: "mempool"
+    # The host side is the slot's app-backend port (E2E_APP_BACKEND_PORT,
+    # ordpool-sdk e2e/stack-ports.ts); the container keeps BACKEND_HTTP_PORT.
     ports:
-      - "8999:8999"
+      - "${E2E_APP_BACKEND_PORT:?run inside a stack slot (ordpool-sdk scripts/e2e-slots.mjs)}:8999"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8999/api/v1/backend-info | grep -q . || exit 1"]
       interval: 5s

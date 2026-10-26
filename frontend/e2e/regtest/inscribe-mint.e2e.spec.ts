@@ -1,0 +1,400 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the /inscribe page inscribes an SVG through Xverse: commit and reveal confirm with locktime 21 and the on-chain body is br/gzip-compressed and decodes byte-identical to the fixture
+ */
+/* eslint-disable no-console */
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+import { InscriptionParserService } from 'ordpool-parser';
+
+// Shared regtest helpers + approval-popup machinery, single-sourced from
+// the SDK's compiled `ordpool-sdk/e2e` barrel.
+import {
+  fundCommonSats,
+  waitForElectrsSync,
+  waitForTxConfirmed,
+  rpc,
+  mineBlocks,
+  getTx,
+  waitForApprovalPopup,
+  raceApprovalPopup,
+  approvalGate,
+  approveXverseSignPopup,
+  installXverseOfflineRoutes,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
+  launchWalletContext,
+  regtestServiceUrls,
+} from 'ordpool-sdk/e2e';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
+
+/**
+ * E2E (regtest inscribe) - ordpool /inscribe
+ *
+ * Drives the real Angular `/inscribe` page through a complete single-file
+ * inscription round-trip with the real Xverse extension:
+ *
+ *   1. Launch Chromium headed under xvfb with the cached Xverse `.crx`
+ *      loaded (seed `user-data-dir` from the SDK's global-setup, already
+ *      switched to Bitcoin Regtest against the local electrs URL).
+ *   2. Unlock the vault with the SDK's PASSWORD_BY_WALLET.xverse.
+ *   3. Navigate to /inscribe, click "connect your wallet", approve the
+ *      Xverse connect popup, read the payment address from the rendered
+ *      "could not find enough funds" hint.
+ *   4. Fund the payment address, mine, wait for electrs, reload so the
+ *      orchestrator re-fetches UTXOs.
+ *   5. Drop the fixture file on the dropzone (a tiny SVG), pin the fee
+ *      rate, wait for the "Inscribe my file" button to enable.
+ *   6. Click it, approve the ONE Xverse sign popup (only the commit
+ *      funding input is wallet-signed - the reveal is finalized inside
+ *      the orchestrator with an ephemeral key it then zeroes). The page
+ *      sends commit + reveal as one package via /api/txs/test, then
+ *      /api/txs/package.
+ *   7. Read the reveal txid off the success panel, mine, confirm, and
+ *      assert the on-chain reveal is a well-formed inscription: parses
+ *      through `InscriptionParserService`, carries a `content_encoding`
+ *      tag (`br` or `gzip` - the page compresses by default and picks the
+ *      smaller; the SVG clears the 5% margin), the on-chain body is real
+ *      compressed bytes (smaller than the fixture) that DECODE back
+ *      byte-identically to the fixture, has the right content-type, and
+ *      (the CAT-21 side-effect the wallet convention adds) carries
+ *      locktime=21 on both commit and reveal.
+ *
+ * The compress-on-the-page → decode-off-chain roundtrip is the acceptance
+ * criterion. Because an inscription is immutable, a compressor that didn't
+ * decode back would corrupt it forever, so we verify the decode explicitly.
+ *
+ * Intentionally CI-only (the workflow downloads the unverified Xverse
+ * .crx into a runner that gets torn down). The config refuses to run it
+ * locally - see `playwright.regtest.config.ts`.
+ *
+ * COVERAGE TRIGGER: this spec boots the real `/inscribe` page, so the
+ * regtest lane must fire when the components it renders change. Because
+ * `frontend/src/**` is too broad for this ~20-min lane, the workflow's
+ * `push.paths` names the specific `_ordpool` component dirs instead. If
+ * this spec starts booting another `_ordpool` component, add that dir to
+ * the `paths` block in `.github/workflows/e2e-regtest-mint.yml` - a
+ * component the filter omits can break this spec with no lane to catch it.
+ */
+
+const FRONTEND_URL = regtestServiceUrls().app;
+const MINT_PATH = '/inscribe';
+
+// In regtest, 1 BTC = 100M sats. 0.001 BTC (100,000 sats) is plenty for
+// the two 546-sat inscription outputs + commit/reveal miner fees at any
+// reasonable rate, and large enough that auto-pick lands on it as the
+// only viable row.
+const FUND_AMOUNT_BTC = 0.001;
+
+// The inscription fixture: a tiny SVG. detectMimeType() sniffs the
+// `<svg` prefix and reports image/svg+xml, so that is the content-type
+// the envelope carries and the parser must recover. Byte-identical
+// recovery of these exact bytes is the acceptance criterion.
+const FIXTURE_PATH = path.resolve(__dirname, 'fixtures/inscribe-probe.svg');
+const EXPECTED_CONTENT_TYPE = 'image/svg+xml';
+const EXPECTED_BODY = fs.readFileSync(FIXTURE_PATH);
+
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
+const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
+const SEED_USER_DATA_DIR =
+  process.env.XVERSE_SEED_USER_DATA_DIR
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
+
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
+
+let context: BrowserContext;
+let extensionId: string;
+
+// File-scope serial mode: the single round-trip below owns its connected
+// wallet + funded UTXO on regtest. Serial mode keeps behaviour identical
+// to the sibling cat21-mint spec.
+test.describe.configure({ mode: 'serial' });
+
+async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
+  await p.screenshot({
+    path: path.resolve(RESULTS_DIR, `inscribe-mint-regtest-${name}.png`),
+    fullPage: true,
+  });
+}
+
+/** Xverse's sign popup, recognised by its review screen. */
+const xverseSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText(/review transaction/i).first(),
+});
+
+/** Xverse's connect popup, recognised by its approve control. */
+const xverseConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Xverse; approve the connect popup only if Xverse
+ * opens one anyway.
+ */
+async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: xverseConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await race.page.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await race.page.close();
+}
+
+
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
+test.beforeAll(async () => {
+  if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
+    throw new Error(
+      `Xverse extension not unpacked at ${EXT_PATH}. The workflow should ` +
+      'have run the SDK\'s playwright-bootstrap.sh to populate it.',
+    );
+  }
+  if (!fs.existsSync(path.join(SEED_USER_DATA_DIR, 'Default'))) {
+    throw new Error(
+      `Xverse seed user-data-dir missing at ${SEED_USER_DATA_DIR}. The SDK's ` +
+      'global-setup should have produced it before this spec ran.',
+    );
+  }
+  if (!fs.existsSync(FIXTURE_PATH)) {
+    throw new Error(`inscription fixture missing at ${FIXTURE_PATH}`);
+  }
+
+  const tip = Number(rpc('getblockcount').trim());
+  if (tip < 101) {
+    throw new Error(
+      `regtest tip is ${tip} (<101). The SDK's regtest-bootstrap.sh should ` +
+      'have mined past coinbase maturity before this spec ran.',
+    );
+  }
+
+  // Clone the seed user-data-dir so we don't mutate the original - the
+  // suite may retry, and a partially-onboarded vault from a prior run
+  // would poison the unlock step.
+  const workingDir = `${SEED_USER_DATA_DIR}.inscribepage-${process.pid}-${Date.now()}`;
+  fs.cpSync(SEED_USER_DATA_DIR, workingDir, { recursive: true });
+  for (const stale of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    fs.rmSync(path.join(workingDir, stale), { force: true });
+  }
+
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
+  });
+  await installXverseOfflineRoutes(context);
+  errorGuard = installContextErrorGuard(context);
+
+  let [worker] = context.serviceWorkers();
+  if (!worker) {
+    worker = await context.waitForEvent('serviceworker');
+  }
+  extensionId = worker.url().split('/')[2];
+});
+
+test.afterAll(async () => {
+  await context?.close();
+});
+
+test('inscribe round-trip on regtest via the Angular /inscribe page + Xverse', async () => {
+  // ─── 1. Unlock the vault ───────────────────────────────────────
+  const primer = await context.newPage();
+  await primer.setViewportSize({ width: 400, height: 800 });
+  await primer.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
+  await primer.waitForFunction(() => {
+    const t = (document.body.innerText || '').toLowerCase();
+    return t.includes('unlock') || t.includes('account 1');
+  }, undefined, { polling: 250 });
+  if (/unlock/i.test(await primer.locator('body').innerText())) {
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
+    await primer.getByRole('button', { name: /^unlock$/i }).first().click();
+    await primer.waitForFunction(() => {
+      const t = (document.body.innerText || '').toLowerCase();
+      return t.includes('account 1') || t.includes('not now') || t.includes('zest') || t.includes('send');
+    }, undefined, { polling: 250 });
+  }
+  // The unlocked dashboard may carry a "Not now" prompt; it is read off the
+  // screen the wait above settled on, not waited for.
+  const notNow = primer.getByText('Not now', { exact: true }).first();
+  if (await notNow.isVisible()) {
+    await notNow.click();
+    await expect(notNow).toBeHidden();
+  }
+  await shot(primer, '01-unlocked');
+  await primer.close();
+
+  // ─── 2. Open /inscribe, click Connect, approve in Xverse ───────
+  const page = await context.newPage();
+  // No /output mock. The funding-safety scan (the SDK orchestrator's
+  // fundingRecommendation$) probes the REAL local ords the workflow wired
+  // into environment.ts: stock ord for inscriptions/runes/sat_ranges
+  // and cat21-ord for cats. For a clean regtest payment coin both
+  // return empty, so the coin classifies usable for real. The sync waits
+  // after funding (below) ensure both ords have indexed the funding block
+  // before the scan reads /output/<outpoint>.
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  await shot(page, '02-page-loaded');
+
+  // The pre-connect prompt renders a "connect your wallet" link that
+  // calls WalletService.requestWalletConnect() → the ngb-modal picker.
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible();
+
+  const knownPagesBeforeConnect = new Set(context.pages());
+  await connectTrigger.click();
+  // Picker: pick Xverse via the per-wallet Connect button's stable testid.
+  await page.getByTestId('wallet-connect-xverse')
+    .click();
+  await shot(page, '03-picker-clicked');
+
+  const approvalConnect = await waitForApprovalPopup({
+    context,
+    knownPages: knownPagesBeforeConnect,
+    isApproval: async (p) => {
+      if (!p.url().startsWith('chrome-extension://')) return false;
+      await p.waitForFunction(() => {
+        const t = (document.body.innerText || '').toLowerCase();
+        return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
+      }, undefined, { polling: 500 });
+      return true;
+    },
+  });
+  await shot(approvalConnect, '04-connect-approval');
+  await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
+    .first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  // Closing the connect popup forces Xverse to open a FRESH tab for the
+  // sign step later - same dance the cat21-mint + SDK roundtrip specs use.
+  await approvalConnect.close();
+
+  // ─── 3. Read the payment address from the wallet popover ───────
+  const paymentAddress = await readPaymentAddress(page);
+  console.log(`[inscribe-page] payment=${paymentAddress}`);
+  expect(paymentAddress).toMatch(/^bcrt1q/);
+
+  // ─── 4. Fund the payment address, mine, wait for electrs ──────
+  // A coin on common sats: the funding-safety scan reads /output on both real
+  // ords, and a plain sendtoaddress can hand this wallet the coinbase's uncommon
+  // first sat. fundCommonSats mines it and waits for electrs and both ords.
+  await fundCommonSats(paymentAddress, FUND_AMOUNT_BTC);
+  console.log(`[inscribe-page] funded ${paymentAddress} +${FUND_AMOUNT_BTC} BTC on common sats`);
+
+  // ─── 4b. Reload so the orchestrator re-fetches UTXOs ───────────
+  // getUtxos fires once on connect - funding AFTER connect doesn't
+  // trigger a re-fetch. A reload forces a fresh utxos$ pipeline. If
+  // Xverse pops a permission-renewal popup we approve it.
+  const knownPagesBeforeReload = new Set(context.pages());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await reconnectXverse(page, knownPagesBeforeReload);
+  await shot(page, '04b-reloaded');
+
+  // ─── 5. Drop the fixture file on the dropzone ──────────────────
+  // The dropzone's hidden <input type="file"> owns onPick → handleFile,
+  // which reads the bytes, runs detectMimeType, and calls
+  // orchestrator.setContent. setInputFiles works on hidden inputs.
+  // (Re-pick AFTER the reload: reload clears the component's picked-file
+  // state.)
+  await page.setInputFiles('[data-testid="inscribe-file-input"]', FIXTURE_PATH);
+  await expect(page.locator('[data-testid="inscribe-file-name"]')).toContainText('inscribe-probe.svg');
+  await expect(page.locator('[data-testid="inscribe-detected-type"]')).toHaveText(EXPECTED_CONTENT_TYPE);
+  await shot(page, '05-file-picked');
+
+  // ─── 6. Pin the fee rate + wait for the Inscribe button ────────
+  const feeRateInput = page.locator('[data-testid="inscribe-fee-rate"]');
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
+
+  const inscribeButton = page.locator('[data-testid="inscribe-btn"]');
+  // Enabled only when form valid + a viable UTXO auto-picked + a file is
+  // set - all three now hold.
+  await expect(inscribeButton).toBeEnabled();
+  await shot(page, '06-ready-to-inscribe');
+
+  // ─── 7. Click Inscribe, approve the ONE sign popup ─────────────
+  const knownPagesBeforeSign = new Set(context.pages());
+  await inscribeButton.click();
+
+  await approveXverseSignPopup({
+    context,
+    knownPages: knownPagesBeforeSign,
+    label: 'Xverse approvalSign',
+    onScreenshot: (p) => shot(p, '07-sign-approval'),
+  });
+
+  // ─── 8. Wait for success panel + read commit/reveal txids ──────
+  const successPanel = page.locator('[data-testid="inscribe-success"]');
+  await expect(successPanel).toBeVisible();
+  await shot(page, '08-success');
+
+  const commitTxId = (await page.locator('[data-testid="inscribe-commit-txid"]').textContent())!.trim();
+  const revealTxId = (await page.locator('[data-testid="inscribe-reveal-txid"]').textContent())!.trim();
+  console.log(`[inscribe-page] commit=${commitTxId} reveal=${revealTxId}`);
+  expect(commitTxId).toMatch(/^[0-9a-f]{64}$/);
+  expect(revealTxId).toMatch(/^[0-9a-f]{64}$/);
+  expect(revealTxId).not.toBe(commitTxId);
+
+  // ─── 9. Confirm both txs, verify the inscription on-chain ──────
+  // Commit + reveal are already in the mempool (sent as one package
+  // by the page). One block confirms both - bitcoind packs the reveal
+  // in the same block as its unconfirmed commit parent.
+  await waitForElectrsSync(mineBlocks(1));
+  const commitTx = await waitForTxConfirmed(commitTxId);
+  const revealTx = await waitForTxConfirmed(revealTxId);
+  console.log(`[inscribe-page] commit locktime=${commitTx.locktime} reveal locktime=${revealTx.locktime}`);
+
+  // The cat21-wallet / SDK builder convention sets nLockTime=21 on every
+  // cat-touching tx it builds - here both the commit and the reveal -
+  // so each also mints a bonus CAT-21 cat. Regression guard on the SDK
+  // builder invariant (a third-party wallet with locktime=0 would still
+  // deliver the inscription; the SDK is the builder here, so we pin it).
+  expect(commitTx.locktime).toBe(21);
+  expect(revealTx.locktime).toBe(21);
+  expect(revealTx.status.block_hash).toBeTruthy();
+
+  // ─── 9a. Parse the reveal as an inscription via ordpool-parser ─
+  // getTx returns EsploraTx with vin typed as unknown[]; the witness
+  // items live at vin[0].witness (a hex string[]). Same cast the SDK's
+  // xverse-inscribe-roundtrip spec uses.
+  const revealFull = await getTx(revealTxId);
+  const witnessHex = (revealFull as unknown as {
+    vin: { witness: string[] }[];
+  }).vin[0].witness;
+  const parsed = InscriptionParserService.parse({
+    txid: revealTxId,
+    vin: [{ witness: witnessHex }],
+  });
+  expect(parsed.length).toBe(1);
+  expect(parsed[0].contentType).toBe(EXPECTED_CONTENT_TYPE);
+
+  // The page compresses by default and inscribes the smaller of gzip / brotli
+  // (the SVG fixture clears assessCompression's 5% margin). In CI's headed
+  // Chromium the hosted wasm makes brotli available and it wins, but assert
+  // codec-agnostically so the test holds on any engine. The decode-back is the
+  // immutability-safety criterion: a compressor that didn't decode back would
+  // corrupt the inscription forever.
+  const enc = parsed[0].getContentEncoding();
+  expect(['br', 'gzip']).toContain(enc);                     // a real codec fired
+  const onChain = Buffer.from(parsed[0].getDataRaw());
+  expect(onChain.length).toBeLessThan(EXPECTED_BODY.length); // actually compressed
+  const decoded = Buffer.from(await parsed[0].getData(), 'base64');
+  expect(decoded.equals(EXPECTED_BODY)).toBe(true);          // clean decode to original
+});

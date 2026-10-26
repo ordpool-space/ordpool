@@ -1,16 +1,35 @@
 import { defineConfig } from '@playwright/test';
 import * as path from 'node:path';
+import { E2E_TIMEOUT_ENV } from 'ordpool-sdk/e2e';
+
+/**
+ * The per-wait bound (TESTING.md): every assertion, action, navigation and
+ * page event, and, through ORDPOOL_E2E_TIMEOUT_MS, every SDK polling helper
+ * (electrs, ord, bitcoind, a wallet popup search). A state that needs longer
+ * to arrive is a defect in the app, the harness or the helper, fixed there,
+ * never by raising this bound.
+ */
+const WAIT_TIMEOUT_MS = 30_000;
+process.env[E2E_TIMEOUT_ENV] = String(WAIT_TIMEOUT_MS);
+
+/**
+ * The per-test bound. A test is a sequence of waits, not one wait.
+ * Twice the longest green test: 142 s, cat21-mint-dirty-matrix cell 2 in ordpool run 37765141941.
+ */
+const TEST_TIMEOUT_MS = 300_000;
 
 /**
  * Playwright config for the regtest cat21-mint round-trip suite.
  *
  * Runs ONLY in CI — the workflow (`e2e-regtest-mint.yml`) takes
  * responsibility for:
+ *   - acquiring a stack slot (ordpool-sdk scripts/e2e-slots.mjs), whose
+ *     environment gives every host port below,
  *   - bringing up bitcoind + electrs + mariadb (via the SDK's
  *     consumer-environment),
- *   - starting ordpool-backend on :8999,
- *   - serving the frontend at FRONTEND_URL with the regtest serve
- *     config,
+ *   - starting the SDK's fees stub on E2E_FEES_STUB_PORT,
+ *   - serving the built frontend on E2E_APP_PORT (the specs read it
+ *     through regtestServiceUrls().app),
  *   - downloading + unpacking the Xverse `.crx` (via the SDK's
  *     `playwright-bootstrap.sh xverse`),
  *   - running the SDK's globalSetup against regtest to seed the
@@ -24,8 +43,8 @@ import * as path from 'node:path';
  * under xvfb to give it a display.
  */
 export default defineConfig({
-  testDir: path.resolve(__dirname, 'playwright/specs/regtest'),
-  testMatch: '**/*.spec.ts',
+  testDir: path.resolve(__dirname, 'e2e/regtest'),
+  testMatch: '**/*.e2e.spec.ts',
   fullyParallel: false,
   workers: 1,
   // Zero retries, on purpose. A retry hides a real failure behind a second roll
@@ -34,19 +53,17 @@ export default defineConfig({
   // here is an error to FIX (a missing wait, a race), not to paper over. If a
   // wallet popup times out, the fix is a better wait, not another attempt.
   retries: 0,
-  // Each spec includes ~2 wallet popups + 2 block mines + electrs
-  // polling. The default 60s isn't anywhere near enough.
-  timeout: 480_000,
+  timeout: TEST_TIMEOUT_MS,
   expect: {
-    timeout: 30_000,
+    timeout: WAIT_TIMEOUT_MS,
   },
   use: {
     headless: false,
     screenshot: 'on',
     video: 'retain-on-failure',
     trace: 'retain-on-failure',
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
+    actionTimeout: WAIT_TIMEOUT_MS,
+    navigationTimeout: WAIT_TIMEOUT_MS,
   },
   reporter: [
     [process.env.CI ? 'github' : 'list'],

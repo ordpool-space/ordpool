@@ -1,0 +1,298 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
+ * Faked:  Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs)
+ * Proves: the funding picker flags a real inscription-bearing coin (seedInscribedCoin) and names its inscription id
+ */
+/* eslint-disable no-console */
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+import {
+  seedInscribedCoin,
+  rpc,
+  waitForApprovalPopup,
+  raceApprovalPopup,
+  installXverseOfflineRoutes,
+  approvalGate,
+  installContextErrorGuard,
+  PASSWORD_BY_WALLET,
+  launchWalletContext,
+  regtestServiceUrls,
+} from 'ordpool-sdk/e2e';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
+
+/**
+ * E2E (regtest) — the funding picker FLAGS and NAMES an inscribed coin.
+ *
+ * This proves ONE property, and it is careful not to claim more: the funding
+ * picker surfaces an asset-bearing coin, flags it, and names the inscription by
+ * id, so a user can see what a coin carries before spending it. It does NOT
+ * assert the funding STATUS (auto vs asset-notice), and it must not, because it
+ * runs on the SHARED Xverse vault: the mint lane runs several Xverse specs
+ * before this one on the same address, and their change accumulates as clean
+ * leftover coins. So the pool here is not dirty-only, a clean leftover usually
+ * auto-funds, and the status is non-deterministic run to run. The dirty-only
+ * asset-notice path is proven separately, on a fresh-vault separate-address
+ * wallet, in `funding-guard-notice-leather.e2e.spec.ts`; the one-address
+ * block in `funding-guard-warning-block-unisat.e2e.spec.ts`.
+ *
+ * The setup seeds a real inscription-bearing UTXO on the payment address via the
+ * SDK's `seedInscribedCoin` fixture at 2,000,000 sat (large enough to be a
+ * covering candidate). The stock ord reports it under `inscriptions`,
+ * cat21-ord reports its cats; the scan reads both. The picker then shows
+ * the coin flagged: the "asset found" danger badge, a "Use anyway" override in
+ * place of "Use this UTXO", and the asset detail naming the real inscription by
+ * id. That naming is the load-bearing proof and the only assertion the mutation
+ * check turns red; the badge and override fire for any asset and are necessary
+ * but not sufficient.
+ *
+ * THE MUTATION CHECK (run on a throwaway branch, not in CI): point `ordBaseUrls`
+ * at cat21-ord instead of the stock ord. cat21-ord has no `inscriptions` field, so the
+ * inscription becomes invisible and the "Inscription: <id>" line never renders,
+ * turning the `toContainText(inscriptionId)` assertion RED. The generic "asset
+ * found" badge and "Use anyway" override do NOT flip, because this coin also
+ * carries a rare sat and both ords run --index-sats, which is exactly why the
+ * inscription-id assertion, not the badge, is the load-bearing proof. A guard
+ * spec that passed under both wirings would not be reading the inscription
+ * verdict. Verified: at the stock ord GREEN, at cat21-ord RED on the inscription-id line.
+ * No mock: a real inscribed coin, real stock ord reporting it, real detection.
+ *
+ * CI-only (unverified Xverse .crx). See `playwright.regtest.config.ts`.
+ */
+
+const FRONTEND_URL = regtestServiceUrls().app;
+const MINT_PATH = '/cat21-mint';
+
+// Big enough to be a covering candidate for a mint, so the funding-safety
+// scan actually considers it and the guard is genuinely asked. This is the
+// SDK fixture's default; named here for the assertion's sake.
+const INSCRIBED_POSTAGE_SATS = 2_000_000;
+
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
+const EXT_PATH = process.env.XVERSE_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/xverse');
+const SEED_USER_DATA_DIR =
+  process.env.XVERSE_SEED_USER_DATA_DIR
+  ?? path.resolve(__dirname, '../../test-results/xverse-seed-user-data-dir');
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
+
+let context: BrowserContext;
+let extensionId: string;
+
+test.describe.configure({ mode: 'serial' });
+
+async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
+  await p.screenshot({
+    path: path.resolve(RESULTS_DIR, `funding-guard-refusal-${name}.png`),
+    fullPage: true,
+  });
+}
+
+/** Xverse's sign popup, recognised by its review screen. */
+const xverseSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByText(/review transaction/i).first(),
+});
+
+/** Xverse's connect popup, recognised by its approve control. */
+const xverseConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first(),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking Xverse; approve the connect popup only if Xverse
+ * opens one anyway.
+ */
+async function reconnectXverse(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: xverseConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await race.page.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i }).first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await race.page.close();
+}
+
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
+test.beforeAll(async () => {
+  if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
+    throw new Error(`Xverse extension not unpacked at ${EXT_PATH}.`);
+  }
+  if (!fs.existsSync(path.join(SEED_USER_DATA_DIR, 'Default'))) {
+    throw new Error(`Xverse seed user-data-dir missing at ${SEED_USER_DATA_DIR}.`);
+  }
+  const tip = Number(rpc('getblockcount').trim());
+  if (tip < 101) {
+    throw new Error(`regtest tip is ${tip} (<101). regtest-bootstrap.sh should have mined past maturity.`);
+  }
+
+  const workingDir = `${SEED_USER_DATA_DIR}.guard-refusal-${process.pid}-${Date.now()}`;
+  fs.cpSync(SEED_USER_DATA_DIR, workingDir, { recursive: true });
+  for (const stale of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    fs.rmSync(path.join(workingDir, stale), { force: true });
+  }
+
+  // No /output mock. The scan hits the real local ords (the stock ord for
+  // inscriptions, cat21-ord for cats) that the workflow wired into
+  // environment.ts — which is the whole point of this spec.
+  context = await launchWalletContext({
+    wallet: 'xverse',
+    extensionPath: EXT_PATH,
+    userDataDir: workingDir,
+  });
+  await installXverseOfflineRoutes(context);
+  errorGuard = installContextErrorGuard(context);
+  let [worker] = context.serviceWorkers();
+  if (!worker) worker = await context.waitForEvent('serviceworker');
+  extensionId = worker.url().split('/')[2];
+});
+
+test.afterAll(async () => {
+  await context?.close();
+});
+
+test('the funding picker flags and names an inscribed coin (real ord, no mock)', async () => {
+  // ─── 1. Unlock the vault ───────────────────────────────────────
+  const primer = await context.newPage();
+  await primer.setViewportSize({ width: 400, height: 800 });
+  await primer.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
+  await primer.waitForFunction(() => {
+    const t = (document.body.innerText || '').toLowerCase();
+    return t.includes('unlock') || t.includes('account 1');
+  }, undefined, { polling: 250 });
+  if (/unlock/i.test(await primer.locator('body').innerText())) {
+    await primer.locator('input[type="password"]').first().fill(PASSWORD_BY_WALLET.xverse);
+    await primer.getByRole('button', { name: /^unlock$/i }).first().click();
+    await primer.waitForFunction(() => {
+      const t = (document.body.innerText || '').toLowerCase();
+      return t.includes('account 1') || t.includes('not now') || t.includes('send');
+    }, undefined, { polling: 250 });
+  }
+  // The unlocked dashboard may carry a "Not now" prompt; it is read off the
+  // screen the wait above settled on, not waited for.
+  const notNow = primer.getByText('Not now', { exact: true }).first();
+  if (await notNow.isVisible()) {
+    await notNow.click();
+    await expect(notNow).toBeHidden();
+  }
+  await primer.close();
+
+  // ─── 2. Open /cat21-mint, connect Xverse, read the payment address ─
+  const page = await context.newPage();
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible();
+
+  const knownPagesBeforeConnect = new Set(context.pages());
+  await connectTrigger.click();
+  await page.getByTestId('wallet-connect-xverse').click();
+
+  const approvalConnect = await waitForApprovalPopup({
+    context,
+    knownPages: knownPagesBeforeConnect,
+    isApproval: async (p) => {
+      if (!p.url().startsWith('chrome-extension://')) return false;
+      await p.waitForFunction(() => {
+        const t = (document.body.innerText || '').toLowerCase();
+        return ['connect', 'approve', 'confirm', 'allow'].some((s) => t.includes(s));
+      }, undefined, { polling: 500 });
+      return true;
+    },
+  });
+  await approvalConnect.getByRole('button', { name: /^(connect|approve|confirm|allow)$/i })
+    .first().click();
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await approvalConnect.close();
+
+  const paymentAddress = await readPaymentAddress(page);
+  console.log(`[guard-refusal] payment=${paymentAddress}`);
+  expect(paymentAddress).toMatch(/^bcrt1q/);
+
+  // ─── 3. Seed a REAL inscribed coin among the vault's coins ────────
+  // Not the only candidate: the shared Xverse vault carries clean change from
+  // earlier lane specs, so a clean leftover usually auto-funds. That is fine
+  // here, this spec asserts the picker flags the dirty coin, not the status.
+  // seedInscribedCoin inscribes through the regtest ord wallet, sends the
+  // inscription-bearing output to this payment address, mines, and waits
+  // until the stock ord reports it under /output.inscriptions before
+  // returning. It refuses to return a coin the stock ord does not actually
+  // report as inscribed, so this spec cannot silently run against a clean
+  // coin. Container names are overridden to the consumer-environment's in
+  // the workflow env (REGTEST_ORD_STOCK_CONTAINER etc.).
+  const inscribed = await seedInscribedCoin({
+    address: paymentAddress,
+    postageSats: INSCRIBED_POSTAGE_SATS,
+  });
+  const inscribedOutpoint = `${inscribed.txid}:${inscribed.vout}`;
+  console.log(`[guard-refusal] inscribed coin ${inscribedOutpoint} value=${inscribed.value} id=${inscribed.inscriptionId}`);
+  expect(inscribed.value).toBe(INSCRIBED_POSTAGE_SATS);
+
+  // ─── 4. Reload so the orchestrator re-fetches UTXOs and scans ─────
+  const knownPagesBeforeReload = new Set(context.pages());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await reconnectXverse(page, knownPagesBeforeReload);
+  await page.bringToFront();
+  await shot(page, '01-after-seed-reload');
+
+  // ─── 5. THE PROOF: the picker flags and names the inscribed coin ─
+  // Reading the real stock ord, the scan classifies the inscribed coin unsafe.
+  // Open the funding-source picker so its rows (and the badge) are in the DOM,
+  // then assert the coin is flagged and the inscription is named. The Mint
+  // button state is deliberately NOT asserted: a clean leftover on the shared
+  // vault usually auto-funds it, and the status is non-deterministic here.
+  const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
+  await expect(pickerSummary).toBeVisible();
+  await pickerSummary.click();
+  await shot(page, '02-picker-open');
+
+  // Necessary but NOT sufficient: the coin is flagged unsafe (the "asset found"
+  // danger badge, the row offers "Use anyway" not "Use this UTXO"). These fire
+  // for ANY asset and persist under that mutation, because this 2M coin also carries a rare
+  // sat and both ords run --index-sats. They show the guard flags the coin; they
+  // do not, alone, prove the inscription half. The inscription-specific proof is
+  // the detail assertion further down.
+  const assetBadge = page.locator('.badge.bg-danger', { hasText: /asset found/i }).first();
+  await expect(assetBadge).toBeVisible();
+  await shot(page, '03-asset-found');
+
+  const assetRow = page.locator('.utxo-row-assets').filter({ hasText: inscribedOutpoint }).first();
+  await expect(assetRow).toBeVisible();
+  await expect(assetRow.getByRole('button', { name: /use anyway/i })).toBeVisible();
+  await expect(assetRow.getByRole('button', { name: /^use this utxo$/i })).toHaveCount(0);
+
+  // THE inscription-specific proof, and the only assertion the mutation check
+  // turns red. The asset detail names the REAL inscription by id (the template
+  // renders "Inscription: <id>" from scan.content.inscriptionIds, which is
+  // populated ONLY from the stock ord's inscriptions field). Under the
+  // mutation (ordBaseUrls -> cat21-ord, which has no inscriptions field)
+  // inscriptionIds is empty, the "Inscription" line never renders, and this
+  // flips RED. That isolates the inscription guard from the coin's incidental
+  // rare sat: both ords run --index-sats, so the generic "asset found" badge
+  // and the "Use anyway" override above persist even under it and cannot, on
+  // their own, prove the inscription half of the guard.
+  const detail = assetRow.locator('.utxo-assets-detail');
+  await expect(detail).toContainText('Inscription');
+  await expect(detail).toContainText(inscribed.inscriptionId);
+  await shot(page, '04-inscription-named');
+
+  // The proof is the detection + naming of the inscription above. Whether the
+  // Mint button is enabled here depends on the shared vault's clean leftovers,
+  // so it is not asserted. The dirty-only asset-notice (button enabled, notice
+  // naming the coin) and the one-address block (button disabled) are proven in
+  // their own fresh-vault specs; this one owns only the picker-flags-it property.
+});

@@ -11,7 +11,9 @@
       "@app/*": ["src/app/*"],
       "@components/*": ["src/app/components/*"],
       "@environments/*": ["src/environments/*"],
-      "@interfaces/*": ["src/app/interfaces/*"]
+      "@interfaces/*": ["src/app/interfaces/*"],
+      // HACK -- Ordpool: moduleResolution "node" reads no package `exports`, so the SDK's testing subpath points at its declarations here; Jest resolves the module itself through the exports map
+      "ordpool-sdk/testing": ["node_modules/ordpool-sdk/dist/testing"]
     }
   },
   "include": [

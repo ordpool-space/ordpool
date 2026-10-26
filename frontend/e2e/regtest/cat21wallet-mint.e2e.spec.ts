@@ -1,0 +1,732 @@
+/**
+ * @test-kind e2e
+ * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, cat21-wallet built from source (onboarded by onboardCat21Wallet)
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400; Cat21 Wallet's vendor backends -> installLeatherOfflineRoutes (ordpool-sdk, captured); its cat21-ord reads (ord.cat21.space) -> the regtest cat21-ord through installCat21WalletOrdRoutes (ordpool-sdk)
+ * Proves: the /cat21-mint page connects cat21-wallet on a bcrt1q payment address and mints a CAT-21 (locktime 21, every input sequence 0xfffffffd, output 0 at 546 sat); a cat-flagged coin shows the asset badge and "Use anyway" spends it; a typed rate is the on-chain rate; a denied sign and a rejected broadcast show an error and no success
+ */
+/* eslint-disable no-console */
+import { test, expect, BrowserContext, Page } from '@playwright/test';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
+import { cleanOutputFixture } from 'ordpool-sdk';
+
+import {
+  waitForUtxoMatching,
+  waitForUtxoAt,
+  waitForElectrsSync,
+  rpc,
+  mineBlocks,
+  waitForTxConfirmed,
+  waitForApprovalPopup,
+  clickUntilApprovalPopup,
+  clickApprovalAndRequireClose,
+  onboardCat21Wallet,
+  raceApprovalPopup,
+  approvalGate,
+  installContextErrorGuard,
+  launchWalletContext,
+  installLeatherOfflineRoutes,
+  installCat21WalletOrdRoutes,
+  regtestServiceUrls,
+  regtestWallet,
+} from 'ordpool-sdk/e2e';
+import { connectedWalletButton, readPaymentAddress } from './payment-address';
+
+/**
+ * E2E (regtest mint) — ordpool /cat21-mint via CAT-21 wallet
+ *
+ * Mirrors the Xverse mint-regtest spec for the new CAT-21 wallet
+ * connector that landed in the SDK at commit 59aa430. CAT-21 wallet
+ * is OUR own Leather fork; its CAT-21 mint flow differs from Xverse's
+ * in two material ways the test pins:
+ *
+ *   1. RBF policy: CAT-21 wallet IS allowed to signal RBF
+ *      (`sequence === 0xfffffffd`). Xverse and every other third-
+ *      party wallet pin `sequence >= 0xfffffffe`. The rule lives in
+ *      `ordpool-sdk/src/cat21-mint/cat21.service.helper.ts`; the wallet
+ *      contract is HARD RULE #1 in `cat21-wallet/CLAUDE.md` (its
+ *      mempool-acceleration UI guarantees `nLockTime=21` is preserved
+ *      on any RBF replacement). See the workspace CLAUDE.md table for
+ *      the per-wallet rationale.
+ *
+ *   2. Onboarding: BIP-39 mnemonic restore from a fresh extension
+ *      load, not a cloned seed user-data-dir. The cat21-wallet
+ *      onboarding sequence (sign-in-link → 12 inputs → password →
+ *      dashboard) lives in `ordpool-sdk/e2e/playwright/specs/
+ *      cat21wallet-onboard.spec.ts`; this spec embeds it inline as
+ *      the beforeAll primer so the round-trip is self-contained.
+ *
+ * The test drives the full CAT-21 mint round-trip end to end: connect
+ * via the frontend picker, fund the connected address, build + sign the
+ * PSBT in the wallet, broadcast, and verify the on-chain tx (locktime=21,
+ * output 0 = 546 sat, RBF sequence 0xfffffffd, parses via
+ * Cat21ParserService into a well-formed CAT-21).
+ *
+ * cat21-wallet is a native-regtest wallet: its connector returns
+ * bcrt1q/bcrt1p directly when the dapp requests Network.Regtest, so no
+ * address shim is needed. The non-native wallets (Leather / Unisat /
+ * Wizz / OKX) get their mainnet `getAddresses` output rewritten to
+ * bcrt equivalents by the connector's `toRegtestWalletInfo` shim. Either
+ * way the payment address the spec reads and funds is bcrt1q, matching
+ * the orchestrator-built PSBT.
+ */
+
+const FRONTEND_URL = regtestServiceUrls().app;
+
+/** The bitcoind wallet the SDK's bootstrap creates and its helpers spend from. */
+const RPC_WALLET_ARG = `-rpcwallet=${regtestWallet()}`;
+const MINT_PATH = '/cat21-mint';
+
+const SDK_E2E_DIR = path.resolve(__dirname, '../../node_modules/ordpool-sdk/e2e');
+const EXT_PATH = process.env.CAT21WALLET_EXT_PATH ?? path.join(SDK_E2E_DIR, 'extensions/cat21wallet');
+
+const RESULTS_DIR = path.resolve(__dirname, '../../test-results');
+
+// cat21-ord (cats) and the fees stub, as the regtest stack publishes them.
+const CAT21_ORD_URL = regtestServiceUrls().ord;
+const FEES_STUB_URL = regtestServiceUrls().feesStub;
+
+let context: BrowserContext;
+let extensionId: string;
+// Hoisted state shared across `test()` blocks in this file. The
+// persistent context's localStorage remembers the connected wallet,
+// so test 2+ open a fresh page and auto-reconnect to the same
+// payment address.
+let sharedPaymentAddress: string | undefined;
+
+// TS narrowing message for sharedPaymentAddress reads throughout the
+// suite. beforeAll structurally sets sharedPaymentAddress; every
+// `if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET)`
+// below is a type-checker gate, not an ordering guard. If it fires,
+// beforeAll itself would have failed and Playwright would have
+// reported that first. Serial mode (below) removes any remaining
+// "test N ran before test 1" concern.
+const SHARED_ADDR_UNSET = 'sharedPaymentAddress not initialized (beforeAll should have set it)';
+
+// File-scope serial mode: tests in this spec share a connected wallet
+// + funded UTXOs on regtest. Serial mode makes Playwright run tests
+// in file order and skip subsequent tests when one earlier in the
+// file fails, so a broken beforeAll or first test doesn't cascade
+// into misleading downstream errors.
+test.describe.configure({ mode: 'serial' });
+
+async function shot(p: Page, name: string): Promise<void> {
+  if (p.isClosed()) return;
+  await p.screenshot({
+    path: path.resolve(RESULTS_DIR, `cat21wallet-mint-regtest-${name}.png`),
+    fullPage: true,
+  });
+}
+
+/** cat21-wallet's connect popup, recognised by its approve button. */
+const cat21WalletConnectApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByTestId('get-addresses-approve-button'),
+});
+
+/** cat21-wallet's sign popup, recognised by its confirm button. */
+const cat21WalletSignApproval = approvalGate({
+  url: /^chrome-extension:\/\//,
+  control: (p) => p.getByTestId('sign-psbt-confirm-button'),
+});
+
+/**
+ * After a reload the app restores the wallet from storage and shows it as
+ * connected without asking the wallet; approve the connect popup only if
+ * cat21-wallet opens one anyway.
+ */
+async function reconnectCat21Wallet(page: Page, knownPages: Set<Page>): Promise<void> {
+  const race = await raceApprovalPopup({
+    context,
+    knownPages,
+    isApproval: cat21WalletConnectApproval,
+    noPopupState: connectedWalletButton(page),
+  });
+  if (race.outcome === 'no-popup') return;
+  await clickApprovalAndRequireClose(race.page.getByTestId('get-addresses-approve-button'), race.page, { label: 'cat21-wallet reconnect popup' });
+}
+
+// Fails the test on any console.error or uncaught exception of an app page;
+// wallet-extension pages are outside the guard (installContextErrorGuard).
+let errorGuard: ReturnType<typeof installContextErrorGuard> | undefined;
+
+test.afterEach(() => {
+  if (!errorGuard) throw new Error('browser-error guard was never installed');
+  errorGuard.assertClean();
+});
+
+test.beforeAll(async () => {
+  if (!fs.existsSync(path.join(EXT_PATH, 'manifest.json'))) {
+    throw new Error(
+      `CAT-21 wallet extension not unpacked at ${EXT_PATH}. The workflow should ` +
+      'have run the SDK\'s playwright-bootstrap.sh cat21wallet step.',
+    );
+  }
+
+  context = await launchWalletContext({
+    wallet: 'cat21wallet',
+    extensionPath: EXT_PATH,
+  });
+  errorGuard = installContextErrorGuard(context);
+
+  // Funding-safety force-scan (the SDK orchestrator's fundingRecommendation$)
+  // probes ord `/output/<outpoint>` for every covering candidate, regardless of
+  // size. On regtest those outpoints don't exist at the prod ord hosts baked into
+  // the frontend, so without a mock they 404 -> the funding coin lands in the
+  // `failed` bucket -> the SDK refuses to safe-auto-fund and the Mint button stays
+  // disabled. Every mint-flow test funds with a plain payment, so classify each
+  // outpoint clean at the CONTEXT level. The asset-scanner test registers its own
+  // page-level `**/output/*` route, which Playwright evaluates before this one, so
+  // its cat-bearing outpoint still surfaces the "asset found" warning.
+  // With /output answered here, no test in this file reads a funding coin's
+  // real sats, so they fund with a plain sendtoaddress: fundCommonSats would
+  // add nothing, and the asset-scanner test needs the funding txid.
+  await context.route('**/output/*', async (route) => {
+    // Canonical /output shape from the SDK's cleanOutputFixture, so this mock
+    // tracks the classifier contract instead of drifting from it. A hand-written
+    // body that omitted `sat_ranges` is what reddened both base mint lanes once
+    // the classifier began requiring proof-of-indexing; the fixture carries the
+    // ranges a real indexed output has, and an SDK spec pins it to the
+    // classifier. Route each host to its half: the stock ord gets the
+    // ord response, cat21-ord the cats.
+    const fx = cleanOutputFixture();
+    const body = route.request().url().startsWith(CAT21_ORD_URL) ? fx.cat21Ord : fx.ord;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  // The wallet's vendor backends are answered locally or aborted, and its
+  // cat21-ord reads go to the regtest cat21-ord. Registered after the /output
+  // route above, so the wallet's own ord.cat21.space reads reach the regtest
+  // cat21-ord rather than the app's clean fixture (the last route wins).
+  await installLeatherOfflineRoutes(context);
+  await installCat21WalletOrdRoutes(context);
+
+  let [worker] = context.serviceWorkers();
+  if (!worker) {
+    worker = await context.waitForEvent('serviceworker');
+  }
+  extensionId = worker.url().split('/')[2];
+
+  // Onboard inline — no cloned seed user-data-dir.
+  //
+  // Keep the onboarded page open for the duration of the suite. The
+  // SDK's matching `cat21wallet-mint-roundtrip.spec.ts` (which passes
+  // in SDK CI) follows the same pattern. Closing the only extension
+  // page after onboarding lets the wallet's service worker suspend
+  // and lose the in-memory vault state; subsequent
+  // `Cat21Provider.request('getAddresses', …)` calls from the dapp
+  // then hang because the wallet's background never reaches
+  // `triggerRequestPopupWindowOpen` (the connect approval popup
+  // never spawns and the spec times out at 60 s waiting for the
+  // chrome-extension://… approval window). Run 28111780727 traced
+  // the click reaching `connectWallet`, the button becoming
+  // disabled, and zero new chrome-extension pages being created
+  // for the next 60 s — the wallet binary itself doesn't open the
+  // popup when there's no other extension page to anchor the SW
+  // session.
+  const primer = await context.newPage();
+  await onboardCat21Wallet(primer, extensionId);
+  await shot(primer, '00-onboarded');
+});
+
+test.afterAll(async () => {
+  await context?.close();
+});
+
+test('cat21-wallet mint round-trip on regtest via the Angular /cat21-mint page', async () => {
+  const page = await context.newPage();
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  await shot(page, '01-page-loaded');
+
+  // CRITICAL ordering — snapshot existing pages BEFORE the connect
+  // click. The Xverse spec hit this race three times before the fix
+  // (workspace CLAUDE.md note on commit 49c9285). CAT-21 wallet's
+  // approval popup likewise spawns synchronously from
+  // sats-connect/getAddresses, so the same precaution applies.
+  const knownPagesBeforeConnect = new Set(context.pages());
+
+  // ordpool's connect link reads "connect your wallet" in the empty-
+  // wallet state.
+  const connectTrigger = page.getByTestId('connect-wallet-trigger').first();
+  await expect(connectTrigger).toBeVisible();
+  await connectTrigger.click();
+
+  // Picker modal: CAT-21 wallet sits in the "installed" section. Each row's
+  // Connect button carries a stable per-wallet testid, so match that instead
+  // of the visible label text.
+  const cat21Picker = page.getByTestId('wallet-connect-cat21wallet');
+  await expect(cat21Picker).toBeVisible();
+  await cat21Picker.click();
+  await shot(page, '02-picker-clicked');
+
+  // Connect approval popup uses testid `get-addresses-approve-button`
+  // (lifted from the SDK cat21wallet-mint-roundtrip spec).
+  const approvalConnect = await waitForApprovalPopup({
+    context,
+    knownPages: knownPagesBeforeConnect,
+    isApproval: cat21WalletConnectApproval,
+  });
+  await shot(approvalConnect, '03-connect-approval');
+  // DO NOT explicitly `.close()` the popup. cat21-wallet's
+  // `userApprovesGetAddresses` runs a multi-step animation
+  // (contentDisappears 400 ms + originLogoAnimation) BEFORE
+  // actually `chrome.tabs.sendMessage`-ing the addresses back to
+  // the dapp. Closing the page mid-animation kills the message
+  // dispatch and the connectedWallet$ signal never fires — the
+  // page stays at "please connect your wallet" forever (observed
+  // on run 27502017653 trace.zip: click at 20039 ms, manual close
+  // at 20083 ms = 44 ms gap, far inside the 400 ms animation).
+  // The popup closes itself, and the close is required.
+  await clickApprovalAndRequireClose(
+    approvalConnect.getByTestId('get-addresses-approve-button'),
+    approvalConnect,
+    { label: 'cat21-wallet connect popup' },
+  );
+
+  // The wallet control renders only when `x.connectedWallet` is non-null,
+  // which pins that the connect callback resolved cleanly.
+  await expect(connectedWalletButton(page)).toBeVisible();
+  await shot(page, '04-connected');
+
+  // ─── Path-1 proof: payment address is REGTEST bcrt1q ──────────
+  // The connector forwards Network.Regtest to CAT-21 wallet's
+  // `getAddresses` as 'devnet', so the payment address must be `bcrt1q…`.
+  // A mainnet `bc1q…` here is a connector regression, caught before a
+  // downstream mint fails on the regtest electrs funding path.
+  const paymentAddr = await readPaymentAddress(page);
+  console.log(`[cat21wallet] regtest payment address = ${paymentAddr}`);
+  expect(paymentAddr).toMatch(/^bcrt1q/);
+  sharedPaymentAddress = paymentAddr;
+
+  // ─── Full mint round-trip ─────────────────────────────────────
+  // Now that the wallet hands us a regtest bcrt1q address, the
+  // funding + orchestrator + sign + broadcast path works the same
+  // way as the Xverse flow. The wallet-side differences vs Xverse:
+  //   - sign popup matches by role+name on Confirm/Sign/Approve
+  //     (no stable testid yet, per the SDK's own mint-roundtrip
+  //     spec)
+  //   - input sequence is exactly 0xfffffffd (CAT-21 wallet RBF
+  //     policy — the ONE wallet that signals RBF safely because
+  //     its mempool-acceleration UI contract preserves
+  //     nLockTime=21 on replacement)
+  const FUND_AMOUNT_BTC = 0.001;
+  const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', paymentAddr, String(FUND_AMOUNT_BTC)).trim();
+  console.log(`[cat21wallet] funded ${paymentAddr} +${FUND_AMOUNT_BTC} BTC tx=${fundTxid}`);
+  const fundedTip = mineBlocks(1);
+  await waitForElectrsSync(fundedTip);
+  // Poll the address→utxo index until the funding UTXO is visible
+  // (waitForElectrsSync confirms block height, not per-address indexing).
+  await waitForUtxoAt(paymentAddr, Math.round(FUND_AMOUNT_BTC * 1e8));
+
+  // Reload so the orchestrator picks up the new UTXO.
+  const knownBeforeReload = new Set(context.pages());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await reconnectCat21Wallet(page, knownBeforeReload);
+  await shot(page, '05-after-fund-reload');
+
+  // Set fee rate, wait for Mint button enabled.
+  const feeRateInput = page.locator(
+    '[data-testid="cat21-fee-rate"]',
+  ).first();
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
+  const mintButton = page.getByTestId('mint-cat-button');
+  await expect(mintButton).toBeEnabled();
+  await shot(page, '06-ready-to-mint');
+
+  // Click Mint, approve sign popup. §7.7: the Mint CTA is funding-gated (its
+  // enabled state settles after an async scan), so a plain click can land mid-
+  // re-render and be swallowed, and waitForApprovalPopup (event-driven — a
+  // deadline, not a poll) then reports only "no popup", indistinguishable from
+  // the wallet SW failing to wake. clickUntilApprovalPopup re-clicks ONLY while
+  // the trigger stays visible+enabled (the swallowed-click signature; a CTA that
+  // accepted the click has disabled itself and is waited on, never asked to sign
+  // twice) and returns the count. Assert clicks===1 so a swallowed click is a
+  // NAMED failure ("clicks was 2"), not a blind timeout: a dropped click on Mint
+  // is a page defect to explain, not something a retry should hide.
+  const knownBeforeSign = new Set(context.pages());
+  const { page: approvalSign, clicks } = await clickUntilApprovalPopup(mintButton, {
+    context,
+    knownPages: knownBeforeSign,
+    isApproval: cat21WalletSignApproval,
+  });
+  expect(clicks, 'mint-cat-button opened the sign popup on ONE click; >1 means the CTA dropped a click (§7.7 re-render race), a page defect not a retry target').toBe(1);
+  await shot(approvalSign, '07-sign-approval');
+  // The wallet closes the popup once it accepts the click; the close is the
+  // success signal, and a popup that stays open fails here, named.
+  await clickApprovalAndRequireClose(
+    approvalSign.getByTestId('sign-psbt-confirm-button'),
+    approvalSign,
+    { label: 'cat21-wallet sign popup' },
+  );
+
+  // Wait for success alert, extract broadcast txid.
+  const successAlert = page.locator('.alert.alert-success').first();
+  await expect(successAlert).toBeVisible();
+  await shot(page, '08-success');
+  const successHref = await successAlert.locator('a').first().getAttribute('href');
+  const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
+  expect(txidMatch).not.toBeNull();
+  const broadcastTxid = txidMatch![1];
+  console.log(`[cat21wallet] mint txid = ${broadcastTxid}`);
+
+  // Mine confirmation block, verify on-chain.
+  const confirmedTip = mineBlocks(1);
+  await waitForElectrsSync(confirmedTip);
+  const esploraTx = await waitForTxConfirmed(broadcastTxid);
+  expect(esploraTx.locktime).toBe(21);
+  expect(esploraTx.status.block_hash).toBeTruthy();
+  // Output 0 = cat sat at exactly 546.
+  expect(esploraTx.vout.length).toBeGreaterThanOrEqual(1);
+  expect(esploraTx.vout[0].value).toBe(546);
+  // CAT-21 wallet RBF policy: input sequence == 0xfffffffd.
+  // ONE exception to the Xverse spec's ≥0xfffffffe rule. See
+  // `ordpool-sdk/src/cat21-mint/cat21.service.helper.ts` and HARD
+  // RULE #1 in `cat21-wallet/CLAUDE.md` for the rationale.
+  expect(esploraTx.vin.length).toBeGreaterThan(0);
+  for (const vin of esploraTx.vin) {
+    expect(vin.sequence).toBe(0xfffffffd);
+  }
+  // Parser confirms well-formed CAT-21.
+  const parsed = Cat21ParserService.parse(esploraTx);
+  expect(parsed).not.toBeNull();
+  expect(parsed!.type).toBe(DigitalArtifactType.Cat21);
+  expect(parsed!.transactionId).toBe(broadcastTxid);
+  expect(parsed!.getImage()).toMatch(/^<svg/);
+});
+
+// ─── Shared mint helper ─────────────────────────────────────────
+// Wraps the test-1 mint mechanic into a single call so the manual-
+// override scenarios (purple-cat at 100 sat/vB, hot-mempool typing 1)
+// and the asset-scanner burn-confirm path can share it.
+
+const HIGH_FEES_PRESET = {
+  fastestFee: 100,
+  halfHourFee: 60,
+  hourFee: 30,
+  economyFee: 20,
+  minimumFee: 10,
+};
+
+async function cat21walletMintAtRate(opts: {
+  rate: number;
+  scenarioLabel: string;
+  mockFeesAsHigh?: boolean;
+}): Promise<{ broadcastTxid: string; fee: number; vsize: number; rate: number; tx: { vin: { sequence: number }[]; vout: { value: number }[]; locktime: number } }> {
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
+
+  if (opts.mockFeesAsHigh) {
+    const res = await fetch(`${FEES_STUB_URL}/admin/fees`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(HIGH_FEES_PRESET),
+    });
+    if (!res.ok) {
+      throw new Error(`stub /admin/fees rejected: ${res.status} ${await res.text()}`);
+    }
+  }
+
+  try {
+    const FUND_BTC = 0.001;
+    const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, String(FUND_BTC)).trim();
+    console.log(`[${opts.scenarioLabel}] funded ${sharedPaymentAddress} +${FUND_BTC} BTC tx=${fundTxid}`);
+    const tip = mineBlocks(1);
+    await waitForElectrsSync(tip);
+
+    const page = await context.newPage();
+    await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+    await reconnectCat21Wallet(page, new Set(context.pages()));
+    await shot(page, `mr-${opts.scenarioLabel}-01-loaded`);
+
+    // Sanity-check the picker if we mocked fees.
+    if (opts.mockFeesAsHigh) {
+      const tiles = page.getByTestId('fee-tile');
+      await expect(tiles).toHaveCount(4);
+      await expect(tiles.nth(3)).toContainText('100');
+    }
+
+    const feeRateInput = page.locator(
+      '[data-testid="cat21-fee-rate"]',
+    ).first();
+    await feeRateInput.fill(String(opts.rate));
+    await feeRateInput.press('Tab');
+    await shot(page, `mr-${opts.scenarioLabel}-02-rate-typed`);
+
+    const mintBtn = page.getByTestId('mint-cat-button');
+    await expect(mintBtn).toBeEnabled();
+
+    // §7.7 instrument, same as the main round-trip: re-click only on the
+    // swallowed-click signature, assert clicks===1 so a dropped Mint click is a
+    // named failure, not a blind popup timeout.
+    const knownBeforeSign = new Set(context.pages());
+    const { page: approvalSign, clicks } = await clickUntilApprovalPopup(mintBtn, {
+      context,
+      knownPages: knownBeforeSign,
+      isApproval: cat21WalletSignApproval,
+    });
+    expect(clicks, `mint-cat-button (${opts.scenarioLabel}) opened the sign popup on ONE click; >1 means a swallowed click`).toBe(1);
+    await shot(approvalSign, `mr-${opts.scenarioLabel}-03-sign`);
+    // The wallet closes the popup once it accepts the click; the close is the
+    // success signal, and a popup that stays open fails here, named.
+    await clickApprovalAndRequireClose(
+      approvalSign.getByTestId('sign-psbt-confirm-button'),
+      approvalSign,
+      { label: 'cat21-wallet sign popup' },
+    );
+
+    const successAlert = page.locator('.alert.alert-success').first();
+    await expect(successAlert).toBeVisible();
+    await shot(page, `mr-${opts.scenarioLabel}-04-success`);
+    const successHref = await successAlert.locator('a').first().getAttribute('href');
+    const txidMatch = successHref!.match(/\/tx\/([0-9a-f]{64})/);
+    expect(txidMatch).not.toBeNull();
+    const broadcastTxid = txidMatch![1];
+
+    const confTip = mineBlocks(1);
+    await waitForElectrsSync(confTip);
+    const tx = await waitForTxConfirmed(broadcastTxid);
+    expect(tx.locktime).toBe(21);
+    expect(tx.vout.length).toBeGreaterThanOrEqual(1);
+    expect(tx.vout[0].value).toBe(546);
+    for (const vin of tx.vin) {
+      expect(vin.sequence).toBe(0xfffffffd);
+    }
+    const parsed = Cat21ParserService.parse(tx);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.type).toBe(DigitalArtifactType.Cat21);
+    const vsize = Math.ceil(tx.weight / 4);
+    const rate = tx.fee / vsize;
+    console.log(`[${opts.scenarioLabel}] fee=${tx.fee} sat, vsize=${vsize} vB, rate=${rate.toFixed(3)} sat/vB (target ${opts.rate})`);
+
+    await page.close();
+    return { broadcastTxid, fee: tx.fee, vsize, rate, tx };
+  } finally {
+    if (opts.mockFeesAsHigh) {
+      const reset = await fetch(`${FEES_STUB_URL}/admin/fees/reset`, { method: 'POST' });
+      if (!reset.ok) throw new Error(`fee stub reset failed: HTTP ${reset.status}`);
+    }
+  }
+}
+
+/**
+ * Asset-scanner → burn-confirm via CAT-21 wallet.
+ *
+ * Same mechanic as the Xverse burn-confirm: fund a small UTXO,
+ * mock `/output/<outpoint>` with `cats: [0]` so the auto-scanner
+ * marks the row as `assets`, click "Use anyway", complete the mint.
+ * Verify the cat-mocked outpoint is spent as input on-chain.
+ */
+test('asset scanner: warned cat-bearing UTXO can be burned via "Use anyway"', async () => {
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
+
+  const SMALL_FUND_SATS = 15_000;
+  const fundTxid = rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, '0.00015').trim();
+  await waitForElectrsSync(mineBlocks(1));
+  const small = await waitForUtxoMatching(
+    sharedPaymentAddress,
+    (u) => u.value === SMALL_FUND_SATS && u.txid === fundTxid,
+    `txid=${fundTxid} value=${SMALL_FUND_SATS}`,
+  );
+  const catOutpoint = `${small.txid}:${small.vout}`;
+  console.log(`[as] cat-bearing outpoint = ${catOutpoint}`);
+
+  const page = await context.newPage();
+  // Anti-cheating pattern (2026-07-21 orderbook post-mortem): the loose
+  // `url.includes(catOutpoint)` fallback would silently return "no cat"
+  // if the frontend built a malformed ord `/output/` URL (missing colon,
+  // NaN vout, wrong txid length). Regex-parse strictly; push any URL
+  // that doesn't match the shape into `badOutputCalls` and assert
+  // it's empty at the end of the test.
+  const badOutputCalls: string[] = [];
+  await page.route('**/output/*', async (route) => {
+    const url = route.request().url();
+    const m = url.match(/\/output\/([0-9a-f]{64}):(\d+)(?:\?|#|$)/i);
+    if (!m) {
+      badOutputCalls.push(url);
+    }
+    const requestedOutpoint = m ? `${m[1].toLowerCase()}:${m[2]}` : '';
+    const isCatTarget = requestedOutpoint === catOutpoint.toLowerCase();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify(
+        isCatTarget
+          ? { inscriptions: [], runes: {}, cats: [0], sat_ranges: [[1_000_000, 1_000_001]] }
+          : { inscriptions: [], runes: {}, cats: [] },
+      ),
+    });
+  });
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  await reconnectCat21Wallet(page, new Set(context.pages()));
+
+  // Open the picker.
+  const pickerSummary = page.locator('details > summary', { hasText: /choose a different funding source/i }).first();
+  await expect(pickerSummary).toBeVisible();
+  await pickerSummary.click();
+
+  // Nudge the orchestrator to re-emit so the post-scan bucket renders.
+  // (The Xverse spec confirmed this is needed because the cat21-mint
+  // component reads scanStates via combineLatest now — but it's a
+  // cheap belt-and-braces.)
+  const feeRateInput = page.locator(
+    '[data-testid="cat21-fee-rate"]',
+  ).first();
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
+
+  // Asset-found badge appears.
+  const assetBadge = page.locator('.badge.bg-danger', { hasText: /asset found/i }).first();
+  await expect(assetBadge).toBeVisible();
+  await shot(page, 'as-asset-badge');
+
+  const assetRow = page.locator('.utxo-row-assets').filter({ hasText: catOutpoint }).first();
+  const overrideBtn = assetRow.getByRole('button', { name: /use anyway/i });
+  await overrideBtn.click();
+  const mintBtn = page.getByTestId('mint-cat-button');
+  await expect(mintBtn).toBeEnabled();
+
+  const knownSign = new Set(context.pages());
+  await mintBtn.click();
+  const sign = await waitForApprovalPopup({
+    context,
+    knownPages: knownSign,
+    isApproval: cat21WalletSignApproval,
+  });
+  // The wallet closes the popup once it accepts the click; the close is the
+  // success signal, and a popup that stays open fails here, named.
+  await clickApprovalAndRequireClose(
+    sign.getByTestId('sign-psbt-confirm-button'),
+    sign,
+    { label: 'cat21-wallet sign popup' },
+  );
+
+  const successAlert = page.locator('.alert.alert-success').first();
+  await expect(successAlert).toBeVisible();
+  const successHref = await successAlert.locator('a').first().getAttribute('href');
+  const broadcastTxid = successHref!.match(/\/tx\/([0-9a-f]{64})/)![1];
+  await waitForElectrsSync(mineBlocks(1));
+  const tx = await waitForTxConfirmed(broadcastTxid);
+  expect(tx.locktime).toBe(21);
+  expect(tx.vout[0].value).toBe(546);
+  for (const vin of tx.vin) {
+    expect(vin.sequence).toBe(0xfffffffd);
+  }
+  const spentCat = tx.vin.some(
+    (v: { txid: string; vout: number }) => `${v.txid}:${v.vout}` === catOutpoint,
+  );
+  expect(spentCat).toBe(true);
+
+  // No malformed /output/ URLs made it to the mock. See the
+  // anti-cheating comment on the route setup.
+  expect(
+    badOutputCalls,
+    `frontend built malformed /output/ URLs: ${JSON.stringify(badOutputCalls)}`,
+  ).toHaveLength(0);
+});
+
+test('manual override: typing 100 mints a "purple cat" via CAT-21 wallet', async () => {
+  const { rate } = await cat21walletMintAtRate({ rate: 100, scenarioLabel: 'purple' });
+  expect(Math.abs(rate - 100)).toBeLessThan(1);
+});
+
+test('manual override: typing 1 while the picker suggests 100 — low rate wins on CAT-21 wallet', async () => {
+  const { rate } = await cat21walletMintAtRate({ rate: 1, scenarioLabel: 'hot-mempool', mockFeesAsHigh: true });
+  expect(Math.abs(rate - 1)).toBeLessThan(1);
+});
+
+test('sign-popup cancel keeps state coherent on CAT-21 wallet', async () => {
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
+  rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, '0.0003');
+  await waitForElectrsSync(mineBlocks(1));
+
+  const page = await context.newPage();
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  await reconnectCat21Wallet(page, new Set(context.pages()));
+
+  const feeRateInput = page.locator(
+    '[data-testid="cat21-fee-rate"]',
+  ).first();
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
+  const mintBtn = page.getByTestId('mint-cat-button');
+  await expect(mintBtn).toBeEnabled();
+
+  const knownSign = new Set(context.pages());
+  await mintBtn.click();
+  const sign = await waitForApprovalPopup({
+    context,
+    knownPages: knownSign,
+    isApproval: cat21WalletSignApproval,
+  });
+  // The popup closes itself on Deny, which the helper requires.
+  await clickApprovalAndRequireClose(
+    sign.getByTestId('sign-psbt-deny-button'),
+    sign,
+    { label: 'cat21-wallet deny' },
+  );
+
+  // A rejected sign surfaces as the mint error, and no success alert.
+  await expect(page.locator('.alert.alert-danger').first()).toBeVisible();
+  await expect(page.locator('.alert.alert-success')).toHaveCount(0);
+});
+
+test('broadcast failure surfaces as an error on CAT-21 wallet (not a fake success)', async () => {
+  if (!sharedPaymentAddress) throw new Error(SHARED_ADDR_UNSET);
+  rpc(RPC_WALLET_ARG, 'sendtoaddress', sharedPaymentAddress, '0.0003');
+  await waitForElectrsSync(mineBlocks(1));
+
+  const page = await context.newPage();
+  await page.route('**/api/tx', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 400,
+        contentType: 'text/plain',
+        headers: { 'access-control-allow-origin': '*' },
+        body: 'test-induced broadcast rejection: bad-txns-inputs-missingorspent',
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto(`${FRONTEND_URL}${MINT_PATH}`, { waitUntil: 'domcontentloaded' });
+  await reconnectCat21Wallet(page, new Set(context.pages()));
+
+  const feeRateInput = page.locator(
+    '[data-testid="cat21-fee-rate"]',
+  ).first();
+  await feeRateInput.fill('1');
+  await feeRateInput.press('Tab');
+  const mintBtn = page.getByTestId('mint-cat-button');
+  await expect(mintBtn).toBeEnabled();
+
+  const knownSign = new Set(context.pages());
+  await mintBtn.click();
+  const sign = await waitForApprovalPopup({
+    context,
+    knownPages: knownSign,
+    isApproval: cat21WalletSignApproval,
+  });
+  // Chromium logs the fulfilled 400 as a failed resource load on the app page.
+  errorGuard?.expectBrowserError(
+    /the server responded with a status of 400 \(Bad Request\)/,
+    'the spec fulfils POST /api/tx with 400 to prove the broadcast error path',
+  );
+  // The wallet closes the popup once it accepts the click; the close is the
+  // success signal, and a popup that stays open fails here, named.
+  await clickApprovalAndRequireClose(
+    sign.getByTestId('sign-psbt-confirm-button'),
+    sign,
+    { label: 'cat21-wallet sign popup' },
+  );
+
+  const errorAlert = page.locator('.alert.alert-danger, .alert-danger').first();
+  await expect(errorAlert).toBeVisible();
+  await expect(page.locator('.alert.alert-success')).toHaveCount(0);
+});

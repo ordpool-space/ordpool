@@ -79,6 +79,7 @@ generated-config.js
 cypress/videos
 cypress/screenshots
 playwright-report/
+playwright-report-regtest/
 playwright/.cache/
 test-results/
 

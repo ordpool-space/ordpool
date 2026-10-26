@@ -1,0 +1,19 @@
+{
+  "path": [
+    "frontend/src/app/components/_ordpool",
+    "frontend/src/app/components/block-overview-graph/_ordpool",
+    "backend/src/api/_ordpool",
+    "backend/src/api/explorer/_ordpool",
+    "backend/src/tasks/_ordpool"
+  ],
+  "format": ["typescript"],
+  "ignore": ["**/node_modules/**", "**/*.spec.ts", "**/*.test.ts"],
+  "minLines": 5,
+  "minTokens": 50,
+  "maxLines": 100000,
+  "maxSize": "10mb",
+  "threshold": 0,
+  "reporters": ["console"],
+  "gitignore": true,
+  "ignorePattern": ["import\\s[^;]*?\\sfrom\\s'[^']+';"]
+}

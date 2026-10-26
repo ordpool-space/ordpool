@@ -12,13 +12,19 @@ export const environment = {
   // online.
   ordBaseUrls: [
     'https://ord.ordpool.space',
-    'https://explorer.ordinalsbot.com',
+    // Fallback only: reached when ord.ordpool.space fails, and only by display
+    // calls through OrdApiService (rune metadata). Signing-path reads use
+    // ordBaseUrls[0] directly and never fall back. UniSat runs stock ord, with
+    // no address index; not documented as public, so it may change.
+    'https://ordinals.unisat.io',
+    // Kept OFF on purpose:
+    // 'https://node.ord.net',       // ord.net, modified ord: hides BRC-20 inscriptions (404), so a poor fallback for us
+    // TODO: when another compatible ord with the JSON API turns up, add it here.
   ],
-  // Testnet has its own list. We don't run a testnet ord instance, so
-  // this is single-upstream for now.
-  ordBaseUrlsTestnet: [
-    'https://testnet-explorer.ordinalsbot.com',
-  ],
+  // Testnet has its own list. We run no testnet ord instance and no public
+  // one serves JSON, so it is empty and testnet ord lookups fail fast with
+  // 'No ord upstreams configured' instead of waiting on a dead host.
+  ordBaseUrlsTestnet: [],
   cat21BaseUrl: 'http://localhost:3333',
   // cat21-ord, the per-outpoint cat probe used by the SDK's UtxoContentScanner.
   // Distinct from cat21BaseUrl above, which is the cat21-indexer REST backend.

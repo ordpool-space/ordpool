@@ -3,6 +3,9 @@ import { Observable, of } from 'rxjs';
 
 import { OrdApiRune, OrdApiService } from '../../../../services/ordinals/ord-api.service';
 
+/* jscpd:ignore-start -- deliberately parallel ordpool artifact-viewer component: the
+   rune-id setter and uncommon-goods guard mirror runestone-id-to-link by design (same
+   input contract, different render: text vs link). Marked, not merged. */
 @Component({
   selector: 'app-runestone-id-to-text',
   templateUrl: './runestone-id-to-text.component.html',
@@ -53,3 +56,4 @@ export class RunestoneIdToTextComponent {
     return OrdApiService.isUncommonGoods(this._block, this._tx);
   }
 }
+/* jscpd:ignore-end */

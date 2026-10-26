@@ -12,6 +12,15 @@ on:
       - 'frontend/**'
       - '.github/workflows/build-frontend.yml'
 
+# Harden installs against transient registry blips like ECONNRESET: retry more
+# times over a longer backoff window than npm's default of 2. npm and pnpm both
+# read these npm_config_* values.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,7 +30,7 @@ jobs:
 
     - uses: actions/setup-node@v6
       with:
-        node-version: 24
+        node-version: 26
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 

@@ -22,6 +22,15 @@ on:
 permissions:
   contents: read
 
+# Harden installs against transient registry blips like ECONNRESET: retry more
+# times over a longer backoff window than npm's default of 2. npm and pnpm both
+# read these npm_config_* values.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
 jobs:
   cache:
     name: "Cache assets for builds"
@@ -46,7 +55,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 24.13.0
+          node-version: 26.12.1
           registry-url: "https://registry.npmjs.org"
 
       - name: Install (Prod dependencies only)
@@ -154,7 +163,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: 24.13.0
+          node-version: 26.12.1
           cache: "npm"
           cache-dependency-path: ${{ matrix.module }}/frontend/package-lock.json
 

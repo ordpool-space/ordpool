@@ -1,191 +1,84 @@
 /**
- * The ordpool-sdk reaches into sats-connect → @sats-connect/core →
- * bitcoin-address-validation → base58-js — a chain of ESM-only deps
- * that Jest's CJS-mode runner can't load. Mock the whole module at the
- * spec level so the component's `import { ... } from 'ordpool-sdk'`
- * resolves to lightweight class stubs. The component's runtime DI
- * targets the same class identities we provide via TestBed, so the
- * wiring stays intact.
+ * The component runs against the REAL SDK: `ordpool-sdk/core` is the same code
+ * as the main entry minus the stateful service classes, and loads without the
+ * wallet connectors' ESM chain that Jest's CJS runner cannot take. The real
+ * `Cat21MintOrchestrator`, funding policy, fee simulator, buckets, caveat and
+ * candidate-fee classifier all run here, so a change to any of them reaches
+ * these assertions.
+ *
+ * Faked, and only these, because each is network IO or the wallet:
+ * - electrs: the `Cat21Service.getUtxos` port (the `utxos` array)
+ * - the content scan: the `UtxoContentScanner.classify` port (the `verdicts`
+ *   map, clean when unlisted) handed to the orchestrator, plus its `states$`
+ *   stream that drives the picker's per-row bucket
+ * - the rune-etching lookup (`lookupRuneEtching`)
+ * - the wallet: `orchestrator.mint` (signing + broadcast)
+ * The three service classes are DI tokens only; TestBed supplies the doubles.
+ *
+ * Snapshots only the wallet can produce (minting progress, a success txid, a
+ * mint rejection, the SDK's per-coin candidateFees / resolved verdict) are set
+ * through `emit`, whose base is the REAL orchestrator's current snapshot and
+ * whose override is typed `Partial<MintSnapshot>`, so a renamed or removed SDK
+ * field fails here.
  */
 jest.mock('ordpool-sdk', () => {
-  const { InjectionToken } = jest.requireActual('@angular/core');
+  const core = jest.requireActual('ordpool-sdk/core');
+  // The auto-scan threshold lives beside the stateful scanner, outside /core;
+  // read the real constant from that module rather than restating it.
+  const scannerModule = jest.requireActual(
+    require('path').join(require.resolve('ordpool-sdk/core'), '..', 'cat21-mint', 'utxo-content-scanner.service.js'),
+  );
   return {
-    AUTO_SCAN_MAX_VALUE_SAT: 50_000,
-    BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE: 0.1,
-    SMALL_UTXO_WARNING_THRESHOLD_SAT: 10_000,
-    KnownOrdinalWalletType: {
-      xverse: 'xverse' as const,
-      leather: 'leather' as const,
-      unisat: 'unisat' as const,
-    },
-    // Display labels keyed by type — the component reads
-    // KnownOrdinalWallets[wallet.type].label to name the wallet in the
-    // single-address caveat. Only the types the specs construct are needed.
-    KnownOrdinalWallets: {
-      xverse: { label: 'Xverse' },
-      leather: { label: 'Leather' },
-      unisat: { label: 'UniSat' },
-    },
-    // Token-only classes — empty bodies are fine because TestBed
-    // replaces them via { provide: X, useValue: stub }.
+    ...core,
+    AUTO_SCAN_MAX_VALUE_SAT: scannerModule.AUTO_SCAN_MAX_VALUE_SAT,
+    // Token-only classes — TestBed replaces them via { provide: X, useValue }.
     Cat21ApiService: class Cat21ApiService {},
     Cat21Service: class Cat21Service {},
     UtxoContentScanner: class UtxoContentScanner {},
     WalletService: class WalletService {},
-    // The framework-agnostic orchestrator is CONSTRUCTED by the component
-    // (`new Cat21MintOrchestrator(deps)`), not injected, so this mock class IS
-    // the instance the component drives. It exposes the real subscribe/getSnapshot
-    // surface plus signal/subject-shaped shims (feeRate.set, state.set,
-    // simulationsSubject.next, …) that funnel into `_patch`, so the test bodies
-    // drive the snapshot the same way the old injected stub did. Harness IO, not
-    // the SUT: the component's own logic (clamp, delegate, gate) is what's tested.
-    Cat21MintOrchestrator: class Cat21MintOrchestrator {
-      deps: unknown;
-      _snap: {
-        state: string;
-        feeRate: number | null;
-        selectedUtxo: TxnOutput | null;
-        fundingRecommendation: { status: string; recommended: TxnOutput | null; candidates: TxnOutput[] };
-        // The SDK's resolved verdict for the coin that WILL be spent (manual pick
-        // honoured, coin-based). The CTA gate reads THIS, not the topology-shaped
-        // `fundingRecommendation.status`.
-        resolvedFundingStatus: string | null;
-        resolvedFundingUtxo: TxnOutput | null;
-        simulations: { utxo: TxnOutput; simulation: SimulateTransactionResult | null; insufficient: boolean }[];
-        candidateFees: { txid: string; vout: number; finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }[];
-        errorMessage: string | null;
-        successTxId: string | null;
-      } = {
-        state: 'idle', feeRate: null, selectedUtxo: null,
-        fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] },
-        resolvedFundingStatus: 'scanning', resolvedFundingUtxo: null,
-        simulations: [], candidateFees: [], errorMessage: null, successTxId: null,
-      };
-      _listeners: Array<(s: unknown) => void> = [];
-      constructor(deps: unknown) { this.deps = deps; }
-      getSnapshot() { return this._snap; }
-      subscribe(l: (s: unknown) => void) {
-        this._listeners.push(l);
-        l(this._snap);
-        return () => { this._listeners = this._listeners.filter((x) => x !== l); };
-      }
-      _patch(p: Record<string, unknown>) {
-        this._snap = { ...this._snap, ...p };
-        this._listeners.slice().forEach((l) => l(this._snap));
-      }
-      setWallet = jest.fn(async () => {});
-      setFeeRate = jest.fn((rate: number) => this._patch({ feeRate: rate }));
-      setSelectedUtxo = jest.fn((u: TxnOutput | null) => this._patch({ selectedUtxo: u }));
-      mint = jest.fn(async () => ({ txId: 't'.repeat(64) }));
-      reset = jest.fn();
-      // Signal/subject-shaped shims (harness drivers): map to `_patch`.
-      feeRate = { set: (v: number) => this._patch({ feeRate: v }) };
-      state = { set: (v: string) => this._patch({ state: v }) };
-      successTxId = { set: (v: string | null) => this._patch({ successTxId: v }) };
-      errorMessage = { set: (v: string | null) => this._patch({ errorMessage: v }) };
-      connectedWallet = { set: (_v: unknown) => undefined };
-      simulationsSubject = { next: (v: unknown[]) => this._patch({ simulations: v }) };
-      fundingRecommendationSubject = { next: (v: unknown) => this._patch({ fundingRecommendation: v }) };
-      // Drives the SDK's resolved-pick verdict, as its recompute would after a
-      // wallet/fee/selection change: the CTA gate reads these two fields.
-      resolvedFundingSubject = {
-        next: (v: { status: string | null; utxo?: TxnOutput | null }) =>
-          this._patch({ resolvedFundingStatus: v.status, resolvedFundingUtxo: v.utxo ?? null }),
-      };
-      selectedUtxo() { return this._snap.selectedUtxo; }
-    },
-    bitcoinNetwork: new InjectionToken('bitcoinNetwork'),
-    // SDK config injection token; the spec provides a stub value via
-    // TestBed.
-    cat21Config: new InjectionToken('cat21Config'),
-    // Helpers used directly by the component. We re-implement them
-    // locally instead of jest.requireActual'ing the SDK (which would
-    // re-trigger the sats-connect ESM chain that this mock exists
-    // to dodge in the first place).
-    bucketOf: (s: { kind: string }) => {
-      switch (s.kind) {
-        case 'not-scanned': return 'unscanned';
-        case 'scanning': return 'scanning';
-        case 'scanned-clean': return 'clean';
-        case 'scanned-with-assets': return 'assets';
-        case 'scan-failed': return 'failed';
-        default: return 'unscanned';
-      }
-    },
-    // Sentinel, deliberately NOT the SDK's real formula: output = rate * 1000.
-    // The SDK measures the true PSBT vsize and owns that number; this mock only
-    // makes the component's own job observable (clamp the fee rate, then delegate),
-    // so the spec can't go stale-green by re-implementing an SDK internal.
-    calculateRecommendedFundingSats: (rate: number) => rate * 1000,
-    runeNamesFromContent: (content: { runes: object | null }) =>
-      content.runes ? Object.keys(content.runes) : [],
-    // Rune-etching lookup: defaults to 'unavailable' (no link, deterministic)
-    // so panel-render tests stay stable; F3/F4 spy on this to assert the
-    // resolver kicks off from the pipe and the getter is a pure read.
+    // IO: the rune-etching lookup. Defaults to 'unavailable' (no link,
+    // deterministic) so panel-render tests stay stable; F3/F4 spy on it.
     lookupRuneEtching: jest.fn(async () => ({ kind: 'unavailable' as const })),
-    // Rune label + etching-link deps. formatRunePile's real ord-exact behaviour
-    // is unit-tested in rune-label.helper.spec.ts against the real SDK; here it
-    // only needs to not crash a render. lookupRuneEtching defaults to unavailable
-    // (no link, deterministic) so panel-render tests stay stable.
-    formatRunePile: (pile: { amount: unknown; symbol?: string | null }) =>
-      `${pile.amount} ${pile.symbol ?? '¤'}`,
-    // Four-character grouping for the "Fund <addr>" verification instruction.
-    addressVerificationChunks: (a: string) => a.match(/.{1,4}/g) ?? [],
-    // The shared outpoint key the component uses to join candidateFees +
-    // fundingRecommendation to a picker row. Faithful to the SDK's one-liner
-    // (canonical in candidate-fees.ts); a value import, so the mock must provide
-    // it or `outpointKey(...)` is undefined at runtime.
-    outpointKey: (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`,
-    // Faithful re-implementation of the SDK's four-state fee classifier
-    // (canonical in candidate-fees.ts). The component routes its over-pay reading
-    // through this so it can't drift from cat21.space; a value import, so the mock
-    // must provide it.
-    classifyCandidateFee: (row: { finalFeeSats: number | null; absorbedSubDustSats: number | null }) => {
-      // == null (not ===) mirrors the real SDK classifier (candidate-fees.ts):
-      // it catches an undefined field on a hand-built row, not just null.
-      if (row.finalFeeSats == null) { return 'unavailable'; }
-      if (row.absorbedSubDustSats == null) { return 'overpay-unknown'; }
-      return row.absorbedSubDustSats > 0 ? 'overpay' : 'normal';
-    },
-    // wallet-ux-round3 single-address custody API. Faithful re-implementations
-    // (canonical versions live in the SDK's wallet-capabilities.ts):
-    // usesSingleAddress compares the two returned addresses; singleAddressCaveat
-    // substitutes the asset noun into the approved sentence and, given a wallet
-    // label, names the wallet in the opener ("Your UniSat wallet keeps..."),
-    // mirroring the SDK's opener grammar (a label already ending in "wallet",
-    // e.g. "Binance Web3 Wallet", is not doubled). Same mock philosophy as
-    // above — the SDK owns the wording, this stand-in makes the component's use
-    // of it observable without the sats-connect ESM chain.
-    usesSingleAddress: (w: { ordinalsAddress?: string; paymentAddress?: string } | null | undefined) =>
-      !!(w && w.ordinalsAddress && w.paymentAddress && w.ordinalsAddress === w.paymentAddress),
-    singleAddressCaveat: (assets = 'cats', walletName?: string) => {
-      const opener = !walletName
-        ? 'This wallet'
-        : /\bwallet$/i.test(walletName.trim()) ? `Your ${walletName.trim()}` : `Your ${walletName.trim()} wallet`;
-      return `${opener} keeps your coins and your ${assets} at one address. That is fine here, because `
-      + 'everything in the ordpool family checks what a coin is carrying before it spends it. '
-      + `Other sites do not look, so a payment made elsewhere can spend the sat one of your `
-      + `${assets} lives on and tip it to a miner. Start a fresh address here and keep it for `
-      + 'cat21.space, ordpool.space, cubes.haushoppe.art and CAT-21 wallet, or use a wallet that '
-      + `keeps your coins and your ${assets} apart.`;
-    },
+    // Observed, not replaced: the real clamp-and-delegate helper runs and the
+    // D-block reads the rate it was handed (the SDK owns the vsize number).
+    calculateRecommendedFundingSats: jest.fn(core.calculateRecommendedFundingSats),
   };
 });
 
 import * as fs from 'fs';
 import * as path from 'path';
+import type { WritableSignal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21Service, KnownOrdinalWalletType, lookupRuneEtching, UtxoContentScanner, WalletService, singleAddressCaveat, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoScanState, type WalletInfo } from 'ordpool-sdk';
+import { secp256k1 } from '@noble/curves/secp256k1';
+import { hex } from '@scure/base';
+import * as btc from '@scure/btc-signer';
+import {
+  AUTO_SCAN_MAX_VALUE_SAT, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, KnownOrdinalWalletType,
+  calculateRecommendedFundingSats, lookupRuneEtching, UtxoContentScanner, WalletService, singleAddressCaveat,
+  type MintSnapshot, type RecommendedFees, type SimulateTransactionResult, type TxnOutput, type UtxoAssetDetail,
+  type UtxoClassification, type UtxoScanBucket, type UtxoScanState, type WalletInfo,
+} from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
 import { Cat21MintComponent, ViableSimulation } from './cat21-mint.component';
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
+
+// -------------------------------------------------------------------------
+// Real keys, so the real simulator and funding policy accept the wallet.
+// -------------------------------------------------------------------------
+
+const PAYMENT_PRIV = new Uint8Array(32).fill(1);
+const ORDINALS_PRIV = new Uint8Array(32).fill(2);
+const PAYMENT_PUB = secp256k1.getPublicKey(PAYMENT_PRIV, true);
+const ORDINALS_PUB = secp256k1.getPublicKey(ORDINALS_PRIV, true);
+const PAYMENT_ADDRESS = btc.p2wpkh(PAYMENT_PUB).address as string;
+const ORDINALS_ADDRESS = btc.p2tr(ORDINALS_PUB.slice(1)).address as string;
 
 // -------------------------------------------------------------------------
 // Fixture builders
@@ -208,9 +101,6 @@ function simulation(over: Partial<SimulateTransactionResult> = {}): SimulateTran
     singleInputAmount: 50_000n,
     changeAmount: 49_254n,
     vsize: 150,
-    // The component never reads the `tx` field; fixtures keep it as an
-    // empty object cast to the real btc.Transaction type to satisfy
-    // structural checks without dragging in @scure/btc-signer.
     tx: {} as SimulateTransactionResult['tx'],
     ...over,
   };
@@ -219,41 +109,46 @@ function simulation(over: Partial<SimulateTransactionResult> = {}): SimulateTran
 function wallet(over: Partial<WalletInfo> = {}): WalletInfo {
   return {
     type: KnownOrdinalWalletType.xverse,
-    ordinalsAddress: 'bc1p-ordinals-addr',
-    paymentAddress: '3-payment-addr',
-    paymentPublicKey: '02' + 'aa'.repeat(32),
-    ordinalsPublicKey: '02' + 'bb'.repeat(32),
+    ordinalsAddress: ORDINALS_ADDRESS,
+    paymentAddress: PAYMENT_ADDRESS,
+    paymentPublicKey: hex.encode(PAYMENT_PUB),
+    ordinalsPublicKey: hex.encode(ORDINALS_PUB),
     signingSupported: true,
     ...over,
-  };
+  } as WalletInfo;
 }
 
 function fees(over: Partial<RecommendedFees> = {}): RecommendedFees {
-  return {
-    fastestFee: 5,
-    halfHourFee: 3,
-    hourFee: 1,
-    economyFee: 1,
-    minimumFee: 1,
-    ...over,
-  };
+  return { fastestFee: 5, halfHourFee: 3, hourFee: 1, economyFee: 1, minimumFee: 1, ...over };
+}
+
+const outpoint = (u: TxnOutput) => `${u.txid}:${u.vout}`;
+
+/** An `AnnotatedFundingUtxo`: a coin carrying the SDK's content bucket (+ assets),
+ *  the shape `fundingRecommendation.candidates`/`recommended` hold. */
+type Annotated = TxnOutput & { bucket: UtxoScanBucket; assets?: UtxoAssetDetail };
+function annotatedCoin(u: TxnOutput, bucket: UtxoScanBucket = 'clean', assets?: UtxoAssetDetail): Annotated {
+  return { ...u, bucket, ...(assets ? { assets } : {}) };
 }
 
 // Wired as the constructed orchestrator's `getUtxos` + `broadcast` ports.
 class Cat21ServiceStub {
-  getUtxos = jest.fn((_: string) => of([] as TxnOutput[]));
+  utxos: TxnOutput[] = [];
+  getUtxos = jest.fn((_: string) => of(this.utxos));
   postTransaction = jest.fn((_: string) => of('t'.repeat(64)));
 }
 
+// The content-scan port (orchestrator `scan`) AND the picker's per-row bucket
+// source (`states$`). `classify` reads `verdicts` (clean when unlisted).
 class ScannerStub {
   readonly statesSubject = new BehaviorSubject<ReadonlyMap<string, UtxoScanState>>(new Map());
   readonly states$ = this.statesSubject.asObservable();
+  verdicts = new Map<string, UtxoClassification>();
   scan = jest.fn((_: string) => of<UtxoScanState>({ kind: 'scanned-clean' }));
   autoScan = jest.fn((_: unknown[]) => undefined);
-  reset = jest.fn(() => {
-    this.statesSubject.next(new Map());
-  });
-  getState = jest.fn((outpoint: string): UtxoScanState => this.statesSubject.value.get(outpoint) ?? { kind: 'not-scanned' });
+  reset = jest.fn(() => { this.statesSubject.next(new Map()); this.verdicts.clear(); });
+  getState = jest.fn((o: string): UtxoScanState => this.statesSubject.value.get(o) ?? { kind: 'not-scanned' });
+  classify = jest.fn(async (o: string): Promise<UtxoClassification> => this.verdicts.get(o) ?? 'clean');
 
   setStates(states: Iterable<[string, UtxoScanState]>): void {
     this.statesSubject.next(new Map(states));
@@ -287,22 +182,22 @@ class SeoServiceStub {
   resetDescription = jest.fn();
 }
 
+const calcSpy = calculateRecommendedFundingSats as unknown as jest.Mock;
+
 // -------------------------------------------------------------------------
 
 describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
-  let orch: any; // the Cat21MintOrchestrator mock instance the component constructs
+  let orchestrator: Cat21MintOrchestrator;
   let scanner: ScannerStub;
   let wallets: WalletServiceStub;
   let stateSvc: StateServiceStub;
-  let cat21: Cat21ApiServiceStub;
+  let cat21: Cat21ServiceStub;
+  let cat21Api: Cat21ApiServiceStub;
   let fixture: ComponentFixture<Cat21MintComponent>;
   let component: Cat21MintComponent;
+  let mintSpy: jest.SpyInstance;
 
-  // Same minimal sentinel template as the cat21.space spec uses. The
-  // production template depends on a stack of upstream mempool
-  // components (app-ordpool-fees-box-clickable, app-clipboard, app-fiat, …)
-  // we don't want to drag into a unit test; the component logic is
-  // exercised through its public surface either way.
+  // Same minimal sentinel template as the cat21.space spec uses.
   const TEST_TEMPLATE = `
     @if (!(connectedWallet$ | async)) {
       <div data-testid="mint-cta">connect</div>
@@ -322,31 +217,46 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     }
   `;
 
+  /**
+   * Set a snapshot the orchestrator cannot be driven into through its IO ports
+   * alone (minting progress, a success txid, a mint error, the per-coin
+   * candidateFees, a resolved verdict). Base = the REAL snapshot, override typed
+   * `Partial<MintSnapshot>`, so an SDK field rename fails to compile here.
+   */
+  function emit(over: Partial<MintSnapshot>): void {
+    (component as unknown as { snap: WritableSignal<MintSnapshot> }).snap.set({ ...orchestrator.getSnapshot(), ...over });
+    (component as unknown as { simulationsSubject: BehaviorSubject<MintSnapshot['simulations']> })
+      .simulationsSubject.next((over.simulations ?? orchestrator.getSnapshot().simulations));
+    fixture.detectChanges();
+  }
+
+  /** Lets the real orchestrator's async UTXO load + recompute settle. */
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); }
+    fixture.detectChanges();
+  }
+
   async function configure(): Promise<void> {
     scanner = new ScannerStub();
     wallets = new WalletServiceStub();
     stateSvc = new StateServiceStub();
-    cat21 = new Cat21ApiServiceStub();
+    cat21 = new Cat21ServiceStub();
+    cat21Api = new Cat21ApiServiceStub();
     await TestBed.configureTestingModule({
       declarations: [Cat21MintComponent],
       providers: [
-        // The orchestrator is constructed by the component (not injected); we
-        // provide its deps (Cat21Service ports + network) + grab the constructed
-        // instance off the component after createComponent.
-        { provide: Cat21Service, useValue: new Cat21ServiceStub() },
+        { provide: Cat21Service, useValue: cat21 },
         { provide: bitcoinNetwork, useValue: 'mainnet' },
         { provide: UtxoContentScanner, useValue: scanner },
         { provide: WalletService, useValue: wallets },
         { provide: StateService, useValue: stateSvc },
-        { provide: Cat21ApiService, useValue: cat21 },
+        { provide: Cat21ApiService, useValue: cat21Api },
         { provide: SeoService, useValue: new SeoServiceStub() },
         {
           provide: cat21Config,
           useValue: {
-            mempoolApiUrl: 'http://test-mempool',
-            cat21ApiUrl: 'http://test-cat21',
-            ordApiUrl: 'http://test-ord',
-            cat21OrdApiUrl: 'http://test-cat21-ord',
+            mempoolApiUrl: 'http://test-mempool', cat21ApiUrl: 'http://test-cat21',
+            ordApiUrl: 'http://test-ord', cat21OrdApiUrl: 'http://test-cat21-ord',
           },
         },
       ],
@@ -355,33 +265,55 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       .compileComponents();
     fixture = TestBed.createComponent(Cat21MintComponent);
     component = fixture.componentInstance;
-    orch = (component as unknown as { orchestrator: unknown }).orchestrator;
-    // Sync wallet to connectedWallet$ BEFORE first CD so the template
-    // doesn't race the wallet bridge.
+    orchestrator = (component as unknown as { orchestrator: Cat21MintOrchestrator }).orchestrator;
+    // The wallet is the only mocked method: signing + broadcast.
+    mintSpy = jest.spyOn(orchestrator, 'mint').mockResolvedValue(
+      { txId: 't'.repeat(64) } as Awaited<ReturnType<Cat21MintOrchestrator['mint']>>,
+    );
     wallets.connectedWalletSubject.next(null);
     fixture.detectChanges();
   }
 
-  function pushRows(rows: { u: TxnOutput; scan: UtxoScanState }[]): void {
-    scanner.setStates(rows.map((r) => [`${r.u.txid}:${r.u.vout}`, r.scan]));
-    orch.simulationsSubject.next(rows.map((r) => ({ utxo: r.u, simulation: simulation(), insufficient: false })));
-    // The auto-pick + autoScan side effects live in paymentOutputs$'s
-    // `tap` operator and only fire when the observable is subscribed.
-    // The slimmed test template doesn't bind the async pipe, so force
-    // a manual subscribe here to drive the same side effects.
+  /** Connect the default xverse wallet and let the orchestrator settle to ready. */
+  async function connect(w: WalletInfo = wallet()): Promise<void> {
+    wallets.connectedWalletSubject.next(w);
+    await settle();
+  }
+
+  /**
+   * Fund the orchestrator through its real IO: give electrs these coins (clean
+   * unless named in `verdicts`), connect `w`, set the fee, let it simulate and
+   * classify. Also mirrors each coin's scan state into the picker's `states$`.
+   */
+  const walletKey = (w: WalletInfo | null) =>
+    w ? `${w.type}|${w.ordinalsAddress}|${w.paymentAddress}|${w.paymentPublicKey}` : null;
+
+  async function fund(
+    coins: { u: TxnOutput; scan?: UtxoScanState; verdict?: UtxoClassification }[],
+    w: WalletInfo = wallet(),
+    feeRate = 5,
+  ): Promise<void> {
+    cat21.utxos = coins.map((c) => c.u);
+    coins.forEach((c) => { if (c.verdict) { scanner.verdicts.set(outpoint(c.u), c.verdict); } });
+    // If this identity is already connected (a describe beforeEach connected it),
+    // the component dedupes a re-emission, so reload through the orchestrator's
+    // own refresh (what the funding poll does) instead of re-pushing the wallet.
+    if (walletKey(wallets.connectedWalletSubject.value) === walletKey(w)) {
+      await orchestrator.refreshUtxos();
+    } else {
+      wallets.connectedWalletSubject.next(w);
+    }
+    await settle();
+    component.setFeeRate(feeRate);
+    await settle();
+    scanner.setStates(coins.map((c) => [outpoint(c.u), c.scan ?? { kind: 'scanned-clean' }]));
     component.paymentOutputs$.subscribe().unsubscribe();
     fixture.detectChanges();
   }
 
-  function connectXverse(): void {
-    const w = wallet();
-    wallets.connectedWalletSubject.next(w);
-    orch.connectedWallet.set(w);
-    orch.state.set('ready');
-    fixture.detectChanges();
-  }
-
   beforeEach(async () => {
+    calcSpy.mockClear();
+    (lookupRuneEtching as jest.Mock).mockClear();
     await configure();
   });
 
@@ -398,14 +330,13 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
-  // B. Loading state — orchestrator.state = 'loading-utxos'
+  // B. Loading state
   // -------------------------------------------------------------------
 
   describe('B. wallet connected, loading UTXOs', () => {
-    it('B1: utxoLoading() projects state==="loading-utxos"', () => {
-      connectXverse();
-      orch.state.set('loading-utxos');
-      fixture.detectChanges();
+    it('B1: utxoLoading() projects state==="loading-utxos"', async () => {
+      await connect();
+      emit({ state: 'loading-utxos' });
       expect(component.utxoLoading()).toBe(true);
       expect(fixture.nativeElement.querySelector('[data-testid="mint-loading"]')).toBeTruthy();
     });
@@ -416,24 +347,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('C. error attribution (utxo-load vs mint)', () => {
-    it('C1: error before mint attempt → utxoError populated', () => {
-      connectXverse();
-      orch.state.set('error');
-      orch.errorMessage.set('utxo fetch failed');
-      fixture.detectChanges();
+    it('C1: error before mint attempt → utxoError populated', async () => {
+      await connect();
+      emit({ state: 'error', errorMessage: 'utxo fetch failed' });
       expect(component.utxoError()).toBe('utxo fetch failed');
       expect(component.mintCat21Error()).toBe('');
     });
 
-    it('C2: error after mint attempt → mintCat21Error populated', () => {
-      connectXverse();
-      orch.feeRate.set(5);
-      pushRows([{ u: utxo(), scan: { kind: 'scanned-clean' } }]);
-      orch.mint = jest.fn(() => Promise.reject(new Error('user cancelled')));
+    it('C2: error after mint attempt → mintCat21Error populated', async () => {
+      await fund([{ u: utxo() }]);
       component.mintCat21(wallet());
-      orch.state.set('error');
-      orch.errorMessage.set('user cancelled');
-      fixture.detectChanges();
+      emit({ state: 'error', errorMessage: 'user cancelled' });
       expect(component.mintCat21Error()).toBe('user cancelled');
       expect(component.utxoError()).toBe('');
     });
@@ -441,154 +365,157 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   // -------------------------------------------------------------------
   // D. recommendedFundingSats — the component clamps the fee rate, then
-  //    delegates to the SDK helper. The SDK measures the real PSBT vsize and
-  //    owns that number; the component's only job is the clamp + pass-through,
-  //    which is all these tests pin (sentinel mock: value = rate * 1000).
+  //    delegates to the real SDK helper (wrapped in a spy so the clamp is
+  //    observable without pinning the SDK's vsize formula).
   // -------------------------------------------------------------------
 
   describe('D. recommendedFundingSats — clamp + delegate', () => {
     it('D1: passes a valid fee rate straight through to the SDK helper', () => {
       component.cfeeRate.setValue(5);
-      expect(component.recommendedFundingSats).toBe(5000);
+      void component.recommendedFundingSats;
+      expect(calcSpy).toHaveBeenLastCalledWith(5);
     });
 
     it('D2: clamps a non-positive fee rate to 1 before calling the helper', () => {
       component.cfeeRate.setValue(0);
-      expect(component.recommendedFundingSats).toBe(1000);
+      void component.recommendedFundingSats;
+      expect(calcSpy).toHaveBeenLastCalledWith(1);
     });
 
     it('D3: clamps a non-finite fee rate to 1 before calling the helper', () => {
       component.cfeeRate.setValue(null as unknown as number);
-      expect(component.recommendedFundingSats).toBe(1000);
+      void component.recommendedFundingSats;
+      expect(calcSpy).toHaveBeenLastCalledWith(1);
     });
   });
 
   // -------------------------------------------------------------------
-  // E. Bucket-driven auto-pick (clean → unscanned → failed; never assets)
+  // E. No consumer-side funding auto-pick (defers to the SDK safe-auto)
   // -------------------------------------------------------------------
 
   describe('E. no consumer-side funding auto-pick (defers to the SDK safe-auto)', () => {
     const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
 
-    beforeEach(fakeAsync(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      tick();
-    }));
-
-    // Regression guard for the auto-spend footgun: the component must NOT
-    // pre-pick a funding UTXO from the row list, not even a scanned-clean one.
-    // Funding auto-pick is the orchestrator's force-scanned fundingRecommendation$
-    // (which scans regardless of size); a consumer-side pre-pick could auto-spend
-    // a large `unscanned` coin that the size-thresholded row scan skipped.
-    it('E1: does NOT auto-pick when only clean coins are present', () => {
-      pushRows([
+    it('E1: does NOT auto-pick when only clean coins are present', async () => {
+      await fund([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: big(20_000), scan: { kind: 'scanned-clean' } },
       ]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
 
-    it('E2: does NOT auto-pick an unscanned coin (the exact footgun)', () => {
-      pushRows([
+    it('E2: does NOT auto-pick an unscanned coin (the exact footgun)', async () => {
+      await fund([
         { u: big(80_000), scan: { kind: 'not-scanned' } },
         { u: big(20_000), scan: { kind: 'not-scanned' } },
       ]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
 
-    it('E3: does NOT auto-pick across a mixed clean+unscanned+assets list', () => {
-      pushRows([
+    it('E3: does NOT auto-pick across a mixed clean+unscanned+assets list', async () => {
+      await fund([
         { u: big(90_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
         { u: big(70_000), scan: { kind: 'not-scanned' } },
         { u: big(5_000), scan: { kind: 'scanned-clean' } },
       ]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
 
-    it('E4: does NOT auto-pick when only asset-bearing coins are present', () => {
-      pushRows([
+    it('E4: does NOT auto-pick when only asset-bearing coins are present', async () => {
+      await fund([
         { u: big(80_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } } },
         { u: big(20_000), scan: { kind: 'scanned-with-assets', content: { outpoint: 'b:0', inscriptionIds: [], runes: { RUNE: {} }, catIds: [], catSat: null, rareSat: null } } },
       ]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
 
-    it('E5: an explicit user pick is honored and forwarded to the orchestrator', () => {
+    it('E5: an explicit user pick is honored and forwarded to the orchestrator', async () => {
       const chosen = big(20_000);
-      pushRows([
+      await fund([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: chosen, scan: { kind: 'scanned-clean' } },
       ]);
       component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      await settle();
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
-      expect(orch.selectedUtxo()!.value).toBe(20_000);
+      expect(orchestrator.getSnapshot().selectedUtxo!.value).toBe(20_000);
     });
 
-    it('E6: an explicit user pick survives a row re-emit if still present', () => {
+    it('E6: an explicit user pick survives a row re-emit if still present', async () => {
       const smaller = big(20_000);
-      pushRows([
+      await fund([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: smaller, scan: { kind: 'scanned-clean' } },
       ]);
       component.selectPaymentOutput({ paymentOutput: smaller, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
-      pushRows([
-        { u: big(80_000), scan: { kind: 'scanned-clean' } },
-        { u: smaller, scan: { kind: 'scanned-clean' } },
+      await settle();
+      await orchestrator.refreshUtxos();
+      await settle();
+      scanner.setStates([
+        [outpoint(big(80_000)), { kind: 'scanned-clean' }],
+        [outpoint(smaller), { kind: 'scanned-clean' }],
       ]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
       expect(component.selectedPaymentOutput!.paymentOutput.value).toBe(20_000);
-      expect(orch.selectedUtxo()!.value).toBe(20_000);
+      expect(orchestrator.getSnapshot().selectedUtxo!.value).toBe(20_000);
     });
 
-    it('E7: a user pick that disappears clears the local display without a consumer-side re-drive (the SDK drops a stale selection on its own recompute)', () => {
+    it('E7: a user pick the SDK drops as gone clears the local display without a consumer-side re-drive', async () => {
+      const setSelSpy = jest.spyOn(orchestrator, 'setSelectedUtxo');
       const gone = big(20_000);
-      pushRows([
+      await fund([
         { u: big(80_000), scan: { kind: 'scanned-clean' } },
         { u: gone, scan: { kind: 'scanned-clean' } },
       ]);
       component.selectPaymentOutput({ paymentOutput: gone, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
-      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
-      pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
-      // The local display defers back to the safe-auto (no picked row to show) ...
-      expect(component.selectedPaymentOutput).toBeUndefined();
-      // ... but the consumer does NOT clear or re-decide the orchestrator's
-      // selection: no second setSelectedUtxo call. The SDK's recompute drops a
-      // selection no longer among its candidates (reflected in resolvedFundingStatus).
-      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
-    });
-
-    it('E8: empty row list clears any pick', () => {
-      pushRows([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
-      orch.simulationsSubject.next([]);
+      await settle();
+      expect(setSelSpy).toHaveBeenCalledTimes(1);
+      // The coin leaves the wallet; the SDK recompute names the dropped pick.
+      cat21.utxos = [big(80_000)];
+      await orchestrator.refreshUtxos();
+      await settle();
+      scanner.setStates([[outpoint(big(80_000)), { kind: 'scanned-clean' }]]);
       component.paymentOutputs$.subscribe().unsubscribe();
       fixture.detectChanges();
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      // The consumer does NOT re-decide the selection: no second setSelectedUtxo.
+      expect(setSelSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('E8: empty row list clears any pick', async () => {
+      await fund([{ u: big(80_000), scan: { kind: 'scanned-clean' } }]);
+      cat21.utxos = [];
+      await orchestrator.refreshUtxos();
+      await settle();
+      scanner.setStates([]);
+      component.paymentOutputs$.subscribe().unsubscribe();
+      fixture.detectChanges();
+      expect(component.selectedPaymentOutput).toBeUndefined();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
   });
 
   // -------------------------------------------------------------------
-  // E-FUND. funding-status gating (mint-button enable + notices)
+  // E-FUND. funding-status gating (mint-button enable + notices). The
+  //   component DERIVES the CTA from the snapshot's resolved verdict +
+  //   recommendation; those SDK-shaped values are injected via emit so the
+  //   derivation (not the policy, which the SDK + the sibling specs pin) is
+  //   what is tested.
   // -------------------------------------------------------------------
 
   describe('E-FUND. funding-status gating', () => {
-    const rec = (status: 'auto' | 'expert-required' | 'scanning' | 'insufficient') =>
-      orch.fundingRecommendationSubject.next({ status, recommended: null, candidates: [] });
-    // The SDK's resolved verdict for the coin that will actually be spent
-    // (`resolvedFundingStatus`), which the CTA gate reads. Coin-based, so a
-    // manual pick of a dirty coin resolves to 'asset-notice' on every wallet.
-    const resolved = (status: string | null, u?: TxnOutput | null) =>
-      orch.resolvedFundingSubject.next({ status, utxo: u ?? null });
+    type Rec = MintSnapshot['fundingRecommendation'];
+    const rec = (status: Rec['status'], over: Partial<Rec> = {}) =>
+      emit({ fundingRecommendation: { status, recommended: null, candidates: [], ...over } as Rec });
+    const resolved = (status: MintSnapshot['resolvedFundingStatus'], u: TxnOutput | null = null) =>
+      emit({ resolvedFundingStatus: status, resolvedFundingUtxo: u });
 
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      fixture.detectChanges();
-    });
+    beforeEach(async () => { await connect(); });
 
     it('fundingStatus() mirrors the orchestrator recommendation (raw topology mirror)', () => {
       rec('expert-required');
@@ -627,22 +554,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('the CTA follows the RESOLVED coin verdict, not the topology recommendation: a manual dirty pick that recomputes to asset-notice is enabled WITH the assets named (no silent short-circuit to ready)', () => {
-      // Recommendation blocks (one-address wallet, only dirty coins cover) and no
-      // coin is resolved yet.
       rec('expert-required');
       resolved('expert-required');
       expect(component.hasFundingSource()).toBe(false);
-      // The user picks the dirty coin by hand; the SDK recomputes coin-based to
-      // 'asset-notice' with that annotated coin as the resolved pick.
       const dirty = utxo({ value: 50_000 });
-      const annotated = { ...dirty, assets: { inscriptionIds: ['abci0'], runeNames: [], catIds: [], rareSat: null } };
-      orch.fundingRecommendationSubject.next({ status: 'expert-required', recommended: null, candidates: [annotated] });
-      component.selectPaymentOutput({ paymentOutput: dirty, simulation: simulation(), available: true, scan: { kind: 'scanned-with-assets', content: {} } as never, bucket: 'assets' });
-      resolved('asset-notice', dirty);
+      const annotated = annotatedCoin(dirty, 'assets', { inscriptionIds: ['abci0'], runeNames: [], catIds: [], rareSat: null });
+      emit({
+        fundingRecommendation: { status: 'expert-required', recommended: null, candidates: [annotated] },
+        resolvedFundingStatus: 'asset-notice', resolvedFundingUtxo: dirty,
+      });
       expect(component.hasFundingSource()).toBe(true);
       expect(component.fundingCta().kind).toBe('notice');
-      // The notice NAMES what the picked coin carries (read from the annotated
-      // candidate by outpoint), so it is not "this coin carries assets".
       expect(component.assetNotice()?.inscriptionIds).toEqual(['abci0']);
     });
   });
@@ -652,14 +574,10 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('F. scanner integration', () => {
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      fixture.detectChanges();
-    });
+    beforeEach(async () => { await connect(); component.setFeeRate(5); });
 
-    it('F1: autoScan called with the {txid, vout, value} list on every row change', () => {
-      pushRows([
+    it('F1: autoScan called with the {txid, vout, value} list on every row change', async () => {
+      await fund([
         { u: utxo({ txid: 'a'.repeat(64), vout: 0, value: 5_000 }), scan: { kind: 'not-scanned' } },
         { u: utxo({ txid: 'b'.repeat(64), vout: 1, value: 90_000 }), scan: { kind: 'not-scanned' } },
       ]);
@@ -671,27 +589,22 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('F2: scanRow(row) delegates to scanner.scan with the outpoint', () => {
       const u = utxo({ txid: 'c'.repeat(64), vout: 7 });
-      pushRows([{ u, scan: { kind: 'not-scanned' } }]);
       component.scanRow({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'not-scanned' }, bucket: 'unscanned' });
       expect(scanner.scan).toHaveBeenCalledWith(`${'c'.repeat(64)}:7`);
     });
 
-    it('F3: rune-etching resolution kicks off from the row pipe on a scanned-with-assets row', () => {
+    it('F3: rune-etching resolution kicks off from the row pipe on a scanned-with-assets row', async () => {
       const mockResolve = lookupRuneEtching as jest.Mock;
       mockResolve.mockClear();
       const u = utxo({ txid: 'd'.repeat(64), vout: 0, value: 90_000 });
-      pushRows([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'d'.repeat(64)}:0`, inscriptionIds: [], runes: { ANARCHY: { amount: 1, divisibility: 0, symbol: 'X' } }, catIds: [], catSat: null, rareSat: null } } }]);
+      await fund([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'d'.repeat(64)}:0`, inscriptionIds: [], runes: { ANARCHY: { amount: 1, divisibility: 0, symbol: 'X' } }, catIds: [], catSat: null, rareSat: null } } }]);
       expect(mockResolve).toHaveBeenCalledWith('ANARCHY', expect.objectContaining({ ordBaseUrl: 'http://test-ord' }));
     });
 
     it('F4: runeTxEtching is a pure read — repeated calls trigger NO extra lookups (guards the per-CD refetch bug)', async () => {
       const mockResolve = lookupRuneEtching as jest.Mock;
       const u = utxo({ txid: 'e'.repeat(64), vout: 0, value: 90_000 });
-      // A rune that resolves to null (no symbol / reserved-style) is the storm
-      // case: null is never cached, so a per-CD getter would re-fire forever.
-      pushRows([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'e'.repeat(64)}:0`, inscriptionIds: [], runes: { UNCOMMON: { amount: 1, divisibility: 0, symbol: null } }, catIds: [], catSat: null, rareSat: null } } }]);
-      // Let the lookup settle to null: inflight clears and nothing is cached, so
-      // a non-pure getter WOULD re-fire on the next calls. A pure getter does not.
+      await fund([{ u, scan: { kind: 'scanned-with-assets', content: { outpoint: `${'e'.repeat(64)}:0`, inscriptionIds: [], runes: { UNCOMMON: { amount: 1, divisibility: 0, symbol: null } }, catIds: [], catSat: null, rareSat: null } } }]);
       await new Promise((r) => setTimeout(r, 0));
       const callsAfterScan = mockResolve.mock.calls.length;
       component.runeTxEtching('UNCOMMON');
@@ -706,11 +619,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('G. bucket labels on selectedPaymentOutput', () => {
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      fixture.detectChanges();
-    });
+    beforeEach(async () => { await connect(); component.setFeeRate(5); });
 
     const u = utxo();
 
@@ -718,29 +627,31 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       ['not-scanned', 'unscanned'],
       ['scanned-clean', 'clean'],
       ['scan-failed', 'failed'],
-    ])('G1: a manual pick of a %s row carries bucket %s (no auto-pick)', (kind, bucket) => {
+    ])('G1: a manual pick of a %s row carries bucket %s (no auto-pick)', async (kind, bucket) => {
       const scan = kind === 'scan-failed'
         ? { kind: 'scan-failed' as const, message: 'x' }
         : { kind } as UtxoScanState;
-      pushRows([{ u, scan }]);
-      // No consumer-side auto-pick: the user must choose the funding coin.
+      await fund([{ u, scan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan, bucket: bucket as ViableSimulation['bucket'] });
+      await settle();
       expect(component.selectedPaymentOutput!.bucket).toBe(bucket);
     });
 
-    it('G2: scanned-with-assets requires explicit user pick', () => {
+    it('G2: scanned-with-assets requires explicit user pick', async () => {
       const scan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['x'], runes: null, catIds: [], catSat: null, rareSat: null } };
-      pushRows([{ u, scan }]);
+      await fund([{ u, scan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan, bucket: 'assets' });
+      await settle();
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
 
-    it('G3: scanning row never auto-picks but is selectable', () => {
-      pushRows([{ u, scan: { kind: 'scanning' } }]);
+    it('G3: scanning row never auto-picks but is selectable', async () => {
+      await fund([{ u, scan: { kind: 'scanning' } }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
       component.selectPaymentOutput({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'scanning' }, bucket: 'scanning' });
+      await settle();
       expect(component.selectedPaymentOutput!.bucket).toBe('scanning');
     });
   });
@@ -751,11 +662,11 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   describe('H. isSingleAddressWallet', () => {
     it('H1: same addresses → true', () => {
-      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: "x", paymentAddress: "x" }))).toBe(true);
+      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: 'x', paymentAddress: 'x' }))).toBe(true);
     });
 
     it('H2: different addresses → false', () => {
-      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: "a", paymentAddress: "b" }))).toBe(false);
+      expect(component.isSingleAddressWallet(wallet({ ordinalsAddress: 'a', paymentAddress: 'b' }))).toBe(false);
     });
 
     it('H3: null / undefined → false', () => {
@@ -770,16 +681,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   describe('I. ngOnInit auto-seed fastestFee', () => {
     it('I1: first recommendedFees emission sets cfeeRate to fastestFee', () => {
+      const setFeeSpy = jest.spyOn(orchestrator, 'setFeeRate');
       stateSvc.recommendedFeesSubject.next(fees({ fastestFee: 7, hourFee: 2 }));
       expect(component.cfeeRate.value).toBe(7);
-      expect(orch.setFeeRate).toHaveBeenCalledWith(7);
+      expect(setFeeSpy).toHaveBeenCalledWith(7);
     });
 
     it('I2: typing a new fee rate forwards to the orchestrator', () => {
       stateSvc.recommendedFeesSubject.next(fees({ fastestFee: 5, hourFee: 1 }));
-      orch.setFeeRate.mockClear();
+      const setFeeSpy = jest.spyOn(orchestrator, 'setFeeRate');
       component.cfeeRate.setValue(2);
-      expect(orch.setFeeRate).toHaveBeenLastCalledWith(2);
+      expect(setFeeSpy).toHaveBeenLastCalledWith(2);
     });
   });
 
@@ -809,27 +721,22 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
   // -------------------------------------------------------------------
   // K. fee-rate text input: locale-agnostic decimal entry
-  //    The input is text (not type=number) so its DISPLAY is always dots,
-  //    matching the fee presets, instead of the browser's locale separator.
-  //    onFeeRateInput coerces the raw string back to a number for the control.
   // -------------------------------------------------------------------
 
   describe('K. fee-rate decimal entry', () => {
     it('K1: a dot decimal sets the numeric control value', () => {
-      orch.setFeeRate.mockClear();
+      const setFeeSpy = jest.spyOn(orchestrator, 'setFeeRate');
       component.onFeeRateInput('0.2');
       expect(component.cfeeRate.value).toBe(0.2);
       expect(component.feeRateDisplay).toBe('0.2');
-      expect(orch.setFeeRate).toHaveBeenLastCalledWith(0.2);
+      expect(setFeeSpy).toHaveBeenLastCalledWith(0.2);
     });
 
     it('K2: a comma decimal (non-English browser) yields the same number, raw string preserved', () => {
-      orch.setFeeRate.mockClear();
+      const setFeeSpy = jest.spyOn(orchestrator, 'setFeeRate');
       component.onFeeRateInput('0,2');
-      // control is the real number, so the tx pays 0.2 regardless of locale
       expect(component.cfeeRate.value).toBe(0.2);
-      expect(orch.setFeeRate).toHaveBeenLastCalledWith(0.2);
-      // the display keeps what the user typed (no cursor-snapping mid-entry)
+      expect(setFeeSpy).toHaveBeenLastCalledWith(0.2);
       expect(component.feeRateDisplay).toBe('0,2');
     });
 
@@ -860,32 +767,41 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
-  // L. total-spend summary (the number a person needs before opening
-  //    their wallet: miner fee + the cat's 546-sat postage, not a rate)
+  // L. total-spend summary
   // -------------------------------------------------------------------
 
   describe('L. total mint spend', () => {
-    it('L1: null until a funding source is picked', () => {
+    it('L1: null until the SDK resolves a coin to spend', () => {
       expect(component.totalMintSpendSats()).toBeNull();
     });
 
-    it('L2: once picked, it is the miner fee plus the cat postage, not just one', () => {
-      // simulation(): finalTransactionFee 200n + amountToRecipient 546n
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+    it('L2: once the SDK spends a picked coin, it is the miner fee plus the cat postage, not just one', () => {
+      const picked = utxo({ value: 80_000 });
+      emit({
+        simulations: [{ utxo: picked, simulation: simulation(), insufficient: false }],
+        resolvedFundingUtxo: picked,
+      });
       expect(component.totalMintSpendSats()).toBe(746);
     });
 
     it('L3: tracks the fee, so it is a real total and not a hardcoded 546', () => {
-      component.selectPaymentOutput({ paymentOutput: utxo({ value: 80_000 }), simulation: simulation({ finalTransactionFee: 1_454n }), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
-      expect(component.totalMintSpendSats()).toBe(2_000); // 1454 fee + 546 cat
+      const picked = utxo({ value: 80_000 });
+      emit({
+        simulations: [{ utxo: picked, simulation: simulation({ finalTransactionFee: 1_454n }), insufficient: false }],
+        resolvedFundingUtxo: picked,
+      });
+      expect(component.totalMintSpendSats()).toBe(2_000);
     });
 
     it('L4: uses the AUTO-recommended source when the user has not picked (so it shows in the collapsed default)', () => {
-      const rec = utxo({ txid: 'r'.repeat(64), vout: 1, value: 80_000 });
-      orch.simulationsSubject.next([{ utxo: rec, simulation: simulation(), insufficient: false }]);
-      orch.fundingRecommendationSubject.next({ status: 'auto', recommended: rec, candidates: [rec] });
+      const r = utxo({ txid: 'r'.repeat(64), vout: 1, value: 80_000 });
+      emit({
+        simulations: [{ utxo: r, simulation: simulation(), insufficient: false }],
+        fundingRecommendation: { status: 'auto', recommended: annotatedCoin(r), candidates: [annotatedCoin(r)] },
+        resolvedFundingUtxo: r,
+      });
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(component.totalMintSpendSats()).toBe(746); // no manual pick needed
+      expect(component.totalMintSpendSats()).toBe(746);
       expect(component.catPostageSats()).toBe(546);
     });
   });
@@ -895,27 +811,21 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('K. mintCat21()', () => {
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      pushRows([{ u: utxo(), scan: { kind: 'scanned-clean' } }]);
-    });
+    beforeEach(async () => { await fund([{ u: utxo(), scan: { kind: 'scanned-clean' } }]); });
 
     it('K1: mintCat21() invokes orchestrator.mint', () => {
       component.mintCat21(wallet());
-      expect(orch.mint).toHaveBeenCalledTimes(1);
+      expect(mintSpy).toHaveBeenCalledTimes(1);
     });
 
     it('K2: mintCat21() error is swallowed (no throw)', () => {
-      orch.mint = jest.fn(() => Promise.reject(new Error('user cancelled')));
+      mintSpy.mockRejectedValueOnce(new Error('user cancelled'));
       expect(() => component.mintCat21(wallet())).not.toThrow();
     });
 
     it('K3: error after mintCat21 attributes to mintCat21Error not utxoError', () => {
       component.mintCat21(wallet());
-      orch.state.set('error');
-      orch.errorMessage.set('cancelled');
-      fixture.detectChanges();
+      emit({ state: 'error', errorMessage: 'cancelled' });
       expect(component.mintCat21Error()).toBe('cancelled');
       expect(component.utxoError()).toBe('');
     });
@@ -926,20 +836,16 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   // -------------------------------------------------------------------
 
   describe('L. mintCat21Success', () => {
-    it('L1: success state + txId → mintCat21Success returns {txId}', () => {
-      connectXverse();
-      orch.state.set('success');
-      orch.successTxId.set('deadbeef'.repeat(8));
-      fixture.detectChanges();
+    it('L1: success state + txId → mintCat21Success returns {txId}', async () => {
+      await connect();
+      emit({ state: 'success', successTxId: 'deadbeef'.repeat(8) });
       expect(component.mintCat21Success()).toEqual({ txId: 'deadbeef'.repeat(8) });
       expect(fixture.nativeElement.querySelector('[data-testid="mint-success"]')!.textContent).toContain('deadbeef'.repeat(8));
     });
 
-    it('L2: success without txId → undefined', () => {
-      connectXverse();
-      orch.state.set('success');
-      orch.successTxId.set(null);
-      fixture.detectChanges();
+    it('L2: success without txId → undefined', async () => {
+      await connect();
+      emit({ state: 'success', successTxId: null });
       expect(component.mintCat21Success()).toBeUndefined();
     });
   });
@@ -958,7 +864,6 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const txid = 'a'.repeat(64);
       expect(component.txidFromInscriptionId(`${txid}i0`)).toBe(txid);
       expect(component.txidFromInscriptionId(`${txid}i15`)).toBe(txid);
-      // already-bare txid is left unchanged (defensive)
       expect(component.txidFromInscriptionId(txid)).toBe(txid);
     });
 
@@ -982,21 +887,16 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
-  // MATRIX section — IDs come from `/Work/ordpool/PLAN-mint-test-matrix.md`
-  // and stay stable across both spec files. The "B" suffix means "both
-  // sites carry the same assertion"; grep MATRIX-A5 to find the paired
-  // copy in cat21-indexer's mint.spec.ts.
+  // MATRIX section
   // -------------------------------------------------------------------
 
   describe('MATRIX-A. wallet lifecycle', () => {
     it('MATRIX-A5(B): wallet swap resets scanner', () => {
       const w1 = wallet({ ordinalsAddress: 'addr-1', paymentAddress: 'pay-1' });
       const w2 = wallet({ ordinalsAddress: 'addr-2', paymentAddress: 'pay-2' });
-      // First connect — no reset (initial null → wallet)
       wallets.connectedWalletSubject.next(w1);
       fixture.detectChanges();
       scanner.reset.mockClear();
-      // Swap — reset fires
       wallets.connectedWalletSubject.next(w2);
       fixture.detectChanges();
       expect(scanner.reset).toHaveBeenCalledTimes(1);
@@ -1010,40 +910,35 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('MATRIX-A7(O): a duplicate same-identity re-emission does NOT re-drive setWallet', () => {
-      // The WalletService BehaviorSubject replays the SAME wallet identity on
-      // every onAccountChange (Xverse and cat21wallet fire that repeatedly on
-      // regtest). A re-fired setWallet drops the orchestrator to
-      // 'loading-utxos' and tears the Mint button out of the DOM for a frame,
-      // swallowing an in-flight click. The component must dedupe.
+      const setWalletSpy = jest.spyOn(orchestrator, 'setWallet');
       const w = wallet();
       wallets.connectedWalletSubject.next(w);
       fixture.detectChanges();
-      const callsAfterFirst = (orch.setWallet as jest.Mock).mock.calls.length;
-      // Same identity, fresh object reference (what onAccountChange delivers).
+      const callsAfterFirst = setWalletSpy.mock.calls.length;
       wallets.connectedWalletSubject.next({ ...w });
       fixture.detectChanges();
-      expect((orch.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst);
+      expect(setWalletSpy.mock.calls.length).toBe(callsAfterFirst);
     });
 
     it('MATRIX-A8(O): a real identity change DOES re-drive setWallet', () => {
+      const setWalletSpy = jest.spyOn(orchestrator, 'setWallet');
       const w1 = wallet({ ordinalsAddress: 'addr-1', paymentAddress: 'pay-1' });
       wallets.connectedWalletSubject.next(w1);
       fixture.detectChanges();
-      const callsAfterFirst = (orch.setWallet as jest.Mock).mock.calls.length;
+      const callsAfterFirst = setWalletSpy.mock.calls.length;
       const w2 = wallet({ ordinalsAddress: 'addr-2', paymentAddress: 'pay-2' });
       wallets.connectedWalletSubject.next(w2);
       fixture.detectChanges();
-      expect((orch.setWallet as jest.Mock).mock.calls.length).toBe(callsAfterFirst + 1);
+      expect(setWalletSpy.mock.calls.length).toBe(callsAfterFirst + 1);
     });
 
-    it('MATRIX-A9(B): disconnect returns to idle state', () => {
-      connectXverse();
+    it('MATRIX-A9(B): disconnect returns to idle state', async () => {
+      await connect();
+      emit({ state: 'ready' });
       const el: HTMLElement = fixture.nativeElement;
       expect(el.querySelector('[data-testid="ready"]')).toBeTruthy();
       wallets.connectedWalletSubject.next(null);
-      orch.connectedWallet.set(null);
-      orch.state.set('idle');
-      fixture.detectChanges();
+      await settle();
       expect(el.querySelector('[data-testid="mint-cta"]')).toBeTruthy();
       expect(el.querySelector('[data-testid="ready"]')).toBeNull();
     });
@@ -1062,11 +957,10 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     });
 
     it('MATRIX-B14(B): recommendedFundingSats delegates to the SDK helper for every fee tier', () => {
-      // Pass-through, not a pinned vsize number: sentinel mock returns rate * 1000,
-      // so each tier proves the clamped rate reaches the SDK helper unchanged.
       for (const rate of [1, 5, 50, 100]) {
         component.cfeeRate.setValue(rate);
-        expect(component.recommendedFundingSats).toBe(rate * 1000);
+        void component.recommendedFundingSats;
+        expect(calcSpy).toHaveBeenLastCalledWith(rate);
       }
     });
   });
@@ -1074,24 +968,17 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   describe('MATRIX-D. bucket-driven UI', () => {
     const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
 
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-    });
+    beforeEach(async () => { await connect(); component.setFeeRate(5); });
 
-    it('MATRIX-D15(B): viable row list is capped at 10 entries', () => {
-      const rows = Array.from({ length: 25 }, (_, i) => ({
-        u: big(50_000 + i),
-        scan: { kind: 'scanned-clean' } as UtxoScanState,
-      }));
-      pushRows(rows);
+    it('MATRIX-D15(B): viable row list is capped at 10 entries', async () => {
+      await fund(Array.from({ length: 25 }, (_, i) => ({ u: big(50_000 + i), scan: { kind: 'scanned-clean' } as UtxoScanState })));
       let captured: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
       expect(captured!.length).toBe(10);
     });
 
-    it('MATRIX-D16(B): viable rows sorted strictly descending by UTXO value', () => {
-      pushRows([
+    it('MATRIX-D16(B): viable rows sorted strictly descending by UTXO value', async () => {
+      await fund([
         { u: big(10_000), scan: { kind: 'scanned-clean' } },
         { u: big(50_000), scan: { kind: 'scanned-clean' } },
         { u: big(30_000), scan: { kind: 'scanned-clean' } },
@@ -1106,69 +993,53 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   describe('MATRIX-E. expert-panel visibility (THE 2026-06-12 regression group)', () => {
     const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
 
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-    });
+    beforeEach(async () => { await connect(); component.setFeeRate(5); });
 
-    it('MATRIX-E1(B): expert panel renders when viableRows > 0 AND a row is selected (baseline)', () => {
+    it('MATRIX-E1(B): expert panel renders when viableRows > 0 AND a row is selected (baseline)', async () => {
       const u1 = big(50_000);
-      pushRows([{ u: u1, scan: { kind: 'scanned-clean' } }]);
+      await fund([{ u: u1, scan: { kind: 'scanned-clean' } }]);
       let rows: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
       expect(rows!.length).toBeGreaterThan(0);
-      // No consumer-side auto-pick: the user selects the funding coin explicitly.
       component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      await settle();
       expect(component.selectedPaymentOutput).toBeDefined();
     });
 
-    it('MATRIX-E2(B): **THE REGRESSION** — assets-only scenario must still expose the picker (viable rows > 0 even if no selection)', () => {
-      const assetsScan: UtxoScanState = {
-        kind: 'scanned-with-assets',
-        content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null },
-      };
-      pushRows([{ u: big(50_000), scan: assetsScan }]);
+    it('MATRIX-E2(B): **THE REGRESSION** — assets-only scenario must still expose the picker (viable rows > 0 even if no selection)', async () => {
+      const assetsScan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'x:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } };
+      await fund([{ u: big(50_000), scan: assetsScan }]);
       let rows: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
-      // The list must be non-empty (the template gates the picker on
-      // (paymentOutputs$ | async)?.length, which would be wrong if it
-      // were gated on selectedPaymentOutput).
       expect(rows!.length).toBeGreaterThan(0);
       expect(component.selectedPaymentOutput).toBeUndefined();
     });
 
-    it('MATRIX-E3(B): expert panel hidden when there are no viable rows', () => {
-      orch.simulationsSubject.next([]);
-      component.paymentOutputs$.subscribe().unsubscribe();
-      fixture.detectChanges();
+    it('MATRIX-E3(B): expert panel hidden when there are no viable rows', async () => {
+      await connect();
+      cat21.utxos = [];
+      await orchestrator.refreshUtxos();
+      await settle();
+      scanner.setStates([]);
       let rows: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (rows = rs)).unsubscribe();
       expect(rows!.length).toBe(0);
     });
 
-    it('MATRIX-E11(B): mint button disabled when there is no row selection', () => {
-      const assetsScan: UtxoScanState = {
-        kind: 'scanned-with-assets',
-        content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null },
-      };
-      pushRows([{ u: big(50_000), scan: assetsScan }]);
+    it('MATRIX-E11(B): mint button disabled when there is no row selection', async () => {
+      const assetsScan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: 'a:0', inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } };
+      await fund([{ u: big(50_000), scan: assetsScan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      // The mint button's `[disabled]` is `form.invalid || !selectedPaymentOutput`
-      // — since selection is undefined, the button must be effectively disabled.
       expect(component.form.invalid || !component.selectedPaymentOutput).toBe(true);
     });
 
-    it('MATRIX-E12(B): mint button re-enables after the user explicitly picks an assets row ("Use anyway")', () => {
+    it('MATRIX-E12(B): mint button re-enables after the user explicitly picks an assets row ("Use anyway")', async () => {
       const u1 = big(50_000);
-      const assetsScan: UtxoScanState = {
-        kind: 'scanned-with-assets',
-        content: { outpoint: `${u1.txid}:0`, inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null },
-      };
-      pushRows([{ u: u1, scan: assetsScan }]);
-      // Pre: no selection
+      const assetsScan: UtxoScanState = { kind: 'scanned-with-assets', content: { outpoint: `${u1.txid}:0`, inscriptionIds: ['i'], runes: null, catIds: [], catSat: null, rareSat: null } };
+      await fund([{ u: u1, scan: assetsScan }]);
       expect(component.selectedPaymentOutput).toBeUndefined();
-      // Explicit override
       component.selectPaymentOutput({ paymentOutput: u1, simulation: simulation(), available: true, scan: assetsScan, bucket: 'assets' });
+      await settle();
       expect(component.selectedPaymentOutput).toBeDefined();
       expect(component.selectedPaymentOutput!.bucket).toBe('assets');
     });
@@ -1191,12 +1062,8 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
   });
 
   // -------------------------------------------------------------------
-  // N. per-coin fee column (FAMILY_UX three-state) — the over-pay signal
-  //    and the recommended-in-place mark. Both READ the shared candidateFees
-  //    (keyed by outpoint), so these assert the component's interpretation of
-  //    that array, not a re-derivation. Mutation-checked: the 0-vs-positive
-  //    boundary is exactly the "usable but over-paying" vs "emits change"
-  //    distinction the SDK ships as a field so no surface re-computes it.
+  // N. per-coin fee column (FAMILY_UX three-state). Reads the SDK's shared
+  //    candidateFees (keyed by outpoint), injected via emit.
   // -------------------------------------------------------------------
 
   describe('N. per-coin fee column', () => {
@@ -1205,26 +1072,20 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       ({ paymentOutput: u, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
     const feeRow = (u: TxnOutput, over: Partial<{ finalFeeSats: number | null; vsize: number | null; absorbedSubDustSats: number | null }> = {}) =>
       ({ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0, ...over });
+    type Fees = MintSnapshot['candidateFees'];
 
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      fixture.detectChanges();
-    });
+    beforeEach(async () => { await connect(); component.setFeeRate(5); });
 
     it('N0: feeClass routes the four states through the shared classifier (no drift)', () => {
       const normal = big(50_001), over = big(50_002), unknown = big(50_003), unavail = big(50_004);
-      orch._patch({ candidateFees: [
+      emit({ candidateFees: [
         feeRow(normal, { finalFeeSats: 200, absorbedSubDustSats: 0 }),
         feeRow(over, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 }),
         feeRow(unknown, { finalFeeSats: 200, absorbedSubDustSats: null }),
         feeRow(unavail, { finalFeeSats: null, absorbedSubDustSats: null }),
-      ] });
+      ] as Fees });
       expect(component.feeClass(row(normal))).toBe('normal');
       expect(component.feeClass(row(over))).toBe('overpay');
-      // The drift fix: a KNOWN-fee coin whose fold the simulator can't see is
-      // 'overpay-unknown', NOT 'normal'. overPaidSats stays null there (no false
-      // number), but the state is distinct so the template can say "can't tell".
       expect(component.feeClass(row(unknown))).toBe('overpay-unknown');
       expect(component.overPaidSats(row(unknown))).toBeNull();
       expect(component.feeClass(row(unavail))).toBe('unavailable');
@@ -1232,92 +1093,69 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     it('N1: overPaidSats is the folded sats when a coin over-pays (absorbedSubDustSats > 0)', () => {
       const u = big(50_000);
-      orch._patch({ candidateFees: [feeRow(u, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 })] });
+      emit({ candidateFees: [feeRow(u, { finalFeeSats: 1_400, absorbedSubDustSats: 1_200 })] as Fees });
       expect(component.overPaidSats(row(u))).toBe(1_200);
     });
 
     it('N2: overPaidSats is null when the coin emits change (absorbedSubDustSats === 0) — NOT 0', () => {
-      // The 0-vs-positive boundary: a coin that emits change is not over-paying,
-      // and the template shows the note only on a truthy value. Returning 0 here
-      // (the mutation) would misfire "change folded into the fee" on every roomy
-      // coin. Assert null explicitly so that mutation goes red.
       const u = big(50_000);
-      orch._patch({ candidateFees: [feeRow(u, { absorbedSubDustSats: 0 })] });
+      emit({ candidateFees: [feeRow(u, { absorbedSubDustSats: 0 })] as Fees });
       expect(component.overPaidSats(row(u))).toBeNull();
     });
 
     it('N3: overPaidSats is null when the fee cannot be computed (absorbedSubDustSats === null)', () => {
       const u = big(50_000);
-      orch._patch({ candidateFees: [feeRow(u, { finalFeeSats: null, vsize: null, absorbedSubDustSats: null })] });
+      emit({ candidateFees: [feeRow(u, { finalFeeSats: null, vsize: null, absorbedSubDustSats: null })] as Fees });
       expect(component.overPaidSats(row(u))).toBeNull();
     });
 
     it('N4: overPaidSats is null when this coin has no candidateFees row yet', () => {
       const u = big(50_000);
-      orch._patch({ candidateFees: [] });
+      emit({ candidateFees: [] as Fees });
       expect(component.overPaidSats(row(u))).toBeNull();
     });
 
     it('N5: candidateFee joins the shared row by outpoint (not by index/order)', () => {
       const a = big(50_000);
       const b = big(30_000);
-      // Deliberately out of row order: the join must key on txid:vout.
-      orch._patch({ candidateFees: [feeRow(b, { finalFeeSats: 900 }), feeRow(a, { finalFeeSats: 300 })] });
+      emit({ candidateFees: [feeRow(b, { finalFeeSats: 900 }), feeRow(a, { finalFeeSats: 300 })] as Fees });
       expect(component.candidateFee(row(a))?.finalFeeSats).toBe(300);
       expect(component.candidateFee(row(b))?.finalFeeSats).toBe(900);
     });
 
     it('N6: isRecommendedRow marks the coin selection would auto-pick, and only that one', () => {
-      const rec = big(40_000);
+      const r = big(40_000);
       const other = big(50_000);
-      orch.fundingRecommendationSubject.next({ status: 'auto', recommended: rec, candidates: [rec, other] });
-      expect(component.isRecommendedRow(row(rec))).toBe(true);
+      emit({ fundingRecommendation: { status: 'auto', recommended: annotatedCoin(r), candidates: [annotatedCoin(r), annotatedCoin(other)] } });
+      expect(component.isRecommendedRow(row(r))).toBe(true);
       expect(component.isRecommendedRow(row(other))).toBe(false);
     });
 
     it('N7: isRecommendedRow is false for every row when there is no recommendation', () => {
-      orch.fundingRecommendationSubject.next({ status: 'scanning', recommended: null, candidates: [] });
+      emit({ fundingRecommendation: { status: 'scanning', recommended: null, candidates: [] } });
       expect(component.isRecommendedRow(row(big(50_000)))).toBe(false);
     });
   });
 
   // -------------------------------------------------------------------
-  // P. show-the-row (FAMILY_UX): a coin that can't fund the mint at the current
-  //    rate is SHOWN (available:false), not filtered out, and is unpickable. The
-  //    handler is the authority, not just the hidden button.
+  // P. show-the-row (FAMILY_UX): an insufficient coin is SHOWN (available:false),
+  //    not filtered out, and is unpickable.
   // -------------------------------------------------------------------
 
   describe('P. show-the-row (unavailable coins)', () => {
     const big = (v: number) => utxo({ txid: String(v).repeat(64).slice(0, 64), value: v });
 
-    // Push a mix of a covering row and an insufficient one (simulation null,
-    // insufficient true — the shape the orchestrator emits for a coin too small).
-    function pushMixed(): { covering: TxnOutput; small: TxnOutput } {
+    beforeEach(async () => { await connect(); component.setFeeRate(5); });
+
+    it('P1: the insufficient coin is SHOWN as available:false, not filtered out', async () => {
       const covering = big(80_000);
       const small = big(500);
-      scanner.setStates([
-        [`${covering.txid}:${covering.vout}`, { kind: 'scanned-clean' }],
-        [`${small.txid}:${small.vout}`, { kind: 'not-scanned' }],
+      await fund([
+        { u: covering, scan: { kind: 'scanned-clean' } },
+        { u: small, scan: { kind: 'not-scanned' } },
       ]);
-      orch.simulationsSubject.next([
-        { utxo: covering, simulation: simulation(), insufficient: false },
-        { utxo: small, simulation: null, insufficient: true },
-      ]);
-      fixture.detectChanges();
-      return { covering, small };
-    }
-
-    beforeEach(() => {
-      connectXverse();
-      orch.feeRate.set(5);
-      fixture.detectChanges();
-    });
-
-    it('P1: the insufficient coin is SHOWN as available:false, not filtered out', () => {
-      const { covering, small } = pushMixed();
       let captured: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
-      // Both coins present (the old behaviour dropped the small one entirely).
       expect(captured!.map((r) => r.paymentOutput.value).sort((a, b) => a - b)).toEqual([500, 80_000]);
       const smallRow = captured!.find((r) => r.paymentOutput.txid === small.txid)!;
       const coveringRow = captured!.find((r) => r.paymentOutput.txid === covering.txid)!;
@@ -1326,75 +1164,56 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       expect(coveringRow.available).toBe(true);
     });
 
-    it('P2: selectPaymentOutput REFUSES an unavailable row (handler is the authority)', () => {
-      const { small } = pushMixed();
+    it('P2: selectPaymentOutput REFUSES an unavailable row (handler is the authority)', async () => {
+      const small = big(500);
+      await fund([{ u: big(80_000), scan: { kind: 'scanned-clean' } }, { u: small, scan: { kind: 'not-scanned' } }]);
       const unavailableRow: ViableSimulation = { paymentOutput: small, simulation: null, available: false, scan: { kind: 'not-scanned' }, bucket: 'unscanned' };
       component.selectPaymentOutput(unavailableRow);
-      // The pick was refused: no selection, orchestrator untouched.
+      await settle();
       expect(component.selectedPaymentOutput).toBeUndefined();
-      expect(orch.selectedUtxo()).toBeNull();
+      expect(orchestrator.getSnapshot().selectedUtxo).toBeNull();
     });
 
-    it('P4: the unavailable tail is capped at 3 (a wallet of dust is not a wall)', () => {
+    it('P4: the unavailable tail is capped at 3 (a wallet of dust is not a wall)', async () => {
       const covering = big(80_000);
       const dust = Array.from({ length: 7 }, (_, i) => big(300 + i));
-      const states: [string, UtxoScanState][] = [
-        [`${covering.txid}:${covering.vout}`, { kind: 'scanned-clean' }],
-        ...dust.map((d): [string, UtxoScanState] => [`${d.txid}:${d.vout}`, { kind: 'not-scanned' }]),
-      ];
-      scanner.setStates(states);
-      orch.simulationsSubject.next([
-        { utxo: covering, simulation: simulation(), insufficient: false },
-        ...dust.map((d) => ({ utxo: d, simulation: null, insufficient: true })),
+      await fund([
+        { u: covering, scan: { kind: 'scanned-clean' } },
+        ...dust.map((d) => ({ u: d, scan: { kind: 'not-scanned' } as UtxoScanState })),
       ]);
-      fixture.detectChanges();
       let captured: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
       const shownUnavailable = captured!.filter((r) => !r.available);
-      // 7 dust coins present, but at most 3 render (the largest, closest to flipping).
       expect(shownUnavailable.length).toBe(3);
       expect(captured!.filter((r) => r.available).length).toBe(1);
-      // The 3 shown are the LARGEST dust (306, 305, 304), not an arbitrary slice.
       expect(shownUnavailable.map((r) => r.paymentOutput.value).sort((a, b) => b - a)).toEqual([306, 305, 304]);
-      // Truncation is stated, not silent: 8 coins total, 4 shown -> the template
-      // renders "Showing 4 of 8". totalCoinCount is the denominator.
       expect(component.totalCoinCount()).toBe(8);
       expect(captured!.length).toBe(4);
     });
 
-    it('P3: a pick that flips to unavailable on a re-emit clears the local display without a consumer-side re-drive (the SDK reflects it in resolvedFundingStatus)', () => {
+    it('P3: a pick the SDK drops as below-requirement clears the local display without a consumer-side re-drive', async () => {
+      const setSelSpy = jest.spyOn(orchestrator, 'setSelectedUtxo');
       const chosen = big(80_000);
-      scanner.setStates([[`${chosen.txid}:${chosen.vout}`, { kind: 'scanned-clean' }]]);
-      orch.simulationsSubject.next([{ utxo: chosen, simulation: simulation(), insufficient: false }]);
-      component.paymentOutputs$.subscribe().unsubscribe();
-      fixture.detectChanges();
+      await fund([{ u: chosen, scan: { kind: 'scanned-clean' } }]);
       component.selectPaymentOutput({ paymentOutput: chosen, simulation: simulation(), available: true, scan: { kind: 'scanned-clean' }, bucket: 'clean' });
+      await settle();
       expect(component.selectedPaymentOutput).toBeDefined();
-      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
-      // The same coin re-emits as insufficient (e.g. the user raised the rate).
-      orch.simulationsSubject.next([{ utxo: chosen, simulation: null, insufficient: true }]);
+      expect(setSelSpy).toHaveBeenCalledTimes(1);
+      // Raise the rate so the coin no longer covers: the SDK drops the pick.
+      component.setFeeRate(1000);
+      await settle();
+      scanner.setStates([[outpoint(chosen), { kind: 'scanned-clean' }]]);
       component.paymentOutputs$.subscribe().unsubscribe();
       fixture.detectChanges();
-      // Local display defers back (unavailable row no longer shown as picked) ...
       expect(component.selectedPaymentOutput).toBeUndefined();
-      // ... and the consumer does NOT re-decide the orchestrator's selection: no
-      // second setSelectedUtxo. The SDK drops a pick a raised fee rate made
-      // unusable on its own recompute (resolvedFundingStatus reflects it).
-      expect(orch.setSelectedUtxo).toHaveBeenCalledTimes(1);
+      expect(setSelSpy).toHaveBeenCalledTimes(1);
     });
   });
 });
 
 // ---------------------------------------------------------------------------
 // wallet-ux-round3 §7.3 / §7.8: the single-address custody caveat, asserted
-// against the REAL production template (read live from the .html), not the
-// sentinel template used above. This is the honest test for the ungating: it
-// renders the actual *ngIf, so a future refactor that re-adds a coin-size gate
-// to the caveat is caught here — the exact regression the SDK flagged as most
-// likely. NO_ERRORS_SCHEMA absorbs the mempool child components (app-fiat,
-// app-clipboard, app-ordpool-fees-box-clickable); only the custom `relativeUrl`
-// pipe needs a stub. usesSingleAddress / singleAddressCaveat come from the
-// jest.mock at the top of this file (faithful re-implementations).
+// against the REAL production template (read live from the .html).
 // ---------------------------------------------------------------------------
 
 @Pipe({ name: 'relativeUrl' })
@@ -1405,174 +1224,169 @@ class RelativeUrlStubPipe implements PipeTransform {
 describe('Cat21MintComponent — single-address custody caveat, REAL template (wallet-ux-round3)', () => {
   const REAL_TEMPLATE = fs.readFileSync(path.join(__dirname, 'cat21-mint.component.html'), 'utf8');
 
-  let orch: any;
+  let orchestrator: Cat21MintOrchestrator;
   let scanner: ScannerStub;
   let wallets: WalletServiceStub;
   let stateSvc: StateServiceStub;
-  let cat21: Cat21ApiServiceStub;
+  let cat21: Cat21ServiceStub;
   let fixture: ComponentFixture<Cat21MintComponent>;
   let component: Cat21MintComponent;
 
+  function emit(over: Partial<MintSnapshot>): void {
+    (component as unknown as { snap: WritableSignal<MintSnapshot> }).snap.set({ ...orchestrator.getSnapshot(), ...over });
+    (component as unknown as { simulationsSubject: BehaviorSubject<MintSnapshot['simulations']> })
+      .simulationsSubject.next(over.simulations ?? orchestrator.getSnapshot().simulations);
+    fixture.detectChanges();
+  }
+
   function viable(over: Partial<ViableSimulation> = {}): ViableSimulation {
     return {
-      paymentOutput: utxo(),
-      simulation: simulation(),
-      available: true,
-      scan: { kind: 'scanned-clean' } as UtxoScanState,
-      bucket: 'clean',
-      ...over,
+      paymentOutput: utxo(), simulation: simulation(), available: true,
+      scan: { kind: 'scanned-clean' } as UtxoScanState, bucket: 'clean', ...over,
     } as ViableSimulation;
   }
 
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); }
+    fixture.detectChanges();
+  }
+
+  /** Connect `w` and let the async setWallet settle so the picker (ready state) renders. */
+  async function connectReal(w: WalletInfo): Promise<void> {
+    wallets.connectedWalletSubject.next(w);
+    await settle();
+  }
+
   async function configureReal(): Promise<void> {
-    // The single-address acknowledgement service persists to localStorage and
-    // is re-created per TestBed reset; clear it so an ack in one test never
-    // hides the caveat in the next (all these tests connect the same 'xverse'
-    // debug type via singleAddr()).
     try { localStorage.clear(); } catch { /* jsdom */ }
     scanner = new ScannerStub();
     wallets = new WalletServiceStub();
     stateSvc = new StateServiceStub();
-    cat21 = new Cat21ApiServiceStub();
+    cat21 = new Cat21ServiceStub();
     await TestBed.configureTestingModule({
       declarations: [Cat21MintComponent],
       imports: [CommonModule, ReactiveFormsModule, FormsModule, RelativeUrlStubPipe],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
-        { provide: Cat21Service, useValue: new Cat21ServiceStub() },
+        { provide: Cat21Service, useValue: cat21 },
         { provide: bitcoinNetwork, useValue: 'mainnet' },
         { provide: UtxoContentScanner, useValue: scanner },
         { provide: WalletService, useValue: wallets },
         { provide: StateService, useValue: stateSvc },
-        { provide: Cat21ApiService, useValue: cat21 },
+        { provide: Cat21ApiService, useValue: new Cat21ApiServiceStub() },
         { provide: SeoService, useValue: new SeoServiceStub() },
-        {
-          provide: cat21Config,
-          useValue: { mempoolApiUrl: 'http://m', cat21ApiUrl: 'http://c', ordApiUrl: 'http://o', cat21OrdApiUrl: 'http://co' },
-        },
+        { provide: cat21Config, useValue: { mempoolApiUrl: 'http://m', cat21ApiUrl: 'http://c', ordApiUrl: 'http://o', cat21OrdApiUrl: 'http://co' } },
       ],
     })
       .overrideComponent(Cat21MintComponent, { set: { template: REAL_TEMPLATE } })
       .compileComponents();
     fixture = TestBed.createComponent(Cat21MintComponent);
     component = fixture.componentInstance;
-    orch = (component as unknown as { orchestrator: any }).orchestrator;
+    orchestrator = (component as unknown as { orchestrator: Cat21MintOrchestrator }).orchestrator;
+    jest.spyOn(orchestrator, 'mint').mockResolvedValue({ txId: 't'.repeat(64) } as Awaited<ReturnType<Cat21MintOrchestrator['mint']>>);
     wallets.connectedWalletSubject.next(null);
     fixture.detectChanges();
   }
 
   beforeEach(configureReal);
 
-  // A real single-address wallet type (UniSat), so the caveat names it. Xverse
-  // is genuinely dual-address; single-address wallets are unisat/wizz/okx/
-  // binance/alby. usesSingleAddress still keys on the two equal addresses.
   const singleAddr = (): WalletInfo => wallet({ type: KnownOrdinalWalletType.unisat, ordinalsAddress: 'bc1p-same', paymentAddress: 'bc1p-same' });
   const dualAddr = (): WalletInfo => wallet({ ordinalsAddress: 'bc1p-ord', paymentAddress: '3-pay' });
   const q = (sel: string): Element | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
 
+  /** Show `row` in the picker and pick it, the way a click on its Use button does. */
+  function pickRow(row: ViableSimulation): void {
+    scanner.setStates([[outpoint(row.paymentOutput), row.scan]]);
+    emit({ simulations: [{ utxo: row.paymentOutput, simulation: row.simulation, insufficient: false }] });
+    component.paymentOutputs$.subscribe().unsubscribe();
+    component.selectPaymentOutput(row);
+    fixture.detectChanges();
+  }
+
   it('renders the single-address note for a single-address wallet even with a LARGE CLEAN coin selected (info beside the mint button, not gated on coin)', () => {
     wallets.connectedWalletSubject.next(singleAddr());
-    component.selectedPaymentOutput = viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' });
-    fixture.detectChanges();
-
+    pickRow(viable({ paymentOutput: utxo({ value: 50_000 }), bucket: 'clean' }));
     const note = q('[data-testid="single-address-note"]');
     expect(note).toBeTruthy();
-    // Names the connected wallet: the component passes KnownOrdinalWallets[type].label
-    // through to the caveat. Mutation-worthy — if it dropped the label the note would
-    // open "This wallet keeps..." and fail to contain the UniSat-named sentence.
     expect(note!.textContent).toContain(singleAddressCaveat('cats', 'UniSat'));
     expect(note!.textContent).toContain('Your UniSat wallet keeps');
-    // the per-UTXO note is a DIFFERENT, coin-specific note; not for a large clean coin
     expect(q('[data-testid="per-utxo-unverified"]')).toBeNull();
   });
 
   it('does NOT render the single-address note for a dual-address wallet', () => {
     wallets.connectedWalletSubject.next(dualAddr());
-    component.selectedPaymentOutput = viable({
-      paymentOutput: utxo({ value: 3_000 }), bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState,
-    });
-    fixture.detectChanges();
+    pickRow(viable({ paymentOutput: utxo({ value: 3_000 }), bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState }));
     expect(q('[data-testid="single-address-note"]')).toBeNull();
   });
 
-  it('renders the per-UTXO note inside the picker for a single-address wallet with a small unverified coin selected', () => {
-    wallets.connectedWalletSubject.next(singleAddr());
-    // the picker renders only when paymentOutputs$ has rows
-    const u = utxo({ value: 5_000 });
-    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'not-scanned' } as UtxoScanState]]);
-    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
-    component.selectedPaymentOutput = viable({ paymentOutput: u, bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState });
+  it('renders the per-UTXO note inside the picker for a single-address wallet with a small unverified coin selected', async () => {
+    // Real IO: load the coin so the pick sticks (selectPaymentOutput's real
+    // setSelectedUtxo keeps a coin the orchestrator actually holds). The
+    // single-address wallet uses a VALID taproot address for both roles, so
+    // the real simulator can build from it (fake 'bc1p-same' cannot).
+    const singleReal = wallet({ type: KnownOrdinalWalletType.unisat, ordinalsAddress: ORDINALS_ADDRESS, paymentAddress: ORDINALS_ADDRESS, paymentPublicKey: hex.encode(ORDINALS_PUB) });
+    const u = utxo({ value: 9_000 });
+    cat21.utxos = [u];
+    await connectReal(singleReal);
+    component.setFeeRate(1);
+    await settle();
+    scanner.setStates([[outpoint(u), { kind: 'not-scanned' } as UtxoScanState]]);
+    component.paymentOutputs$.subscribe().unsubscribe();
     fixture.detectChanges();
-
+    component.selectPaymentOutput(viable({ paymentOutput: u, bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState }));
+    await settle();
     expect(q('[data-testid="per-utxo-unverified"]')).toBeTruthy();
-    // the single-address info note also shows, distinct from the per-coin one
     expect(q('[data-testid="single-address-note"]')).toBeTruthy();
   });
 
-  // The per-coin fee column, rendered against the REAL production HTML (not the
-  // sentinel template): a data-gated state the live browser can't be driven into
-  // without the regtest wallet stack, so the actual *ngIf on real data is the
-  // proof the markup renders. Mutation-checked: dropping the *ngIf value flips
-  // the presence assertion.
-  it('renders the over-pay note + recommended badge inside the picker on the real template', () => {
-    wallets.connectedWalletSubject.next(dualAddr());
+  it('renders the over-pay note + recommended badge inside the picker on the real template', async () => {
+    await connectReal(dualAddr());
     const u = utxo({ value: 50_000 });
-    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'scanned-clean' } as UtxoScanState]]);
-    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
-    // This coin over-pays: its would-be change fell below dust and was folded.
-    orch._patch({
-      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 1_400, vsize: 150, absorbedSubDustSats: 1_200 }],
-      fundingRecommendation: { status: 'auto', recommended: u, candidates: [u] },
+    scanner.setStates([[outpoint(u), { kind: 'scanned-clean' } as UtxoScanState]]);
+    emit({
+      simulations: [{ utxo: u, simulation: simulation(), insufficient: false }],
+      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 1_400, vsize: 150, absorbedSubDustSats: 1_200 }] as MintSnapshot['candidateFees'],
+      fundingRecommendation: { status: 'auto', recommended: annotatedCoin(u), candidates: [annotatedCoin(u)] },
     });
+    component.paymentOutputs$.subscribe().unsubscribe();
     fixture.detectChanges();
-
     const overpay = q('[data-testid="utxo-overpay-note"]');
     expect(overpay).toBeTruthy();
-    // Names the folded amount, so the note says WHAT goes to the miner.
     expect(overpay!.textContent).toContain('1,200');
-    // The recommended coin is marked in place on its row.
     expect(q('[data-testid="utxo-recommended"]')).toBeTruthy();
   });
 
   it('does NOT render the over-pay note for a coin that emits change (absorbedSubDustSats 0)', () => {
     wallets.connectedWalletSubject.next(dualAddr());
     const u = utxo({ value: 50_000 });
-    scanner.setStates([[`${u.txid}:${u.vout}`, { kind: 'scanned-clean' } as UtxoScanState]]);
-    orch.simulationsSubject.next([{ utxo: u, simulation: simulation(), insufficient: false }]);
-    orch._patch({
-      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0 }],
-      fundingRecommendation: { status: 'auto', recommended: u, candidates: [u] },
+    scanner.setStates([[outpoint(u), { kind: 'scanned-clean' } as UtxoScanState]]);
+    emit({
+      simulations: [{ utxo: u, simulation: simulation(), insufficient: false }],
+      candidateFees: [{ txid: u.txid, vout: u.vout, finalFeeSats: 200, vsize: 150, absorbedSubDustSats: 0 }] as MintSnapshot['candidateFees'],
+      fundingRecommendation: { status: 'auto', recommended: annotatedCoin(u), candidates: [annotatedCoin(u)] },
     });
+    component.paymentOutputs$.subscribe().unsubscribe();
     fixture.detectChanges();
-
     expect(q('[data-testid="utxo-overpay-note"]')).toBeNull();
   });
 
-  it('renders an insufficient coin as a dimmed "can\'t fund at this rate" row with no Use button (real template)', () => {
-    wallets.connectedWalletSubject.next(dualAddr());
+  it('renders an insufficient coin as a dimmed "can\'t fund at this rate" row with no Use button (real template)', async () => {
+    await connectReal(dualAddr());
     const small = utxo({ txid: 's'.repeat(64), value: 500 });
-    scanner.setStates([[`${small.txid}:${small.vout}`, { kind: 'not-scanned' } as UtxoScanState]]);
-    // Insufficient shape: null simulation, insufficient true.
-    orch.simulationsSubject.next([{ utxo: small, simulation: null, insufficient: true }]);
+    scanner.setStates([[outpoint(small), { kind: 'not-scanned' } as UtxoScanState]]);
+    emit({ simulations: [{ utxo: small, simulation: null, insufficient: true }] });
+    component.paymentOutputs$.subscribe().unsubscribe();
     fixture.detectChanges();
-
     const cantFund = q('[data-testid="utxo-cant-fund"]');
     expect(cantFund).toBeTruthy();
-    // The row is present and dimmed (not hidden).
     expect(q('.shape-border.utxo-row-unavailable')).toBeTruthy();
-    // No "Use this UTXO" / "Use anyway" button on an unavailable row.
     const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll('.shape-border.utxo-row-unavailable button');
     expect(buttons.length).toBe(0);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Contrast of the unavailable-row label, MEASURED, not inferred (the cubes /
-// cat21-indexer lesson: "same colour family as a legible sibling" is not
-// evidence — cubes measured 3.48:1 that way). The row's `opacity` dims the amber
-// "Can't fund at this rate" text, so the composited pair must still clear WCAG AA
-// for small text (4.5:1). The opacity is read LIVE from the scss so lowering it
-// re-computes and fails; the palette colours are the documented theme constants.
+// Contrast of the unavailable-row label, MEASURED, not inferred.
 // ---------------------------------------------------------------------------
 
 describe('unavailable-row label contrast (WCAG AA, small text)', () => {
@@ -1588,8 +1402,6 @@ describe('unavailable-row label contrast (WCAG AA, small text)', () => {
   const hexToRgb = (h: string): number[] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const over = (fg: number[], bg: number[], alpha: number): number[] => fg.map((c, i) => Math.round(alpha * c + (1 - alpha) * bg[i]));
 
-  // Documented theme constants (bootstrap --bs-warning; styles-ordpool-overrides2
-  // --panel-bg; styles.scss page ground).
   const TEXT_WARNING = '#ffc107';
   const PANEL_BG = '#26262f';
   const PAGE_BG = '#1c2031';
@@ -1599,7 +1411,6 @@ describe('unavailable-row label contrast (WCAG AA, small text)', () => {
     const m = scss.match(/\.utxo-row-unavailable\s*\{[^}]*opacity:\s*([\d.]+)/);
     expect(m).toBeTruthy();
     const opacity = parseFloat(m![1]);
-    // The row's opacity composites the whole row over the page ground.
     const effectiveText = over(hexToRgb(TEXT_WARNING), hexToRgb(PAGE_BG), opacity);
     const effectiveBg = over(hexToRgb(PANEL_BG), hexToRgb(PAGE_BG), opacity);
     const ratio = contrast(effectiveText, effectiveBg);

@@ -289,6 +289,9 @@
               "disableHostCheck": true,
               "host": "0.0.0.0",
               "verbose": false
+            },
+            "ordpool-e2e": {
+              "verbose": false
             }
           }
         },

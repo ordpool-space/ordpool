@@ -76,9 +76,9 @@ const providers = [
     mempoolApiUrl: environment.apiBaseUrl,
     cat21ApiUrl: environment.cat21BaseUrl,
     // Our ord instance (first entry, ord.ordpool.space) for the
-    // UtxoContentScanner. We don't walk the array here — the scanner
-    // needs a single base, not a fallback chain; ordinalsbot's
-    // /output/ endpoint shape differs.
+    // UtxoContentScanner. The scanner needs a single base, not a fallback
+    // chain: it feeds a spending decision, so it reads only an instance we
+    // operate.
     ordApiUrl: environment.ordBaseUrls[0],
     cat21OrdApiUrl: environment.cat21OrdBaseUrl,
   } },

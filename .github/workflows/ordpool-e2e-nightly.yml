@@ -35,6 +35,15 @@ concurrency:
   group: ordpool-e2e-${{ github.ref }}
   cancel-in-progress: true
 
+# Harden installs against transient registry blips like ECONNRESET: retry more
+# times over a longer backoff window than npm's default of 2. npm and pnpm both
+# read these npm_config_* values.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
 jobs:
   ordpool-e2e:
     name: Playwright E2E
@@ -45,7 +54,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        node: ["24.13.0"]
+        node: ["26.12.1"]
       fail-fast: false
 
     steps:
@@ -89,27 +98,37 @@ jobs:
       - name: Generate ordpool config + themes
         # Mirrors what `start:ordpool-e2e` does before `ng serve`. Done as
         # explicit steps here so failures show up cleanly in CI logs
-        # rather than buried in webServer stdout.
+        # rather than buried in webServer stdout. No sync-assets-dev: it
+        # downloads the Blockstream asset registry, and the bitmap route
+        # loads none of it.
         run: |
           npm run generate-themes
           npm run generate-config
-          npm run sync-assets-dev
         working-directory: frontend
 
       - name: Run Playwright suite
-        # CI=true keeps reuseExistingServer false (always spin up our own),
-        # adds 1 retry per spec, switches to the GitHub reporter.
+        # CI=true keeps reuseExistingServer false (always spin up our own)
+        # and switches to the GitHub reporter. The browser reaches loopback
+        # only and writes its net log to ORDPOOL_E2E_NET_LOG_DIR.
         run: npm run ordpool-e2e
         working-directory: frontend
         env:
           CI: 'true'
+          ORDPOOL_E2E_NET_LOG_DIR: ${{ github.workspace }}/net-log
+
+      - name: Check the net logs for requests that left the machine
+        if: always()
+        working-directory: frontend
+        run: node node_modules/ordpool-sdk/scripts/check-net-log.mjs "${{ github.workspace }}/net-log"
 
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: |
+            frontend/playwright-report/
+            net-log
           retention-days: 14
 
       - name: Upload test results (videos / traces on failure)

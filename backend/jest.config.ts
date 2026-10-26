@@ -7,6 +7,13 @@ const config: Config.InitialOptions = {
   automock: false,
   collectCoverage: false,
   collectCoverageFrom: ['./src/**/**.ts'],
+  // Operational one-off scripts: imported by nothing, not bundled, EXECUTE-guarded,
+  // run by hand only. Excluded from coverage individually (never a broad pattern
+  // that could hide product code). See each file's header.
+  coveragePathIgnorePatterns: [
+    'src/tasks/_ordpool/detect-arc4-missed-stamps\\.ts$',
+    'src/tasks/_ordpool/backfill-arc4-missed-stamps\\.ts$',
+  ],
   coverageProvider: 'v8',
   coverageThreshold: {
     global: {
