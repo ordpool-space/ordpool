@@ -8,7 +8,7 @@ Backend for `ordpool-space/ordpool`: a `mempool/mempool` fork with ordpool index
 Ref: workspace `CLAUDE.md` "Keep useful comments (JSDoc AND inline 'why')"; rollback `6a880bfd3`.
 
 ## Node version
-Node.js v24 (`.nvmrc`) plus a Rust toolchain for the native `rust-gbt` module, built during `npm install` (needs `rustc`/`cargo`, via `rustup` or `brew install rustup`).
+Node.js v26 (`.nvmrc`) plus a Rust toolchain for the native `rust-gbt` module, built during `npm install` (needs `rustc`/`cargo`, via `rustup` or `brew install rustup`).
 
 ## Prerequisites
 | Service | Port | Required | Notes |
