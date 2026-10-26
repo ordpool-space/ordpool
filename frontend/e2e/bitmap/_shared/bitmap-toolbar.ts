@@ -1,6 +1,6 @@
 import { expect, Locator, Page, test } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
+
+import { loadBitmapFixture } from './bitmap-3d-debug';
 
 /**
  * The bitmap viewer's toolbar: three 36 px buttons in the bottom-right
@@ -20,11 +20,8 @@ import * as path from 'path';
 
 const HEIGHT = 500_000;
 
-const fixture = () =>
-  JSON.parse(fs.readFileSync(path.resolve(__dirname, `../../fixtures/bitmap-${HEIGHT}.json`), 'utf8'));
-
 export const mountViewer = async (page: Page): Promise<void> => {
-  const body = fixture();
+  const body = loadBitmapFixture(HEIGHT);
   await page.route(`**/api/v1/ordpool/bitmap/${HEIGHT}`, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
   await page.addInitScript(`window.__bitmapViewerHeight = ${HEIGHT};`);
