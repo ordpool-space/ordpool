@@ -211,7 +211,7 @@ Cinematic transitions (intro → orbit, orbit → fly-to-pfp → pfp, pfp → fl
 - nightly at **03:17 UTC** (off-the-hour, dodges the 03:00 cron herd on shared GHA runners), and
 - on-demand via the Actions tab → "Ordpool E2E (Playwright)" → "Run workflow".
 
-Runs on `ubuntu-latest` (the `mempool-ci` self-hosted runner that the upstream Cypress workflows use isn't accessible to ordpool). The vendored Chromium is cached by Playwright version. The browser reaches loopback only (`offlineLaunchArgs` from `ordpool-sdk/e2e`) and writes Chrome's net log; a step after the suite runs `ordpool-sdk`'s `scripts/check-net-log.mjs` over it and fails on any request that left the runner. On failure, `playwright-report/` and `test-results/` (videos + traces) upload as artifacts with 14-day retention — drop into Playwright's `show-report` viewer locally to inspect.
+Runs on `ubuntu-latest` (the `mempool-ci` self-hosted runner that the upstream Cypress workflows use isn't accessible to ordpool). The vendored Chromium is cached by Playwright version. The browser reaches loopback only (`offlineLaunchArgs` from `ordpool-sdk/e2e`) and writes Chrome's net log; a step after the suite runs `ordpool-sdk`'s `scripts/check-net-log.mjs` over it and fails on any request that left the runner. A second step, `e2e/bitmap/check-count-floor.sh`, fails when fewer tests passed than the floor in `frontend/.e2e-count-baseline.json`, because a spec that falls outside `testMatch` is never collected and leaves the run green. On failure, `playwright-report/` and `test-results/` (videos + traces) upload as artifacts with 14-day retention — drop into Playwright's `show-report` viewer locally to inspect.
 
 ### Adding a new spec
 
@@ -220,6 +220,7 @@ Runs on `ubuntu-latest` (the `mempool-ci` self-hosted runner that the upstream C
 3. Asserting on physics? Use `tick()` rather than `page.waitForTimeout` — see the bitmap-3D spec for the calibrated frame counts (jumping ~30 frames after pulse, falling ~30-80, idle ~110+).
 4. Asserting on cinematic state? Use `waitForFunction` for `state === 'X'` — rAF is throttled but reaches each tween's destination within 30s.
 5. Run locally with `npm run ordpool-e2e:headed` first to watch the spec actually work; commit when green.
+6. Raise `passing` in `frontend/.e2e-count-baseline.json` to the new count in the same commit, so the floor covers the new tests too. Only a maintainer lowers it.
 <!-- HACK: END Ordpool E2E -->
 
 ## Translations: Transifex Project
