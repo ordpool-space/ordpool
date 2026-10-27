@@ -1,0 +1,4 @@
+{
+  "passing": 45,
+  "note": "Floor for the bitmap E2E suite, checked by frontend/e2e/bitmap/check-count-floor.sh in .github/workflows/ordpool-e2e-nightly.yml. Count of passing Playwright tests across the chromium and mobile projects. Only an ordpool core maintainer is authorised to lower this number; every other change that reduces the count is treated as an accident and rejected. To raise the floor after legitimately adding tests, bump this value and commit. See also workspace CLAUDE.md, HARD RULE 'Never delete a passing test without explicit permission'."
+}

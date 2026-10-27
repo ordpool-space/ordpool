@@ -115,6 +115,16 @@ jobs:
         env:
           CI: 'true'
           ORDPOOL_E2E_NET_LOG_DIR: ${{ github.workspace }}/net-log
+          ORDPOOL_E2E_RESULTS_JSON: ${{ github.workspace }}/e2e-results.json
+
+      - name: Enforce the bitmap E2E count floor
+        # A green run says nothing about how many tests it ran: a spec
+        # outside testMatch is never collected and the run stays green.
+        # This fails when fewer tests passed than the committed floor in
+        # frontend/.e2e-count-baseline.json.
+        if: always()
+        working-directory: frontend
+        run: ./e2e/bitmap/check-count-floor.sh "${{ github.workspace }}/e2e-results.json"
 
       - name: Check the net logs for requests that left the machine
         if: always()

@@ -82,6 +82,11 @@ export default defineConfig({
   reporter: [
     [process.env.CI ? 'github' : 'list'],
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    // The passing count for e2e/bitmap/check-count-floor.sh. Written only
+    // when asked for, so a local run leaves no file behind.
+    ...(process.env.ORDPOOL_E2E_RESULTS_JSON
+      ? [['json', { outputFile: process.env.ORDPOOL_E2E_RESULTS_JSON }] as const]
+      : []),
   ],
   // Each test pays a one-time setup tax in headless: full Angular boot,
   // three.js dynamic import, octree build for 3721 cubes, intro tween
