@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Frontend for `ordpool-space/ordpool`: a `mempool/mempool` fork (Angular 20 + Bootstrap 5 + Node 24) with Ordinals customizations. Repo-wide rules live in the repo-root `CLAUDE.md`; this file is frontend-specific.
+Frontend for `ordpool-space/ordpool`: a `mempool/mempool` fork (Angular 20 + Bootstrap 5 + Node 26) with Ordinals customizations. Repo-wide rules live in the repo-root `CLAUDE.md`; this file is frontend-specific.
 
 **E2E:** the workspace `E2E_BEST_PRACTICES.md` codifies our Playwright rules. The `cypress/` suite here is legacy upstream mempool code, out of scope for those rules: do not audit or port; touch only when a bug fix genuinely lives there. An ordpool-owned Playwright surface (workspace `ordpool/e2e/`) will land later and follow the doc from day one.
 
@@ -10,7 +10,7 @@ Frontend for `ordpool-space/ordpool`: a `mempool/mempool` fork (Angular 20 + Boo
 Ref: workspace `CLAUDE.md` "Keep useful comments (JSDoc AND inline 'why')".
 
 ## Node version
-Node.js v24 (`.nvmrc`); CI pins `node-version: 24`.
+Node.js v26 (`.nvmrc`); CI pins `node-version: 26`.
 
 ## First-time setup and development
 ```bash
