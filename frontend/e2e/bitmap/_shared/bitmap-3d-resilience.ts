@@ -73,7 +73,8 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
       expect(warnings.filter(w => w.includes('WEBGL_lose_context'))).toEqual([]);
     });
 
-    test('a 3D view that cannot load says so, keeps the toggle alive, and loads after a reload', async ({ page }) => {
+    /** Abort the lazy three.js chunk, press 3D, and land on the SVG with the reason on screen. */
+    const failThreeLoad = async (page: Page) => {
       await mountViewer(page);
       // What a flaky connection, or a tab older than the deploy that renamed
       // the chunk, does to the lazy three.js load.
@@ -87,17 +88,26 @@ export const bitmap3dResilienceSuite = (label: 'desktop' | 'mobile'): void => {
       await expect(threeDNote(page)).toContainText('Reload the page');
       await expect(page.getByTestId('bitmap-scene-loading')).toHaveCount(0);
       await expect(page.getByTestId('bitmap-svg').locator('svg')).toBeVisible();
+    };
 
-      // Pressing again, with the network back, still cannot fetch the chunk:
-      // the browser keeps the failed module fetch for the life of the
-      // document. What must hold is that it fails the same honest way
-      // instead of hanging.
+    test('a 3D view that cannot load says so, and the toggle loads it once the network is back', async ({ page }) => {
+      await failThreeLoad(page);
+
+      // The toggle stays live. Chromium fetches a failed module again on the
+      // next import(), so with the network back the same press brings 3D up
+      // without a reload, and the note goes with it.
       await page.unroute(/three/);
       await viewToggle(page).dispatchEvent('click');
-      await expect(threeDNote(page)).toContainText('Reload the page');
-      await expect(page.getByTestId('bitmap-scene-loading')).toHaveCount(0);
+      await expect(page.locator('app-bitmap-viewer app-bitmap-3d-renderer canvas')).toBeAttached();
+      await expect(threeDNote(page)).toHaveCount(0);
+    });
 
-      // The reload the note asks for is what brings 3D back.
+    test('a 3D view that cannot load comes back after the reload its note asks for', async ({ page }) => {
+      await failThreeLoad(page);
+
+      // Reloading is the recovery the note names, and the one that holds in
+      // every browser, whatever it does with a failed module fetch.
+      await page.unroute(/three/);
       await page.reload();
       await expect(page.getByTestId('bitmap-viewer-e2e-host')).toBeAttached();
       await viewToggle(page).dispatchEvent('click');
