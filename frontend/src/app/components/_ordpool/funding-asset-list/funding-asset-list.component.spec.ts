@@ -16,6 +16,8 @@ class RelativeUrlStubPipe implements PipeTransform {
 const INSCRIPTION = 'a'.repeat(64) + 'i0';
 const CAT = 'c'.repeat(64) + 'i0';
 const OTHER_CAT = 'd'.repeat(64) + 'i0';
+/** The sat both cats sit on; any sat number, the list only builds the link from it. */
+const CAT_SAT = 1971987;
 const ETCHED = 'DOG•GO•TO•THE•MOON';
 const ETCHING_TXID = 'e'.repeat(64);
 /** A reserved rune: its etching is all zeros, so the resolver records null and it is never linked. */
@@ -63,11 +65,27 @@ describe('FundingAssetListComponent', () => {
     expect((runes?.textContent ?? '').replace(/\s+/g, ' ')).toContain(`${ETCHED}, ${RESERVED}, ${UNRESOLVED}`);
   });
 
-  it('without cat numbers (a port that does not look them up) links each cat to the transaction of its inscription id', () => {
-    const root = render({ inscriptionIds: [], runeNames: [], catIds: [CAT], rareSat: null });
-    expect(links(item(root, 'funding-asset-cats'))).toEqual([
-      { text: CAT, href: '/tx/' + 'c'.repeat(64), target: '_blank', rel: 'noopener' },
+  it('without cat numbers (a port that does not look them up) names the count and links the cats\' sat page', () => {
+    const root = render({ inscriptionIds: [], runeNames: [], catIds: [CAT], catSat: CAT_SAT, rareSat: null });
+    const cats = item(root, 'funding-asset-cats');
+    expect(links(cats)).toEqual([
+      { text: 'view on cat21.space', href: `https://cat21.space/sat/${CAT_SAT}`, target: '_blank', rel: 'noopener' },
     ]);
+    expect((cats?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('CAT-21 cat: 1 · view on cat21.space');
+  });
+
+  it('without cat numbers and without a reported sat names the count alone, linking nothing', () => {
+    for (const catSat of [null, undefined]) {
+      const root = render({ inscriptionIds: [], runeNames: [], catIds: [CAT, OTHER_CAT], catSat, rareSat: null });
+      const cats = item(root, 'funding-asset-cats');
+      expect(links(cats)).toEqual([]);
+      expect((cats?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('CAT-21 cats: 2');
+    }
+  });
+
+  it('links sat 0 like any other sat: the sat is compared with null, not tested for truthiness', () => {
+    const root = render({ inscriptionIds: [], runeNames: [], catIds: [CAT], catSat: 0, rareSat: null });
+    expect(links(item(root, 'funding-asset-cats')).map((l) => l.href)).toEqual(['https://cat21.space/sat/0']);
   });
 
   it('names a numbered cat "Cat #N", linked to its cat21.space page, the Genesis cat #0 included', () => {
@@ -81,15 +99,16 @@ describe('FundingAssetListComponent', () => {
     ]);
   });
 
-  it('a cat whose number lookup failed falls back to its inscription id, the others keep their numbers', () => {
+  it('one cat whose number lookup failed turns the whole entry into the count and the sat page, as the picker row does', () => {
     const root = render({
-      inscriptionIds: [], runeNames: [], catIds: [CAT, OTHER_CAT], rareSat: null,
+      inscriptionIds: [], runeNames: [], catIds: [CAT, OTHER_CAT], catSat: CAT_SAT, rareSat: null,
       cats: [{ id: CAT, number: null }, { id: OTHER_CAT, number: 1234 }],
     });
-    expect(links(item(root, 'funding-asset-cats'))).toEqual([
-      { text: CAT, href: '/tx/' + 'c'.repeat(64), target: '_blank', rel: 'noopener' },
-      { text: 'Cat #1234', href: 'https://cat21.space/cat/1234', target: '_blank', rel: 'noopener' },
+    const cats = item(root, 'funding-asset-cats');
+    expect(links(cats)).toEqual([
+      { text: 'view on cat21.space', href: `https://cat21.space/sat/${CAT_SAT}`, target: '_blank', rel: 'noopener' },
     ]);
+    expect((cats?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('CAT-21 cats: 2 · view on cat21.space');
   });
 
   it('names a rare sat by its sat number, linked to its cat21.space sat page, with rarity and block', () => {

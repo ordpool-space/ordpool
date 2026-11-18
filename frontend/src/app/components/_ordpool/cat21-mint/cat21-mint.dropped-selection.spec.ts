@@ -294,6 +294,39 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
     });
   });
 
+  // SEAM TEST, load-bearing: the SDK re-checks a pinned coin on a fresh scan
+  // right before it asks for a signature (assertPinnedContentFresh). The SDK's
+  // own suite proves that against its own scan port; only this page proves it
+  // holds through ordpool's UtxoContentScanner wiring. The reader never retries
+  // here: the pin was taken on a failed scan, ord now finds an inscription, and
+  // the click itself must refuse.
+  describe('a pinned coin whose failed scan is never retried, clicked while ord now finds an inscription', () => {
+    beforeEach(async () => {
+      await boot([small, large]);
+      net.scans.set(outpointOf(small), 'ord-unavailable');
+      TestBed.inject(UtxoContentScanner).reset();
+      component.retryFundingScan();
+      await settle(() => fixture.detectChanges(), () =>
+        all('.shape-border').some((r) => textOf(r).includes(`UTXO ${outpointOf(small)}`) && textOf(r).includes('Retry scan')));
+      await pick(small);
+      expect(pickedRows()).toEqual([outpointOf(small)]);
+      net.scans.set(outpointOf(small), inscribedOutputFixture());
+    });
+
+    it('the click signs and broadcasts nothing, says why, and the panel names the drop', async () => {
+      expect(component.droppedSelection()).toBeNull();
+      mintButton().click();
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null);
+
+      expect(leather.requests).toEqual([]);
+      expect(net.broadcasts).toEqual([]);
+      expect(textOf(q('[data-testid="cat21-mint-funding-reconfirm"]'))).toContain(
+        `The selected funding UTXO ${outpointOf(small)} now carries assets that were not shown when it was selected.`,
+      );
+      expect(resolvedOutpoint()).not.toBe(outpointOf(small));
+    });
+  });
+
   describe('below-requirement: a raised fee rate leaves the picked coin short', () => {
     beforeEach(async () => {
       await boot([small, large]);

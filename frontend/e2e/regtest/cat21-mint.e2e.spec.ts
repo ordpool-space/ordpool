@@ -1,7 +1,7 @@
 /**
  * @test-kind e2e
  * Real:   the frontend built with `ng build` (environment.ts patched to localhost URLs, Network.Regtest) and served statically, bitcoind + ordpool-electrs (SDK consumer-environment), cat21-ord, ord-stock, Xverse 2.3.2 (.crx, vault seeded by the SDK global-setup)
- * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); the asset-scanner test's page route /output/* -> a hand-written body with cats:[0] for the one seeded outpoint, cats:[] for the rest; the broadcast-failure test's page route POST /api/tx -> a hand-written 400
+ * Faked:  ordpool-backend and the cat21-indexer backend: the SDK's e2e/regtest/fees-electrs-stub.mjs stands in for both (hand-set fees with /admin/fees presets, a one-frame /api/v1/ws snapshot, empty /api/status and /api/cats, /api/* proxied to electrs); ord /output/* (context route) -> cleanOutputFixture (ordpool-sdk) for every outpoint; Xverse's vendor backend -> installXverseOfflineRoutes (ordpool-sdk, captured); the asset-scanner test's page routes: /output/* -> catOutputFixture (ordpool-sdk, captured) for the one seeded outpoint and cleanOutputFixture for the rest, cat21-ord /inscription/<that cat's id> -> its catInscription (the captured cat21-ord record under that id); the broadcast-failure test's page route POST /api/tx -> a hand-written 400
  * Proves: the /cat21-mint page mints a CAT-21 through Xverse (locktime 21, every input sequence >= 0xfffffffe, output 0 at 546 sat, parses as a cat); fee tiles set the rate and rates below 0.1 keep Mint disabled; a cat-flagged coin shows the asset badge and "Use anyway" spends it; a cancelled sign and a rejected broadcast show an error and no success; a typed rate (100, and 1 against a hot fee preset) is the on-chain rate
  */
 /* eslint-disable no-console */
@@ -11,7 +11,6 @@ import * as fs from 'node:fs';
 
 import { Cat21ParserService, DigitalArtifactType } from 'ordpool-parser';
 import { catOutputFixture, cleanOutputFixture } from 'ordpool-sdk';
-import { cat21OrdCatInscriptionFixture } from 'ordpool-sdk/testing';
 
 // Shared regtest helpers + the Xverse approval-popup machinery, single-
 // sourced from the SDK's compiled `ordpool-sdk/e2e` barrel.
@@ -557,8 +556,8 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   if (!catId) { throw new Error('catOutputFixture carries no cat'); }
   // The scan asks cat21-ord for each cat's number (GET /inscription/<id>). The
   // mocked cat exists on no chain, so that cat is answered with the SDK's
-  // captured cat21OrdCatInscriptionFixture under its id; the number shown is the
-  // capture's.
+  // catFx.catInscription, the captured cat21-ord record under this cat's id and
+  // the fixture's cat number, which the assertions below read back.
   await page.route(`${CAT21_ORD_URL}/inscription/*`, async (route) => {
     const requestedId = route.request().url().split('/inscription/')[1]?.split(/[?#]/)[0];
     if (requestedId !== catId) { await route.continue(); return; }
@@ -566,7 +565,7 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
       status: 200,
       contentType: 'application/json',
       headers: { 'access-control-allow-origin': '*' },
-      body: JSON.stringify({ ...cat21OrdCatInscriptionFixture, id: catId }),
+      body: JSON.stringify(catFx.catInscription),
     });
   });
   await page.route('**/output/*', async (route) => {
@@ -580,13 +579,10 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
     // The cat target answers each host with its own half of the SDK's captured
     // catOutputFixture: the stock ord no inscriptions or runes, cat21-ord the
     // cat as an inscription id, the shape cat21-ord returns (never a number).
-    const body = isCatTarget
-      ? (url.startsWith(CAT21_ORD_URL) ? catFx.cat21Ord : catFx.ord)
-      : {
-          inscriptions: [],
-          runes: {},
-          cats: [],
-        };
+    // Every other outpoint answers the SDK's captured cleanOutputFixture, as
+    // the context route does.
+    const fx = isCatTarget ? catFx : cleanOutputFixture();
+    const body = url.startsWith(CAT21_ORD_URL) ? fx.cat21Ord : fx.ord;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -644,8 +640,8 @@ test('asset scanner: cat-bearing funding UTXO surfaces the "asset found" warning
   await expect(detail).toBeVisible();
   // The cat is named by the number cat21-ord answered, linked to its page.
   const catLink = detail.getByTestId('utxo-cat-link');
-  await expect(catLink).toHaveText(`Cat #${cat21OrdCatInscriptionFixture.number}`);
-  await expect(catLink).toHaveAttribute('href', `https://cat21.space/cat/${cat21OrdCatInscriptionFixture.number}`);
+  await expect(catLink).toHaveText(`Cat #${catFx.catInscription.number}`);
+  await expect(catLink).toHaveAttribute('href', `https://cat21.space/cat/${catFx.catInscription.number}`);
 
   // ─── 7. "Use anyway" → full mint round-trip — the cat is burned
   // The override button is the only way to proceed past the warning.

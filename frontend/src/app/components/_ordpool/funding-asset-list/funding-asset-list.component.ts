@@ -45,9 +45,11 @@ export function numberedCats(content: { catIds: readonly string[]; cats?: readon
  * - a rune is its name, linked to the transaction that etched it once the
  *   etching is resolved, and plain text while it is not, or for a reserved rune
  *   whose etching is all zeros (the resolver never answers those with a txid);
- * - a cat is its cat number ("Cat #1234"), linked to its cat21.space page; when
- *   the number lookup failed, its inscription id linked to the transaction
- *   that created it, which ordpool's transaction page renders as the cat;
+ * - a cat is its cat number ("Cat #1234"), linked to its cat21.space page. When
+ *   any number is unknown, the cats are their count plus a link to the
+ *   cat21.space page of the sat they sit on (`catSat`), which lists every cat on
+ *   that sat: the same fallback as the picker row, so the notice and the row
+ *   show the same link (FAMILY_UX, "A cat is its CAT NUMBER");
  * - a rare sat is its sat number, linked to cat21.space's sat page, because
  *   rarity and block do not identify one: two sats in a block share both.
  *
@@ -69,7 +71,8 @@ export function numberedCats(content: { catIds: readonly string[]; cats?: readon
       </li>
       <li *ngIf="assets().catIds.length" data-testid="funding-asset-cats">
         CAT-21 cat{{ assets().catIds.length === 1 ? '' : 's' }}:
-        <ng-container *ngFor="let cat of cats(); let last = last"><a *ngIf="cat.number !== null; else catById" [href]="catUrl(cat.number)" target="_blank" rel="noopener">Cat #{{ cat.number }}</a><ng-template #catById><a [routerLink]="['/tx/' | relativeUrl, txidOf(cat.id)]" target="_blank" rel="noopener">{{ cat.id }}</a></ng-template><ng-container *ngIf="!last">, </ng-container></ng-container>
+        <ng-container *ngIf="numbered() as cats; else catCount"><ng-container *ngFor="let cat of cats; let last = last"><a [href]="catUrl(cat.number)" target="_blank" rel="noopener">Cat #{{ cat.number }}</a><ng-container *ngIf="!last">, </ng-container></ng-container></ng-container>
+        <ng-template #catCount>{{ assets().catIds.length }}<ng-container *ngIf="catSatUrl() as url"> · <a [href]="url" target="_blank" rel="noopener" data-testid="funding-asset-cat-sat-link">view on cat21.space</a></ng-container></ng-template>
       </li>
       <li *ngIf="assets().rareSat as rareSat" data-testid="funding-asset-rare-sat">
         Rare sat: {{ rareSat.rarity }} · <a [href]="satUrl(rareSat.sat)" target="_blank" rel="noopener">sat {{ rareSat.sat }}</a> · block {{ rareSat.block }}
@@ -85,8 +88,18 @@ export class FundingAssetListComponent {
   readonly satUrl = cat21SatUrl;
   readonly catUrl = cat21CatUrl;
 
-  /** Every cat on the coin, with its number when known; a null number renders the id link. */
-  readonly cats = computed(() => catsOnCoin(this.assets()));
+  /** The cats by number when every number is known, else null (the count and the sat link render). */
+  readonly numbered = computed(() => numberedCats(this.assets()));
+
+  /**
+   * The sat page of the cats' sat, or null when the scan reported no sat (null)
+   * or does not report one (absent): the count then stands without a link.
+   * Compared with null explicitly, so a sat number of 0 still links.
+   */
+  readonly catSatUrl = computed(() => {
+    const sat = this.assets().catSat;
+    return sat === null || sat === undefined ? null : cat21SatUrl(sat);
+  });
 
   /** The transaction an inscription id points at: `<64-hex-txid>i<index>` without the index. */
   txidOf(inscriptionId: string): string {

@@ -1708,14 +1708,17 @@ export class InscribeMintComponent implements OnInit {
     this.orchestrator.setSelectedUtxo(row.paymentOutput);
   }
 
-  /** Template handler: per-row "Scan" / "Retry scan" button. A retried row
-   *  re-decides the funding once its scan answers, because the funding verdict
-   *  was taken while that coin's content was unknown and only a recompute
-   *  reads the new answer. */
+  /** Template handler: per-row "Scan" / "Retry scan" button. The row's own
+   *  scan runs first, because `rescanFunding()` scans only the coins that cover
+   *  the inscription, and a row that does not cover would keep its old badge.
+   *  A retried row then re-decides the funding once its scan answers: the
+   *  verdict was taken while that coin's content was unknown, and
+   *  `rescanFunding()` brings the recommendation and a pin's
+   *  `contents-changed` up to the new scan. */
   scanRow(row: ViableInscribeSimulation): void {
     const retried = row.bucket === 'failed';
     this.scanner.scan(`${row.paymentOutput.txid}:${row.paymentOutput.vout}`).subscribe({
-      complete: () => { if (retried) { void this.orchestrator.refreshUtxos(); } },
+      complete: () => { if (retried) { void this.orchestrator.rescanFunding(); } },
     });
   }
 

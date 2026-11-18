@@ -22,10 +22,10 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import * as btc from '@scure/btc-signer';
 import { hex } from '@scure/base';
 import {
-  Cat21ApiService, Cat21Service, KnownOrdinalWalletType, LAST_CONNECTED_WALLET, Network, OutputFixture,
-  TxnOutput, UtxoContentScanner, WalletInfo, WalletService,
+  Cat21ApiService, Cat21Service, catInscriptionFixture, KnownOrdinalWalletType, LAST_CONNECTED_WALLET, Network,
+  OutputFixture, TxnOutput, UtxoContentScanner, WalletInfo, WalletService,
 } from 'ordpool-sdk';
-import { cat21OrdCatInscriptionFixture, electrsConfirmedUtxoFixture } from 'ordpool-sdk/testing';
+import { electrsConfirmedUtxoFixture } from 'ordpool-sdk/testing';
 
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
@@ -147,8 +147,8 @@ export class FakeNetwork {
   readonly scans = new Map<string, CoinScan>();
   /**
    * Cat number per cat inscription id, answered on cat21-ord's
-   * `GET /inscription/<id>` in the shape of the SDK's captured
-   * `cat21OrdCatInscriptionFixture` with this cat's id and number. An id not
+   * `GET /inscription/<id>` with the SDK's `catInscriptionFixture(id, number)`:
+   * the captured cat21-ord record with this cat's id and number. An id not
    * listed answers 404, which the scanner reads as an unknown number.
    */
   readonly catNumbers = new Map<string, number>();
@@ -185,7 +185,7 @@ export class FakeNetwork {
     if (catMatch) {
       const number = this.catNumbers.get(catMatch[1]);
       if (number === undefined) { return fail(404, `no cat number for ${catMatch[1]}`); }
-      return json({ ...cat21OrdCatInscriptionFixture, id: catMatch[1], number });
+      return json(catInscriptionFixture(catMatch[1], number));
     }
     const outputMatch = url.match(/^http:\/\/(ord|cat21-ord)\.test\/output\/(.+)$/);
     if (outputMatch) {
