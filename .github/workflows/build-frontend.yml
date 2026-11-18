@@ -58,6 +58,16 @@ jobs:
         grep -oE '<title>[^<]+</title>' dist/mempool/browser/index.html
         grep -q 'ordpool.space' dist/mempool/browser/index.html
 
+    # The mempool Accelerator is mempool.space's paid service: its button and
+    # checkout POST to mempool.space/api/v1/services. ordpool never calls
+    # mempool.space from shipped code, so the deployed config must switch the
+    # button off (ACCELERATOR_BUTTON defaults to true in state.service.ts).
+    - name: Sanity-check the accelerator button is off
+      working-directory: frontend
+      run: |
+        grep -n 'ACCELERATOR_BUTTON' dist/mempool/browser/resources/config.js
+        grep -q "window.__env.ACCELERATOR_BUTTON = false;" dist/mempool/browser/resources/config.js
+
     - name: Sanity-check the deploy artifact
       working-directory: frontend
       run: |

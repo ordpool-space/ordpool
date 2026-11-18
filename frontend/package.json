@@ -49,7 +49,7 @@
     "dev:ssr": "npm run generate-config && ng run mempool:serve-ssr",
     "serve:ssr": "npm run generate-config && node server.run.js",
     "build:ssr": "npm run build && ng run mempool:server:production && ./node_modules/typescript/bin/tsc server.run.ts",
-    "config:defaults:ordpool": "node update-config.js MEMPOOL_WEBSITE_URL='https://ordpool.space' ITEMS_PER_PAGE=25 BASE_MODULE=ordpool && npm run generate-config",
+    "config:defaults:ordpool": "node update-config.js MEMPOOL_WEBSITE_URL='https://ordpool.space' ITEMS_PER_PAGE=25 BASE_MODULE=ordpool ACCELERATOR_BUTTON=false && npm run generate-config",
     "config:defaults:mempool": "node update-config.js TESTNET_ENABLED=true TESTNET4_ENABLED=true SIGNET_ENABLED=true LIQUID_ENABLED=true LIQUID_TESTNET_ENABLED=true ITEMS_PER_PAGE=25 BASE_MODULE=mempool BLOCK_WEIGHT_UNITS=4000000 && npm run generate-config",
     "config:defaults:liquid": "node update-config.js TESTNET_ENABLED=true TESTNET4_ENABLED=true SIGNET_ENABLED=true LIQUID_ENABLED=true LIQUID_TESTNET_ENABLED=true ITEMS_PER_PAGE=25 BASE_MODULE=liquid BLOCK_WEIGHT_UNITS=300000 && npm run generate-config",
     "prerender": "npm run ng -- run mempool:prerender",
