@@ -136,7 +136,14 @@
     "start-server-and-test": "~2.1.2"
   },
   "overrides": {
-    "tar": "^7.5.5"
+    "tar": "^7.5.5",
+    "@sats-connect/core": {
+      "axios": "1.20.0",
+      "valibot": "1.4.2"
+    },
+    "sats-connect": {
+      "valibot": "1.4.2"
+    }
   },
   "scarfSettings": {
     "enabled": false
