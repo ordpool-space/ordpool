@@ -442,6 +442,10 @@
           </ng-container>
         </div>
 
+        <div class="alert alert-warning" role="alert" *ngIf="fundingReconfirm() as msg" data-testid="cat21-mint-funding-reconfirm">
+          ⚠️&nbsp; {{ msg }} The funding panel above now shows the coin the next click spends.
+        </div>
+
         <div class="alert alert-danger" role="alert" *ngIf="mintCat21Error() as err">
           ❌&nbsp; {{ err }}
         </div>

@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, filter, firstValueFrom, interval, map, of, shareReplay, take, tap } from 'rxjs';
 
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, CandidateFeeState, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, ExpertRequiredCause, KnownOrdinalWallets, MintSnapshot, UtxoSimulationView, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, classifyCandidateFee, expertRequiredCause, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, CandidateFeeRow, CandidateFeeState, Cat21ApiService, Cat21MintOrchestrator, Cat21Service, ExpertRequiredCause, KnownOrdinalWallets, MintSnapshot, UtxoSimulationView, SMALL_UTXO_WARNING_THRESHOLD_SAT, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, UtxoSimulationRow, WalletInfo, WalletService, addressVerificationChunks, bucketOf, calculateRecommendedFundingSats, classifyCandidateFee, expertRequiredCause, isFundingSelectionChangedError, outpointKey, runeNamesFromContent, singleAddressCaveat, usesSingleAddress } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config, fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -278,20 +278,23 @@ export class Cat21MintComponent implements OnInit {
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
   /**
-   * The assets the funding coin the mint WILL spend carries, or undefined when
-   * it is clean. The SDK annotates its resolved pick at runtime (content bucket
-   * + assets), but the snapshot types `resolvedFundingUtxo` as the bare funding
-   * coin, so the assets are read back type-safely from the recommendation's
-   * candidates: the pick is always one of them (`describeFundingPick` selects
-   * from `candidates`), matched by outpoint.
+   * The assets on the funding coin the mint WILL spend, or undefined when it is
+   * clean. Read off the SDK's `resolvedFundingUtxo`, which carries its scan
+   * bucket and named assets, so an explicit pick shows its own assets and never
+   * the recommended coin's.
    */
-  private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(() => {
-    const pick = this.snap().resolvedFundingUtxo;
-    if (!pick) { return undefined; }
-    const key = outpointKey(pick);
-    const annotated = this.snap().fundingRecommendation.candidates.find((c) => outpointKey(c) === key);
-    return annotated?.assets;
-  });
+  private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(
+    () => this.snap().resolvedFundingUtxo?.assets ?? undefined,
+  );
+
+  /**
+   * Why the last click was refused: the picked funding coin is gone or no
+   * longer covers, so the SDK stopped before signing instead of spending a coin
+   * the reader never confirmed. In its own signal because the snapshot's error
+   * is cleared by the UTXO re-read the refusal starts, while the reader still
+   * needs to see why the panel changed.
+   */
+  readonly fundingReconfirm = signal<string | null>(null);
 
   /**
    * The SINGLE value the CTA button state AND the funding notice both derive
@@ -580,6 +583,8 @@ export class Cat21MintComponent implements OnInit {
   /** Template handler: form submit / mint button. */
   mintCat21(_wallet: WalletInfo): void {
     this.mintAttempted = true;
+    // A new click confirms the coin the panel shows now.
+    this.fundingReconfirm.set(null);
     // Watch-only (xpub) wallets sign via the export/paste bridge; injected
     // wallets ignore the callback, so it is passed unconditionally. The
     // orchestrator's `mint` expects a Promise-returning prompt, so bridge the
@@ -590,7 +595,24 @@ export class Cat21MintComponent implements OnInit {
       firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'cat21-mint-unsigned.psbt'));
     this.orchestrator.mint(prompt)
       .then(() => this.cd.markForCheck())
-      .catch(() => this.cd.markForCheck());
+      .catch((err: unknown) => this.onMintFailed(err));
+  }
+
+  /**
+   * A refused or failed mint. The snapshot already carries the person-facing
+   * message. A `FundingSelectionChangedError` (the picked coin is gone or no
+   * longer covers, nothing was signed) also releases the stale pin, because the
+   * SDK re-checks it on every attempt and would refuse every one, and re-reads
+   * the coins, so the panel names the coin that would be spent now, with
+   * whatever it carries, and the next click confirms THAT coin.
+   */
+  private onMintFailed(err: unknown): void {
+    if (isFundingSelectionChangedError(err)) {
+      this.fundingReconfirm.set(err.message);
+      this.orchestrator.setSelectedUtxo(null);
+      void this.orchestrator.refreshUtxos();
+    }
+    this.cd.markForCheck();
   }
 
   /** Pass-through to the SDK helper so the template can read rune names off a UtxoContent. */

@@ -133,7 +133,7 @@ export function electrsUtxo(byte: string, value: number): TxnOutput {
   return electrsConfirmedUtxoFixture({ txid: byte.repeat(64), vout: 0, value });
 }
 
-export const outpointOf = (u: TxnOutput): string => `${u.txid}:${u.vout}`;
+export const outpointOf = (u: { txid: string; vout: number }): string => `${u.txid}:${u.vout}`;
 
 /** What the fake network answers for one coin's two `/output` reads. */
 export type CoinScan = OutputFixture | 'ord-unavailable';

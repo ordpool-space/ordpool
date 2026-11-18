@@ -859,6 +859,37 @@
           </div>
         </div>
 
+        <div class="alert alert-warning" role="alert" *ngIf="revealPending() as pending" data-testid="inscribe-reveal-pending">
+          <strong>Your commit transaction may already be in the mempool, but its reveal is not.</strong>
+          The reveal below is already signed. Keep this page open and send it again here.
+          Starting a new inscription instead would pay for a second commit and leave this one unspendable.
+          <div class="mt-2">
+            Commit tx:
+            <a class="alert-link text-decoration-underline" data-testid="inscribe-reveal-pending-commit"
+              [routerLink]="['/tx/' | relativeUrl, pending.commitTxId]">{{ pending.commitTxId }}</a>
+          </div>
+          <div>Reveal tx: <code data-testid="inscribe-reveal-pending-reveal">{{ pending.revealTxId }}</code></div>
+          <button type="button" class="btn btn-warning mt-2" data-testid="inscribe-reveal-resend"
+            [disabled]="revealResendState() === 'sending' || revealResendState() === 'sent'"
+            (click)="resendReveal()">
+            <ng-container *ngIf="revealResendState() !== 'sending'">Send the reveal again</ng-container>
+            <ng-container *ngIf="revealResendState() === 'sending'"><i class="spinner-border spinner-border-sm"></i> Sending the reveal</ng-container>
+          </button>
+          <div class="mt-2" *ngIf="revealResendState() === 'sent'" data-testid="inscribe-reveal-resend-sent">
+            ✅&nbsp; The reveal is in the mempool. Inscription:
+            <a class="alert-link text-decoration-underline"
+              [routerLink]="['/tx/' | relativeUrl, pending.revealTxId]">{{ inscriptionId(pending.revealTxId) }}</a>
+            (visible once the reveal confirms and is indexed)
+          </div>
+          <div class="mt-2" *ngIf="revealResendState() === 'failed'" data-testid="inscribe-reveal-resend-failed">
+            ❌&nbsp; The node refused the reveal: {{ revealResendError() }}. The commit is still paid for, so you can send it again.
+          </div>
+        </div>
+
+        <div class="alert alert-warning" role="alert" *ngIf="fundingReconfirm() as msg" data-testid="inscribe-funding-reconfirm">
+          ⚠️&nbsp; {{ msg }} The funding panel above now shows the coin the next click spends.
+        </div>
+
         <div class="alert alert-danger" role="alert" *ngIf="mintGateError" data-testid="inscribe-gate-error">❌&nbsp; {{ mintGateError }}</div>
         <div class="alert alert-danger" role="alert" *ngIf="mintError() as err" data-testid="inscribe-error-message">❌&nbsp; {{ err }}</div>
         <div class="alert alert-danger" role="alert" *ngIf="utxoError() as err">❌&nbsp; {{ err }}</div>

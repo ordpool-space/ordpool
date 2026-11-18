@@ -2,7 +2,7 @@
  * @test-kind unit
  * Real:   InscribeMintComponent with its production template; ordpool-sdk loaded for real and wired the way app.module.ts wires it (InscribeMintOrchestrator, describeFundingPick, UtxoContentScanner, Cat21Service, Cat21ApiService, WalletService)
  * Faked:  fetch: electrs /api/address/:a/utxo (electrsConfirmedUtxoFixture, ordpool-sdk/testing, captured), ord and cat21-ord /output (the SDK's cleanOutputFixture); WalletService storage (a persisted LAST_CONNECTED_WALLET); Leather's window.LeatherProvider signPsbt (the { result: { hex } } shape the SDK's Leather signer reads, signing with the harness key); StateService.recommendedFees$ (the websocket feed) -> recommendedFeesFixture (ordpool-sdk); mempool's SeoService and relativeUrl pipe (upstream, not read by the funding panel)
- * Proves: "you picked this coin" shows only while the SDK still spends the pick; a pick the SDK drops (gone, or below the requirement at a raised fee rate) is named in a notice beside the coin the inscription spends instead, and Inscribe has the wallet sign a commit funded by that coin
+ * Proves: "you picked this coin" shows only while the SDK still spends the pick; a pick the SDK drops (gone, or below the requirement at a raised fee rate) is named in a notice beside the coin the inscription spends instead; the first Inscribe click on a dropped pick is refused with nothing signed and the refusal shown, the pick is released, and the next click has the wallet sign a commit funded by the coin the panel names
  */
 import { CommonModule } from '@angular/common';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
@@ -95,6 +95,11 @@ describe('InscribeMintComponent dropped selection (real ordpool-sdk)', () => {
   }
 
   const q = (sel: string): HTMLElement | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
+  /** The outpoint of the coin the SDK will spend, or null when there is none. */
+  const resolvedOutpoint = (): string | null => {
+    const c = component.resolvedFundingCoin();
+    return c ? outpointOf(c) : null;
+  };
   const all = (sel: string): HTMLElement[] => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(sel));
   const inscribeButton = (): HTMLButtonElement => {
     const b = q('[data-testid="inscribe-btn"]');
@@ -114,8 +119,7 @@ describe('InscribeMintComponent dropped selection (real ordpool-sdk)', () => {
     const use = Array.from(row(coin).querySelectorAll('button')).find((b) => textOf(b) === 'Use this UTXO');
     if (!use) { throw new Error(`no Use button on ${outpointOf(coin)}`); }
     use.click();
-    await settle(() => fixture.detectChanges(), () => component.resolvedFundingCoin() !== null
-      && outpointOf(component.resolvedFundingCoin() as TxnOutput) === outpointOf(coin));
+    await settle(() => fixture.detectChanges(), () => resolvedOutpoint() === outpointOf(coin));
   }
 
   /** Type `rate` into the fee input, as a person does. */
@@ -191,6 +195,23 @@ describe('InscribeMintComponent dropped selection (real ordpool-sdk)', () => {
       expect(q('[data-testid="funding-dropped-selection"]')).toBeNull();
       expect(pickedRows()).toEqual([outpointOf(large)]);
     });
+
+    // The harness serves no package endpoint, so a signing flow ends at the
+    // transport's first request; the pin is the coin the wallet signs away.
+    it('Inscribe refuses the first click unsigned, releases the pick, and the next click signs the coin the panel names', async () => {
+      inscribeButton().click();
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null && component.droppedSelection() === null);
+
+      expect(leather.requests).toEqual([]);
+      expect(textOf(q('[data-testid="inscribe-funding-reconfirm"]'))).toContain(`The selected funding UTXO ${outpointOf(small)} is no longer available.`);
+      expect(q('[data-testid="funding-dropped-selection"]')).toBeNull();
+      expect(resolvedOutpoint()).toBe(outpointOf(large));
+
+      inscribeButton().click();
+      await settle(() => fixture.detectChanges(), () => net.requested.includes('http://electrs.test/api/txs/test'));
+      expect(leather.requests.map((r) => inputOutpoint(r.psbt, r.signAtIndex))).toEqual([outpointOf(large)]);
+      expect(q('[data-testid="inscribe-funding-reconfirm"]')).toBeNull();
+    });
   });
 
   describe('below-requirement: a raised fee rate leaves the picked coin short', () => {
@@ -228,13 +249,23 @@ describe('InscribeMintComponent dropped selection (real ordpool-sdk)', () => {
       expect(pickedRows()).toEqual([outpointOf(small)]);
     });
 
-    // The harness serves no package endpoint, so the flow ends at the
-    // transport's first request; the pin is the coin the wallet signs away.
-    it('Inscribe has the wallet sign a commit funded by the coin the notice names, not the dropped pick', async () => {
+    // The SDK refuses a click while the dropped pick is still pinned
+    // (FundingSelectionChangedError), so nothing is signed for a coin the reader
+    // never confirmed. The page releases the pin; the wallet then signs a commit
+    // funded by the coin the notice names, and never by the dropped pick.
+    it('Inscribe refuses the first click unsigned, releases the pick, and the next click signs the coin the notice names', async () => {
       expect(inscribeButton().disabled).toBe(false);
       inscribeButton().click();
-      await settle(() => fixture.detectChanges(), () => net.requested.includes('http://electrs.test/api/txs/test'));
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null && component.droppedSelection() === null);
 
+      expect(leather.requests).toEqual([]);
+      expect(textOf(q('[data-testid="inscribe-funding-reconfirm"]'))).toContain(
+        `The selected funding UTXO ${outpointOf(small)} no longer covers this action at the current fee rate.`,
+      );
+      expect(resolvedOutpoint()).toBe(outpointOf(large));
+
+      inscribeButton().click();
+      await settle(() => fixture.detectChanges(), () => net.requested.includes('http://electrs.test/api/txs/test'));
       expect(leather.requests.map((r) => inputOutpoint(r.psbt, r.signAtIndex))).toEqual([outpointOf(large)]);
     });
   });

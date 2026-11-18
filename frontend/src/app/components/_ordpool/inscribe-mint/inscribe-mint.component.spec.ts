@@ -54,7 +54,7 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import {
-  Cat21Service, UtxoContentScanner, WalletService, assessCompression, encodeCborDeterministic, simulateInscribeFees, singleAddressCaveat, validateInscribeOperation,
+  Cat21Service, InscribeRevealPendingError, UtxoContentScanner, WalletService, assessCompression, encodeCborDeterministic, simulateInscribeFees, singleAddressCaveat, validateInscribeOperation,
   type CompressionAssessment, type InscribeBroadcastTransport, type InscribeMintOrchestrator, type InscribeSnapshot, type SimulateInscribeFeesResult, type TxnOutput, type UtxoClassification, type WalletInfo,
 } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
@@ -692,6 +692,34 @@ describe('InscribeMintComponent', () => {
       expect(component.hasFundingSource()).toBe(true);
       expect(component.fundingCta().kind).toBe('notice');
       expect(component.assetNotice()?.inscriptionIds).toEqual([INSCRIPTION_ON_COIN]);
+    });
+
+    // Seam for the SDK's resolved-coin assets (audit B1): after an explicit
+    // pick, the coin that will be spent differs from the recommendation. The
+    // notice must name what is on the SPENT coin; naming the recommended coin's
+    // inscription would inform the reader about a coin that is not spent.
+    it('after an explicit pick the notice names the inscription on the coin that will be spent, not the recommended coin', async () => {
+      const onRecommended = 'a'.repeat(64) + 'i0';
+      const onPicked = 'b'.repeat(64) + 'i0';
+      const small = coin('a', 60_000);
+      const large = coin('b', 100_000);
+      verdicts.set(outpoint(small), { verdict: 'has-assets', assets: { inscriptionIds: [onRecommended], runeNames: [], catIds: [], rareSat: null } });
+      verdicts.set(outpoint(large), { verdict: 'has-assets', assets: { inscriptionIds: [onPicked], runeNames: [], catIds: [], rareSat: null } });
+      await fund(wallet(), [small, large]);
+
+      const recommended = orchestrator.getSnapshot().fundingRecommendation.recommended;
+      expect(recommended ? outpoint(recommended) : null).toBe(outpoint(small));
+      expect(component.assetNotice()?.inscriptionIds).toEqual([onRecommended]);
+
+      const sim = orchestrator.getSnapshot().simulations.find((r) => outpoint(r.utxo) === outpoint(large));
+      expect(sim?.simulation).toBeTruthy();
+      component.selectPaymentOutput({ paymentOutput: large, simulation: sim?.simulation ?? null, available: true, scan: { kind: 'scanned-with-assets', content: {} } as never, bucket: 'assets' });
+      await settle();
+
+      const spent = orchestrator.getSnapshot().resolvedFundingUtxo;
+      expect(spent ? outpoint(spent) : null).toBe(outpoint(large));
+      expect(component.fundingCta().kind).toBe('notice');
+      expect(component.assetNotice()?.inscriptionIds).toEqual([onPicked]);
     });
   });
 
@@ -1338,6 +1366,104 @@ describe('InscribeMintComponent', () => {
       expect(component.galleryRows.length).toBe(0);
       expect(component.postageControl.value).toBe(546);
       expect(component.selectedRareSat).toBeNull();
+    });
+  });
+
+  // The commit can be out and paid for while its reveal is not. The SDK then
+  // throws InscribeRevealPendingError carrying the fully signed reveal; only
+  // that reveal can spend the commit output, so the page keeps it and offers a
+  // resend through the same transport the orchestrator broadcasts through.
+  describe('a reveal left behind (InscribeRevealPendingError)', () => {
+    const REVEAL_HEX = '02000000' + 'ab'.repeat(60);
+    let pending: InscribeRevealPendingError;
+    let sendSpy: jest.SpyInstance;
+
+    const el = (id: string): HTMLElement | null =>
+      (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`);
+    const resendButton = (): HTMLButtonElement => {
+      const b = el('inscribe-reveal-resend');
+      if (!(b instanceof HTMLButtonElement)) { throw new Error('resend button not rendered'); }
+      return b;
+    };
+    const flush = async (): Promise<void> => {
+      await new Promise((r) => setTimeout(r, 0));
+      fixture.detectChanges();
+    };
+
+    beforeEach(async () => {
+      pending = new InscribeRevealPendingError({
+        commitTxId: 'c'.repeat(64),
+        revealTxId: 'e'.repeat(64),
+        commitAddress: ORDINALS_ADDRESS,
+        revealHex: REVEAL_HEX,
+        ephemeral: { privKey: new Uint8Array(32).fill(9), pubkeyXonly: new Uint8Array(32).fill(8) },
+        reason: 'reveal not accepted after 3 attempts',
+      });
+      const transport = (component as unknown as { transport: InscribeBroadcastTransport }).transport;
+      sendSpy = jest.spyOn(transport, 'sendTransaction').mockResolvedValue('e'.repeat(64));
+      mintSpy.mockRejectedValueOnce(pending);
+      // The outcome alerts render inside the connected-wallet branch.
+      walletSubject.next(wallet());
+      await (component as any).handleFile(pngFile());
+      component.inscribe(wallet());
+      await flush();
+    });
+
+    it('keeps the signed reveal and shows the commit it belongs to, with a resend button', () => {
+      expect(component.revealPending()).toBe(pending);
+      expect(el('inscribe-reveal-pending')).not.toBeNull();
+      expect(el('inscribe-reveal-pending-commit')?.textContent?.trim()).toBe('c'.repeat(64));
+      expect(el('inscribe-reveal-pending-reveal')?.textContent?.trim()).toBe('e'.repeat(64));
+      expect(resendButton().disabled).toBe(false);
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('resend sends that exact signed reveal through our transport, once, and reports it in the mempool', async () => {
+      resendButton().click();
+      await flush();
+
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(REVEAL_HEX);
+      expect(component.revealResendState()).toBe('sent');
+      expect(el('inscribe-reveal-resend-sent')).not.toBeNull();
+      expect(resendButton().disabled).toBe(true);
+
+      await component.resendReveal();
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('a node that already holds the reveal (txn-already-in-mempool) counts as sent', async () => {
+      sendSpy.mockRejectedValueOnce(new Error('sendrawtransaction RPC error: {"code":-27,"message":"txn-already-in-mempool"}'));
+      resendButton().click();
+      await flush();
+
+      expect(component.revealResendState()).toBe('sent');
+      expect(el('inscribe-reveal-resend-failed')).toBeNull();
+    });
+
+    it('a refused resend says why, keeps the reveal and allows another try', async () => {
+      sendSpy.mockRejectedValueOnce(new Error('bad-txns-inputs-missingorspent'));
+      resendButton().click();
+      await flush();
+
+      expect(component.revealResendState()).toBe('failed');
+      expect(el('inscribe-reveal-resend-failed')?.textContent).toContain('bad-txns-inputs-missingorspent');
+      expect(component.revealPending()).toBe(pending);
+      expect(resendButton().disabled).toBe(false);
+
+      resendButton().click();
+      await flush();
+      expect(sendSpy).toHaveBeenCalledTimes(2);
+      expect(component.revealResendState()).toBe('sent');
+    });
+
+    it('a later failed inscribe attempt does not discard the kept reveal', async () => {
+      mintSpy.mockRejectedValueOnce(new Error('wallet closed the popup'));
+      component.inscribe(wallet());
+      await flush();
+
+      expect(component.revealPending()).toBe(pending);
+      expect(el('inscribe-reveal-pending')).not.toBeNull();
     });
   });
 });

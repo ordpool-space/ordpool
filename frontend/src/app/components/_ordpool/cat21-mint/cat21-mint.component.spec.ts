@@ -512,7 +512,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
     type Rec = MintSnapshot['fundingRecommendation'];
     const rec = (status: Rec['status'], over: Partial<Rec> = {}) =>
       emit({ fundingRecommendation: { status, recommended: null, candidates: [], ...over } as Rec });
-    const resolved = (status: MintSnapshot['resolvedFundingStatus'], u: TxnOutput | null = null) =>
+    const resolved = (status: MintSnapshot['resolvedFundingStatus'], u: MintSnapshot['resolvedFundingUtxo'] = null) =>
       emit({ resolvedFundingStatus: status, resolvedFundingUtxo: u });
 
     beforeEach(async () => { await connect(); });
@@ -561,11 +561,30 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const annotated = annotatedCoin(dirty, 'assets', { inscriptionIds: ['abci0'], runeNames: [], catIds: [], rareSat: null });
       emit({
         fundingRecommendation: { status: 'expert-required', recommended: null, candidates: [annotated] },
-        resolvedFundingStatus: 'asset-notice', resolvedFundingUtxo: dirty,
+        // The SDK hands the spent coin over annotated: bucket plus named assets.
+        resolvedFundingStatus: 'asset-notice', resolvedFundingUtxo: annotated,
       });
       expect(component.hasFundingSource()).toBe(true);
       expect(component.fundingCta().kind).toBe('notice');
       expect(component.assetNotice()?.inscriptionIds).toEqual(['abci0']);
+    });
+
+    // Seam for the SDK's resolved-coin assets (audit B1): after an explicit
+    // pick, the coin that will be spent differs from the recommendation. The
+    // notice must name what is on the SPENT coin; naming the recommended
+    // coin's assets would inform the reader about a coin that is not spent.
+    it('after an explicit pick the notice names the assets of the coin that will be spent, not the recommended coin', () => {
+      const recommended = annotatedCoin(utxo({ txid: 'a'.repeat(64), value: 30_000 }), 'assets',
+        { inscriptionIds: ['recommendedi0'], runeNames: [], catIds: [], rareSat: null });
+      const picked = annotatedCoin(utxo({ txid: 'b'.repeat(64), value: 60_000 }), 'assets',
+        { inscriptionIds: ['pickedi0'], runeNames: ['PICKED•RUNE'], catIds: [], rareSat: null });
+      emit({
+        fundingRecommendation: { status: 'asset-notice', recommended, candidates: [recommended, picked] },
+        resolvedFundingStatus: 'asset-notice', resolvedFundingUtxo: picked,
+      });
+      expect(component.fundingCta().kind).toBe('notice');
+      expect(component.assetNotice()?.inscriptionIds).toEqual(['pickedi0']);
+      expect(component.assetNotice()?.runeNames).toEqual(['PICKED•RUNE']);
     });
   });
 
@@ -779,7 +798,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const picked = utxo({ value: 80_000 });
       emit({
         simulations: [{ utxo: picked, simulation: simulation(), insufficient: false }],
-        resolvedFundingUtxo: picked,
+        resolvedFundingUtxo: annotatedCoin(picked),
       });
       expect(component.totalMintSpendSats()).toBe(746);
     });
@@ -788,7 +807,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       const picked = utxo({ value: 80_000 });
       emit({
         simulations: [{ utxo: picked, simulation: simulation({ finalTransactionFee: 1_454n }), insufficient: false }],
-        resolvedFundingUtxo: picked,
+        resolvedFundingUtxo: annotatedCoin(picked),
       });
       expect(component.totalMintSpendSats()).toBe(2_000);
     });
@@ -798,7 +817,7 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
       emit({
         simulations: [{ utxo: r, simulation: simulation(), insufficient: false }],
         fundingRecommendation: { status: 'auto', recommended: annotatedCoin(r), candidates: [annotatedCoin(r)] },
-        resolvedFundingUtxo: r,
+        resolvedFundingUtxo: annotatedCoin(r),
       });
       expect(component.selectedPaymentOutput).toBeUndefined();
       expect(component.totalMintSpendSats()).toBe(746);

@@ -2,7 +2,7 @@
  * @test-kind unit
  * Real:   Cat21MintComponent with its production template; ordpool-sdk loaded for real and wired the way app.module.ts wires it (Cat21MintOrchestrator, describeFundingPick, UtxoContentScanner, Cat21Service, Cat21ApiService, WalletService)
  * Faked:  fetch: electrs /api/address/:a/utxo (electrsConfirmedUtxoFixture, ordpool-sdk/testing, captured) and POST /api/tx (the txid as text, esplora API.md), ord and cat21-ord /output (the SDK's cleanOutputFixture); WalletService storage (a persisted LAST_CONNECTED_WALLET); Leather's window.LeatherProvider signPsbt (the { result: { hex } } shape the SDK's Leather signer reads, signing with the harness key); StateService.recommendedFees$ (the websocket feed) -> recommendedFeesFixture (ordpool-sdk); mempool's SeoService and relativeUrl pipe (upstream, not read by the funding panel)
- * Proves: "you picked this coin" shows only while the SDK still spends the pick; a pick the SDK drops (gone, or below the requirement at a raised fee rate) is named in a notice beside the coin the mint spends instead, and Mint spends that coin
+ * Proves: "you picked this coin" shows only while the SDK still spends the pick; a pick the SDK drops (gone, or below the requirement at a raised fee rate) is named in a notice beside the coin the mint spends instead; the first Mint click on a dropped pick is refused with nothing signed or broadcast and the refusal shown, the pick is released, and the next click spends the coin the notice names
  */
 import { CommonModule } from '@angular/common';
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
@@ -79,6 +79,11 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
   }
 
   const q = (sel: string): HTMLElement | null => (fixture.nativeElement as HTMLElement).querySelector(sel);
+  /** The outpoint of the coin the SDK will spend, or null when there is none. */
+  const resolvedOutpoint = (): string | null => {
+    const c = component.resolvedFundingCoin();
+    return c ? outpointOf(c) : null;
+  };
   const all = (sel: string): HTMLElement[] => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(sel));
   const mintButton = (): HTMLButtonElement => {
     const b = q('[data-testid="mint-cat-button"]');
@@ -98,8 +103,7 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
     const use = Array.from(row(coin).querySelectorAll('button')).find((b) => textOf(b) === 'Use this UTXO');
     if (!use) { throw new Error(`no Use button on ${outpointOf(coin)}`); }
     use.click();
-    await settle(() => fixture.detectChanges(), () => component.resolvedFundingCoin() !== null
-      && outpointOf(component.resolvedFundingCoin() as TxnOutput) === outpointOf(coin));
+    await settle(() => fixture.detectChanges(), () => resolvedOutpoint() === outpointOf(coin));
   }
 
   /** Type `rate` into the fee input, as a person does. */
@@ -166,6 +170,21 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
       expect(q('[data-testid="funding-dropped-selection"]')).toBeNull();
       expect(pickedRows()).toEqual([outpointOf(large)]);
     });
+
+    it('Mint refuses the first click unsigned, releases the pick, and the next click spends the coin the panel names', async () => {
+      mintButton().click();
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null && component.droppedSelection() === null);
+
+      expect(leather.requests).toEqual([]);
+      expect(net.broadcasts).toEqual([]);
+      expect(textOf(q('[data-testid="cat21-mint-funding-reconfirm"]'))).toContain(`The selected funding UTXO ${outpointOf(small)} is no longer available.`);
+      expect(resolvedOutpoint()).toBe(outpointOf(large));
+
+      mintButton().click();
+      await settle(() => fixture.detectChanges(), () => net.broadcasts.length > 0 || component.mintCat21Error() !== '');
+      expect(leather.requests.map((r) => inputOutpoint(r.psbt, r.signAtIndex))).toEqual([outpointOf(large)]);
+      expect(q('[data-testid="cat21-mint-funding-reconfirm"]')).toBeNull();
+    });
   });
 
   describe('below-requirement: a raised fee rate leaves the picked coin short', () => {
@@ -203,8 +222,22 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
       expect(pickedRows()).toEqual([outpointOf(small)]);
     });
 
-    it('Mint spends the coin the notice names, not the dropped pick', async () => {
+    // The SDK refuses a click while the dropped pick is still pinned
+    // (FundingSelectionChangedError), so nothing is signed for a coin the reader
+    // never confirmed. The page releases the pin; the next click mints with the
+    // coin the notice names, and never with the dropped pick.
+    it('Mint refuses the first click unsigned, releases the pick, and the next click spends the coin the notice names', async () => {
       expect(mintButton().disabled).toBe(false);
+      mintButton().click();
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null && component.droppedSelection() === null);
+
+      expect(leather.requests).toEqual([]);
+      expect(net.broadcasts).toEqual([]);
+      expect(textOf(q('[data-testid="cat21-mint-funding-reconfirm"]'))).toContain(
+        `The selected funding UTXO ${outpointOf(small)} no longer covers this action at the current fee rate.`,
+      );
+      expect(resolvedOutpoint()).toBe(outpointOf(large));
+
       mintButton().click();
       await settle(() => fixture.detectChanges(), () => net.broadcasts.length > 0 || component.mintCat21Error() !== '');
 

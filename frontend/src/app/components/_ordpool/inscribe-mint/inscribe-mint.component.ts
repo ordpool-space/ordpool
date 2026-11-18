@@ -4,7 +4,7 @@ import { AbstractControl, FormControl, FormGroup, Validators } from '@angular/fo
 import { BehaviorSubject, combineLatest, debounceTime, filter, firstValueFrom, interval, map, shareReplay, Subject, take, tap } from 'rxjs';
 
 import { detectMimeType } from 'ordpool-parser';
-import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, ExpertRequiredCause, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, esploraInscribeTransport, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, expertRequiredCause, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
+import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Service, CompressionAssessment, ExpertRequiredCause, INSCRIBE_POSTAGE_SATS, InscribeMintOrchestrator, InscribeOperationGateResult, InscribeSnapshot, InscribeUtxoSimulation, InscriptionContentEncoding, InscriptionExistence, KnownOrdinalWallets, ORD_TAGS, OrdEnvelopeField, SMALL_UTXO_WARNING_THRESHOLD_SAT, SimulateInscribeFeesResult, TxnOutput, UtxoAssetDetail, UtxoContent, UtxoContentScanner, UtxoScanBucket, UtxoScanState, WalletInfo, WalletService, assessCompression, bucketOf, checkInscriptionsExist, encodeCborDeterministic, encodeInscriptionId, encodeInscriptionProperties, esploraInscribeTransport, findRareSatsInOutputs, getDummyKeypair, getMinimumUtxoSize, addressVerificationChunks, CandidateFeeRow, CandidateFeeState, classifyCandidateFee, expertRequiredCause, InscribeBatchContent, InscribeSatTarget, inscribeSatSourceFromRow, inscribeUserMessage, InscribeRevealPendingError, isFundingSelectionChangedError, outpointKey, prepareInscribeFundingInput, runeNamesFromContent, SatPickerRow, simulateInscribeFees, singleAddressCaveat, toScureNetwork, usesSingleAddress, validateInscribeOperation } from 'ordpool-sdk';
 import { bitcoinNetwork, cat21Config, fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
@@ -95,18 +95,25 @@ export class InscribeMintComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
 
   /**
+   * Our electrs behind `Cat21Service.mempoolApiUrl`. The orchestrator sends
+   * commit and reveal through it as one package, and {@link resendReveal}
+   * sends a kept reveal through the same transport.
+   */
+  private transport = esploraInscribeTransport([`${this.cat21.mempoolApiUrl}/api`]);
+
+  /**
    * The framework-agnostic inscribe orchestrator (a plain SDK class, constructed
    * here, not an Angular `@Injectable`). The staying Angular/SDK services are
    * wired in as its ports (getUtxos → Cat21Service, scan → `fundingContentScan`, the root `UtxoContentScanner`
    * (fail-closed `ContentScanPort`, shares the UI's scan cache), transport →
-   * our electrs behind `Cat21Service.mempoolApiUrl`, which dry-runs and submits
-   * commit and reveal as one package).
+   * {@link transport}, which dry-runs and submits commit and reveal as one
+   * package).
    * Signing is wired internally by the orchestrator from the connected wallet.
    */
   private orchestrator = new InscribeMintOrchestrator({
     getUtxos: (addr) => firstValueFrom(this.cat21.getUtxos(addr)),
     scan: this.fundingScan,
-    transport: esploraInscribeTransport([`${this.cat21.mempoolApiUrl}/api`]),
+    transport: this.transport,
     network: this.network,
     // Derive the wallet topology from the connected wallet. A coin whose scan
     // NAMED its assets then produces a NOTICE on a separate-payment-address
@@ -369,20 +376,14 @@ export class InscribeMintComponent implements OnInit {
   readonly fundingStatus = computed(() => this.snap().fundingRecommendation.status);
 
   /**
-   * The assets the funding coin the inscription WILL spend carries, or undefined
-   * when it is clean. The SDK annotates its resolved pick at runtime (content
-   * bucket + assets), but the snapshot types `resolvedFundingUtxo` as the bare
-   * funding coin, so the assets are read back type-safely from the
-   * recommendation's candidates: the pick is always one of them
-   * (`describeFundingPick` selects from `candidates`), matched by outpoint.
+   * The assets on the funding coin the inscription WILL spend, or undefined
+   * when it is clean. Read off the SDK's `resolvedFundingUtxo`, which carries
+   * its scan bucket and named assets, so an explicit pick shows its own assets
+   * and never the recommended coin's.
    */
-  private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(() => {
-    const pick = this.snap().resolvedFundingUtxo;
-    if (!pick) { return undefined; }
-    const key = outpointKey(pick);
-    const annotated = this.snap().fundingRecommendation.candidates.find((c) => outpointKey(c) === key);
-    return annotated?.assets;
-  });
+  private resolvedPickAssets = computed<UtxoAssetDetail | undefined>(
+    () => this.snap().resolvedFundingUtxo?.assets ?? undefined,
+  );
 
   /**
    * The SINGLE value the CTA button state AND the funding notice both derive
@@ -492,6 +493,26 @@ export class InscribeMintComponent implements OnInit {
 
   private mintAttempted = false;
   mintGateError = '';
+
+  /**
+   * The commit may be out and paid for while its reveal is not: the SDK sent
+   * the pair, retried the reveal and gave up. Kept until the reveal is in a
+   * mempool, so the reader sends this exact signed reveal again. A fresh
+   * inscribe attempt would pay for a second commit with a new ephemeral key and
+   * strand this commit's output, which only this reveal can spend.
+   */
+  readonly revealPending = signal<InscribeRevealPendingError | null>(null);
+  readonly revealResendState = signal<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  readonly revealResendError = signal<string | null>(null);
+
+  /**
+   * Why the last click was refused: the picked funding coin is gone or no
+   * longer covers, so the SDK stopped before signing instead of spending a coin
+   * the reader never confirmed. In its own signal because the snapshot's error
+   * is cleared by the UTXO re-read the refusal starts, while the reader still
+   * needs to see why the panel changed.
+   */
+  readonly fundingReconfirm = signal<string | null>(null);
 
   form = new FormGroup({
     // Nullable on purpose: the fee input is a text field (see feeRateDisplay /
@@ -1797,6 +1818,8 @@ export class InscribeMintComponent implements OnInit {
     }
     this.mintGateError = '';
     this.mintAttempted = true;
+    // A new click confirms the coin the panel shows now.
+    this.fundingReconfirm.set(null);
 
     // The 350 KB cap must bound the TOTAL content (body + metadata + note),
     // not just the file body the SDK gate sees. Inscriptions are immutable,
@@ -1840,7 +1863,7 @@ export class InscribeMintComponent implements OnInit {
         firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt'));
       this.orchestrator.mint(prompt)
         .then(() => this.cd.markForCheck())
-        .catch(() => this.cd.markForCheck());
+        .catch((err: unknown) => this.onMintFailed(err));
       return;
     }
 
@@ -1862,6 +1885,7 @@ export class InscribeMintComponent implements OnInit {
   private inscribeBatch(wallet: WalletInfo): void {
     this.mintGateError = '';
     this.mintAttempted = true;
+    this.fundingReconfirm.set(null);
     if (!this.batchFiles.length) { return; }
     for (const f of this.batchFiles) {
       const gate = validateInscribeOperation({
@@ -1893,10 +1917,81 @@ export class InscribeMintComponent implements OnInit {
       firstValueFrom(this.psbtExportPrompt.promptForSignedPsbt(unsigned, 'inscription-unsigned.psbt'));
     this.orchestrator.mint(prompt)
       .then(() => this.cd.markForCheck())
-      .catch(() => this.cd.markForCheck());
+      .catch((err: unknown) => this.onMintFailed(err));
+  }
+
+  /**
+   * A refused or failed inscribe. The snapshot already carries the person-facing
+   * message; two failures also need something the snapshot cannot hold.
+   *
+   * - `InscribeRevealPendingError`: the commit may be out while its reveal is
+   *   not. The signed reveal is kept for {@link resendReveal}.
+   * - `FundingSelectionChangedError`: the picked coin is gone or no longer
+   *   covers, and nothing was signed. The stale pin is released, because the
+   *   SDK re-checks it on every attempt and would refuse every one, and the
+   *   coins are re-read, so the panel names the coin that would be spent now,
+   *   with whatever it carries, and the next click confirms THAT coin.
+   */
+  private onMintFailed(err: unknown): void {
+    if (err instanceof InscribeRevealPendingError) {
+      this.revealPending.set(err);
+      this.revealResendState.set('idle');
+      this.revealResendError.set(null);
+    }
+    if (isFundingSelectionChangedError(err)) {
+      this.fundingReconfirm.set(err.message);
+      this.orchestrator.setSelectedUtxo(null);
+      void this.orchestrator.refreshUtxos();
+    }
+    this.cd.markForCheck();
+  }
+
+  /**
+   * Send the kept reveal again. The commit is already paid for, so this is the
+   * cheap half of the recovery and the only one that produces the inscription.
+   *
+   * A node that already holds the reveal answers `txn-already-in-mempool`,
+   * which means the inscription is on its way: a success, the same reading the
+   * SDK gives it on its own resend path.
+   *
+   * Both handlers are attached in the same tick the send promise is created.
+   * Called from a zone.js click handler, an `await` attaches its handler a tick
+   * later, and zone reports a refused send as an unhandled rejection before it
+   * is caught.
+   */
+  resendReveal(): Promise<void> {
+    const pending = this.revealPending();
+    if (!pending || this.revealResendState() === 'sending' || this.revealResendState() === 'sent') { return Promise.resolve(); }
+    this.revealResendState.set('sending');
+    this.revealResendError.set(null);
+    this.cd.markForCheck();
+    return this.transport.sendTransaction(pending.revealHex).then(
+      () => {
+        this.revealResendState.set('sent');
+        this.cd.markForCheck();
+      },
+      (err: unknown) => {
+        const reason = err instanceof Error ? err.message : String(err);
+        if (reason.includes('txn-already-in-mempool')) {
+          this.revealResendState.set('sent');
+        } else {
+          this.revealResendState.set('failed');
+          this.revealResendError.set(reason);
+        }
+        this.cd.markForCheck();
+      },
+    );
   }
 
   inscribeAnother(): void {
+    this.fundingReconfirm.set(null);
+    // A reveal that is not in a mempool yet stays: its commit is paid for and
+    // only this reveal can spend it.
+    if (this.revealResendState() === 'sent') {
+      this.revealPending.set(null);
+      this.revealResendState.set('idle');
+      this.revealResendError.set(null);
+    }
     this.orchestrator.reset();
     this.pickedFile = null;
     this.fileError = '';
