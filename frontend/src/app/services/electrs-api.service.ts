@@ -7,6 +7,9 @@ import { BlockExtended } from '@interfaces/node-api.interface';
 import { calcScriptHash$ } from '@app/bitcoin.utils';
 // HACK -- Ordpool absolute URL
 import { environment } from '@environments/environment';
+// HACK -- Ordpool UTXO dedupe: electrs can list one outpoint twice around a confirmation
+import { map } from 'rxjs';
+import { dedupeUtxosByOutpoint } from 'ordpool-sdk';
 
 @Injectable({
   providedIn: 'root'
@@ -208,12 +211,15 @@ export class ElectrsApiService {
   }
 
   getAddressUtxos$(address: string): Observable<Utxo[]> {
-    return this.httpClient.get<Utxo[]>(this.apiBaseUrl + this.apiBasePath + '/api/address/' + address + '/utxo');
+    // HACK -- Ordpool UTXO dedupe: one row per outpoint, so the address page never double-counts a balance
+    return this.httpClient.get<Utxo[]>(this.apiBaseUrl + this.apiBasePath + '/api/address/' + address + '/utxo').pipe(map((utxos) => dedupeUtxosByOutpoint(utxos)));
   }
 
   getScriptHashUtxos$(script: string): Observable<Utxo[]> {
     return from(calcScriptHash$(script)).pipe(
       switchMap(scriptHash => this.httpClient.get<Utxo[]>(this.apiBaseUrl + this.apiBasePath + '/api/scripthash/' + scriptHash + '/utxo')),
+      // HACK -- Ordpool UTXO dedupe: same electrs endpoint shape, same duplicate-outpoint quirk
+      map((utxos) => dedupeUtxosByOutpoint(utxos)),
     );
   }
 
