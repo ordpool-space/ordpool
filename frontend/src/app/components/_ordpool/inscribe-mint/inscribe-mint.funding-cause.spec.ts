@@ -13,7 +13,7 @@ import * as path from 'path';
 import { of } from 'rxjs';
 
 import { catOutputFixture, cleanOutputFixture, ContentScanPort, inscribedOutputFixture, rareSatOutputFixture, recommendedFeesFixture, TxnOutput, WalletInfo } from 'ordpool-sdk';
-import { cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
+import { cat21CatUrl, cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
 
 import { fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 import { SeoService } from '../../../services/seo.service';
@@ -73,10 +73,11 @@ describe('InscribeMintComponent funding causes (real ordpool-sdk)', () => {
    * funding panel past scanning once a file is chosen. `scanPort` replaces the orchestrator's
    * funding port for the unnamed-assets cases.
    */
-  async function boot(wallet: WalletInfo, coin: TxnOutput, scan: CoinScan | null, scanPort?: ContentScanPort): Promise<void> {
+  async function boot(wallet: WalletInfo, coin: TxnOutput, scan: CoinScan | null, scanPort?: ContentScanPort, catNumbers?: ReadonlyMap<string, number>): Promise<void> {
     net = new FakeNetwork();
     net.utxosByAddress.set(wallet.paymentAddress, [coin]);
     if (scan) { net.scans.set(outpointOf(coin), scan); }
+    catNumbers?.forEach((number, id) => net.catNumbers.set(id, number));
     net.install();
     TestBed.configureTestingModule({
       declarations: [InscribeMintComponent, FundingAssetListComponent],
@@ -291,13 +292,25 @@ describe('InscribeMintComponent funding causes (real ordpool-sdk)', () => {
   // their cat21.space sat page, a rare sat by its sat number linked the same way.
   // The expected sat numbers are read off the SDK fixtures, never retyped.
   describe('the picker row links what a flagged coin carries', () => {
-    it('a cat coin links the cat21.space page of the sat its cats sit on', async () => {
+    it('a cat coin whose number is unknown keeps the count and links the cat21.space page of the sat its cats sit on', async () => {
       const scan = catOutputFixture();
       await boot(oneAddressWallet(), electrsUtxo('d', COVERING_SCANNED), scan);
       const link = q('[data-testid="utxo-cat-sat-link"]');
       expect(link?.getAttribute('href')).toBe(cat21SatUrl(scan.cat21Ord.sat_ranges[0][0]));
       expect(link?.getAttribute('target')).toBe('_blank');
       expect(link?.getAttribute('rel')).toBe('noopener');
+    });
+
+    it('a cat coin whose number cat21-ord answers names the cat "Cat #N", linked to its cat21.space page, cat #0 included', async () => {
+      const scan = catOutputFixture();
+      const catId = scan.cat21Ord.cats[0];
+      await boot(oneAddressWallet(), electrsUtxo('d', COVERING_SCANNED), scan, undefined, new Map([[catId, 0]]));
+      const link = q('[data-testid="utxo-cat-link"]');
+      expect(link?.getAttribute('href')).toBe(cat21CatUrl(0));
+      expect(textOf(link)).toBe('Cat #0');
+      expect(link?.getAttribute('rel')).toBe('noopener');
+      expect(q('[data-testid="utxo-cat-sat-link"]')).toBeNull();
+      expect(textOf(q('[data-testid="funding-warning-assets"] [data-testid="funding-asset-cats"]'))).toBe('CAT-21 cat: Cat #0');
     });
 
     it('a rare-sat coin links the sat by its number', async () => {

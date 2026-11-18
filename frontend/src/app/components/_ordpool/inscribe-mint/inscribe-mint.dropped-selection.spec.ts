@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { of } from 'rxjs';
 
-import { cleanOutputFixture, recommendedFeesFixture, TxnOutput, WalletInfo } from 'ordpool-sdk';
+import { cleanOutputFixture, inscribedOutputFixture, recommendedFeesFixture, TxnOutput, UtxoContentScanner, WalletInfo } from 'ordpool-sdk';
 
 import { SeoService } from '../../../services/seo.service';
 import { StateService } from '../../../services/state.service';
@@ -234,6 +234,46 @@ describe('InscribeMintComponent dropped selection (real ordpool-sdk)', () => {
 
     it('every covering coin is a row', () => {
       expect(shownOutpoints().sort()).toEqual(many.map(outpointOf).sort());
+    });
+  });
+
+  // A pin is honoured only while its coin carries what was shown when it was
+  // picked (SDK drop reason 'contents-changed'). The page names the drop and
+  // why, and a click must not spend the coin until the reader picks again.
+  describe('contents-changed: the picked coin now carries something that was not shown', () => {
+    beforeEach(async () => {
+      await boot([small, large]);
+      await pick(small);
+      expect(pickedRows()).toEqual([outpointOf(small)]);
+      net.scans.set(outpointOf(small), inscribedOutputFixture());
+      TestBed.inject(UtxoContentScanner).reset();
+      component.retryFundingScan();
+      await settle(() => fixture.detectChanges(), () => component.droppedSelection()?.reason === 'contents-changed');
+    });
+
+    it('names the dropped coin and says it now carries something that was not shown', () => {
+      const notice = q('[data-testid="funding-dropped-selection"]');
+      expect(notice?.getAttribute('data-reason')).toBe('contents-changed');
+      expect(textOf(notice)).toBe(
+        `The coin you picked, ${outpointOf(small)}, now carries something that was not shown when you picked it. ` +
+        'Look at what it carries and pick a coin again under Choose a different funding source. ' +
+        `Until you do, the inscription spends ${outpointOf(large)} (40,000 sat).`,
+      );
+    });
+
+    it('Inscribe refuses the first click unsigned and says why, and the next click signs the coin the panel names', async () => {
+      inscribeButton().click();
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null && component.droppedSelection() === null);
+      expect(leather.requests).toEqual([]);
+
+      expect(textOf(q('[data-testid="inscribe-funding-reconfirm"]'))).toContain(
+        `The selected funding UTXO ${outpointOf(small)} now carries assets that were not shown when it was selected.`,
+      );
+      expect(resolvedOutpoint()).toBe(outpointOf(large));
+
+      inscribeButton().click();
+      await settle(() => fixture.detectChanges(), () => net.requested.includes('http://electrs.test/api/txs/test'));
+      expect(leather.requests.map((r) => inputOutpoint(r.psbt, r.signAtIndex))).toEqual([outpointOf(large)]);
     });
   });
 

@@ -8,7 +8,7 @@ import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Serv
 import { bitcoinNetwork, cat21Config, fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
-import { cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
+import { cat21CatUrl, cat21SatUrl, numberedCats } from '../funding-asset-list/funding-asset-list.component';
 
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -1755,6 +1755,10 @@ export class InscribeMintComponent implements OnInit {
    * identified by its sat number, which the same page resolves.
    */
   readonly satUrl = cat21SatUrl;
+  /** cat21.space's page for a cat, by its cat number. */
+  readonly catUrl = cat21CatUrl;
+  /** A picker row's cats by number, or null to keep the count and the sat page. */
+  readonly numberedCats = numberedCats;
 
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {

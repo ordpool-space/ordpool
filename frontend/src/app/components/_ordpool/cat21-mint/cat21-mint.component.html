@@ -98,6 +98,16 @@
                 no longer covers this mint at <strong class="bitcoin">{{ cfeeRate.value }} sat/vB</strong>. Lower the fee rate, or pick
                 another coin under <strong>Choose a different funding source</strong>.
               </ng-container>
+              <ng-container *ngSwitchCase="'contents-changed'">
+                The coin you picked, <code class="text-break" data-testid="funding-dropped-outpoint">{{ dropped.txid }}:{{ dropped.vout }}</code>,
+                now carries something that was not shown when you picked it. Look at what it carries and pick a coin again under
+                <strong>Choose a different funding source</strong>.
+              </ng-container>
+              <!-- Any reason this page has no wording for yet still says why the pick was dropped. -->
+              <ng-container *ngSwitchDefault>
+                The coin you picked, <code class="text-break" data-testid="funding-dropped-outpoint">{{ dropped.txid }}:{{ dropped.vout }}</code>,
+                can no longer be spent as picked. Pick a coin again under <strong>Choose a different funding source</strong>.
+              </ng-container>
             </ng-container>
             <ng-container *ngIf="resolvedFundingCoin() as coin; else noFundingCoin">
               Until you do, the mint spends <code class="text-break" data-testid="funding-resolved-outpoint">{{ coin.txid }}:{{ coin.vout }}</code>
@@ -267,10 +277,13 @@
                     <br>
                   </ng-container>
                   <ng-container *ngIf="x.scan.content.catIds.length > 0">
-                    CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}: {{ x.scan.content.catIds.length }}
-                    <ng-container *ngIf="x.scan.content.catSat as catSat">
+                    CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}:
+                    <!-- By cat number when every number is known; otherwise the count and the
+                         sat page, which lists every cat on that sat. -->
+                    <ng-container *ngIf="numberedCats(x.scan.content) as cats; else catCount"><ng-container *ngFor="let cat of cats; let last = last"><a [href]="catUrl(cat.number)" target="_blank" rel="noopener" data-testid="utxo-cat-link">Cat #{{ cat.number }}</a><ng-container *ngIf="!last">, </ng-container></ng-container></ng-container>
+                    <ng-template #catCount>{{ x.scan.content.catIds.length }}<ng-container *ngIf="x.scan.content.catSat as catSat">
                       · <a [href]="satUrl(catSat)" target="_blank" rel="noopener" data-testid="utxo-cat-sat-link">view on cat21.space</a>
-                    </ng-container>
+                    </ng-container></ng-template>
                     <br>
                   </ng-container>
                   <ng-container *ngIf="x.scan.content.rareSat as rareSat">

@@ -25,7 +25,7 @@ import {
   Cat21ApiService, Cat21Service, KnownOrdinalWalletType, LAST_CONNECTED_WALLET, Network, OutputFixture,
   TxnOutput, UtxoContentScanner, WalletInfo, WalletService,
 } from 'ordpool-sdk';
-import { electrsConfirmedUtxoFixture } from 'ordpool-sdk/testing';
+import { cat21OrdCatInscriptionFixture, electrsConfirmedUtxoFixture } from 'ordpool-sdk/testing';
 
 import { bitcoinNetwork, cat21Config } from '@app/services/ordinals/sdk-tokens';
 
@@ -145,6 +145,13 @@ export type CoinScan = OutputFixture | 'ord-unavailable';
 export class FakeNetwork {
   readonly utxosByAddress = new Map<string, TxnOutput[]>();
   readonly scans = new Map<string, CoinScan>();
+  /**
+   * Cat number per cat inscription id, answered on cat21-ord's
+   * `GET /inscription/<id>` in the shape of the SDK's captured
+   * `cat21OrdCatInscriptionFixture` with this cat's id and number. An id not
+   * listed answers 404, which the scanner reads as an unknown number.
+   */
+  readonly catNumbers = new Map<string, number>();
   readonly requested: string[] = [];
   /** Raw transactions posted to electrs `POST /api/tx`, in order. */
   readonly broadcasts: string[] = [];
@@ -173,6 +180,12 @@ export class FakeNetwork {
     const utxoMatch = url.match(/^http:\/\/electrs\.test\/api\/address\/([^/]+)\/utxo$/);
     if (utxoMatch) {
       return json(this.utxosByAddress.get(utxoMatch[1]) ?? []);
+    }
+    const catMatch = url.match(/^http:\/\/cat21-ord\.test\/inscription\/(.+)$/);
+    if (catMatch) {
+      const number = this.catNumbers.get(catMatch[1]);
+      if (number === undefined) { return fail(404, `no cat number for ${catMatch[1]}`); }
+      return json({ ...cat21OrdCatInscriptionFixture, id: catMatch[1], number });
     }
     const outputMatch = url.match(/^http:\/\/(ord|cat21-ord)\.test\/output\/(.+)$/);
     if (outputMatch) {

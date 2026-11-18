@@ -10,7 +10,7 @@ import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
 import { runeLabel } from '../rune-label.helper';
 import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
-import { cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
+import { cat21CatUrl, cat21SatUrl, numberedCats } from '../funding-asset-list/funding-asset-list.component';
 
 export interface ViableSimulation {
   /** The mint simulation for this coin; null when the coin can't fund the mint
@@ -139,6 +139,10 @@ export class Cat21MintComponent implements OnInit {
    * identified by its sat number, which the same page resolves.
    */
   readonly satUrl = cat21SatUrl;
+  /** cat21.space's page for a cat, by its cat number. */
+  readonly catUrl = cat21CatUrl;
+  /** A picker row's cats by number, or null to keep the count and the sat page. */
+  readonly numberedCats = numberedCats;
 
   /** Auto-scan threshold echoed into the template for the "Scan anyway" hint. */
   readonly autoScanThreshold = AUTO_SCAN_MAX_VALUE_SAT;
