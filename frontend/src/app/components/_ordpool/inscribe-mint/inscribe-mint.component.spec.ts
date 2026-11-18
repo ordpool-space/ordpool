@@ -677,6 +677,27 @@ describe('InscribeMintComponent', () => {
       expect(component.hasFundingSource()).toBe(false);
     });
 
+    // The disabled button states its reason while the content scan runs (audit
+    // F4; money path: nothing covers or still scanning -> disabled, with why).
+    it('a scan that has not answered names its reason beside the disabled button', async () => {
+      const pending = coin('f', 100_000);
+      const scanner = TestBed.inject(UtxoContentScanner) as unknown as { classify: (outpoint: string) => Promise<UtxoClassification> };
+      scanner.classify = () => new Promise<UtxoClassification>(() => undefined);
+      await fund(wallet(), [pending]);
+      fixture.detectChanges();
+      expect(component.fundingCta().kind).toBe('scanning');
+      const reason = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="funding-scanning-reason"]');
+      expect((reason?.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .toBe('Checking your coins for inscriptions, runes, cats and rare sats before we pick one to pay with.');
+    });
+
+    it('a settled verdict shows no scanning reason', async () => {
+      await fund(wallet(), [coin('a', 100_000)]);
+      fixture.detectChanges();
+      expect(component.fundingCta().kind).toBe('ready');
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="funding-scanning-reason"]')).toBeNull();
+    });
+
     it('the CTA follows the RESOLVED coin, not the recommendation: a hand-picked dirty coin on a one-address wallet is enabled WITH the assets named', async () => {
       const dirty = coin('a', 100_000);
       await fund(singleAddressWallet(), [dirty], [dirty]);

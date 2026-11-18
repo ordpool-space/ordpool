@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, Input } from '@angular/core';
-import { DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, InscriptionProperties, parseBitmapHeight, ParsedInscription } from 'ordpool-parser';
+import { bytesToHex, DecodeFailureReason, InscriptionParserService, InscriptionPreviewService, InscriptionProperties, parseBitmapHeight, ParsedInscription } from 'ordpool-parser';
 import { catchError, from, map, Observable, of, shareReplay } from 'rxjs';
 
 import { ElectrsApiService } from '../../../../services/electrs-api.service';
@@ -135,11 +135,4 @@ export class InscriptionViewerComponent {
   }
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-  let out = '';
-  for (let i = 0; i < bytes.length; i++) {
-    out += bytes[i].toString(16).padStart(2, '0');
-  }
-  return out;
-}
 /* jscpd:ignore-end */

@@ -1335,6 +1335,17 @@ describe('Cat21MintComponent — single-address custody caveat, REAL template (w
     expect(q('[data-testid="per-utxo-unverified"]')).toBeNull();
   });
 
+  // The disabled button states its reason while the content scan runs (audit
+  // F4; money path: nothing covers or still scanning -> disabled, with why).
+  it('names the scanning reason beside the disabled Mint button, and drops it once a verdict lands', async () => {
+    await connectReal(dualAddr());
+    emit({ state: 'ready', resolvedFundingStatus: 'scanning' });
+    expect((q('[data-testid="funding-scanning-reason"]')?.textContent ?? '').replace(/\s+/g, ' ').trim())
+      .toBe('Checking your coins for inscriptions, runes, cats and rare sats before we pick one to pay with.');
+    emit({ state: 'ready', resolvedFundingStatus: 'ready' });
+    expect(q('[data-testid="funding-scanning-reason"]')).toBeNull();
+  });
+
   it('does NOT render the single-address note for a dual-address wallet', () => {
     wallets.connectedWalletSubject.next(dualAddr());
     pickRow(viable({ paymentOutput: utxo({ value: 3_000 }), bucket: 'unscanned', scan: { kind: 'not-scanned' } as UtxoScanState }));

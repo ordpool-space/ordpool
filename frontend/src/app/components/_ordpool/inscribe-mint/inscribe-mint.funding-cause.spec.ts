@@ -310,4 +310,25 @@ describe('InscribeMintComponent funding causes (real ordpool-sdk)', () => {
       expect(link?.getAttribute('rel')).toBe('noopener');
     });
   });
+  // The insufficient line names the fee rate its verdict was computed at (audit
+  // N8). An empty fee field never reaches the orchestrator, so the verdict stays
+  // the one at the last valid rate; the line must name that rate and never print
+  // a made-up "1 sat/vB" in its place.
+  describe('insufficient names the fee rate its verdict was computed at', () => {
+    it('after the fee field is cleared it still names the last valid rate', async () => {
+      await boot(separateAddressWallet(), electrsUtxo('9', 600), cleanOutputFixture());
+      const fee = q('[data-testid="inscribe-fee-rate"]');
+      if (!(fee instanceof HTMLInputElement)) { throw new Error('fee input not rendered'); }
+      fee.value = '7';
+      fee.dispatchEvent(new Event('input'));
+      await settle(() => fixture.detectChanges(), () => component.fundingCta().kind === 'insufficient' && component.verdictFeeRate() === 7);
+      expect(textOf(q('[data-testid="funding-insufficient-rate"]'))).toBe('7 sat/vB');
+
+      fee.value = '';
+      fee.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(component.verdictFeeRate()).toBe(7);
+      expect(textOf(q('[data-testid="funding-insufficient-rate"]'))).toBe('7 sat/vB');
+    });
+  });
 });

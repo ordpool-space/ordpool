@@ -369,6 +369,13 @@ export class InscribeMintComponent implements OnInit {
   /** The coin the inscription WILL spend (the SDK's `resolvedFundingUtxo`), or null. */
   readonly resolvedFundingCoin = computed(() => this.snap().resolvedFundingUtxo);
 
+  /**
+   * The fee rate the funding verdict was computed at. An empty or non-numeric
+   * fee field never reaches the orchestrator, so the verdict on screen stays the
+   * one at the last valid rate, and a message about it names THAT rate.
+   */
+  readonly verdictFeeRate = computed(() => this.snap().feeRate);
+
   /** Current funding status from the snapshot (raw mirror): `auto` (clean covers),
    *  `asset-notice` (a coin with NAMED assets covers, separate-address wallet),
    *  `expert-required` (blocked: named assets on a one-address wallet, or assets

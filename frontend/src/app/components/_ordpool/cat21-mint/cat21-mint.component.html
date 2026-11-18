@@ -162,9 +162,16 @@
             </ng-container>
           </div>
 
+          <!-- Scanning: the button stays disabled until the content check answers,
+               and the money path requires the reason beside a disabled button. -->
+          <div class="p-2 mt-4" role="status" aria-live="polite" *ngIf="fundingCta().kind === 'scanning' && !utxoLoading()" data-testid="funding-scanning-reason">
+            <i class="spinner-border spinner-border-sm" aria-hidden="true"></i>
+            Checking your coins for inscriptions, runes, cats and rare sats before we pick one to pay with.
+          </div>
+
           <div class="p-2 mt-4" *ngIf="(recommendedFees$ | async) && fundingCta().kind === 'insufficient' && !utxoLoading()">
             There isn't enough Bitcoin in your payment address to cover the mint at
-            <strong class="bitcoin">{{ cfeeRate.value || 1 }} sat/vB</strong>. 😿<br>
+            <strong class="bitcoin" data-testid="funding-insufficient-rate" *ngIf="verdictFeeRate() as rate; else insufficientCurrentRate">{{ rate }} sat/vB</strong><ng-template #insufficientCurrentRate>the current fee rate</ng-template>. 😿<br>
             Add at least
 
             <ul class="m-0">
