@@ -187,6 +187,28 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
     });
   });
 
+  // The recommendation is ord's best fit, the SMALLEST covering coin, so a
+  // largest-first short list cuts it off first. The picker must show it and let
+  // the reader pick it (audit F1, HQ money path: the picker shows the
+  // recommendation and allows any override).
+  describe('a wallet with more covering coins than a short list holds', () => {
+    const many = Array.from({ length: 12 }, (_, i) => electrsUtxo(i.toString(16), 3_000 + i * 1_000));
+    const shownOutpoints = (): string[] => all('.shape-border').map((el) => (textOf(el).match(/UTXO ([0-9a-f]{64}:\d+)/) ?? [])[1]);
+
+    beforeEach(async () => { await boot(many); });
+
+    it('the recommendation is the smallest coin, and its row is shown, badged and pickable', async () => {
+      expect(resolvedOutpoint()).toBe(outpointOf(many[0]));
+      expect(row(many[0]).querySelector('[data-testid="utxo-recommended"]')).not.toBeNull();
+      await pick(many[0]);
+      expect(pickedRows()).toEqual([outpointOf(many[0])]);
+    });
+
+    it('every covering coin is a row', () => {
+      expect(shownOutpoints().sort()).toEqual(many.map(outpointOf).sort());
+    });
+  });
+
   describe('below-requirement: a raised fee rate leaves the picked coin short', () => {
     beforeEach(async () => {
       await boot([small, large]);

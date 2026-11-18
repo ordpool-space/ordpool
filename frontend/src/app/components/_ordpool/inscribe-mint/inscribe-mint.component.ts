@@ -272,15 +272,17 @@ export class InscribeMintComponent implements OnInit {
     map(([rows, scanMap]): ViableInscribeSimulation[] => {
       // Show coins, tagging whether each can fund the inscription at the current
       // rate rather than hiding the ones that can't (FAMILY_UX show-the-row).
-      // Covering coins (up to 10) lead; a SHORT tail of the largest not-yet-
-      // covering coins (up to 3) trails as dimmed "can't fund at this rate" rows —
-      // enough to show the fee rate is the lever without turning a wallet of dust
-      // into a wall. All covering coins outvalue every unavailable one, so this
-      // stays globally value-sorted.
+      // Every covering coin leads, because the recommendation is ord's best fit
+      // (the SMALLEST covering coin) and the picker must show it and let the
+      // reader pick any coin they could spend; a SHORT tail of the largest
+      // not-yet-covering coins (up to 3) trails as dimmed "can't fund at this
+      // rate" rows, enough to show the fee rate is the lever without turning a
+      // wallet of dust into a wall. All covering coins outvalue every unavailable
+      // one, so this stays globally value-sorted.
       const isAvailable = (r: InscribeUtxoSimulation) => !r.insufficient && r.simulation !== null;
       const sorted = [...(rows as InscribeUtxoSimulation[])].sort((a, b) => b.utxo.value - a.utxo.value);
       const shown = [
-        ...sorted.filter(isAvailable).slice(0, 10),
+        ...sorted.filter(isAvailable),
         ...sorted.filter((r) => !isAvailable(r)).slice(0, 3),
       ];
       return shown.map((r): ViableInscribeSimulation => {

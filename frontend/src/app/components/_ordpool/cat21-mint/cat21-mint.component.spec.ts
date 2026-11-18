@@ -989,11 +989,14 @@ describe('Cat21MintComponent (ordpool.space /cat21-mint)', () => {
 
     beforeEach(async () => { await connect(); component.setFeeRate(5); });
 
-    it('MATRIX-D15(B): viable row list is capped at 10 entries', async () => {
+    // The recommendation is the SMALLEST covering coin, so a short list cut from
+    // the top drops it; every covering coin is a row (audit F1).
+    it('MATRIX-D15(B): every covering coin is a viable row, however many there are', async () => {
       await fund(Array.from({ length: 25 }, (_, i) => ({ u: big(50_000 + i), scan: { kind: 'scanned-clean' } as UtxoScanState })));
       let captured: ViableSimulation[] | undefined;
       component.paymentOutputs$.subscribe((rs) => (captured = rs)).unsubscribe();
-      expect(captured!.length).toBe(10);
+      expect(captured!.length).toBe(25);
+      expect(captured!.every((r) => r.available)).toBe(true);
     });
 
     it('MATRIX-D16(B): viable rows sorted strictly descending by UTXO value', async () => {

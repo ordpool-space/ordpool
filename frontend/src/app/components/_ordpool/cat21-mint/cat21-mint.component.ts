@@ -158,9 +158,10 @@ export class Cat21MintComponent implements OnInit {
   catImageUrl = (n: number) => this.cat21ApiService.getCatImageUrl(n);
 
   // Viable UTXO list: the orchestrator's snapshot carries ALL simulation rows
-  // including insufficient ones; the template only wants the rows the user can
-  // actually mint with. Sort largest-first and cap at 10 so the expert panel
-  // never renders hundreds of rows.
+  // including insufficient ones. Every covering coin is a row, sorted
+  // largest-first: the recommendation is ord's best fit (the SMALLEST covering
+  // coin), and the picker must show it and let the reader pick any coin they
+  // could spend.
   //
   // The snapshot's `simulations` is a signal read, bridged to an observable so
   // it can combineLatest with the scanner's `states$`: the row's `bucket` field
@@ -176,16 +177,16 @@ export class Cat21MintComponent implements OnInit {
   ]).pipe(
     map(([rows, scanMap]): ViableSimulation[] => {
       // Show coins, tagging whether each can fund the mint at the current rate
-      // rather than hiding the ones that can't (FAMILY_UX show-the-row). Covering
-      // coins (up to 10) lead; a SHORT tail of the largest not-yet-covering coins
-      // (up to 3) trails as dimmed "can't fund at this rate" rows — enough to show
+      // rather than hiding the ones that can't (FAMILY_UX show-the-row). Every
+      // covering coin leads; a SHORT tail of the largest not-yet-covering coins
+      // (up to 3) trails as dimmed "can't fund at this rate" rows, enough to show
       // the fee rate is the lever without turning a wallet of dust into a wall.
       // All covering coins outvalue every unavailable one, so this stays globally
       // value-sorted.
       const isAvailable = (r: UtxoSimulationRow) => !r.insufficient && r.simulation !== null;
       const sorted = [...rows].sort((a, b) => b.utxo.value - a.utxo.value);
       const shown = [
-        ...sorted.filter(isAvailable).slice(0, 10),
+        ...sorted.filter(isAvailable),
         ...sorted.filter((r) => !isAvailable(r)).slice(0, 3),
       ];
       return shown.map((r): ViableSimulation => {
