@@ -304,6 +304,17 @@ describe('Cat21MintComponent funding causes (real ordpool-sdk)', () => {
       expect(link?.getAttribute('rel')).toBe('noopener');
     });
 
+    // The picker row and the warning's list decide the cat fallback the same
+    // way for every input: the sat is compared with null, so sat 0 links too.
+    it('a cat on sat 0 is linked to its sat page in the picker row and in the warning alike', async () => {
+      const cat = catOutputFixture();
+      const onSatZero: ReadonlyArray<readonly [number, number]> = [[0, 546]];
+      const scan = { ...cat, cat21Ord: { ...cat.cat21Ord, sat_ranges: onSatZero } };
+      await boot(oneAddressWallet(), electrsUtxo('d', COVERING_SCANNED), scan);
+      expect(q('[data-testid="utxo-cat-sat-link"]')?.getAttribute('href')).toBe(cat21SatUrl(0));
+      expect(q('[data-testid="funding-warning-assets"] [data-testid="funding-asset-cat-sat-link"]')?.getAttribute('href')).toBe(cat21SatUrl(0));
+    });
+
     it('a cat coin whose number cat21-ord answers names the cat "Cat #N", linked to its cat21.space page, cat #0 included', async () => {
       const scan = catOutputFixture();
       const catId = scan.cat21Ord.cats[0];

@@ -647,8 +647,8 @@
                     <!-- By cat number when every number is known; otherwise the count and the
                          sat page, which lists every cat on that sat. -->
                     <ng-container *ngIf="numberedCats(row.scan.content) as cats; else catCount"><ng-container *ngFor="let cat of cats; let last = last"><a [href]="catUrl(cat.number)" target="_blank" rel="noopener" data-testid="utxo-cat-link">Cat #{{ cat.number }}</a><ng-container *ngIf="!last">, </ng-container></ng-container></ng-container>
-                    <ng-template #catCount>{{ row.scan.content.catIds.length }}<ng-container *ngIf="row.scan.content.catSat as catSat">
-                      · <a [href]="satUrl(catSat)" target="_blank" rel="noopener" data-testid="utxo-cat-sat-link">view on cat21.space</a>
+                    <ng-template #catCount>{{ row.scan.content.catIds.length }}<ng-container *ngIf="row.scan.content.catSat !== null">
+                      · <a [href]="satUrl(row.scan.content.catSat)" target="_blank" rel="noopener" data-testid="utxo-cat-sat-link">view on cat21.space</a>
                     </ng-container></ng-template>
                     <br>
                   </ng-container>
