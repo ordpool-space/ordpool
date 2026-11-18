@@ -23,6 +23,7 @@ import {
   separateAddressLeatherWallet, settle, textOf,
 } from '../funding-panel.spec-harness';
 import { Cat21MintComponent } from './cat21-mint.component';
+import { FundingAssetListComponent } from '../funding-asset-list/funding-asset-list.component';
 
 /** mempool's router-prefix pipe; identity here, the funding panel only reads the link target. */
 @Pipe({ name: 'relativeUrl' })
@@ -62,7 +63,7 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
     for (const c of coins) { net.scans.set(outpointOf(c), cleanOutputFixture()); }
     net.install();
     TestBed.configureTestingModule({
-      declarations: [Cat21MintComponent],
+      declarations: [Cat21MintComponent, FundingAssetListComponent],
       imports: [CommonModule, ReactiveFormsModule, FormsModule, RelativeUrlStubPipe],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [

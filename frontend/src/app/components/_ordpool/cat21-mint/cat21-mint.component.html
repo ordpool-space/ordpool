@@ -113,20 +113,16 @@
                auto-recommended (separate-address wallet) or picked by hand in the
                expert picker ("Use anyway"), since the resolved pick's own content
                drives it — a spent asset must be named at the point of action. -->
-          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !utxoLoading()">
-            We'll fund this mint from a coin that carries an asset. Your wallet keeps a
-            separate payment address, so this is usually safe, but you should know what
-            the coin holds before you mint:
+          <div class="alert alert-warning p-2 mt-4" role="alert" *ngIf="fundingCta().kind === 'notice' && !utxoLoading()" data-testid="funding-asset-notice">
+            We'll fund this mint from a coin that carries an asset.
+            <!-- The reassurance holds only where the ordinals live on another address,
+                 decided from the wallet's two addresses at display time. A one-address
+                 wallet reaches this notice too (after "Use anyway"), and there the
+                 reassurance would be false: a reader who believes it stops reading the list. -->
+            <span *ngIf="isSingleAddressWallet(x.connectedWallet); else noticeSeparateAddress" data-testid="funding-notice-one-address">This wallet keeps your ordinals on the same address as your spending money, so read what the coin holds before you mint:</span>
+            <ng-template #noticeSeparateAddress><span data-testid="funding-notice-separate-address">Your wallet keeps a separate payment address, so this is usually safe, but you should know what the coin holds before you mint:</span></ng-template>
             <ng-container *ngIf="assetNotice() as a">
-              <ul class="m-0 mt-1">
-                <li *ngIf="a.inscriptionIds.length">
-                  Inscription{{ a.inscriptionIds.length === 1 ? '' : 's' }}:
-                  <ng-container *ngFor="let id of a.inscriptionIds; let last = last"><a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container></ng-container>
-                </li>
-                <li *ngIf="a.runeNames.length">Rune{{ a.runeNames.length === 1 ? '' : 's' }}: {{ a.runeNames.join(', ') }}</li>
-                <li *ngIf="a.catIds.length">Cat{{ a.catIds.length === 1 ? '' : 's' }}: {{ a.catIds.join(', ') }}</li>
-                <li *ngIf="a.rareSat">Rare sat: {{ a.rareSat.sat }} ({{ a.rareSat.rarity }})</li>
-              </ul>
+              <app-funding-asset-list [assets]="a"></app-funding-asset-list>
             </ng-container>
             Prefer to use a different coin? Open <strong>Choose a different funding source</strong> below. 😼
           </div>
@@ -144,15 +140,7 @@
               miner as fee, so we won't auto-select it.
               <ng-container *ngIf="warningAssets() as a">
                 The best fit carries:
-                <ul class="m-0 mt-1" data-testid="funding-warning-assets">
-                  <li *ngIf="a.inscriptionIds.length">
-                    Inscription{{ a.inscriptionIds.length === 1 ? '' : 's' }}:
-                    <ng-container *ngFor="let id of a.inscriptionIds; let last = last"><a [routerLink]="['/tx/' | relativeUrl, txidFromInscriptionId(id)]" target="_blank" rel="noopener">{{ id }}</a><ng-container *ngIf="!last">, </ng-container></ng-container>
-                  </li>
-                  <li *ngIf="a.runeNames.length">Rune{{ a.runeNames.length === 1 ? '' : 's' }}: {{ a.runeNames.join(', ') }}</li>
-                  <li *ngIf="a.catIds.length">Cat{{ a.catIds.length === 1 ? '' : 's' }}: {{ a.catIds.join(', ') }}</li>
-                  <li *ngIf="a.rareSat">Rare sat: {{ a.rareSat.sat }} ({{ a.rareSat.rarity }})</li>
-                </ul>
+                <app-funding-asset-list data-testid="funding-warning-assets" [assets]="a"></app-funding-asset-list>
               </ng-container>
               Open <strong>Choose a different funding source</strong>
               below and pick a coin yourself if you're sure it is safe to spend. 😼
@@ -274,12 +262,12 @@
                   <ng-container *ngIf="x.scan.content.catIds.length > 0">
                     CAT-21 cat{{ x.scan.content.catIds.length === 1 ? '' : 's' }}: {{ x.scan.content.catIds.length }}
                     <ng-container *ngIf="x.scan.content.catSat as catSat">
-                      · <a [href]="catSatLink(catSat)" target="_blank" rel="noopener">view on cat21.space</a>
+                      · <a [href]="satUrl(catSat)" target="_blank" rel="noopener" data-testid="utxo-cat-sat-link">view on cat21.space</a>
                     </ng-container>
                     <br>
                   </ng-container>
                   <ng-container *ngIf="x.scan.content.rareSat as rareSat">
-                    Rare sat: {{ rareSat.rarity }} · sat {{ rareSat.sat | number }} · block {{ rareSat.block | number }}<br>
+                    Rare sat: {{ rareSat.rarity }} · <a [href]="satUrl(rareSat.sat)" target="_blank" rel="noopener" data-testid="utxo-rare-sat-link">sat {{ rareSat.sat | number }}</a> · block {{ rareSat.block | number }}<br>
                   </ng-container>
                 </div>
 

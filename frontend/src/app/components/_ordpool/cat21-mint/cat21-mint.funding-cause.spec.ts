@@ -14,7 +14,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { of } from 'rxjs';
 
-import { cleanOutputFixture, ContentScanPort, inscribedOutputFixture, recommendedFeesFixture, TxnOutput, WalletInfo } from 'ordpool-sdk';
+import { catOutputFixture, cleanOutputFixture, ContentScanPort, inscribedOutputFixture, rareSatOutputFixture, recommendedFeesFixture, TxnOutput, WalletInfo } from 'ordpool-sdk';
+import { cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
 
 import { fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 import { SeoService } from '../../../services/seo.service';
@@ -24,6 +25,7 @@ import {
   separateAddressLeatherWallet, separateAddressWallet, settle, textOf,
 } from '../funding-panel.spec-harness';
 import { Cat21MintComponent } from './cat21-mint.component';
+import { FundingAssetListComponent } from '../funding-asset-list/funding-asset-list.component';
 
 /** mempool's router-prefix pipe; identity here, the funding panel only reads the link target. */
 @Pipe({ name: 'relativeUrl' })
@@ -87,7 +89,7 @@ describe('Cat21MintComponent funding causes (real ordpool-sdk)', () => {
     if (scan) { net.scans.set(outpointOf(coin), scan); }
     net.install();
     TestBed.configureTestingModule({
-      declarations: [Cat21MintComponent],
+      declarations: [Cat21MintComponent, FundingAssetListComponent],
       imports: [CommonModule, ReactiveFormsModule, FormsModule, RelativeUrlStubPipe],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
@@ -134,6 +136,24 @@ describe('Cat21MintComponent funding causes (real ordpool-sdk)', () => {
 
     it('justifies the block: the warning names what the coin carries', () => {
       expect(textOf(q('[data-testid="funding-warning-assets"]'))).toBe(`Inscription: ${INSCRIPTION_ID}`);
+    });
+
+    // The one-address branch of the notice (audit F3). "Use anyway" resolves the
+    // pick to asset-notice on this wallet too, and there the separate-address
+    // reassurance is false: the ordinals share the spending address.
+    it('after "Use anyway" the notice says the ordinals share the spending address, never that they are separate', async () => {
+      const useAnyway = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((b) => textOf(b) === 'Use anyway');
+      if (!useAnyway) { throw new Error('no "Use anyway" button on the flagged coin'); }
+      useAnyway.click();
+      await settle(() => fixture.detectChanges(), () => component.fundingCta().kind === 'notice');
+
+      const notice = q('[data-testid="funding-asset-notice"]');
+      expect(textOf(q('[data-testid="funding-notice-one-address"]'))).toBe(
+        'This wallet keeps your ordinals on the same address as your spending money, so read what the coin holds before you mint:',
+      );
+      expect(textOf(notice)).not.toContain('separate payment address');
+      expect(q('[data-testid="funding-notice-separate-address"]')).toBeNull();
+      expect(textOf(notice?.querySelector('[data-testid="funding-asset-inscriptions"]') ?? null)).toBe(`Inscription: ${INSCRIPTION_ID}`);
     });
 
     it('does not mark the blocked coin as recommended, nor price it as the total', () => {
@@ -233,6 +253,16 @@ describe('Cat21MintComponent funding causes (real ordpool-sdk)', () => {
       expect(textOf(q('[data-testid="mint-total-cost"]'))).toMatch(TOTAL_LINE);
       expect(mintButton().disabled).toBe(false);
     });
+
+    // The separate-address branch of the notice (audit F3).
+    it('asset-notice on a separate-address wallet keeps the reassurance and names the coin\'s assets', async () => {
+      await boot(separateAddressWallet(), electrsUtxo('f', COVERING_SCANNED), inscribedOutputFixture(INSCRIPTION_ID));
+      expect(textOf(q('[data-testid="funding-notice-separate-address"]'))).toBe(
+        'Your wallet keeps a separate payment address, so this is usually safe, but you should know what the coin holds before you mint:',
+      );
+      expect(q('[data-testid="funding-notice-one-address"]')).toBeNull();
+      expect(textOf(q('[data-testid="funding-asset-notice"] [data-testid="funding-asset-inscriptions"]'))).toBe(`Inscription: ${INSCRIPTION_ID}`);
+    });
   });
 
   describe('asset-notice proceeds: Mint spends the coin the notice names', () => {
@@ -257,6 +287,30 @@ describe('Cat21MintComponent funding causes (real ordpool-sdk)', () => {
       await settle(() => fixture.detectChanges(), () => component.mintCat21Success() !== undefined);
       expect(component.mintCat21Success()).toEqual({ txId: minted.id });
       expect(textOf(q('.alert.alert-success'))).toContain('Your CAT-21 transaction has now been submitted to the mempool.');
+    });
+  });
+  // The picker row names each flagged asset by the identifier its owner knows
+  // and links where it resolves (audit F2, FAMILY_UX): cats by a count plus
+  // their cat21.space sat page, a rare sat by its sat number linked the same way.
+  // The expected sat numbers are read off the SDK fixtures, never retyped.
+  describe('the picker row links what a flagged coin carries', () => {
+    it('a cat coin links the cat21.space page of the sat its cats sit on', async () => {
+      const scan = catOutputFixture();
+      await boot(oneAddressWallet(), electrsUtxo('d', COVERING_SCANNED), scan);
+      const link = q('[data-testid="utxo-cat-sat-link"]');
+      expect(link?.getAttribute('href')).toBe(cat21SatUrl(scan.cat21Ord.sat_ranges[0][0]));
+      expect(link?.getAttribute('target')).toBe('_blank');
+      expect(link?.getAttribute('rel')).toBe('noopener');
+    });
+
+    it('a rare-sat coin links the sat by its number', async () => {
+      const scan = rareSatOutputFixture();
+      await boot(oneAddressWallet(), electrsUtxo('e', COVERING_SCANNED), scan);
+      const sat = scan.ord.sat_ranges[0][0];
+      const link = q('[data-testid="utxo-rare-sat-link"]');
+      expect(link?.getAttribute('href')).toBe(cat21SatUrl(sat));
+      expect(textOf(link)).toBe(`sat ${sat.toLocaleString('en-US')}`);
+      expect(link?.getAttribute('rel')).toBe('noopener');
     });
   });
 });

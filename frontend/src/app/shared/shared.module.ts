@@ -177,6 +177,7 @@ import { WalletConnectComponent } from '@components/_ordpool/wallet-connect/wall
 import { Cat21MintComponent } from '@components/_ordpool/cat21-mint/cat21-mint.component';
 import { PsbtExportPromptComponent } from '@components/_ordpool/psbt-export-prompt/psbt-export-prompt.component';
 import { InscribeMintComponent } from '@components/_ordpool/inscribe-mint/inscribe-mint.component';
+import { FundingAssetListComponent } from '@components/_ordpool/funding-asset-list/funding-asset-list.component';
 import { FamilyFooterComponent } from '@components/_ordpool/family-footer/family-footer.component';
 import { PreviewViewerComponent } from '@components/_ordpool/digital-artifact-viewer/preview-viewer/preview-viewer.component';
 import { SafeResourceUrlPipe } from '@components/_ordpool/safe-url.pipe';
@@ -345,6 +346,7 @@ import { HighlightModule } from 'ngx-highlightjs';
     Cat21MintComponent,
     PsbtExportPromptComponent,
     InscribeMintComponent,
+    FundingAssetListComponent,
     FamilyFooterComponent,
     CounterpartyViewerComponent,
     StampViewerComponent,

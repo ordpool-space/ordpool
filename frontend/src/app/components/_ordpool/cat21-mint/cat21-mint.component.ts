@@ -10,6 +10,7 @@ import { SeoService } from '../../../services/seo.service';
 import { PsbtExportPromptService } from '../psbt-export-prompt/psbt-export-prompt.service';
 import { runeLabel } from '../rune-label.helper';
 import { RuneEtchingResolverService } from '../rune-etching-resolver.service';
+import { cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
 
 export interface ViableSimulation {
   /** The mint simulation for this coin; null when the coin can't fund the mint
@@ -131,14 +132,13 @@ export class Cat21MintComponent implements OnInit {
   readonly cat21OrdReviewBase = this.config.cat21OrdApiUrl;
 
   /**
-   * cat21.space sat-page link for the cats on a funding UTXO. All cats at an
-   * outpoint share offset 0, so one sat page lists every one and shows where
-   * each sits now. The mint tx would mislead here: it shows where a cat
-   * started, not where it is after a transfer.
+   * cat21.space sat-page link, for the cats and for a rare sat on a funding
+   * UTXO. All cats at an outpoint share offset 0, so one sat page lists every
+   * one and shows where each sits now. The mint tx would mislead here: it shows
+   * where a cat started, not where it is after a transfer. A rare sat is
+   * identified by its sat number, which the same page resolves.
    */
-  catSatLink(catSat: number): string {
-    return `https://cat21.space/sat/${catSat}`;
-  }
+  readonly satUrl = cat21SatUrl;
 
   /** Auto-scan threshold echoed into the template for the "Scan anyway" hint. */
   readonly autoScanThreshold = AUTO_SCAN_MAX_VALUE_SAT;

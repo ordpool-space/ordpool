@@ -21,6 +21,7 @@ import {
   separateAddressLeatherWallet, settle, textOf,
 } from '../funding-panel.spec-harness';
 import { InscribeMintComponent } from './inscribe-mint.component';
+import { FundingAssetListComponent } from '../funding-asset-list/funding-asset-list.component';
 
 /** mempool's router-prefix pipe; identity here, the funding panel only reads the link target. */
 @Pipe({ name: 'relativeUrl' })
@@ -60,7 +61,7 @@ describe('InscribeMintComponent dropped selection (real ordpool-sdk)', () => {
     for (const c of coins) { net.scans.set(outpointOf(c), cleanOutputFixture()); }
     net.install();
     TestBed.configureTestingModule({
-      declarations: [InscribeMintComponent],
+      declarations: [InscribeMintComponent, FundingAssetListComponent],
       imports: [CommonModule, ReactiveFormsModule, FormsModule, RelativeUrlStubPipe],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [

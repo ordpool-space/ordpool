@@ -8,6 +8,7 @@ import { AUTO_SCAN_MAX_VALUE_SAT, BITCOIN_MIN_RELAY_FEE_SAT_PER_VBYTE, Cat21Serv
 import { bitcoinNetwork, cat21Config, fundingContentScan } from '@app/services/ordinals/sdk-tokens';
 
 import { environment } from '../../../../environments/environment';
+import { cat21SatUrl } from '../funding-asset-list/funding-asset-list.component';
 
 import { StateService } from '../../../services/state.service';
 import { SeoService } from '../../../services/seo.service';
@@ -1738,6 +1739,15 @@ export class InscribeMintComponent implements OnInit {
   runeTxEtching(name: string): string | null {
     return this.runeResolver.resolved().get(name) ?? null;
   }
+
+  /**
+   * cat21.space sat-page link, for the cats and for a rare sat on a funding
+   * UTXO. All cats at an outpoint share offset 0, so one sat page lists every
+   * one and shows where each sits now. The mint tx would mislead here: it shows
+   * where a cat started, not where it is after a transfer. A rare sat is
+   * identified by its sat number, which the same page resolves.
+   */
+  readonly satUrl = cat21SatUrl;
 
   bucketTooltip(bucket: UtxoScanBucket): string {
     switch (bucket) {
