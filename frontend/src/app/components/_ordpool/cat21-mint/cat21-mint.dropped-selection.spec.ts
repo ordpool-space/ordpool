@@ -250,6 +250,50 @@ describe('Cat21MintComponent dropped selection (real ordpool-sdk)', () => {
     });
   });
 
+  // A coin pinned while its scan had failed, whose row "Retry scan" then finds
+  // an inscription. The picker's own scan must make the orchestrator decide
+  // again; a stale 'failed' verdict would keep honouring the pin, and the click
+  // could spend an inscription nobody was shown.
+  describe('a pinned coin whose failed scan is retried from its row', () => {
+    /** The labelled button on coin's row, or undefined while the row is not rendered (the picker hides during a UTXO re-read). */
+    const rowButton = (coin: TxnOutput, label: string): HTMLButtonElement | undefined => {
+      const el = all('.shape-border').find((r) => textOf(r).includes(`UTXO ${outpointOf(coin)}`));
+      return el ? Array.from(el.querySelectorAll('button')).find((b) => textOf(b) === label) : undefined;
+    };
+
+    beforeEach(async () => {
+      await boot([small, large]);
+      net.scans.set(outpointOf(small), 'ord-unavailable');
+      TestBed.inject(UtxoContentScanner).reset();
+      component.retryFundingScan();
+      await settle(() => fixture.detectChanges(), () => rowButton(small, 'Retry scan') !== undefined);
+      await pick(small);
+      expect(pickedRows()).toEqual([outpointOf(small)]);
+
+      net.scans.set(outpointOf(small), inscribedOutputFixture());
+      const retry = rowButton(small, 'Retry scan');
+      if (!retry) { throw new Error('no Retry scan on the pinned coin'); }
+      retry.click();
+      await settle(() => fixture.detectChanges(), () => component.droppedSelection()?.reason === 'contents-changed');
+    });
+
+    it('drops the pin as contents-changed and names it', () => {
+      expect(q('[data-testid="funding-dropped-selection"]')?.getAttribute('data-reason')).toBe('contents-changed');
+      expect(textOf(q('[data-testid="funding-dropped-outpoint"]'))).toBe(outpointOf(small));
+      expect(pickedRows()).toEqual([]);
+    });
+
+    it('the next click signs nothing and asks again', async () => {
+      mintButton().click();
+      await settle(() => fixture.detectChanges(), () => component.fundingReconfirm() !== null);
+      expect(leather.requests).toEqual([]);
+      expect(net.broadcasts).toEqual([]);
+      expect(textOf(q('[data-testid="cat21-mint-funding-reconfirm"]'))).toContain(
+        `The selected funding UTXO ${outpointOf(small)} now carries assets that were not shown when it was selected.`,
+      );
+    });
+  });
+
   describe('below-requirement: a raised fee rate leaves the picked coin short', () => {
     beforeEach(async () => {
       await boot([small, large]);
